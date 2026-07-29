@@ -2,6 +2,13 @@
 
 All notable changes to this repository are documented here using Keep a Changelog conventions and Semantic Versioning.
 
+## [Unreleased]
+
+### Documentation
+
+- Clarified that `v0.1.0` remains documentation-only and no native client is implemented.
+- Added the suite repository map and a release-notes index.
+
 ## [0.1.0] - 2026-07-28
 
 ### Added
