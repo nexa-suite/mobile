@@ -6,11 +6,11 @@
 
 Repository reserved for future native Nexa buyer and cold-chain field-operation clients.
 
-[![Status: Planned](https://img.shields.io/badge/status-planned-64748B?style=flat-square)](https://github.com/nexa-suite/mobile) [![Documentation release v0.1.0](https://img.shields.io/badge/release-v0.1.0-2563EB?style=flat-square)](https://github.com/nexa-suite/mobile/releases/tag/v0.1.0)
+[![Status: Planned](https://img.shields.io/badge/status-planned-64748B?style=flat-square)](https://github.com/nexa-suite/mobile) [![Documentation release v0.1.1](https://img.shields.io/badge/release-v0.1.1-2563EB?style=flat-square)](https://github.com/nexa-suite/mobile/releases/tag/v0.1.1)
 
 [Changelog](./CHANGELOG.md) · [Release notes](./docs/releases/) · [Contributing](./.github/CONTRIBUTING.md) · [Security](./.github/SECURITY.md)
 
-**Current repository:** Mobile · **Current release:** `v0.1.0`
+**Current repository:** Mobile · **Current release:** `v0.1.1`
 
 [Website](https://github.com/nexa-suite/website) · [Platform](https://github.com/nexa-suite/platform) · [Portal](https://github.com/nexa-suite/portal) · [API](https://github.com/nexa-suite/api) · [Mobile](https://github.com/nexa-suite/mobile)
 
@@ -20,16 +20,16 @@ Repository reserved for future native Nexa buyer and cold-chain field-operation 
 
 ## Current status
 
-`v0.1.0` is a documentation-only repository foundation. No Android, iOS, Kotlin Multiplatform, Flutter or SwiftUI application is implemented, and no mobile build or runtime command exists.
+`v0.1.1` is a documentation-only repository map update. No Android, iOS, Kotlin Multiplatform, Flutter or SwiftUI application is implemented, and no mobile build or runtime command exists.
 
 ## Product boundaries
 
 ```mermaid
 flowchart LR
-    Website["Website<br/>Static public site<br/>v0.1.0"]
-    Platform["Platform<br/>Angular shell<br/>v0.2.1"]
-    Portal["Buyer Portal<br/>Angular shell<br/>v0.2.1"]
-    API["API<br/>Spring Boot foundation<br/>v0.3.0"]
+    Website["Website<br/>Static public site<br/>v1.0.0"]
+    Platform["Platform<br/>Angular shell<br/>v0.3.0"]
+    Portal["Buyer Portal<br/>Angular shell<br/>v0.3.0"]
+    API["API<br/>Catalog query contract<br/>v0.4.0"]
 
     Website -. "product navigation" .-> Platform
     Website -. "product navigation" .-> Portal
@@ -45,11 +45,11 @@ Mobile is deliberately absent from the implemented runtime. Its future clients w
 
 | Repository | Current release | Responsibility | Evidence status |
 |---|---:|---|---|
-| [Website](https://github.com/nexa-suite/website) | `v0.1.0` | Static public product discovery | Released static site |
-| [Platform](https://github.com/nexa-suite/platform) | `v0.2.1` | Internal operations shell | Angular shell |
-| [Portal](https://github.com/nexa-suite/portal) | `v0.2.1` | Buyer self-service shell | Angular shell |
-| [API](https://github.com/nexa-suite/api) | `v0.3.0` | Business and integration authority | Catalog domain foundation |
-| **Mobile** | **`v0.1.0`** | Future native clients | Documentation-only |
+| [Website](https://github.com/nexa-suite/website) | `v1.0.0` | Static public product discovery | Released static site |
+| [Platform](https://github.com/nexa-suite/platform) | `v0.3.0` | Internal operations shell | Angular shell |
+| [Portal](https://github.com/nexa-suite/portal) | `v0.3.0` | Buyer self-service shell | Angular shell |
+| [API](https://github.com/nexa-suite/api) | `v0.4.0` | Business and integration authority | Catalog query contract |
+| **Mobile** | **`v0.1.1`** | Future native clients | Documentation-only |
 
 ## Planned boundary
 
