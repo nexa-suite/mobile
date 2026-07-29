@@ -4,6 +4,7 @@ Release notes are scoped to this documentation-only repository. They do not repr
 
 | Release | Summary |
 |---|---|
+| [v0.1.1](./v0.1.1.md) | Suite map and documentation-only release boundary |
 | [v0.1.0](./v0.1.0.md) | Repository foundation and native-client boundaries |
 
-The current tagged release is `v0.1.0`. Unreleased documentation changes are tracked in the [changelog](../../CHANGELOG.md) and are not a release or tag.
+The current release is `v0.1.1`. It remains documentation-only; no native client or build is claimed.
