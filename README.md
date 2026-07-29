@@ -4,100 +4,85 @@
 
 # Nexa Mobile
 
-Repository reserved for future native Nexa mobile clients and cold-chain field-operation experiences.
+Repository reserved for future native Nexa buyer and cold-chain field-operation clients.
 
-[![Status: Planned](https://img.shields.io/badge/status-planned-64748B?style=flat-square)](https://github.com/nexa-suite/mobile) [![Native Clients](https://img.shields.io/badge/clients-native-2563EB?style=flat-square)](https://github.com/nexa-suite/mobile) [![Repository Foundation v0.1.0](https://img.shields.io/badge/repository%20foundation-v0.1.0-2A67D9?style=flat-square)](https://github.com/nexa-suite/mobile/releases/tag/v0.1.0) [![Latest release](https://img.shields.io/github/v/release/nexa-suite/mobile?style=flat-square&label=latest%20release)](https://github.com/nexa-suite/mobile/releases/latest)
+[![Status: Planned](https://img.shields.io/badge/status-planned-64748B?style=flat-square)](https://github.com/nexa-suite/mobile) [![Documentation release v0.1.0](https://img.shields.io/badge/release-v0.1.0-2563EB?style=flat-square)](https://github.com/nexa-suite/mobile/releases/tag/v0.1.0)
 
-[Latest Release](https://github.com/nexa-suite/mobile/releases/latest) · [Changelog](./CHANGELOG.md) · [Contributing](./.github/CONTRIBUTING.md) · [Security](./.github/SECURITY.md)
+[Changelog](./CHANGELOG.md) · [Release notes](./docs/releases/) · [Contributing](./.github/CONTRIBUTING.md) · [Security](./.github/SECURITY.md)
 
-**Current repository:** Mobile
+**Current repository:** Mobile · **Current release:** `v0.1.0`
 
 [Website](https://github.com/nexa-suite/website) · [Platform](https://github.com/nexa-suite/platform) · [Portal](https://github.com/nexa-suite/portal) · [API](https://github.com/nexa-suite/api) · [Mobile](https://github.com/nexa-suite/mobile)
 
 </div>
 
-## Overview
+---
 
-Nexa Mobile is one product repository reserved for future native buyer and field-operation clients. No client application has been released.
+## Current status
 
-## Nexa Suite Architecture
+`v0.1.0` is a documentation-only repository foundation. No Android, iOS, Kotlin Multiplatform, Flutter or SwiftUI application is implemented, and no mobile build or runtime command exists.
+
+## Product boundaries
 
 ```mermaid
 flowchart LR
-    Visitor["Public visitor"] --> Website["Website<br/>Public discovery"]
-    Website --> Platform["Platform<br/>Internal operations"]
-    Website --> Portal["Buyer Portal<br/>B2B self-service"]
-    InternalUsers["Sales · Warehouse · Logistics · Owner"] --> Platform
-    Buyer["B2B Buyer"] --> Portal
-    Platform --> API["API<br/>Business authority"]
-    Portal --> API
-    Mobile["Mobile<br/>Future native clients"] -. planned .-> API
+    Website["Website<br/>Static public site<br/>v0.1.0"]
+    Platform["Platform<br/>Angular shell<br/>v0.2.1"]
+    Portal["Buyer Portal<br/>Angular shell<br/>v0.2.1"]
+    API["API<br/>Spring Boot foundation<br/>v0.3.0"]
+
+    Website -. "product navigation" .-> Platform
+    Website -. "product navigation" .-> Portal
+    Platform -. "future approved HTTP contract" .-> API
+    Portal -. "future approved HTTP contract" .-> API
 ```
 
-## Repository Map
+Mobile is deliberately absent from the implemented runtime. Its future clients will consume approved API contracts and keep client models separate from backend domain code. PostgreSQL, AI, IoT and cloud services are outside this repository foundation.
 
-<table>
-  <tr>
-    <td width="50%"><h3>Website</h3><p>Public commercial discovery entry point.</p><p>Repository foundation · v0.1.0.</p><p><a href="https://github.com/nexa-suite/website">Repository</a></p></td>
-    <td width="50%"><h3>Platform</h3><p>Internal operations for Sales, Warehouse, Logistics, Company Ownership and Administration.</p><p>Angular · v0.2.1.</p><p><a href="https://github.com/nexa-suite/platform">Repository</a></p></td>
-  </tr>
-  <tr>
-    <td width="50%"><h3>Buyer Portal</h3><p>Buyer-facing catalog, requests, orders and delivery visibility.</p><p>Angular · v0.2.1.</p><p><a href="https://github.com/nexa-suite/portal">Repository</a></p></td>
-    <td width="50%"><h3>API</h3><p>Business and integration authority.</p><p>Java 26 / Spring Boot 4.1 · v0.3.0.</p><p><a href="https://github.com/nexa-suite/api">Repository</a></p></td>
-  </tr>
-  <tr>
-    <td width="50%"><h3><b>Mobile</b></h3><p>Future native buyer and field-operation clients.</p><p>Planned · v0.1.0.</p><p><a href="https://github.com/nexa-suite/mobile">Current repository</a></p></td>
-    <td width="50%"></td>
-  </tr>
-</table>
+![Nexa Suite repository map](./docs/assets/repository-map/nexa-suite-map.svg)
 
-## Role in the Ecosystem
+## Repository map
 
-Mobile will consume API contracts shared with web clients. It will not share Java backend domain code or bypass API authorization.
+| Repository | Current release | Responsibility | Evidence status |
+|---|---:|---|---|
+| [Website](https://github.com/nexa-suite/website) | `v0.1.0` | Static public product discovery | Released static site |
+| [Platform](https://github.com/nexa-suite/platform) | `v0.2.1` | Internal operations shell | Angular shell |
+| [Portal](https://github.com/nexa-suite/portal) | `v0.2.1` | Buyer self-service shell | Angular shell |
+| [API](https://github.com/nexa-suite/api) | `v0.3.0` | Business and integration authority | Catalog domain foundation |
+| **Mobile** | **`v0.1.0`** | Future native clients | Documentation-only |
 
-## Scope
+## Planned boundary
 
-- One product repository for future native clients.
-- Planned Kotlin and SwiftUI implementations.
-- Future buyer, Warehouse, Logistics, Dispatch and cold-chain field operations.
-- No Flutter decision has been made.
-- No Android, iOS or cross-platform project exists in this release.
+- Future native buyer and field-operation clients.
+- Future Warehouse, Logistics and Dispatch workflows.
+- Kotlin and SwiftUI remain options; no technology has been selected.
+- API authorization and domain rules remain owned by the backend bounded contexts.
+- Client code must not become a second business authority.
 
-## Architecture
+## Tech stack
 
-Future clients will map explicit API contracts to client-owned models. Domain rules remain owned by API bounded contexts; client code will not become a second business authority.
+No mobile technology is selected for implementation. Flutter is not an implementation decision in this repository.
 
-## Tech Stack
+## Getting started
 
-Kotlin and SwiftUI are planned options. No mobile technology has been selected for implementation.
+No application setup, dependency installation or runtime command is provided. This repository contains documentation and release guidance only.
 
-## Getting Started
-
-No application setup or runtime command is provided. This release contains repository documentation only.
-
-## Available Commands
-
-There is no application build or runtime command in this repository foundation.
-
-## Project Structure
+## Project structure
 
 ```text
 README.md
 CHANGELOG.md
 docs/assets/nexa.svg
+docs/assets/repository-map/nexa-suite-map.svg
 docs/releases/
 .github/
 ```
 
 ## Documentation
 
-- [Release notes](./docs/releases/)
+- [Release notes index](./docs/releases/)
 - [Release policy](./.github/RELEASE_POLICY.md)
 
-## Current Release
+## Next decision gate
 
-v0.1.0 is a repository documentation foundation. No runtime implementation has been released.
-
-## Roadmap
-
-Define native client ownership, select implementation technology, map approved API contracts and validate field workflows before creating a project.
+Before creating a client project, approve ownership, target workflows, API contracts, identity and tenant boundaries, offline requirements and device validation. Do not infer implementation from this repository's roadmap.
