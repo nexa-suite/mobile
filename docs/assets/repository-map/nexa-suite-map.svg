@@ -11,19 +11,19 @@
   <text x="80" y="226" fill="#64748b" font-family="Arial, sans-serif" font-size="14">Public product discovery</text>
   <rect x="370" y="136" width="260" height="112" rx="16" fill="#fff" stroke="#0891b2" stroke-width="3"/>
   <text x="394" y="174" fill="#0e7490" font-family="Arial, sans-serif" font-size="21" font-weight="700">Platform</text>
-  <text x="394" y="202" fill="#334155" font-family="Arial, sans-serif" font-size="16">v0.3.0 · Angular 22 shell</text>
+  <text x="394" y="202" fill="#334155" font-family="Arial, sans-serif" font-size="16">v0.7.0 · published application surface</text>
   <text x="394" y="226" fill="#64748b" font-family="Arial, sans-serif" font-size="14">Internal /overview surface</text>
   <rect x="684" y="136" width="260" height="112" rx="16" fill="#fff" stroke="#0891b2" stroke-width="3"/>
   <text x="708" y="174" fill="#0e7490" font-family="Arial, sans-serif" font-size="21" font-weight="700">Buyer Portal</text>
-  <text x="708" y="202" fill="#334155" font-family="Arial, sans-serif" font-size="16">v0.3.0 · Angular 22 shell</text>
+  <text x="708" y="202" fill="#334155" font-family="Arial, sans-serif" font-size="16">v0.7.0 · published application surface</text>
   <text x="708" y="226" fill="#64748b" font-family="Arial, sans-serif" font-size="14">Buyer /home surface</text>
   <rect x="213" y="320" width="574" height="116" rx="16" fill="#eff6ff" stroke="#1d4ed8" stroke-width="3"/>
   <text x="238" y="358" fill="#1d4ed8" font-family="Arial, sans-serif" font-size="21" font-weight="700">API</text>
-  <text x="238" y="387" fill="#334155" font-family="Arial, sans-serif" font-size="16">v0.4.0 · Java 26 · Spring Boot 4.1.0</text>
+  <text x="238" y="387" fill="#334155" font-family="Arial, sans-serif" font-size="16">v0.8.0 · Java 25 · Spring Boot 4.1.0</text>
   <text x="238" y="412" fill="#64748b" font-family="Arial, sans-serif" font-size="14">Catalog query contract</text>
   <rect x="56" y="474" width="888" height="48" rx="12" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2" stroke-dasharray="8 6"/>
   <text x="80" y="504" fill="#475569" font-family="Arial, sans-serif" font-size="15">Mobile v0.1.1 · documentation-only · future native clients · not implemented</text>
   <path d="M316 192 H370 M630 192 H684 M500 248 V320" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="7 6"/>
   <path d="M814 248 C814 280 700 292 650 320" fill="none" stroke="#1d4ed8" stroke-width="2" stroke-dasharray="7 6"/>
-  <text x="56" y="286" fill="#64748b" font-family="Arial, sans-serif" font-size="13">Dashed lines: product boundary or future approved contract.</text>
+  <text x="56" y="286" fill="#64748b" font-family="Arial, sans-serif" font-size="13">Dashed lines: public navigation or published application/API integration evidence.</text>
 </svg>
