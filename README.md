@@ -27,17 +27,17 @@ Repository reserved for future native Nexa buyer and cold-chain field-operation 
 ```mermaid
 flowchart LR
     Website["Website<br/>Static public site<br/>v1.0.0"]
-    Platform["Platform<br/>Angular shell<br/>v0.3.0"]
-    Portal["Buyer Portal<br/>Angular shell<br/>v0.3.0"]
-    API["API<br/>Catalog query contract<br/>v0.4.0"]
+    Platform["Platform<br/>Published application surface<br/>v0.7.0"]
+    Portal["Buyer Portal<br/>Published application surface<br/>v0.7.0"]
+    API["API<br/>Java 25 · Spring Boot 4.1.0<br/>v0.8.0"]
 
     Website -. "product navigation" .-> Platform
     Website -. "product navigation" .-> Portal
-    Platform -. "future approved HTTP contract" .-> API
-    Portal -. "future approved HTTP contract" .-> API
+    Platform -. "published application/API integration evidence" .-> API
+    Portal -. "published application/API integration evidence" .-> API
 ```
 
-Mobile is deliberately absent from the implemented runtime. Its future clients will consume approved API contracts and keep client models separate from backend domain code. PostgreSQL, AI, IoT and cloud services are outside this repository foundation.
+Mobile is deliberately absent from the implemented runtime. The Platform and Portal links to API represent published application/API integration evidence, not a deployment claim. Future clients will consume approved API contracts and keep client models separate from backend domain code. PostgreSQL, AI, IoT and cloud services are outside this repository foundation.
 
 ![Nexa Suite repository map](./docs/assets/repository-map/nexa-suite-map.svg)
 
@@ -46,9 +46,9 @@ Mobile is deliberately absent from the implemented runtime. Its future clients w
 | Repository | Current release | Responsibility | Evidence status |
 |---|---:|---|---|
 | [Website](https://github.com/nexa-suite/website) | `v1.0.0` | Static public product discovery | Released static site |
-| [Platform](https://github.com/nexa-suite/platform) | `v0.3.0` | Internal operations shell | Angular shell |
-| [Portal](https://github.com/nexa-suite/portal) | `v0.3.0` | Buyer self-service shell | Angular shell |
-| [API](https://github.com/nexa-suite/api) | `v0.4.0` | Business and integration authority | Catalog query contract |
+| [Platform](https://github.com/nexa-suite/platform) | `v0.7.0` | Internal operations application | Published application surface |
+| [Portal](https://github.com/nexa-suite/portal) | `v0.7.0` | Buyer self-service application | Published application surface |
+| [API](https://github.com/nexa-suite/api) | `v0.8.0` | Business and integration authority | Published API surface |
 | **Mobile** | **`v0.1.1`** | Future native clients | Documentation-only |
 
 ## Planned boundary
