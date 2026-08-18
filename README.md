@@ -1,88 +1,88 @@
 <div align="center">
 
-<img src="./docs/assets/nexa.svg" alt="Nexa" width="250"/>
+<br />
+
+<img src="./docs/assets/nexa.svg" alt="Nexa" width="240" />
 
 # Nexa Mobile
 
-Repository reserved for future native Nexa buyer and cold-chain field-operation clients.
+**Future native runway for buyer and cold-chain field experiences.**
 
-[![Status: Planned](https://img.shields.io/badge/status-planned-64748B?style=flat-square)](https://github.com/nexa-suite/mobile) [![Documentation release v0.1.1](https://img.shields.io/badge/release-v0.1.1-2563EB?style=flat-square)](https://github.com/nexa-suite/mobile/releases/tag/v0.1.1)
+![Status](https://img.shields.io/badge/status-planned-64748B?style=flat-square) ![Documentation](https://img.shields.io/badge/scope=documentation-64748B?style=flat-square) ![Native Runway](https://img.shields.io/badge/native-runway-64748B?style=flat-square)
 
 [Changelog](./CHANGELOG.md) · [Release notes](./docs/releases/) · [Contributing](./.github/CONTRIBUTING.md) · [Security](./.github/SECURITY.md)
-
-**Current repository:** Mobile · **Current release:** `v0.1.1`
-
-[Website](https://github.com/nexa-suite/website) · [Platform](https://github.com/nexa-suite/platform) · [Portal](https://github.com/nexa-suite/portal) · [API](https://github.com/nexa-suite/api) · [Mobile](https://github.com/nexa-suite/mobile)
 
 </div>
 
 ---
 
-## Current status
+## Overview
 
-`v0.1.1` is a documentation-only repository map update. No Android, iOS, Kotlin Multiplatform, Flutter or SwiftUI application is implemented, and no mobile build or runtime command exists.
+Mobile is Architecture Runway, not V1 implementation. Repository contains documentation and release guidance only. No native application is implemented here.
 
-## Product boundaries
+## Related repositories
 
-```mermaid
-flowchart LR
-    Website["Website<br/>Static public site<br/>v1.0.0"]
-    Platform["Platform<br/>Angular shell<br/>v0.3.0"]
-    Portal["Buyer Portal<br/>Angular shell<br/>v0.3.0"]
-    API["API<br/>Catalog query contract<br/>v0.4.0"]
+The organization profile owns the full public ecosystem map. This repository links to adjacent Nexa surfaces without copying their release state.
 
-    Website -. "product navigation" .-> Platform
-    Website -. "product navigation" .-> Portal
-    Platform -. "future approved HTTP contract" .-> API
-    Portal -. "future approved HTTP contract" .-> API
-```
+- [Nexa API](https://github.com/nexa-suite/api) — business and integration backbone.
+- [Nexa Platform](https://github.com/nexa-suite/platform) — internal operational workspace.
+- [Nexa Buyer Portal](https://github.com/nexa-suite/portal) — buyer-facing experience.
+- [Nexa Website](https://github.com/nexa-suite/website) — public product experience.
 
-Mobile is deliberately absent from the implemented runtime. Its future clients will consume approved API contracts and keep client models separate from backend domain code. PostgreSQL, AI, IoT and cloud services are outside this repository foundation.
+## Mobile Runway
 
-![Nexa Suite repository map](./docs/assets/repository-map/nexa-suite-map.svg)
+- Buyer access and purchasing on native clients.
+- Warehouse, Logistics and Dispatch field workflows.
+- Approved offline, identity, tenant and API contract decisions.
+- Client models kept separate from backend domain code.
 
-## Repository map
+No mobile technology has been selected. No runtime, build or production claim is made.
 
-| Repository | Current release | Responsibility | Evidence status |
-|---|---:|---|---|
-| [Website](https://github.com/nexa-suite/website) | `v1.0.0` | Static public product discovery | Released static site |
-| [Platform](https://github.com/nexa-suite/platform) | `v0.3.0` | Internal operations shell | Angular shell |
-| [Portal](https://github.com/nexa-suite/portal) | `v0.3.0` | Buyer self-service shell | Angular shell |
-| [API](https://github.com/nexa-suite/api) | `v0.4.0` | Business and integration authority | Catalog query contract |
-| **Mobile** | **`v0.1.1`** | Future native clients | Documentation-only |
+## Architecture Boundary
 
-## Planned boundary
+Future clients consume approved API contracts. Authorization, tenant scope and business rules remain backend responsibilities. Mobile is deliberately absent from implemented runtime map.
 
-- Future native buyer and field-operation clients.
-- Future Warehouse, Logistics and Dispatch workflows.
-- Kotlin and SwiftUI remain options; no technology has been selected.
-- API authorization and domain rules remain owned by the backend bounded contexts.
-- Client code must not become a second business authority.
+## Technology Stack
 
-## Tech stack
+| Concern | Status |
+| --- | --- |
+| Application framework | Not selected |
+| Native clients | Planned |
+| Backend authority | Nexa API |
+| Current repository role | Documentation and architecture runway |
 
-No mobile technology is selected for implementation. Flutter is not an implementation decision in this repository.
+## Getting Started
 
-## Getting started
+No application setup, dependency installation or runtime command exists yet.
 
-No application setup, dependency installation or runtime command is provided. This repository contains documentation and release guidance only.
+## Repository Structure
 
-## Project structure
-
-```text
-README.md
-CHANGELOG.md
-docs/assets/nexa.svg
-docs/assets/repository-map/nexa-suite-map.svg
-docs/releases/
-.github/
-```
+    README.md
+    CHANGELOG.md
+    docs/assets/nexa.svg
+    docs/releases/
+    .github/
 
 ## Documentation
 
-- [Release notes index](./docs/releases/)
+- [Release notes](./docs/releases/)
 - [Release policy](./.github/RELEASE_POLICY.md)
 
-## Next decision gate
+## Historical provenance
 
-Before creating a client project, approve ownership, target workflows, API contracts, identity and tenant boundaries, offline requirements and device validation. Do not infer implementation from this repository's roadmap.
+Earlier UPC repositories remain evidence only. They do not define current Nexa identity, implementation authority or TARGET architecture.
+
+- [nexa-platform](https://github.com/upc-pre-202610-1asi0730-12242-king/nexa-platform) — predecessor backend and REST API layer.
+- [nexa-webapp](https://github.com/upc-pre-202610-1asi0730-12242-king/nexa-webapp) — historical unified Vue application.
+- [nexa-website](https://github.com/upc-pre-202610-1asi0730-12242-king/nexa-website) — previous public Website lineage.
+- [nexa-ecosystem-report](https://github.com/upc-pre-202610-1asi0730-12242-king/nexa-ecosystem-report) — historical requirements and architecture evidence.
+
+## Security
+
+Do not report vulnerabilities through public issues. Follow the repository [Security Policy](./.github/SECURITY.md).
+
+## Legal
+
+Copyright © 2026 Nexa. All rights reserved. No open-source license is selected by this README.
+
+<div align="center"><br />Nexa · Current product, explicit evidence boundaries</div>
