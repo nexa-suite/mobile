@@ -24,6 +24,15 @@ GitHub Release
 back-merge to develop
 ```
 
+## Release cadence
+
+A merged PR is not automatically a release. Accumulate documentation, feature
+and fix PRs on `develop` while the coherent scope is being assembled. Create a
+release branch only at a real release boundary, then validate and publish one
+consumable milestone. Use release candidates only when final validation needs a
+candidate freeze. Do not publish calendar-driven versions or one stable
+release per implementation PR.
+
 ## Checklist
 
 - [ ] Scope approved.
