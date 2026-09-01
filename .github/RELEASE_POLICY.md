@@ -4,11 +4,21 @@
 
 Nexa repositories version independently using Semantic Versioning. This repository is pre-1.0 and currently publishes documentation foundations only.
 
-Every release requires an annotated and SSH-signed tag, CHANGELOG entry, release notes and a GitHub Release. Published tags are immutable during normal release operations; an explicitly authorized SCM history migration may reissue a tag only when its target commit is preserved and the release record is audited.
+Every release requires an annotated SSH-signed tag, CHANGELOG entry, release notes and a GitHub Release. The tag must pass local and GitHub verification before publication. Published tags are immutable. Do not retag, modify a published version, delete a release or force-push history.
 
 ## Tag signing
 
-Release tags MUST be annotated, signed with the maintainer's registered SSH key, verified locally with `git verify-tag <version>` and shown as `Verified` by GitHub before publication. Configure `tag.gpgSign=true` and `gpg.ssh.allowedSignersFile=.github/release-allowed-signers`; the committed allowlist contains only the public signer identity. The private key remains outside the repository.
+Release tags MUST be annotated, signed with the repository maintainer's
+registered SSH signing key, verified locally with `git verify-tag <version>`
+and shown as `Verified` by GitHub before publication. The private key remains
+outside the repository; `.github/release-allowed-signers` contains only the
+public signer identity.
+
+## Release cadence
+
+A merged PR is not automatically a release. Accumulate documentation and
+future-client runway changes until a coherent milestone exists. Do not claim
+native build, device or runtime verification while no implementation exists.
 
 ## GitFlow
 
@@ -27,15 +37,6 @@ GitHub Release
     ↓
 back-merge to develop
 ```
-
-## Release cadence
-
-A merged PR is not automatically a release. Accumulate documentation, feature
-and fix PRs on `develop` while the coherent scope is being assembled. Create a
-release branch only at a real release boundary, then validate and publish one
-consumable milestone. Use release candidates only when final validation needs a
-candidate freeze. Do not publish calendar-driven versions or one stable
-release per implementation PR.
 
 ## Checklist
 
