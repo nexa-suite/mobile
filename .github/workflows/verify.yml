@@ -33,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           git diff --check
-          git log --format=%s "origin/${GITHUB_BASE_REF}..${GITHUB_SHA}" | while IFS= read -r subject; do
+          git log --no-merges --format=%s "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}" | while IFS= read -r subject; do
             printf '%s\n' "$subject" | grep -Eq '^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([^)]*\))?!?: .+' || {
               echo "Invalid Conventional Commit: $subject"
               exit 1
