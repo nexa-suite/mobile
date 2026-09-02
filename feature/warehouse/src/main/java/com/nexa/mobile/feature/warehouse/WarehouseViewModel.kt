@@ -8,6 +8,7 @@ import com.nexa.mobile.core.network.ApiErrorCategory
 import com.nexa.mobile.core.network.ApiResult
 import com.nexa.mobile.core.network.SkuResolution
 import com.nexa.mobile.core.storage.SessionStore
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -109,7 +110,11 @@ class WarehouseViewModel(
 
         _uiState.update { it.copy(identifier = identifier, status = WarehouseStatus.Resolving) }
         viewModelScope.launch {
-            val session = runCatching { sessionStore.read() }.getOrElse {
+            val session = try {
+                sessionStore.read()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Throwable) {
                 _uiState.update { it.copy(status = WarehouseStatus.Failed(WarehouseFailure.STORAGE)) }
                 return@launch
             }
@@ -118,9 +123,11 @@ class WarehouseViewModel(
                 return@launch
             }
 
-            val result = runCatching {
+            val result = try {
                 configuredResolver.resolve(identifier, session.accessToken)
-            }.getOrElse {
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Throwable) {
                 ApiResult.Failure(
                     ApiError(category = ApiErrorCategory.NETWORK, retryable = true),
                 )

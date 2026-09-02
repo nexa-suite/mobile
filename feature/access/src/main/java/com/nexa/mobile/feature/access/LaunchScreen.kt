@@ -15,6 +15,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -35,12 +36,13 @@ fun LaunchScreen(
     onRetry: () -> Unit = {},
     onSignIn: () -> Unit = {},
     onOpenWarehouse: () -> Unit = {},
+    onLogout: () -> Unit = {},
 ) {
     val message = when (state) {
         LaunchUiState.Initial -> R.string.launch_initial
         LaunchUiState.Loading -> R.string.launch_loading
         LaunchUiState.NoSession -> R.string.launch_no_session
-        LaunchUiState.Confirmed -> R.string.launch_confirmed
+        is LaunchUiState.Confirmed -> R.string.launch_confirmed
         is LaunchUiState.Unavailable -> when (state.failure) {
             LaunchFailure.AUTH_SURFACE_BLOCKED -> R.string.launch_auth_surface_blocked
             LaunchFailure.STORAGE -> R.string.launch_storage_unavailable
@@ -76,10 +78,25 @@ fun LaunchScreen(
                     liveRegion = LiveRegionMode.Polite
                 },
             )
-            Text(
-                text = stringResource(R.string.launch_provisional),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            if (state is LaunchUiState.Confirmed) {
+                Text(
+                    text = stringResource(R.string.launch_confirmed_user, state.context.user.displayName),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = stringResource(
+                        R.string.launch_confirmed_context,
+                        state.context.tenant.tenantSlug,
+                        state.context.workspace.workspaceSlug,
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            } else {
+                Text(
+                    text = stringResource(R.string.launch_provisional),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
 
             if (state == LaunchUiState.Initial || state == LaunchUiState.Loading) {
                 CircularProgressIndicator(
@@ -101,12 +118,18 @@ fun LaunchScreen(
                 }
             }
 
-            if (state == LaunchUiState.Confirmed) {
+            if (state is LaunchUiState.Confirmed) {
                 Button(
                     onClick = onOpenWarehouse,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(text = stringResource(R.string.launch_open_warehouse))
+                }
+                TextButton(
+                    onClick = onLogout,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(text = stringResource(R.string.launch_logout))
                 }
             }
 
@@ -127,7 +150,7 @@ private fun LaunchUiState.statusTone(): NexaStatusTone = when (this) {
     LaunchUiState.Initial,
     LaunchUiState.Loading,
     LaunchUiState.NoSession -> NexaStatusTone.INFO
-    LaunchUiState.Confirmed -> NexaStatusTone.SUCCESS
+    is LaunchUiState.Confirmed -> NexaStatusTone.SUCCESS
     LaunchUiState.Unauthorized -> NexaStatusTone.DANGER
     is LaunchUiState.Unavailable -> if (failure == LaunchFailure.AUTH_SURFACE_BLOCKED) {
         NexaStatusTone.WARNING

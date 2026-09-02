@@ -43,7 +43,7 @@ class LaunchViewModelTest {
 
     @Test
     fun restorationShowsLoadingUntilServerConfirmation() = runTest(dispatcher.scheduler) {
-        val confirmationResult = CompletableDeferred<ApiResult<Unit>>()
+        val confirmationResult = CompletableDeferred<ApiResult<ConfirmedSessionContext>>()
         val viewModel = viewModel(
             confirmation = SessionConfirmation { confirmationResult.await() },
         )
@@ -52,10 +52,48 @@ class LaunchViewModelTest {
         runCurrent()
         assertEquals(LaunchUiState.Loading, viewModel.uiState.value)
 
-        confirmationResult.complete(ApiResult.Success(Unit))
+        confirmationResult.complete(ApiResult.Success(confirmedContext))
         advanceUntilIdle()
 
-        assertEquals(LaunchUiState.Confirmed, viewModel.uiState.value)
+        assertTrue(viewModel.uiState.value is LaunchUiState.Confirmed)
+    }
+
+    @Test
+    fun confirmationPublishesServerAuthoritativePresentationContext() = runTest(dispatcher.scheduler) {
+        val viewModel = viewModel(
+            confirmation = SessionConfirmation {
+                ApiResult.Success(confirmedContext)
+            },
+        )
+
+        viewModel.restore()
+        advanceUntilIdle()
+
+        assertEquals(
+            ConfirmedSessionContext(
+                user = ConfirmedSessionContext.User(
+                    displayName = "Icísa",
+                    email = "icisa@example.test",
+                    preferredLanguage = "es-419",
+                ),
+                tenant = ConfirmedSessionContext.Tenant("icisa"),
+                workspace = ConfirmedSessionContext.Workspace("operations"),
+                roles = setOf("OPERATIONS"),
+                capabilities = setOf("catalog:read", "inventory:read"),
+            ),
+            (viewModel.uiState.value as LaunchUiState.Confirmed).context,
+        )
+    }
+
+    @Test
+    fun restorationStorageFailureFailsClosed() = runTest(dispatcher.scheduler) {
+        val viewModel = viewModel(store = FakeSessionStore(session, failOnRead = true))
+
+        viewModel.restore()
+        advanceUntilIdle()
+
+        assertEquals(LaunchUiState.Unavailable(LaunchFailure.STORAGE), viewModel.uiState.value)
+        assertTrue(viewModel.uiState.value !is LaunchUiState.Confirmed)
     }
 
     @Test
@@ -132,6 +170,69 @@ class LaunchViewModelTest {
     }
 
     @Test
+    fun logoutExecutesOptionalRemoteRevocationBeforeLocalCleanup() = runTest(dispatcher.scheduler) {
+        val store = FakeSessionStore(session)
+        var revoked: SessionMaterial? = null
+        val viewModel = LaunchViewModel(
+            sessionStore = store,
+            sessionRevocation = SessionRevocation {
+                revoked = it
+                ApiResult.Success(Unit)
+            },
+        )
+
+        viewModel.logout()
+        advanceUntilIdle()
+
+        assertEquals(session, revoked)
+        assertTrue(store.clearWasAttempted)
+        assertEquals(LaunchUiState.NoSession, viewModel.uiState.value)
+    }
+
+    @Test
+    fun failedRemoteLogoutStillClearsLocalSession() = runTest(dispatcher.scheduler) {
+        val store = FakeSessionStore(session)
+        val viewModel = LaunchViewModel(
+            sessionStore = store,
+            sessionRevocation = SessionRevocation {
+                ApiResult.Failure(ApiError(category = ApiErrorCategory.NETWORK, retryable = true))
+            },
+        )
+
+        viewModel.logout()
+        advanceUntilIdle()
+
+        assertTrue(store.clearWasAttempted)
+        assertEquals(null, store.read())
+        assertEquals(LaunchUiState.NoSession, viewModel.uiState.value)
+    }
+
+    @Test
+    fun restoreReconfirmsStoredSessionAfterPreviousFailure() = runTest(dispatcher.scheduler) {
+        var confirmations = 0
+        val viewModel = viewModel(
+            confirmation = SessionConfirmation {
+                confirmations += 1
+                if (confirmations == 1) {
+                    ApiResult.Failure(ApiError(category = ApiErrorCategory.UNAUTHORIZED, status = 401))
+                } else {
+                    ApiResult.Success(confirmedContext)
+                }
+            },
+        )
+
+        viewModel.restore()
+        advanceUntilIdle()
+        assertEquals(LaunchUiState.Unauthorized, viewModel.uiState.value)
+
+        viewModel.restore()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value is LaunchUiState.Confirmed)
+        assertEquals(2, confirmations)
+    }
+
+    @Test
     fun logoutStorageFailureDoesNotClaimSessionWasCleared() = runTest(dispatcher.scheduler) {
         val store = FakeSessionStore(session, failOnClear = true)
         val viewModel = viewModel(store = store)
@@ -148,17 +249,21 @@ class LaunchViewModelTest {
 
     private fun viewModel(
         store: FakeSessionStore = FakeSessionStore(session),
-        confirmation: SessionConfirmation = SessionConfirmation { ApiResult.Success(Unit) },
+        confirmation: SessionConfirmation = SessionConfirmation { ApiResult.Success(confirmedContext) },
     ): LaunchViewModel = LaunchViewModel(store, confirmation)
 
     private class FakeSessionStore(
         initial: SessionMaterial?,
+        private val failOnRead: Boolean = false,
         private val failOnClear: Boolean = false,
     ) : SessionStore {
         private var material = initial
         var clearWasAttempted = false
 
-        override suspend fun read(): SessionMaterial? = material
+        override suspend fun read(): SessionMaterial? {
+            if (failOnRead) error("simulated storage read failure")
+            return material
+        }
 
         override suspend fun write(material: SessionMaterial) {
             this.material = material
@@ -172,6 +277,18 @@ class LaunchViewModelTest {
     }
 
     private companion object {
+        val confirmedContext = ConfirmedSessionContext(
+            user = ConfirmedSessionContext.User(
+                displayName = "Icísa",
+                email = "icisa@example.test",
+                preferredLanguage = "es-419",
+            ),
+            tenant = ConfirmedSessionContext.Tenant("icisa"),
+            workspace = ConfirmedSessionContext.Workspace("operations"),
+            roles = setOf("OPERATIONS"),
+            capabilities = setOf("catalog:read", "inventory:read"),
+        )
+
         val session = SessionMaterial(
             accessToken = "access-token-for-test",
             refreshToken = "refresh-token-for-test",

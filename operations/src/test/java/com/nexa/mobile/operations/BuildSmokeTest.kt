@@ -12,15 +12,13 @@ class BuildSmokeTest {
     }
 
     @Test
-    fun nativeAccessConfigurationIsExplicitOrBlank() {
+    fun operationsUsesAcceptedPlatformSurfaceSemantics() {
         assertTrue(
             BuildConfig.NEXA_API_BASE_URL.isBlank() ||
                 BuildConfig.NEXA_API_BASE_URL.startsWith("https://") ||
                 BuildConfig.NEXA_API_BASE_URL.startsWith("http://"),
         )
-        assertTrue(
-            BuildConfig.NEXA_API_SURFACE.isBlank() ||
-                ApiClientSurface.parse(BuildConfig.NEXA_API_SURFACE) != null,
-        )
+        assertEquals("PLATFORM", BuildConfig.NEXA_API_SURFACE)
+        assertEquals(ApiClientSurface.PLATFORM, ApiClientSurface.parse(BuildConfig.NEXA_API_SURFACE))
     }
 }

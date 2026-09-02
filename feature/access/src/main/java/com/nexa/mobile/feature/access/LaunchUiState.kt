@@ -2,6 +2,25 @@ package com.nexa.mobile.feature.access
 
 import com.nexa.mobile.core.network.ApiErrorCategory
 
+/** Server-confirmed access context safe for presentation; opaque IDs excluded. */
+data class ConfirmedSessionContext(
+    val user: User,
+    val tenant: Tenant,
+    val workspace: Workspace,
+    val roles: Set<String> = emptySet(),
+    val capabilities: Set<String> = emptySet(),
+) {
+    data class User(
+        val displayName: String,
+        val email: String,
+        val preferredLanguage: String,
+    )
+
+    data class Tenant(val tenantSlug: String)
+
+    data class Workspace(val workspaceSlug: String)
+}
+
 sealed interface LaunchUiState {
     data object Initial : LaunchUiState
 
@@ -9,7 +28,7 @@ sealed interface LaunchUiState {
 
     data object NoSession : LaunchUiState
 
-    data object Confirmed : LaunchUiState
+    data class Confirmed(val context: ConfirmedSessionContext) : LaunchUiState
 
     data class Unavailable(val failure: LaunchFailure) : LaunchUiState
 

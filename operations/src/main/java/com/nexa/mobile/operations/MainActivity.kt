@@ -11,18 +11,23 @@ import com.nexa.mobile.core.network.ApiClientSurface
 import com.nexa.mobile.core.network.ApiError
 import com.nexa.mobile.core.network.ApiErrorCategory
 import com.nexa.mobile.core.network.ApiResult
+import com.nexa.mobile.core.network.CurrentSession
 import com.nexa.mobile.core.network.NativeAccessClient
+import com.nexa.mobile.core.network.NativeAuthentication
 import com.nexa.mobile.core.network.NativeCatalogClient
 import com.nexa.mobile.core.network.NativeRefreshCredentials
 import com.nexa.mobile.core.storage.KeystoreSessionStore
 import com.nexa.mobile.core.storage.SessionMaterial
 import com.nexa.mobile.core.storage.SessionStore
 import com.nexa.mobile.feature.access.AccessNavigation
+import com.nexa.mobile.feature.access.ConfirmedSessionContext
 import com.nexa.mobile.feature.access.LaunchViewModel
 import com.nexa.mobile.feature.access.SessionConfirmation
+import com.nexa.mobile.feature.access.SessionRevocation
+import com.nexa.mobile.feature.access.RetrySafety
+import com.nexa.mobile.feature.access.SessionRefreshCoordinator
 import com.nexa.mobile.feature.access.SignInGateway
 import com.nexa.mobile.feature.access.SignInViewModel
-import com.nexa.mobile.feature.access.WorkspacePreviewGateway
 import com.nexa.mobile.feature.warehouse.SkuIdentifierResolver
 import com.nexa.mobile.feature.warehouse.WarehouseScreen
 import com.nexa.mobile.feature.warehouse.WarehouseViewModel
@@ -45,7 +50,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private val configuredSurface: ApiClientSurface? by lazy {
-        ApiClientSurface.parse(BuildConfig.NEXA_API_SURFACE)
+        BuildConfig.NEXA_API_SURFACE
+            .takeIf { it == ApiClientSurface.PLATFORM.wireValue }
+            ?.let { ApiClientSurface.PLATFORM }
+    }
+
+    private val sessionRefreshCoordinator: SessionRefreshCoordinator? by lazy {
+        createSessionRefreshCoordinator()
     }
 
     private val launchViewModel: LaunchViewModel by lazy {
@@ -54,6 +65,7 @@ class MainActivity : ComponentActivity() {
             LaunchViewModel.Factory(
                 sessionStore = sessionStore,
                 sessionConfirmation = createSessionConfirmation(),
+                sessionRevocation = createSessionRevocation(),
             ),
         )[LaunchViewModel::class.java]
     }
@@ -67,11 +79,6 @@ class MainActivity : ComponentActivity() {
                         client.signIn(identifier, password, workspaceSlug, surface)
                     }
                 },
-                workspacePreviewGateway = nativeAccessClient?.let { client ->
-                    WorkspacePreviewGateway { workspaceSlug ->
-                        client.workspacePreview(workspaceSlug)
-                    }
-                },
                 surface = configuredSurface,
                 sessionStore = sessionStore,
             ),
@@ -83,8 +90,15 @@ class MainActivity : ComponentActivity() {
             this,
             WarehouseViewModel.Factory(
                 resolver = nativeCatalogClient?.let { client ->
+                    val coordinator = sessionRefreshCoordinator
                     SkuIdentifierResolver { identifier, accessToken ->
-                        client.resolveSku(identifier, accessToken)
+                        if (coordinator == null) {
+                            client.resolveSku(identifier, accessToken)
+                        } else {
+                            coordinator.execute(retrySafety = RetrySafety.SAFE) { currentAccessToken ->
+                                client.resolveSku(identifier, currentAccessToken)
+                            }
+                        }
                     }
                 },
                 sessionStore = sessionStore,
@@ -119,6 +133,7 @@ class MainActivity : ComponentActivity() {
     private fun createSessionConfirmation(): SessionConfirmation? {
         val client = nativeAccessClient ?: return null
         val surface = configuredSurface ?: return null
+        val coordinator = sessionRefreshCoordinator ?: return null
         return SessionConfirmation { session ->
             if (session.surface != surface.wireValue) {
                 ApiResult.Failure(
@@ -128,78 +143,98 @@ class MainActivity : ComponentActivity() {
                     ),
                 )
             } else {
-                confirmOrRefresh(client, sessionStore, session, surface)
+                coordinator.execute(retrySafety = RetrySafety.SAFE) { accessToken ->
+                    when (val confirmation = client.currentSession(accessToken)) {
+                        is ApiResult.Success -> confirmation.value.toConfirmedSessionContext(surface)
+                        is ApiResult.Failure -> confirmation
+                    }
+                }
             }
         }
     }
-}
 
-private suspend fun confirmOrRefresh(
-    client: NativeAccessClient,
-    sessionStore: SessionStore,
-    session: SessionMaterial,
-    surface: ApiClientSurface,
-): ApiResult<Unit> {
-    return when (val confirmation = client.currentSession(session.accessToken)) {
-        is ApiResult.Success -> {
-            if (confirmation.value.surface == surface.wireValue) {
-                ApiResult.Success(Unit)
-            } else {
+    private fun createSessionRefreshCoordinator(): SessionRefreshCoordinator? {
+        val client = nativeAccessClient ?: return null
+        val surface = configuredSurface ?: return null
+        return SessionRefreshCoordinator(sessionStore) { session ->
+            when (val refreshed = client.refresh(
+                NativeRefreshCredentials(
+                    accessToken = session.accessToken,
+                    refreshToken = session.refreshToken,
+                    surface = surface,
+                ),
+            )) {
+                is ApiResult.Success -> ApiResult.Success(refreshed.value.toSessionMaterial())
+                is ApiResult.Failure -> refreshed
+            }
+        }
+    }
+
+    private fun createSessionRevocation(): SessionRevocation? {
+        val client = nativeAccessClient ?: return null
+        val surface = configuredSurface ?: return null
+        return SessionRevocation { session ->
+            if (session.surface != surface.wireValue) {
                 ApiResult.Failure(
                     ApiError(
                         category = ApiErrorCategory.FORBIDDEN,
                         code = "AUTH_SURFACE_MISMATCH",
                     ),
                 )
-            }
-        }
-        is ApiResult.Failure -> {
-            if (confirmation.error.category != ApiErrorCategory.UNAUTHORIZED) {
-                confirmation
             } else {
-                refreshSession(client, sessionStore, session, surface)
+                client.signOut(
+                    NativeRefreshCredentials(
+                        accessToken = session.accessToken,
+                        refreshToken = session.refreshToken,
+                        surface = surface,
+                    ),
+                )
             }
         }
     }
 }
 
-private suspend fun refreshSession(
-    client: NativeAccessClient,
-    sessionStore: SessionStore,
-    session: SessionMaterial,
-    surface: ApiClientSurface,
-): ApiResult<Unit> {
-    val refreshed = client.refresh(
-        NativeRefreshCredentials(
-            accessToken = session.accessToken,
-            refreshToken = session.refreshToken,
-            surface = surface,
-        ),
-    )
-    if (refreshed is ApiResult.Failure) {
-        runCatching { sessionStore.clear() }
-        return refreshed
-    }
+private fun NativeAuthentication.toSessionMaterial(): SessionMaterial = SessionMaterial(
+    accessToken = accessToken,
+    refreshToken = refreshToken,
+    accessTokenExpiresAtEpochSeconds =
+        (System.currentTimeMillis() / 1_000L) + expiresInSeconds,
+    surface = surface.wireValue,
+)
 
-    val authentication = (refreshed as ApiResult.Success).value
-    return runCatching {
-        sessionStore.write(
-            SessionMaterial(
-                accessToken = authentication.accessToken,
-                refreshToken = authentication.refreshToken,
-                accessTokenExpiresAtEpochSeconds =
-                    (System.currentTimeMillis() / 1_000L) + authentication.expiresInSeconds,
-                surface = authentication.surface.wireValue,
+internal fun CurrentSession.toConfirmedSessionContext(
+    expectedSurface: ApiClientSurface,
+): ApiResult<ConfirmedSessionContext> {
+    if (surface != expectedSurface.wireValue) {
+        return ApiResult.Failure(
+            ApiError(
+                category = ApiErrorCategory.FORBIDDEN,
+                code = "AUTH_SURFACE_MISMATCH",
             ),
         )
-        ApiResult.Success(Unit)
-    }.getOrElse {
-        runCatching { sessionStore.clear() }
-        ApiResult.Failure(
+    }
+    if (user.displayName.isBlank() || user.email.isBlank() ||
+        tenant.tenantSlug.isBlank() || workspace.workspaceSlug.isBlank() ||
+        membership.membershipId.isBlank()
+    ) {
+        return ApiResult.Failure(
             ApiError(
                 category = ApiErrorCategory.UNKNOWN,
-                code = "SESSION_STORAGE_UNAVAILABLE",
+                code = "SESSION_CONTEXT_MISSING",
             ),
         )
     }
+    return ApiResult.Success(
+        ConfirmedSessionContext(
+            user = ConfirmedSessionContext.User(
+                displayName = user.displayName,
+                email = user.email,
+                preferredLanguage = user.preferredLanguage,
+            ),
+            tenant = ConfirmedSessionContext.Tenant(tenant.tenantSlug),
+            workspace = ConfirmedSessionContext.Workspace(workspace.workspaceSlug),
+            roles = membership.roles.toSet(),
+            capabilities = membership.permissions.toSet(),
+        ),
+    )
 }
