@@ -6,6 +6,7 @@ import com.nexa.mobile.core.network.ApiErrorCategory
 import com.nexa.mobile.core.network.ApiResult
 import com.nexa.mobile.core.network.AuthenticationSession
 import com.nexa.mobile.core.network.NativeAuthentication
+import com.nexa.mobile.core.network.WorkspacePreview
 import com.nexa.mobile.core.storage.SessionMaterial
 import com.nexa.mobile.core.storage.SessionStore
 import com.nexa.mobile.core.testing.CoroutinesTestRule
@@ -45,6 +46,165 @@ class SignInViewModelTest {
 
         assertEquals(SignInStatus.Blocked, viewModel.formState.value.status)
         assertEquals(0, calls)
+    }
+
+    @Test
+    fun publicWorkspacePreviewWorksWithoutSurfaceAndDoesNotPersistSecretMaterial() = runTest(dispatcher.scheduler) {
+        val previewResult = CompletableDeferred<ApiResult<WorkspacePreview>>()
+        val store = FakeSessionStore()
+        var previewCalls = 0
+        var signInCalls = 0
+        val viewModel = SignInViewModel(
+            gateway = SignInGateway { _, _, _, _ ->
+                signInCalls += 1
+                ApiResult.Success(authentication())
+            },
+            surface = null,
+            sessionStore = store,
+            workspacePreviewGateway = WorkspacePreviewGateway { workspaceSlug ->
+                assertEquals("icisa-test", workspaceSlug)
+                previewCalls += 1
+                previewResult.await()
+            },
+        )
+
+        viewModel.onWorkspaceChanged(" icisa-test ")
+        viewModel.onPasswordChanged("secret-not-persisted")
+        viewModel.submit()
+        runCurrent()
+
+        assertEquals(SignInStatus.Loading, viewModel.formState.value.status)
+        assertEquals(WorkspacePreviewState.Loading, viewModel.formState.value.workspacePreview)
+        assertEquals("", viewModel.formState.value.password)
+        assertEquals(1, previewCalls)
+        assertEquals(0, signInCalls)
+
+        previewResult.complete(ApiResult.Success(workspacePreview()))
+        advanceUntilIdle()
+
+        val ready = viewModel.formState.value.workspacePreview as WorkspacePreviewState.Ready
+        assertEquals(SignInStatus.Idle, viewModel.formState.value.status)
+        assertEquals("icisa-test", ready.workspaceSlug)
+        assertEquals("ICISA", ready.preview.displayName)
+        assertNull(store.material)
+
+        viewModel.onIdentifierChanged("operator@example.test")
+        viewModel.onPasswordChanged("secret-not-persisted")
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(SignInStatus.Blocked, viewModel.formState.value.status)
+        assertEquals("", viewModel.formState.value.password)
+        assertEquals(0, signInCalls)
+        assertNull(store.material)
+    }
+
+    @Test
+    fun recognizedWorkspacePrecedesSignInAndThenStoresOnlyAuthenticatedSession() = runTest(dispatcher.scheduler) {
+        var signInCalls = 0
+        val store = FakeSessionStore()
+        val viewModel = SignInViewModel(
+            gateway = SignInGateway { _, _, _, surface ->
+                signInCalls += 1
+                assertEquals(ApiClientSurface.PLATFORM, surface)
+                ApiResult.Success(authentication())
+            },
+            surface = ApiClientSurface.PLATFORM,
+            sessionStore = store,
+            workspacePreviewGateway = WorkspacePreviewGateway {
+                ApiResult.Success(workspacePreview())
+            },
+        )
+
+        viewModel.onWorkspaceChanged("icisa-test")
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(SignInStatus.Idle, viewModel.formState.value.status)
+        assertEquals(0, signInCalls)
+        viewModel.onIdentifierChanged("operator@example.test")
+        viewModel.onPasswordChanged("transient-password")
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(SignInStatus.Authenticated, viewModel.formState.value.status)
+        assertEquals(1, signInCalls)
+        assertEquals("access-token", store.material?.accessToken)
+    }
+
+    @Test
+    fun unknownWorkspaceRemainsPublicAndNeverCallsSignIn() = runTest(dispatcher.scheduler) {
+        var signInCalls = 0
+        val viewModel = SignInViewModel(
+            gateway = SignInGateway { _, _, _, _ ->
+                signInCalls += 1
+                ApiResult.Success(authentication())
+            },
+            surface = ApiClientSurface.PLATFORM,
+            sessionStore = FakeSessionStore(),
+            workspacePreviewGateway = WorkspacePreviewGateway {
+                ApiResult.Success(
+                    workspacePreview(
+                        recognized = false,
+                        displayName = null,
+                        loginAvailable = false,
+                    ),
+                )
+            },
+        )
+
+        viewModel.onWorkspaceChanged("unknown-workspace")
+        viewModel.submit()
+        advanceUntilIdle()
+
+        val ready = viewModel.formState.value.workspacePreview as WorkspacePreviewState.Ready
+        assertEquals(SignInStatus.Idle, viewModel.formState.value.status)
+        assertEquals(false, ready.preview.recognized)
+        assertEquals(false, ready.preview.loginAvailable)
+        assertEquals(0, signInCalls)
+    }
+
+    @Test
+    fun workspacePreviewFailureMapsToRetryableAccessState() = runTest(dispatcher.scheduler) {
+        val viewModel = SignInViewModel(
+            gateway = null,
+            surface = null,
+            sessionStore = FakeSessionStore(),
+            workspacePreviewGateway = WorkspacePreviewGateway {
+                ApiResult.Failure(ApiError(category = ApiErrorCategory.NETWORK, retryable = true))
+            },
+        )
+        viewModel.onWorkspaceChanged("icisa-test")
+
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(SignInStatus.Idle, viewModel.formState.value.status)
+        assertEquals(
+            WorkspacePreviewState.Failed(WorkspacePreviewFailure.NETWORK),
+            viewModel.formState.value.workspacePreview,
+        )
+    }
+
+    @Test
+    fun changingWorkspaceInvalidatesPreviousPreviewBeforeNextSubmit() = runTest(dispatcher.scheduler) {
+        val viewModel = SignInViewModel(
+            gateway = null,
+            surface = null,
+            sessionStore = FakeSessionStore(),
+            workspacePreviewGateway = WorkspacePreviewGateway {
+                ApiResult.Success(workspacePreview())
+            },
+        )
+        viewModel.onWorkspaceChanged("icisa-test")
+        viewModel.submit()
+        advanceUntilIdle()
+        assertEquals(WorkspacePreviewState.Ready::class, viewModel.formState.value.workspacePreview::class)
+
+        viewModel.onWorkspaceChanged("another-workspace")
+
+        assertEquals(SignInStatus.Idle, viewModel.formState.value.status)
+        assertEquals(WorkspacePreviewState.Idle, viewModel.formState.value.workspacePreview)
     }
 
     @Test
@@ -158,6 +318,18 @@ class SignInViewModelTest {
             membershipId = "membership-1",
             surface = "PLATFORM",
         ),
+    )
+
+    private fun workspacePreview(
+        recognized: Boolean = true,
+        displayName: String? = "ICISA",
+        loginAvailable: Boolean = true,
+    ): WorkspacePreview = WorkspacePreview(
+        recognized = recognized,
+        displayName = displayName,
+        workspaceUrl = "https://icisa.example.test",
+        logoUrl = null,
+        loginAvailable = loginAvailable,
     )
 
     private class FakeSessionStore(

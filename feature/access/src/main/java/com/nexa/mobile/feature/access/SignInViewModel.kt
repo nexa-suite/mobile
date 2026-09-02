@@ -4,9 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.nexa.mobile.core.network.ApiClientSurface
+import com.nexa.mobile.core.network.ApiErrorMapper
 import com.nexa.mobile.core.network.ApiErrorCategory
 import com.nexa.mobile.core.network.ApiResult
 import com.nexa.mobile.core.network.NativeAuthentication
+import com.nexa.mobile.core.network.WorkspacePreview
 import com.nexa.mobile.core.storage.SessionMaterial
 import com.nexa.mobile.core.storage.SessionStore
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,15 +26,29 @@ fun interface SignInGateway {
     ): ApiResult<NativeAuthentication>
 }
 
+fun interface WorkspacePreviewGateway {
+    suspend fun preview(workspaceSlug: String): ApiResult<WorkspacePreview>
+}
+
 /** Owns ephemeral form input and stores credentials only after server success. */
 class SignInViewModel(
     private val gateway: SignInGateway?,
     private val surface: ApiClientSurface?,
     private val sessionStore: SessionStore,
+    private val workspacePreviewGateway: WorkspacePreviewGateway? = null,
 ) : ViewModel() {
     private val _formState = MutableStateFlow(
         SignInFormState(
-            status = if (gateway == null || surface == null) SignInStatus.Blocked else SignInStatus.Idle,
+            status = if (workspacePreviewGateway == null && (gateway == null || surface == null)) {
+                SignInStatus.Blocked
+            } else {
+                SignInStatus.Idle
+            },
+            workspacePreview = if (workspacePreviewGateway == null) {
+                WorkspacePreviewState.NotConfigured
+            } else {
+                WorkspacePreviewState.Idle
+            },
         ),
     )
     val formState: StateFlow<SignInFormState> = _formState.asStateFlow()
@@ -42,7 +58,23 @@ class SignInViewModel(
     }
 
     fun onWorkspaceChanged(value: String) {
-        _formState.update { it.copy(workspaceSlug = value, status = editableStatus(it.status)) }
+        _formState.update { current ->
+            val normalized = value.trim()
+            val preview = when (val currentPreview = current.workspacePreview) {
+                WorkspacePreviewState.NotConfigured -> currentPreview
+                is WorkspacePreviewState.Ready -> if (currentPreview.workspaceSlug == normalized) {
+                    currentPreview
+                } else {
+                    WorkspacePreviewState.Idle
+                }
+                else -> WorkspacePreviewState.Idle
+            }
+            current.copy(
+                workspaceSlug = value,
+                status = editableStatus(current.status),
+                workspacePreview = preview,
+            )
+        }
     }
 
     fun onPasswordChanged(value: String) {
@@ -52,6 +84,13 @@ class SignInViewModel(
     fun submit() {
         val current = _formState.value
         if (current.status is SignInStatus.Blocked || current.status is SignInStatus.Loading) return
+
+        val configuredPreviewGateway = workspacePreviewGateway
+        val normalizedWorkspaceSlug = current.workspaceSlug.trim()
+        if (configuredPreviewGateway != null && !current.canSignIn(normalizedWorkspaceSlug)) {
+            requestWorkspacePreview(configuredPreviewGateway, normalizedWorkspaceSlug)
+            return
+        }
 
         val configuredGateway = gateway
         val configuredSurface = surface
@@ -109,15 +148,75 @@ class SignInViewModel(
         private val gateway: SignInGateway?,
         private val surface: ApiClientSurface?,
         private val sessionStore: SessionStore,
+        private val workspacePreviewGateway: WorkspacePreviewGateway? = null,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass.isAssignableFrom(SignInViewModel::class.java)) {
                 "Unsupported ViewModel: ${modelClass.name}"
             }
-            return SignInViewModel(gateway, surface, sessionStore) as T
+            return SignInViewModel(gateway, surface, sessionStore, workspacePreviewGateway) as T
         }
     }
+
+    private fun requestWorkspacePreview(
+        gateway: WorkspacePreviewGateway,
+        workspaceSlug: String,
+    ) {
+        if (workspaceSlug.isBlank()) {
+            _formState.update {
+                it.copy(
+                    password = "",
+                    status = SignInStatus.Idle,
+                    workspacePreview = WorkspacePreviewState.Failed(WorkspacePreviewFailure.VALIDATION),
+                )
+            }
+            return
+        }
+
+        _formState.update {
+            it.copy(
+                password = "",
+                status = SignInStatus.Loading,
+                workspacePreview = WorkspacePreviewState.Loading,
+            )
+        }
+        viewModelScope.launch {
+            val result = runCatching {
+                gateway.preview(workspaceSlug)
+            }.getOrElse {
+                ApiResult.Failure(ApiErrorMapper.network())
+            }
+            if (_formState.value.workspaceSlug.trim() != workspaceSlug) {
+                _formState.update {
+                    it.copy(
+                        status = SignInStatus.Idle,
+                        workspacePreview = WorkspacePreviewState.Idle,
+                    )
+                }
+                return@launch
+            }
+            when (result) {
+                is ApiResult.Success -> _formState.update {
+                    it.copy(
+                        status = SignInStatus.Idle,
+                        workspacePreview = WorkspacePreviewState.Ready(workspaceSlug, result.value),
+                    )
+                }
+                is ApiResult.Failure -> _formState.update {
+                    it.copy(
+                        status = SignInStatus.Idle,
+                        workspacePreview = WorkspacePreviewState.Failed(result.error.toWorkspacePreviewFailure()),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun SignInFormState.canSignIn(normalizedWorkspaceSlug: String): Boolean {
+    val preview = workspacePreview as? WorkspacePreviewState.Ready ?: return workspacePreview is WorkspacePreviewState.NotConfigured
+    return preview.workspaceSlug == normalizedWorkspaceSlug && preview.preview.recognized && preview.preview.loginAvailable
 }
 
 private fun com.nexa.mobile.core.network.ApiError.toSignInFailure(): SignInFailure = when (category) {
@@ -131,6 +230,19 @@ private fun com.nexa.mobile.core.network.ApiError.toSignInFailure(): SignInFailu
     ApiErrorCategory.STALE,
     ApiErrorCategory.PRECONDITION_REQUIRED,
     ApiErrorCategory.UNKNOWN -> SignInFailure.UNKNOWN
+}
+
+private fun com.nexa.mobile.core.network.ApiError.toWorkspacePreviewFailure(): WorkspacePreviewFailure = when (category) {
+    ApiErrorCategory.VALIDATION -> WorkspacePreviewFailure.VALIDATION
+    ApiErrorCategory.RATE_LIMITED -> WorkspacePreviewFailure.RATE_LIMITED
+    ApiErrorCategory.NETWORK -> WorkspacePreviewFailure.NETWORK
+    ApiErrorCategory.SERVER -> WorkspacePreviewFailure.SERVER
+    ApiErrorCategory.UNAUTHORIZED,
+    ApiErrorCategory.FORBIDDEN,
+    ApiErrorCategory.CONFLICT,
+    ApiErrorCategory.STALE,
+    ApiErrorCategory.PRECONDITION_REQUIRED,
+    ApiErrorCategory.UNKNOWN -> WorkspacePreviewFailure.UNKNOWN
 }
 
 private fun editableStatus(status: SignInStatus): SignInStatus = when (status) {

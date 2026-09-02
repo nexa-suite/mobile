@@ -22,6 +22,7 @@ import com.nexa.mobile.feature.access.LaunchViewModel
 import com.nexa.mobile.feature.access.SessionConfirmation
 import com.nexa.mobile.feature.access.SignInGateway
 import com.nexa.mobile.feature.access.SignInViewModel
+import com.nexa.mobile.feature.access.WorkspacePreviewGateway
 import com.nexa.mobile.feature.warehouse.SkuIdentifierResolver
 import com.nexa.mobile.feature.warehouse.WarehouseScreen
 import com.nexa.mobile.feature.warehouse.WarehouseViewModel
@@ -34,13 +35,13 @@ class MainActivity : ComponentActivity() {
     private val nativeAccessClient: NativeAccessClient? by lazy {
         BuildConfig.NEXA_API_BASE_URL
             .takeIf(String::isNotBlank)
-            ?.let(::NativeAccessClient)
+            ?.let { baseUrl -> runCatching { NativeAccessClient(baseUrl) }.getOrNull() }
     }
 
     private val nativeCatalogClient: NativeCatalogClient? by lazy {
         BuildConfig.NEXA_API_BASE_URL
             .takeIf(String::isNotBlank)
-            ?.let(::NativeCatalogClient)
+            ?.let { baseUrl -> runCatching { NativeCatalogClient(baseUrl) }.getOrNull() }
     }
 
     private val configuredSurface: ApiClientSurface? by lazy {
@@ -64,6 +65,11 @@ class MainActivity : ComponentActivity() {
                 gateway = nativeAccessClient?.let { client ->
                     SignInGateway { identifier, password, workspaceSlug, surface ->
                         client.signIn(identifier, password, workspaceSlug, surface)
+                    }
+                },
+                workspacePreviewGateway = nativeAccessClient?.let { client ->
+                    WorkspacePreviewGateway { workspaceSlug ->
+                        client.workspacePreview(workspaceSlug)
                     }
                 },
                 surface = configuredSurface,

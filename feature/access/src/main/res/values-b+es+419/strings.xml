@@ -21,6 +21,17 @@
     <string name="access_sign_in_subtitle">Usa el transporte API nativo configurado explícitamente. No se infiere ninguna superficie de Operations.</string>
     <string name="access_identifier_label">Identificador</string>
     <string name="access_workspace_label">Slug del workspace</string>
+    <string name="access_workspace_preview_submit">Vista previa del workspace</string>
+    <string name="access_workspace_preview_retry">Reintentar vista previa del workspace</string>
+    <string name="access_workspace_preview_loading">Comprobando workspace</string>
+    <string name="access_workspace_preview_recognized">Workspace reconocido: %1$s. Inicia sesión para continuar.</string>
+    <string name="access_workspace_preview_unknown">Workspace no reconocido. No se muestra contenido protegido.</string>
+    <string name="access_workspace_preview_login_unavailable">Workspace reconocido, pero el inicio de sesión no está disponible. No se muestra contenido protegido.</string>
+    <string name="access_workspace_preview_validation">Ingresa un slug del workspace.</string>
+    <string name="access_workspace_preview_rate_limited">Hubo demasiados intentos de vista previa del workspace. Espera antes de volver a intentar.</string>
+    <string name="access_workspace_preview_network">No se pudo alcanzar la API de vista previa del workspace. Revisa la conexión y vuelve a intentar.</string>
+    <string name="access_workspace_preview_server">La API de vista previa del workspace no está disponible temporalmente. Intenta más tarde.</string>
+    <string name="access_workspace_preview_unknown_error">La respuesta de vista previa del workspace no pudo interpretarse de forma segura.</string>
     <string name="access_password_label">Contraseña</string>
     <string name="access_sign_in_submit">Iniciar sesión</string>
     <string name="access_sign_in_loading">Iniciando sesión</string>

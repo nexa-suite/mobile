@@ -21,6 +21,17 @@
     <string name="access_sign_in_subtitle">Use the explicitly configured native API transport. No Operations surface is inferred.</string>
     <string name="access_identifier_label">Identifier</string>
     <string name="access_workspace_label">Workspace slug</string>
+    <string name="access_workspace_preview_submit">Preview workspace</string>
+    <string name="access_workspace_preview_retry">Retry workspace preview</string>
+    <string name="access_workspace_preview_loading">Checking workspace</string>
+    <string name="access_workspace_preview_recognized">Workspace recognized: %1$s. Sign in to continue.</string>
+    <string name="access_workspace_preview_unknown">Workspace not recognized. No protected content is shown.</string>
+    <string name="access_workspace_preview_login_unavailable">Workspace recognized, but sign-in is unavailable. No protected content is shown.</string>
+    <string name="access_workspace_preview_validation">Enter a workspace slug.</string>
+    <string name="access_workspace_preview_rate_limited">Too many workspace preview attempts. Wait before trying again.</string>
+    <string name="access_workspace_preview_network">The workspace preview API could not be reached. Check the connection and try again.</string>
+    <string name="access_workspace_preview_server">The workspace preview API is temporarily unavailable. Try again later.</string>
+    <string name="access_workspace_preview_unknown_error">The workspace preview response could not be safely understood.</string>
     <string name="access_password_label">Password</string>
     <string name="access_sign_in_submit">Sign in</string>
     <string name="access_sign_in_loading">Signing in</string>
