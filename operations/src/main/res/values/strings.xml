@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Nexa Operations</string>
+    <string name="preview_title">Operations mobile preview</string>
+    <string name="preview_body">Native foundation ready. Connected access and warehouse identification are not enabled yet.</string>
+</resources>
