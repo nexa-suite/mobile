@@ -16,6 +16,8 @@ All notable changes to this repository are documented here using Keep a Changelo
   Keystore-backed session material and localized launch/access states.
 - Added typed API v0.17.0 access/session and SKU-resolution adapters with
   explicit configuration and fail-closed state handling.
+- Wired the public API v0.17.0 workspace-preview preflight before credential
+  entry; unknown or unavailable workspaces remain outside protected content.
 - Added a Warehouse identification preview with CameraX/ML Kit barcode input,
   manual identifier input and server-owned resolution outcomes.
 - Added host/CI/Docker verification commands pinned to the recorded JDK 21,

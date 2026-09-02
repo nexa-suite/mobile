@@ -27,7 +27,8 @@ The implementation is deliberately staged. The current branch includes the
 Operations app shell, typed error mapping, Keystore-backed session storage,
 Navigation 3 launch states, localized access forms, explicit session recovery,
 and a Warehouse identification preview with CameraX, ML Kit barcode decoding,
-manual input and a tagged API resolver adapter. Connected API authentication
+manual input and a tagged API resolver adapter. The public workspace-preview
+preflight is wired before credential entry. Connected API authentication
 remains blocked until the tagged API's Operations `ClientSurface` mapping is
 approved. Live API, camera and physical-device evidence remains unverified. An
 Android API 36 emulator smoke run now verifies APK installation, launcher
@@ -72,6 +73,7 @@ access to `BC-01 Tenant & Access Governance` and product identification to
 | Application framework | Kotlin + Jetpack Compose |
 | Navigation | Navigation 3, typed serializable route keys |
 | Session material | Android Keystore-backed AES/GCM primitive |
+| Access integration | API v0.17.0 public workspace preview before credential entry; live API not evidenced |
 | Warehouse input | CameraX 1.6.1 + bundled ML Kit barcode scanning 17.3.0; emulator app smoke PASS, camera/decoder runtime not evidenced |
 | API evidence | Nexa API `v0.17.0`, read-only |
 | Build baseline | Project JDK 21 (selected and locally verified); AGP 9.0.1 / Gradle 9.1.0 / compile-target SDK 36 |

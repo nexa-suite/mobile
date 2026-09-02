@@ -20,6 +20,9 @@ The connected preview contains typed adapters for the observed contracts:
 - `core/network/NativeAccessClient.kt` models sign-in, refresh, current-session
   and sign-out requests. Its base URL and `ClientSurface` are explicit build
   inputs; the client does not infer a native surface from the app name.
+- The Access preview calls the observed public workspace-preview route before
+  exposing credential fields. Unknown or unavailable workspaces remain public
+  states; no preview response is persisted or treated as authorization.
 - `core/network/NativeCatalogClient.kt` calls the observed SKU resolver with a
   bearer token and preserves the server response outcome without selecting a
   local SKU.
