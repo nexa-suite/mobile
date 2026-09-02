@@ -42,6 +42,15 @@ data class NativeRefreshCredentials(
 )
 
 @Serializable
+data class WorkspacePreview(
+    val recognized: Boolean,
+    val displayName: String? = null,
+    val workspaceUrl: String? = null,
+    val logoUrl: String? = null,
+    val loginAvailable: Boolean,
+)
+
+@Serializable
 data class AuthenticationSession(
     val userId: String,
     val displayName: String,
@@ -102,6 +111,28 @@ class NativeAccessClient(
     private val json: Json = Json { ignoreUnknownKeys = true; explicitNulls = false },
 ) {
     private val baseUrl = normalizeNativeApiBaseUrl(baseUrl)
+
+    suspend fun workspacePreview(workspaceSlug: String): ApiResult<WorkspacePreview> {
+        val normalizedWorkspaceSlug = workspaceSlug.trim()
+        if (normalizedWorkspaceSlug.isBlank()) {
+            return ApiResult.Failure(
+                ApiError(category = ApiErrorCategory.VALIDATION, code = "WORKSPACE_SLUG_REQUIRED"),
+            )
+        }
+
+        val request = HttpRequest(
+            method = "POST",
+            url = endpoint("/api/v1/auth/workspace-previews"),
+            headers = mapOf(
+                "Accept" to "application/json",
+                "Content-Type" to "application/json",
+            ),
+            body = json.encodeToString(WorkspacePreviewRequest.serializer(), WorkspacePreviewRequest(normalizedWorkspaceSlug)),
+        )
+        return execute(request) { response ->
+            json.decodeFromString(WorkspacePreview.serializer(), response.body)
+        }
+    }
 
     suspend fun signIn(
         identifier: String,
@@ -207,6 +238,9 @@ class NativeAccessClient(
         "Content-Type" to "application/json",
         "X-Nexa-Client" to "NATIVE",
     )
+
+    @Serializable
+    private data class WorkspacePreviewRequest(val workspaceSlug: String)
 
     private suspend inline fun <reified T> execute(
         request: HttpRequest,

@@ -9,6 +9,78 @@ import org.junit.Test
 
 class NativeAccessClientTest {
     @Test
+    fun workspacePreviewUsesPublicContractWithoutAuthOrSurfaceHeaders() = runBlocking {
+        val executor = RecordingExecutor(
+            HttpResponse(
+                status = 200,
+                body = """
+                    {
+                      "recognized":true,
+                      "displayName":"ICISA",
+                      "workspaceUrl":"https://icisa.example.test",
+                      "logoUrl":null,
+                      "loginAvailable":true
+                    }
+                """.trimIndent(),
+            ),
+        )
+
+        val result = NativeAccessClient("https://api.example.test/", executor)
+            .workspacePreview(" icisa-test ")
+
+        val preview = (result as ApiResult.Success).value
+        assertTrue(preview.recognized)
+        assertEquals("ICISA", preview.displayName)
+        assertEquals("https://icisa.example.test", preview.workspaceUrl)
+        assertEquals("https://api.example.test/api/v1/auth/workspace-previews", executor.request.url)
+        assertEquals("POST", executor.request.method)
+        assertEquals("application/json", executor.request.headers["Content-Type"])
+        assertFalse(executor.request.headers.keys.any { it.equals("Authorization", ignoreCase = true) })
+        assertFalse(executor.request.headers.containsKey("X-Nexa-Client"))
+        assertFalse(executor.request.headers.containsKey("X-Nexa-Surface"))
+        assertEquals("{\"workspaceSlug\":\"icisa-test\"}", executor.request.body)
+    }
+
+    @Test
+    fun unknownWorkspaceRemainsServerAuthoritative() = runBlocking {
+        val executor = RecordingExecutor(
+            HttpResponse(
+                status = 200,
+                body = """
+                    {
+                      "recognized":false,
+                      "displayName":null,
+                      "workspaceUrl":null,
+                      "logoUrl":null,
+                      "loginAvailable":false
+                    }
+                """.trimIndent(),
+            ),
+        )
+
+        val result = NativeAccessClient("https://api.example.test", executor)
+            .workspacePreview("does-not-exist")
+
+        val preview = (result as ApiResult.Success).value
+        assertFalse(preview.recognized)
+        assertFalse(preview.loginAvailable)
+        assertNull(preview.displayName)
+        assertNull(preview.workspaceUrl)
+    }
+
+    @Test
+    fun blankWorkspaceSlugFailsBeforeTransport() = runBlocking {
+        val executor = RecordingExecutor(HttpResponse(status = 500))
+
+        val result = NativeAccessClient("https://api.example.test", executor)
+            .workspacePreview("  ")
+
+        assertEquals("WORKSPACE_SLUG_REQUIRED", (result as ApiResult.Failure).error.code)
+        assertEquals(ApiErrorCategory.VALIDATION, result.error.category)
+        assertEquals(0, executor.calls)
+    }
+
+    @Test
     fun signInUsesNativeTransportAndReturnsOpaqueRefreshHeader() = runBlocking {
         val executor = RecordingExecutor(
             HttpResponse(
@@ -123,9 +195,11 @@ class NativeAccessClientTest {
     """.trimIndent()
 
     private class RecordingExecutor(private val response: HttpResponse) : HttpRequestExecutor {
+        var calls = 0
         lateinit var request: HttpRequest
 
         override suspend fun execute(request: HttpRequest): HttpResponse {
+            calls += 1
             this.request = request
             return response
         }
