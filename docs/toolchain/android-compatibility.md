@@ -24,7 +24,7 @@ requirement.
 | Android platform | API 36 and API 37.0 installed | API 36 is the selected compile/target baseline; API 37 is not selected |
 | Build tools | `36.0.0` installed | Selected for API 36 baseline |
 | Platform tools | `37.0.1` / adb 1.0.41 | Installed locally |
-| Emulator | `37.1.11.0` | `android emulator list` and selected-SDK `adb devices -l` show no AVD or connected device on 2026-09-02 |
+| Emulator | `37.1.11.0` | AVD `Nexa_AV1_API36`, Android API 36, serial `emulator-5554`; install/launch/layout smoke passed on 2026-09-02; camera and physical-device runtime remain unverified |
 | Default terminal Java | OpenJDK `26.0.1` | Not selected for the Gradle build |
 | Android Studio JBR | OpenJDK `25.0.2` | Not selected for the Gradle build |
 | JDK 21 | Installed at `/Library/Java/JavaVirtualMachines/jdk-21.jdk` | `PROJECT BUILD JDK: 21`; selected and verified locally because it is the available LTS project/CI/Docker baseline |
@@ -133,13 +133,32 @@ current GitHub workflow because the repository's 30-minute hosted runner budget
 is reserved for the native gates; it remains a release gate and must be
 recorded as `BLOCKED — DOCKER BUILD` if unavailable.
 
+## Emulator smoke evidence
+
+The selected AVD was intentionally created with the installed API 36 Google
+APIs arm64-v8a image. The following commands passed on 2026-09-02:
+
+```text
+android emulator start --cold Nexa_AV1_API36
+android install --device emulator-5554 --apks=operations/build/outputs/apk/debug/operations-debug.apk
+android run --device emulator-5554 --apks=operations/build/outputs/apk/debug/operations-debug.apk --activity=com.nexa.mobile.operations.MainActivity
+android layout --device emulator-5554 --pretty
+```
+
+The layout exposed `Nexa Operations`, `Native engineering preview`, no local
+session, and the blocked access-preview state. This verifies emulator
+installation, launch and fail-closed rendering only. It does not verify live
+API authentication, camera permission/analysis, ML Kit decoding, SKU
+resolution, a physical device or Product Acceptance.
+
 ## Open gates
 
 - CameraX and bundled ML Kit barcode decoding are implemented in the Warehouse
   preview; camera runtime evidence remains open. Retrofit and OkHttp are not
   added.
-- No emulator evidence exists until an AVD is intentionally created and the
-  application is installed and exercised.
+- Emulator install/launch/fail-closed smoke evidence is `VERIFIED`; camera
+  permission/analysis, live API behavior and physical-device evidence remain
+  open.
 - `BLOCKED — AUTH SURFACE SEMANTICS` remains active until the accepted API
   mapping for Operations Mobile is supplied.
 

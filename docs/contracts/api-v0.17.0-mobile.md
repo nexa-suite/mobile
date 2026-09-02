@@ -29,7 +29,9 @@ The connected preview contains typed adapters for the observed contracts:
 
 The adapter tests use deterministic request executors and fakes. They prove
 serialization, headers, state transitions and failure mapping; they do not
-prove a live API, camera, emulator or physical-device run.
+prove a live API, camera/barcode runtime or physical-device run. A separate
+Android API 36 emulator smoke run proves installation, launch and the
+fail-closed access-preview state only.
 
 ## Authentication and session
 
@@ -212,7 +214,8 @@ The API tag contains local bootstrap and Testcontainers fixtures, including an
 `icisa-test` tenant/workspace and catalog data. The bootstrap is disabled by
 default and fixture coverage does not prove that every SKU has a sellable GTIN.
 This ledger therefore does not claim a successful live Mobile authentication
-or SKU-resolution run.
+or SKU-resolution run; the emulator smoke evidence does not change that
+boundary.
 
 ## Reproduction commands
 

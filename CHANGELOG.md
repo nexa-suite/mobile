@@ -22,11 +22,13 @@ All notable changes to this repository are documented here using Keep a Changelo
   Android API 36 and Gradle/AGP matrix, including project-graph and dependency
   hygiene checks.
 - Kept live connected authentication blocked by unresolved `ClientSurface`
-  semantics; API, camera, emulator and physical-device runtime evidence is not
-  claimed.
+  semantics; live API, camera/decoder and physical-device runtime evidence is
+  not claimed. An Android API 36 emulator smoke run now verifies installation,
+  launcher activation and the fail-closed access-preview state only.
 
-This entry does not publish `v0.2.0` and does not claim Mobile V1, runtime,
-emulator, physical-device or Product Acceptance evidence.
+This entry does not publish `v0.2.0` and does not claim Mobile V1, live
+API/camera runtime, physical-device or Product Acceptance evidence. The
+emulator result is limited to the smoke boundary described above.
 
 ## [0.1.1] - 2026-07-28
 
