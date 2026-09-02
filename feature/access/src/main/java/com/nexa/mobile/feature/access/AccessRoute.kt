@@ -50,7 +50,7 @@ sealed interface AccessRoute : NavKey {
  * until the tagged API surface semantics are approved.
  */
 @Composable
-fun AccessNavigation(viewModel: LaunchViewModel) {
+fun AccessNavigation(viewModel: LaunchViewModel, signInViewModel: SignInViewModel) {
     val configuration = remember {
         SavedStateConfiguration {
             serializersModule = SerializersModule {
@@ -64,9 +64,18 @@ fun AccessNavigation(viewModel: LaunchViewModel) {
     }
     val backStack = rememberNavBackStack(configuration, AccessRoute.Launch)
     val launchState by viewModel.uiState.collectAsStateWithLifecycle()
+    val signInState by signInViewModel.formState.collectAsStateWithLifecycle()
 
     LaunchedEffect(viewModel) {
         viewModel.restore()
+    }
+
+    LaunchedEffect(signInState.status) {
+        if (signInState.status == SignInStatus.Authenticated) {
+            signInViewModel.consumeAuthenticated()
+            if (backStack.size > 1) backStack.removeLastOrNull()
+            viewModel.restore()
+        }
     }
 
     NexaTheme {
@@ -82,7 +91,16 @@ fun AccessNavigation(viewModel: LaunchViewModel) {
                     )
                 }
                 entry<AccessRoute.SignIn> {
-                    PlaceholderScreen(onBack = { if (backStack.size > 1) backStack.removeLastOrNull() })
+                    SignInScreen(
+                        state = signInState,
+                        onIdentifierChanged = signInViewModel::onIdentifierChanged,
+                        onWorkspaceChanged = signInViewModel::onWorkspaceChanged,
+                        onPasswordChanged = signInViewModel::onPasswordChanged,
+                        onSubmit = dropUnlessResumed { signInViewModel.submit() },
+                        onBack = dropUnlessResumed {
+                            if (backStack.size > 1) backStack.removeLastOrNull()
+                        },
+                    )
                 }
                 entry<AccessRoute.OperationsEntry> {
                     PlaceholderScreen(onBack = { if (backStack.size > 1) backStack.removeLastOrNull() })

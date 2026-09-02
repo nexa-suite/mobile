@@ -17,6 +17,8 @@ import com.nexa.mobile.core.storage.SessionStore
 import com.nexa.mobile.feature.access.AccessNavigation
 import com.nexa.mobile.feature.access.LaunchViewModel
 import com.nexa.mobile.feature.access.SessionConfirmation
+import com.nexa.mobile.feature.access.SignInGateway
+import com.nexa.mobile.feature.access.SignInViewModel
 
 class MainActivity : ComponentActivity() {
     private val sessionStore: SessionStore by lazy {
@@ -43,11 +45,26 @@ class MainActivity : ComponentActivity() {
         )[LaunchViewModel::class.java]
     }
 
+    private val signInViewModel: SignInViewModel by lazy {
+        ViewModelProvider(
+            this,
+            SignInViewModel.Factory(
+                gateway = nativeAccessClient?.let { client ->
+                    SignInGateway { identifier, password, workspaceSlug, surface ->
+                        client.signIn(identifier, password, workspaceSlug, surface)
+                    }
+                },
+                surface = configuredSurface,
+                sessionStore = sessionStore,
+            ),
+        )[SignInViewModel::class.java]
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            AccessNavigation(viewModel = launchViewModel)
+            AccessNavigation(viewModel = launchViewModel, signInViewModel = signInViewModel)
         }
     }
 

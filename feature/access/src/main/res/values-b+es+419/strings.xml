@@ -16,4 +16,21 @@
     <string name="launch_provisional">Solo vista previa. La autoridad del servidor y la aprobación de la superficie API aún son necesarias.</string>
     <string name="access_blocked_title">Vista previa de acceso conectado</string>
     <string name="access_blocked_body">La autenticación no está conectada en esta vista previa. No hay contenido protegido de Operations disponible.</string>
+    <string name="access_sign_in_title">Vista previa de acceso conectado</string>
+    <string name="access_sign_in_subtitle">Usa el transporte API nativo configurado explícitamente. No se infiere ninguna superficie de Operations.</string>
+    <string name="access_identifier_label">Identificador</string>
+    <string name="access_workspace_label">Slug del workspace</string>
+    <string name="access_password_label">Contraseña</string>
+    <string name="access_sign_in_submit">Iniciar sesión</string>
+    <string name="access_sign_in_blocked">El acceso está bloqueado hasta configurar explícitamente un endpoint API y una superficie API aceptada.</string>
+    <string name="access_sign_in_validation">Ingresa identificador, slug del workspace y contraseña.</string>
+    <string name="access_sign_in_unauthorized">Las credenciales no fueron aceptadas. No se muestra contenido protegido.</string>
+    <string name="access_sign_in_forbidden">El servidor rechazó este contexto de acceso. No se muestra contenido protegido.</string>
+    <string name="access_sign_in_conflict">No se pudo establecer la sesión por un conflicto del servidor.</string>
+    <string name="access_sign_in_rate_limited">Hubo demasiados intentos. Espera antes de volver a intentar.</string>
+    <string name="access_sign_in_network">No se pudo alcanzar la API. Revisa la conexión y vuelve a intentar.</string>
+    <string name="access_sign_in_server">La API no está disponible temporalmente. Intenta más tarde.</string>
+    <string name="access_sign_in_storage">Falló el almacenamiento seguro de la sesión. El acceso permanece bloqueado.</string>
+    <string name="access_sign_in_unknown">La respuesta de acceso no pudo interpretarse de forma segura.</string>
+    <string name="access_sign_in_success">Sesión recibida. Volviendo al inicio seguro.</string>
 </resources>
