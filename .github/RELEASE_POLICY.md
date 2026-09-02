@@ -2,7 +2,10 @@
 
 ## Versioning
 
-Nexa repositories version independently using Semantic Versioning. This repository is pre-1.0 and currently publishes documentation foundations only.
+Nexa repositories version independently using Semantic Versioning. This
+repository is pre-1.0; `v0.1.x` publishes documentation foundations only,
+while the proposed `v0.2.0+` milestones may publish explicitly labelled
+engineering-preview source.
 
 Every release requires an annotated SSH-signed tag, CHANGELOG entry, release notes and a GitHub Release. The tag must pass local and GitHub verification before publication. Published tags are immutable. Do not retag, modify a published version, delete a release or force-push history.
 
@@ -16,9 +19,26 @@ public signer identity.
 
 ## Release cadence
 
-A merged PR is not automatically a release. Accumulate documentation and
-future-client runway changes until a coherent milestone exists. Do not claim
-native build, device or runtime verification while no implementation exists.
+A merged PR is not automatically a release. Accumulate changes until a
+coherent milestone exists. A native-preview release must identify its exact
+stories, branch/ref and API evidence, and must not claim Mobile V1, Product
+Acceptance or production readiness.
+
+## Native preview gate
+
+Before proposing a native-preview release:
+
+- The complete diff has been reviewed and accepted by the human owner; AI must
+  not fabricate authorship, review, PR history or co-authors.
+- `./gradlew testDebugUnitTest lintDebug assembleDebug` passes with the
+  recorded JDK/SDK matrix.
+- The Docker image is built from the pinned `Dockerfile` and runs the same
+  gates, or the release notes record `BLOCKED — DOCKER BUILD` with the exact
+  command and reason.
+- Emulator and physical-device evidence are reported separately. A host build
+  never substitutes for either runtime gate.
+- API integrations reference the exact read-only compatibility tag and any
+  unresolved semantic blocker remains visible.
 
 ## GitFlow
 

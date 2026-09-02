@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="launch_title">Nexa Operations</string>
+    <string name="launch_subtitle">Vista previa de ingeniería nativa</string>
+    <string name="launch_initial">Preparando el acceso seguro.</string>
+    <string name="launch_loading">Confirmando la sesión con Nexa.</string>
+    <string name="launch_no_session">No hay una sesión local disponible. Inicia sesión para continuar.</string>
+    <string name="launch_confirmed">Sesión confirmada. El contenido protegido sigue bloqueado en esta vista previa.</string>
+    <string name="launch_auth_surface_blocked">El acceso conectado no está habilitado hasta confirmar la superficie API etiquetada.</string>
+    <string name="launch_unavailable">El acceso no está disponible temporalmente. No se muestra contenido protegido.</string>
+    <string name="launch_storage_unavailable">El almacenamiento seguro de sesión no está disponible. El acceso permanece bloqueado.</string>
+    <string name="launch_unauthorized">Esta sesión no está autorizada para Operations.</string>
+    <string name="launch_sign_in">Abrir vista previa de acceso</string>
+    <string name="launch_retry">Reintentar</string>
+    <string name="launch_back">Volver</string>
+    <string name="launch_provisional">Solo vista previa. La autoridad del servidor y la aprobación de la superficie API aún son necesarias.</string>
+    <string name="access_blocked_title">Vista previa de acceso conectado</string>
+    <string name="access_blocked_body">La autenticación no está conectada en esta vista previa. No hay contenido protegido de Operations disponible.</string>
+</resources>
