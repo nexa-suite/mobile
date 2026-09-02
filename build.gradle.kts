@@ -4,10 +4,20 @@ plugins {
     alias(libs.plugins.compose.compiler) apply false
 }
 
+val nativeDebugUnitTestTasks = listOf(
+    ":core:designsystem:testDebugUnitTest",
+    ":core:network:testDebugUnitTest",
+    ":core:storage:testDebugUnitTest",
+    ":core:testing:testDebugUnitTest",
+    ":feature:access:testDebugUnitTest",
+    ":feature:warehouse:testDebugUnitTest",
+    ":operations:testDebugUnitTest",
+)
+
 tasks.register("testDebugUnitTest") {
     group = "verification"
-    description = "Runs the Operations debug unit tests."
-    dependsOn(":operations:testDebugUnitTest")
+    description = "Runs all native debug unit tests."
+    dependsOn(*nativeDebugUnitTestTasks.toTypedArray())
 }
 
 tasks.register("lintDebug") {
