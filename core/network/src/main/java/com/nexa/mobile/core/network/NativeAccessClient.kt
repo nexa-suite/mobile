@@ -6,6 +6,16 @@ import java.util.Locale
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
+internal fun normalizeNativeApiBaseUrl(value: String): String {
+    val normalized = value.trim().trimEnd('/')
+    val uri = runCatching { URI(normalized) }.getOrNull()
+    require(
+        uri != null && (uri.scheme == "https" || uri.scheme == "http") &&
+            !uri.host.isNullOrBlank() && uri.userInfo == null && uri.query == null && uri.fragment == null,
+    ) { "Native API base URL must be an absolute HTTP(S) URL without credentials, query or fragment" }
+    return normalized
+}
+
 enum class ApiClientSurface(val wireValue: String) {
     PLATFORM("PLATFORM"),
     PORTAL("PORTAL");
@@ -91,7 +101,7 @@ class NativeAccessClient(
     private val executor: HttpRequestExecutor = UrlConnectionHttpRequestExecutor(),
     private val json: Json = Json { ignoreUnknownKeys = true; explicitNulls = false },
 ) {
-    private val baseUrl = normalizeBaseUrl(baseUrl)
+    private val baseUrl = normalizeNativeApiBaseUrl(baseUrl)
 
     suspend fun signIn(
         identifier: String,
@@ -256,15 +266,4 @@ class NativeAccessClient(
 
     private class MalformedNativeResponse(val status: Int, val code: String) : RuntimeException()
 
-    private companion object {
-        fun normalizeBaseUrl(value: String): String {
-            val normalized = value.trim().trimEnd('/')
-            val uri = runCatching { URI(normalized) }.getOrNull()
-            require(
-                uri != null && (uri.scheme == "https" || uri.scheme == "http") &&
-                    !uri.host.isNullOrBlank() && uri.query == null && uri.fragment == null,
-            ) { "Native API base URL must be an absolute HTTP(S) URL without query or fragment" }
-            return normalized
-        }
-    }
 }
