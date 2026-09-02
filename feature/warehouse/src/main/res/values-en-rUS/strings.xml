@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="warehouse_title">Warehouse identification preview</string>
+    <string name="warehouse_subtitle">Scan a barcode or enter an identifier. The tagged API decides the SKU.</string>
+    <string name="warehouse_scan">Start camera scan</string>
+    <string name="warehouse_scanning">Camera is active. Align one barcode in the preview.</string>
+    <string name="warehouse_identifier_label">Physical identifier</string>
+    <string name="warehouse_resolve">Resolve identifier</string>
+    <string name="warehouse_resolving">Resolving with Nexa.</string>
+    <string name="warehouse_blocked">Warehouse identification is blocked until connected access and a secure session are available.</string>
+    <string name="warehouse_camera_permission_denied">Camera permission was denied. Manual entry remains available.</string>
+    <string name="warehouse_camera_unavailable">Camera is unavailable on this device. Use manual entry.</string>
+    <string name="warehouse_validation">Enter an identifier before resolving.</string>
+    <string name="warehouse_not_found">No sellable SKU was found for %1$s.</string>
+    <string name="warehouse_ambiguous">The server found %2$d candidates for %1$s. No SKU was selected.</string>
+    <string name="warehouse_resolved">Server-authoritative SKU result</string>
+    <string name="warehouse_sku_code">SKU code: %1$s</string>
+    <string name="warehouse_gtin">GTIN: %1$s</string>
+    <string name="warehouse_presentation">Presentation: %1$s</string>
+    <string name="warehouse_unit">Unit: %1$s</string>
+    <string name="warehouse_status">Status: %1$s</string>
+    <string name="warehouse_scan_again">Scan another identifier</string>
+    <string name="warehouse_back">Back</string>
+    <string name="warehouse_unauthorized">The session is no longer authorized. Return to launch and confirm access.</string>
+    <string name="warehouse_forbidden">The server rejected this access context. No SKU was shown.</string>
+    <string name="warehouse_rate_limited">Too many lookup attempts. Wait before trying again.</string>
+    <string name="warehouse_network">The API could not be reached. Try again or use manual entry.</string>
+    <string name="warehouse_server">The API is temporarily unavailable. Try again later.</string>
+    <string name="warehouse_storage">Secure session storage is unavailable. No lookup was sent.</string>
+    <string name="warehouse_unknown">The resolution response could not be understood safely.</string>
+</resources>
