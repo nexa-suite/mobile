@@ -9,6 +9,19 @@ All notable changes to this repository are documented here using Keep a Changelo
 - Corrected current suite release metadata and API runtime labels against published tag and GitHub Release evidence.
 - Clarified published application/API integration evidence without selecting a Mobile technology or claiming deployment.
 
+### Native engineering preview
+
+- Added the unmerged AV1 native Android foundation for Nexa Operations:
+  Compose, Navigation 3, feature-oriented modules, typed error mapping,
+  Keystore-backed session material and localized launch states.
+- Added host/CI/Docker verification commands pinned to the recorded JDK 21,
+  Android API 36 and Gradle/AGP matrix.
+- Kept connected authentication and warehouse identification outside the
+  current foundation claim; `BLOCKED — AUTH SURFACE SEMANTICS` remains open.
+
+This entry does not publish `v0.2.0` and does not claim Mobile V1, runtime,
+emulator, physical-device or Product Acceptance evidence.
+
 ## [0.1.1] - 2026-07-28
 
 ### Added
