@@ -5,6 +5,7 @@ agp = "9.0.1"
 kotlin = "2.2.10"
 composeBom = "2026.06.01"
 activityCompose = "1.12.1"
+coroutines = "1.10.2"
 junit = "4.13.2"
 
 [libraries]
@@ -12,8 +13,11 @@ androidx-activity-compose = { module = "androidx.activity:activity-compose", ver
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 androidx-compose-ui = { module = "androidx.compose.ui:ui" }
 androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 junit = { module = "junit:junit", version.ref = "junit" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

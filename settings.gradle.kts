@@ -18,3 +18,8 @@ dependencyResolutionManagement {
 
 rootProject.name = "nexa-mobile"
 include(":operations")
+include(":core:network")
+include(":core:storage")
+include(":core:designsystem")
+include(":core:testing")
+include(":feature:access")
