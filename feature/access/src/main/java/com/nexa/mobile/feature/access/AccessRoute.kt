@@ -97,6 +97,7 @@ fun AccessNavigation(
                         onRetry = viewModel::restore,
                         onSignIn = dropUnlessResumed { backStack += AccessRoute.SignIn },
                         onOpenWarehouse = dropUnlessResumed { backStack += AccessRoute.Warehouse },
+                        onLogout = dropUnlessResumed { viewModel.logout() },
                     )
                 }
                 entry<AccessRoute.SignIn> {
