@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="launch_title">Nexa Operations</string>
+    <string name="launch_subtitle">Native engineering preview</string>
+    <string name="launch_initial">Preparing secure access.</string>
+    <string name="launch_loading">Confirming the session with Nexa.</string>
+    <string name="launch_no_session">No local session is available. Sign in to continue.</string>
+    <string name="launch_confirmed">Session confirmed. Protected content remains gated in this preview.</string>
+    <string name="launch_auth_surface_blocked">Connected access is not enabled until the tagged API surface is confirmed.</string>
+    <string name="launch_unavailable">Access is temporarily unavailable. No protected content is shown.</string>
+    <string name="launch_storage_unavailable">Secure session storage is unavailable. Access remains locked.</string>
+    <string name="launch_unauthorized">This session is not authorized for Operations.</string>
+    <string name="launch_sign_in">Open access preview</string>
+    <string name="launch_retry">Retry</string>
+    <string name="launch_back">Back</string>
+    <string name="launch_provisional">Preview only. Server authority and API surface approval are still required.</string>
+    <string name="access_blocked_title">Connected access preview</string>
+    <string name="access_blocked_body">Authentication is not connected in this preview. No protected Operations content is available.</string>
+</resources>
