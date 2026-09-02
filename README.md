@@ -32,10 +32,11 @@ the explicit workspace slug with credentials using `ClientSurface.PLATFORM`
 and `X-Nexa-Client: NATIVE`; the public workspace-preview contract remains
 available only as non-native context discovery. The exact tagged API has been
 exercised with an isolated local fixture: native sign-in, session confirmation,
-refresh rotation and sign-out pass. Deployed API, camera and physical-device
-evidence remains unverified. An Android API 36 emulator smoke run verifies APK
-installation, launcher activation and the fail-closed access-preview screen
-only; it does not include live API networking.
+refresh rotation, sign-out and SKU resolution pass. Deployed API, camera and
+physical-device evidence remains unverified. An Android API 36 emulator smoke
+run verifies APK installation, launcher activation and the fail-closed
+access-preview screen only; it does not include live API networking or camera
+decoder interaction.
 
 ## Related repositories
 
@@ -77,7 +78,7 @@ access to `BC-01 Tenant & Access Governance` and product identification to
 | Navigation | Navigation 3, typed serializable route keys |
 | Session material | Android Keystore-backed AES/GCM primitive |
 | Access integration | API v0.17.0 explicit workspace sign-in with `PLATFORM` + `NATIVE`; isolated local fixture runtime PASS; deployed/API-on-device runtime not evidenced |
-| Warehouse input | CameraX 1.6.1 + bundled ML Kit barcode scanning 17.3.0; emulator app smoke PASS, camera/decoder runtime not evidenced |
+| Warehouse input | CameraX 1.6.1 + bundled ML Kit barcode scanning 17.3.0; isolated API resolver PASS, camera/decoder runtime not evidenced |
 | API evidence | Nexa API `v0.17.0`, read-only |
 | Build baseline | Project JDK 21 (selected and locally verified); AGP 9.0.1 / Gradle 9.1.0 / compile-target SDK 36 |
 | Backend authority | Nexa API |

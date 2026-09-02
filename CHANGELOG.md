@@ -26,10 +26,11 @@ All notable changes to this repository are documented here using Keep a Changelo
   hygiene checks.
 - Recorded the accepted Operations Mobile `PLATFORM` surface decision and
   verified native sign-in, session confirmation, refresh rotation and
-  sign-out against an isolated `api@v0.17.0` local fixture. Camera/decoder,
-  API-on-device and physical-device runtime evidence remains unclaimed. An
-  Android API 36 emulator smoke run verifies installation, launcher activation
-  and the fail-closed access-preview state only.
+  sign-out against an isolated `api@v0.17.0` local fixture. The same fixture
+  resolved `PROD-0001` and returned `NOT_FOUND` for an unknown identifier.
+  Camera/decoder, API-on-device and physical-device runtime evidence remains
+  unclaimed. An Android API 36 emulator smoke run verifies installation,
+  launcher activation and the fail-closed access-preview state only.
 
 This entry does not publish `v0.2.0` and does not claim Mobile V1, deployed
 API-on-device/camera runtime, physical-device or Product Acceptance evidence.

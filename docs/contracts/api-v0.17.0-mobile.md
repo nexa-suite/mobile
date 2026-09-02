@@ -148,9 +148,22 @@ Operations flow completed with a tag-provided local fixture and workspace
 - native refresh: HTTP 200, replacement refresh header present;
 - native sign-out: HTTP 204.
 
+The same isolated runtime also exercised the catalog resolver with the
+confirmed bearer session:
+
+- `GET /api/v1/skus/resolve?identifier=PROD-0001`: HTTP 200,
+  `RESOLVED`/`SKU_CODE` with one server-selected candidate;
+- `GET /api/v1/skus/resolve?identifier=UNKNOWN-MOBILE-AV1`: HTTP 200,
+  `NOT_FOUND` with zero candidates.
+
+The resolver request included `X-Nexa-Client: NATIVE`; the tagged endpoint
+does not require that header, but it remained compatible with the native
+transport identity.
+
 Credentials and token values were not committed or printed. This evidence
 does not claim deployed-environment compatibility or Android emulator network
-runtime.
+runtime. The API test fixture did not provide a fixed GTIN for a live
+ambiguity run; tagged integration tests cover that outcome separately.
 
 ## SKU identification
 
@@ -232,11 +245,12 @@ client projection.
 ## Local runtime evidence boundary
 
 The API tag contains local bootstrap and Testcontainers fixtures, including an
-`icisa-test` tenant/workspace and catalog data. The isolated local bootstrap
-provided the authentication evidence recorded above; it does not represent a
-deployed environment. Fixture coverage does not prove that every SKU has a
-sellable GTIN, and this ledger does not claim a live SKU-resolution run. The
-emulator smoke evidence does not change that boundary.
+`icisa` tenant/workspace and catalog data. The isolated local bootstrap
+provided the authentication and SKU-resolution evidence recorded above; it
+does not represent a deployed environment. Fixture coverage does not prove
+that every SKU has a sellable GTIN, and the live run covered one resolved SKU
+and one not-found identifier only. The emulator smoke evidence does not
+change that boundary.
 
 ## Reproduction commands
 
