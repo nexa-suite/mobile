@@ -6,9 +6,9 @@
 
 # Nexa Mobile
 
-**Future native runway for buyer and cold-chain field experiences.**
+**AV1 native engineering preview for Nexa Operations field experiences.**
 
-![Status](https://img.shields.io/badge/status-planned-64748B?style=flat-square) ![Documentation](https://img.shields.io/badge/scope=documentation-64748B?style=flat-square) ![Native Runway](https://img.shields.io/badge/native-runway-64748B?style=flat-square)
+![Status](https://img.shields.io/badge/status-engineering--preview-64748B?style=flat-square) ![Scope](https://img.shields.io/badge/scope-AV1-64748B?style=flat-square) ![Native](https://img.shields.io/badge/native-Android-64748B?style=flat-square)
 
 [Changelog](./CHANGELOG.md) · [Release notes](./docs/releases/) · [Contributing](./.github/CONTRIBUTING.md) · [Security](./.github/SECURITY.md)
 
@@ -18,7 +18,25 @@
 
 ## Overview
 
-Mobile is Architecture Runway, not V1 implementation. Repository contains documentation and release guidance only. No native application is implemented here.
+This repository contains a runnable, unmerged AV1 native Android engineering
+preview for Nexa Operations. The current preview is experimental and does not
+claim Mobile V1, Product Acceptance, production readiness or physical-device
+validation.
+
+The implementation is deliberately staged. The current branch includes the
+Operations app shell, typed error mapping, Keystore-backed session storage,
+Navigation 3 launch states, localized access forms, explicit session recovery,
+and a Warehouse identification preview with CameraX, ML Kit barcode decoding,
+manual input and a tagged API resolver adapter. Connected access now submits
+the explicit workspace slug with credentials using `ClientSurface.PLATFORM`
+and `X-Nexa-Client: NATIVE`; the public workspace-preview contract remains
+available only as non-native context discovery. The exact tagged API has been
+exercised with an isolated local fixture: native sign-in, session confirmation,
+refresh rotation, sign-out and SKU resolution pass. Deployed API, camera and
+physical-device evidence remains unverified. An Android API 36 emulator smoke
+run verifies APK installation, launcher activation and the fail-closed
+access-preview screen only; it does not include live API networking or camera
+decoder interaction.
 
 ## Related repositories
 
@@ -28,39 +46,96 @@ The organization profile owns the full public ecosystem map. This repository lin
 - [Nexa Platform](https://github.com/nexa-suite/platform) — internal operational workspace.
 - [Nexa Buyer Portal](https://github.com/nexa-suite/portal) — buyer-facing experience.
 - [Nexa Website](https://github.com/nexa-suite/website) — public product experience.
+- [Canonical Blueprint](https://github.com/nexa-suite/blueprint) — Product, Domain and architecture authority.
 
-## Mobile Runway
+## AV1 scope and boundaries
 
-- Buyer access and purchasing on native clients.
-- Warehouse, Logistics and Dispatch field workflows.
-- Approved offline, identity, tenant and API contract decisions.
-- Client models kept separate from backend domain code.
+- In scope for the complete AV1 plan: `MOB-US-001`, `MOB-US-002`,
+  `MOB-US-003`, `MOB-US-011` and `MOB-US-012`.
+- The current branch contains partial implementation slices for that boundary;
+  passing tests and builds do not mark those stories accepted.
+- `MOB-US-013` and later stories are not started.
+- Mobile is a client projection; it creates no Bounded Context and does not
+  become an authority for tenant, authorization, catalog, inventory or
+  fulfillment facts.
+- API integration evidence is pinned to `v0.17.0` and remains read-only.
 
-No mobile technology has been selected. No runtime, build or production claim is made.
+No offline business authority, generic sync engine, Room database, new backend
+endpoint or new infrastructure is introduced by this preview.
 
 ## Architecture Boundary
 
-Future clients consume approved API contracts. Authorization, tenant scope and business rules remain backend responsibilities. Mobile is deliberately absent from implemented runtime map.
+The client consumes approved API contracts. Authorization, tenant/workspace
+scope and business rules remain backend responsibilities. The preview maps
+access to `BC-01 Tenant & Access Governance` and product identification to
+`BC-03 Catalog & Commercial Policy`; it does not reproduce either context.
 
 ## Technology Stack
 
 | Concern | Status |
 | --- | --- |
-| Application framework | Not selected |
-| Native clients | Planned |
+| Application framework | Kotlin + Jetpack Compose |
+| Navigation | Navigation 3, typed serializable route keys |
+| Session material | Android Keystore-backed AES/GCM primitive |
+| Access integration | API v0.17.0 explicit workspace sign-in with `PLATFORM` + `NATIVE`; isolated local fixture runtime PASS; deployed/API-on-device runtime not evidenced |
+| Warehouse input | CameraX 1.6.1 + bundled ML Kit barcode scanning 17.3.0; isolated API resolver PASS, camera/decoder runtime not evidenced |
+| API evidence | Nexa API `v0.17.0`, read-only |
+| Build baseline | Project JDK 21 (selected and locally verified); AGP 9.0.1 / Gradle 9.1.0 / compile-target SDK 36 |
 | Backend authority | Nexa API |
-| Current repository role | Documentation and architecture runway |
+| Current repository role | Experimental AV1 engineering preview |
 
 ## Getting Started
 
-No application setup, dependency installation or runtime command exists yet.
+Use the selected project JDK 21 and an Android SDK containing platform API 36
+and build-tools 36.0.0. AGP 9.0.1 upstream minimum/default is JDK 17. CI and
+Docker pin JDK 21 for reproducibility; the root build does not reject another
+supported JVM solely because its major version differs:
+
+```bash
+export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+./gradlew testDebugUnitTest lintDebug assembleDebug
+```
+
+The reproducible Docker environment runs the same gates:
+
+```bash
+docker build -t nexa-mobile-av1-build .
+docker run --rm nexa-mobile-av1-build
+```
+
+No emulator or physical-device result is implied by a successful host build.
+The current emulator smoke evidence is recorded below; it does not prove live
+API networking from Android, camera, barcode-decoder or physical-device
+behavior.
+
+## Emulator smoke evidence
+
+Verified locally on 2026-09-02 with AVD `Nexa_AV1_API36` (Android API 36,
+serial `emulator-5554`):
+
+```text
+android emulator start --cold Nexa_AV1_API36                                      PASS
+android install --device emulator-5554 --apks=operations/build/outputs/apk/debug/operations-debug.apk PASS
+android run --device emulator-5554 --apks=operations/build/outputs/apk/debug/operations-debug.apk --activity=com.nexa.mobile.operations.MainActivity PASS
+android layout --device emulator-5554 --pretty                                      PASS
+```
+
+The rendered state is `Nexa Operations` / `Native engineering preview` with
+no local session and an explicit blocked access-preview state. This is an
+emulator launch and fail-closed UI check, not live Android API networking,
+camera, SKU-resolution, physical-device or Product Acceptance evidence. The
+isolated local API fixture result is limited to the contract/runtime boundary
+recorded above.
 
 ## Repository Structure
 
+    operations/             # Android application
+    core/                   # network, storage, design system, test support
+    feature/access/         # access projection and launch shell
+    feature/warehouse/      # camera/manual identification preview
     README.md
     CHANGELOG.md
-    docs/assets/nexa.svg
-    docs/releases/
     .github/
 
 ## Documentation

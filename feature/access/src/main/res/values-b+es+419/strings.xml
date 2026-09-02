@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="launch_title">Nexa Operations</string>
+    <string name="launch_subtitle">Vista previa de ingeniería nativa</string>
+    <string name="launch_initial">Preparando el acceso seguro.</string>
+    <string name="launch_loading">Confirmando la sesión con Nexa.</string>
+    <string name="launch_no_session">No hay una sesión local disponible. Inicia sesión para continuar.</string>
+    <string name="launch_confirmed">Sesión y contexto de acceso confirmado por el servidor.</string>
+    <string name="launch_confirmed_user">Usuario confirmado: %1$s</string>
+    <string name="launch_confirmed_context">Tenant: %1$s. Workspace: %2$s.</string>
+    <string name="launch_auth_surface_blocked">El acceso conectado espera un endpoint API explícito y la confirmación del servidor.</string>
+    <string name="launch_unavailable">El acceso no está disponible temporalmente. No se muestra contenido protegido.</string>
+    <string name="launch_storage_unavailable">El almacenamiento seguro de sesión no está disponible. El acceso permanece bloqueado.</string>
+    <string name="launch_unauthorized">Esta sesión no está autorizada para Operations.</string>
+    <string name="launch_sign_in">Iniciar sesión en Operations</string>
+    <string name="launch_open_warehouse">Abrir identificación de almacén</string>
+    <string name="launch_logout">Cerrar sesión</string>
+    <string name="launch_retry">Reintentar</string>
+    <string name="launch_back">Volver</string>
+    <string name="launch_provisional">Solo vista previa. No se muestra contenido protegido antes de la confirmación del servidor.</string>
+    <string name="access_blocked_title">Acceso a Operations no disponible</string>
+    <string name="access_blocked_body">La autenticación no está configurada. No hay contenido protegido de Operations disponible.</string>
+    <string name="access_sign_in_title">Iniciar sesión en Nexa Operations</string>
+    <string name="access_sign_in_subtitle">Ingresa tu identificador, slug del workspace y contraseña para continuar.</string>
+    <string name="access_identifier_label">Identificador</string>
+    <string name="access_workspace_label">Slug del workspace</string>
+    <string name="access_password_label">Contraseña</string>
+    <string name="access_sign_in_submit">Iniciar sesión</string>
+    <string name="access_sign_in_loading">Iniciando sesión</string>
+    <string name="access_sign_in_blocked">El acceso está bloqueado hasta disponer de un endpoint API explícito y recibir confirmación del servidor.</string>
+    <string name="access_sign_in_validation">Ingresa identificador, slug del workspace y contraseña.</string>
+    <string name="access_sign_in_unauthorized">Las credenciales no fueron aceptadas. No se muestra contenido protegido.</string>
+    <string name="access_sign_in_forbidden">El servidor rechazó este contexto de acceso. No se muestra contenido protegido.</string>
+    <string name="access_sign_in_conflict">No se pudo establecer la sesión por un conflicto del servidor.</string>
+    <string name="access_sign_in_rate_limited">Hubo demasiados intentos. Espera antes de volver a intentar.</string>
+    <string name="access_sign_in_network">No se pudo alcanzar la API. Revisa la conexión y vuelve a intentar.</string>
+    <string name="access_sign_in_server">La API no está disponible temporalmente. Intenta más tarde.</string>
+    <string name="access_sign_in_storage">Falló el almacenamiento seguro de la sesión. El acceso permanece bloqueado.</string>
+    <string name="access_sign_in_unknown">La respuesta de acceso no pudo interpretarse de forma segura.</string>
+    <string name="access_sign_in_success">Sesión recibida. Volviendo al inicio seguro.</string>
+</resources>

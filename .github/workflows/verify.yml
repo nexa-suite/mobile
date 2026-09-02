@@ -17,11 +17,70 @@ jobs:
   verify:
     name: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Install selected Android SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          test -n "$sdk_root"
+          android_bin="$(command -v android || true)"
+          if [ -n "$android_bin" ]; then
+            "$android_bin" --sdk="$sdk_root" sdk install \
+              "platform-tools" \
+              "platforms/android-36" \
+              "build-tools/36.0.0"
+          else
+            sdkmanager_bin="$(command -v sdkmanager || true)"
+            if [ -z "$sdkmanager_bin" ]; then
+              sdkmanager_bin="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+            fi
+            set +e
+            yes | "$sdkmanager_bin" --sdk_root="$sdk_root" --licenses >/dev/null
+            license_status=("${PIPESTATUS[@]}")
+            set -e
+            if [ "${license_status[1]:-1}" -ne 0 ]; then
+              exit "${license_status[1]}"
+            fi
+            "$sdkmanager_bin" --sdk_root="$sdk_root" \
+              "platform-tools" \
+              "platforms;android-36" \
+              "build-tools;36.0.0"
+          fi
+      - name: Validate Gradle project graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          projects="$(./gradlew projects --no-daemon)"
+          for project in \
+            ":operations" \
+            ":core:network" \
+            ":core:storage" \
+            ":core:designsystem" \
+            ":core:testing" \
+            ":feature:access" \
+            ":feature:warehouse"; do
+            grep -Fq "Project '$project'" <<<"$projects" || {
+              echo "Missing Gradle project: $project"
+              exit 1
+            }
+          done
+      - name: Validate Gradle wrapper and native gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x ./gradlew
+          ./gradlew --version
+          ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon
       - name: Validate documentation repository
         run: node scripts/validate-repository.mjs
       - name: Validate YAML

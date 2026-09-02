@@ -29,6 +29,22 @@ for (const required of [
   if (!existsSync(join(root, required))) failures.push(`missing required file: ${required}`);
 }
 
+for (const required of [
+  'settings.gradle.kts',
+  'build.gradle.kts',
+  'gradle/wrapper/gradle-wrapper.jar',
+  'gradlew',
+  'operations/build.gradle.kts',
+  'operations/src/main/AndroidManifest.xml',
+  'feature/access/build.gradle.kts',
+  'feature/warehouse/build.gradle.kts',
+  'feature/warehouse/src/main/AndroidManifest.xml',
+  'feature/warehouse/src/test/java/com/nexa/mobile/feature/warehouse/WarehouseViewModelTest.kt',
+  'core/network/src/main/java/com/nexa/mobile/core/network/NativeCatalogClient.kt'
+]) {
+  if (!existsSync(join(root, required))) failures.push(`missing native preview file: ${required}`);
+}
+
 const allFiles = walk(root);
 for (const file of allFiles.filter(file => file.endsWith('.md'))) {
   const text = readFileSync(file, 'utf8');
@@ -45,6 +61,37 @@ for (const file of allFiles.filter(file => file.endsWith('.md'))) {
 const tracked = execFileSync('git', ['ls-files'], { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
 const generatedPattern = /(^|\/)(node_modules|dist|target|coverage|playwright-report|test-results)(\/|$)|(^|\/)([^/]+\.(log|patch))$/;
 for (const file of tracked) if (generatedPattern.test(file)) failures.push(`generated artifact tracked: ${file}`);
+const secretPattern = /-----BEGIN (?:RSA|EC|OPENSSH|PRIVATE) KEY-----|(?:ghp_|github_pat_|sk_live_|AKIA)[A-Za-z0-9_/-]{12,}/;
+for (const file of tracked) {
+  const contents = readFileSync(join(root, file), 'utf8');
+  if (secretPattern.test(contents)) failures.push(`credential-like material tracked: ${file}`);
+}
+
+const expectedProjects = [
+  ':operations',
+  ':core:network',
+  ':core:storage',
+  ':core:designsystem',
+  ':core:testing',
+  ':feature:access',
+  ':feature:warehouse'
+];
+const settings = readFileSync(join(root, 'settings.gradle.kts'), 'utf8');
+for (const project of expectedProjects) {
+  if (!settings.includes(`include("${project}")`)) failures.push(`missing native project registration: ${project}`);
+}
+
+const gradleFiles = tracked.filter(file => file === 'gradle/libs.versions.toml' || file.endsWith('.gradle.kts'));
+const unstableDependencyPattern = /(?:SNAPSHOT|\+|-(?:alpha|beta|rc)(?:[.\d-]|$))/i;
+const untrustedRepositoryPattern = /(?:jitpack\.io|github\.com|gitlab\.com|bitbucket\.org)/i;
+const customRepositoryPattern = /(?:^|\W)maven\s*\{/i;
+for (const file of gradleFiles) {
+  const contents = readFileSync(join(root, file), 'utf8');
+  if (unstableDependencyPattern.test(contents)) failures.push(`unstable dependency notation: ${file}`);
+  if (untrustedRepositoryPattern.test(contents)) failures.push(`untrusted dependency repository: ${file}`);
+  if (customRepositoryPattern.test(contents)) failures.push(`custom Maven repository requires review: ${file}`);
+}
+
 const policy = readFileSync(join(root, '.github/RELEASE_POLICY.md'), 'utf8');
 for (const phrase of ['Semantic Versioning', 'SSH-signed', 'git verify-tag', 'documentation foundations only']) {
   if (!policy.includes(phrase)) failures.push(`release policy missing: ${phrase}`);
@@ -55,4 +102,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Mobile repository validation passed: documentation-only, no native build or runtime claim.');
+console.log('Mobile repository validation passed: native preview source and repository hygiene checks passed; build and runtime evidence remain separate gates.');

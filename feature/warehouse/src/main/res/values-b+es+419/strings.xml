@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="warehouse_title">Vista previa de identificación de almacén</string>
+    <string name="warehouse_subtitle">Escanea un código de barras o ingresa un identificador. La API etiquetada decide el SKU.</string>
+    <string name="warehouse_scan">Iniciar escaneo con cámara</string>
+    <string name="warehouse_scanning">La cámara está activa. Alinea un código de barras en la vista previa.</string>
+    <string name="warehouse_camera_preview">Vista previa de cámara para códigos de barras. La cámara solo lee el identificador físico.</string>
+    <string name="warehouse_identifier_label">Identificador físico</string>
+    <string name="warehouse_resolve">Resolver identificador</string>
+    <string name="warehouse_resolving">Resolviendo con Nexa.</string>
+    <string name="warehouse_blocked">La identificación de almacén está bloqueada hasta disponer de acceso conectado y una sesión segura.</string>
+    <string name="warehouse_camera_permission_denied">Se denegó el permiso de cámara. La entrada manual sigue disponible.</string>
+    <string name="warehouse_camera_unavailable">La cámara no está disponible en este dispositivo. Usa la entrada manual.</string>
+    <string name="warehouse_validation">Ingresa un identificador antes de resolverlo.</string>
+    <string name="warehouse_not_found">No se encontró un SKU vendible para %1$s.</string>
+    <string name="warehouse_ambiguous">El servidor encontró %2$d candidatos para %1$s. No se seleccionó ningún SKU.</string>
+    <string name="warehouse_resolved">Resultado de SKU con autoridad del servidor</string>
+    <string name="warehouse_sku_code">Código SKU: %1$s</string>
+    <string name="warehouse_gtin">GTIN: %1$s</string>
+    <string name="warehouse_presentation">Presentación: %1$s</string>
+    <string name="warehouse_unit">Unidad: %1$s</string>
+    <string name="warehouse_status">Estado: %1$s</string>
+    <string name="warehouse_scan_again">Escanear otro identificador</string>
+    <string name="warehouse_back">Volver</string>
+    <string name="warehouse_unauthorized">La sesión ya no está autorizada. Vuelve al inicio y confirma el acceso.</string>
+    <string name="warehouse_forbidden">El servidor rechazó este contexto de acceso. No se mostró ningún SKU.</string>
+    <string name="warehouse_rate_limited">Hubo demasiadas consultas. Espera antes de volver a intentar.</string>
+    <string name="warehouse_network">No se pudo alcanzar la API. Intenta de nuevo o usa la entrada manual.</string>
+    <string name="warehouse_server">La API no está disponible temporalmente. Intenta más tarde.</string>
+    <string name="warehouse_storage">El almacenamiento seguro no está disponible. No se envió ninguna consulta.</string>
+    <string name="warehouse_unknown">La respuesta de resolución no pudo interpretarse de forma segura.</string>
+</resources>
