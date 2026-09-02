@@ -4,12 +4,15 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.ViewModelProvider
 import com.nexa.mobile.core.network.ApiClientSurface
 import com.nexa.mobile.core.network.ApiError
 import com.nexa.mobile.core.network.ApiErrorCategory
 import com.nexa.mobile.core.network.ApiResult
 import com.nexa.mobile.core.network.NativeAccessClient
+import com.nexa.mobile.core.network.NativeCatalogClient
 import com.nexa.mobile.core.network.NativeRefreshCredentials
 import com.nexa.mobile.core.storage.KeystoreSessionStore
 import com.nexa.mobile.core.storage.SessionMaterial
@@ -19,6 +22,9 @@ import com.nexa.mobile.feature.access.LaunchViewModel
 import com.nexa.mobile.feature.access.SessionConfirmation
 import com.nexa.mobile.feature.access.SignInGateway
 import com.nexa.mobile.feature.access.SignInViewModel
+import com.nexa.mobile.feature.warehouse.SkuIdentifierResolver
+import com.nexa.mobile.feature.warehouse.WarehouseScreen
+import com.nexa.mobile.feature.warehouse.WarehouseViewModel
 
 class MainActivity : ComponentActivity() {
     private val sessionStore: SessionStore by lazy {
@@ -29,6 +35,12 @@ class MainActivity : ComponentActivity() {
         BuildConfig.NEXA_API_BASE_URL
             .takeIf(String::isNotBlank)
             ?.let(::NativeAccessClient)
+    }
+
+    private val nativeCatalogClient: NativeCatalogClient? by lazy {
+        BuildConfig.NEXA_API_BASE_URL
+            .takeIf(String::isNotBlank)
+            ?.let(::NativeCatalogClient)
     }
 
     private val configuredSurface: ApiClientSurface? by lazy {
@@ -60,11 +72,41 @@ class MainActivity : ComponentActivity() {
         )[SignInViewModel::class.java]
     }
 
+    private val warehouseViewModel: WarehouseViewModel by lazy {
+        ViewModelProvider(
+            this,
+            WarehouseViewModel.Factory(
+                resolver = nativeCatalogClient?.let { client ->
+                    SkuIdentifierResolver { identifier, accessToken ->
+                        client.resolveSku(identifier, accessToken)
+                    }
+                },
+                sessionStore = sessionStore,
+            ),
+        )[WarehouseViewModel::class.java]
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            AccessNavigation(viewModel = launchViewModel, signInViewModel = signInViewModel)
+            val warehouseState by warehouseViewModel.uiState.collectAsStateWithLifecycle()
+            AccessNavigation(
+                viewModel = launchViewModel,
+                signInViewModel = signInViewModel,
+                warehouseEntry = { onBack ->
+                    WarehouseScreen(
+                        state = warehouseState,
+                        onIdentifierChanged = warehouseViewModel::onIdentifierChanged,
+                        onStartCamera = warehouseViewModel::startScanning,
+                        onCameraPermissionDenied = warehouseViewModel::onCameraPermissionDenied,
+                        onCameraUnavailable = warehouseViewModel::onCameraUnavailable,
+                        onBarcodeDetected = warehouseViewModel::onBarcodeDetected,
+                        onResolveManually = warehouseViewModel::resolveManually,
+                        onBack = onBack,
+                    )
+                },
+            )
         }
     }
 

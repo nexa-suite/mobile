@@ -30,6 +30,7 @@ fun LaunchScreen(
     state: LaunchUiState,
     onRetry: () -> Unit = {},
     onSignIn: () -> Unit = {},
+    onOpenWarehouse: () -> Unit = {},
 ) {
     val message = when (state) {
         LaunchUiState.Initial -> R.string.launch_initial
@@ -89,6 +90,15 @@ fun LaunchScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(text = stringResource(R.string.launch_sign_in))
+                }
+            }
+
+            if (state == LaunchUiState.Confirmed) {
+                Button(
+                    onClick = onOpenWarehouse,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(text = stringResource(R.string.launch_open_warehouse))
                 }
             }
 

@@ -43,14 +43,21 @@ sealed interface AccessRoute : NavKey {
 
     @Serializable
     data object OperationsEntry : AccessRoute
+
+    @Serializable
+    data object Warehouse : AccessRoute
 }
 
 /**
- * Minimal typed Navigation 3 shell. Server-confirmed access remains disabled
- * until the tagged API surface semantics are approved.
+ * Minimal typed Navigation 3 shell. Warehouse content is only reachable from
+ * a server-confirmed session; the entry itself owns no business authority.
  */
 @Composable
-fun AccessNavigation(viewModel: LaunchViewModel, signInViewModel: SignInViewModel) {
+fun AccessNavigation(
+    viewModel: LaunchViewModel,
+    signInViewModel: SignInViewModel,
+    warehouseEntry: @Composable (onBack: () -> Unit) -> Unit,
+) {
     val configuration = remember {
         SavedStateConfiguration {
             serializersModule = SerializersModule {
@@ -58,6 +65,7 @@ fun AccessNavigation(viewModel: LaunchViewModel, signInViewModel: SignInViewMode
                     subclass(AccessRoute.Launch::class)
                     subclass(AccessRoute.SignIn::class)
                     subclass(AccessRoute.OperationsEntry::class)
+                    subclass(AccessRoute.Warehouse::class)
                 }
             }
         }
@@ -88,6 +96,7 @@ fun AccessNavigation(viewModel: LaunchViewModel, signInViewModel: SignInViewMode
                         state = launchState,
                         onRetry = viewModel::restore,
                         onSignIn = dropUnlessResumed { backStack += AccessRoute.SignIn },
+                        onOpenWarehouse = dropUnlessResumed { backStack += AccessRoute.Warehouse },
                     )
                 }
                 entry<AccessRoute.SignIn> {
@@ -104,6 +113,11 @@ fun AccessNavigation(viewModel: LaunchViewModel, signInViewModel: SignInViewMode
                 }
                 entry<AccessRoute.OperationsEntry> {
                     PlaceholderScreen(onBack = { if (backStack.size > 1) backStack.removeLastOrNull() })
+                }
+                entry<AccessRoute.Warehouse> {
+                    warehouseEntry(dropUnlessResumed {
+                        if (backStack.size > 1) backStack.removeLastOrNull()
+                    })
                 }
             },
         )
