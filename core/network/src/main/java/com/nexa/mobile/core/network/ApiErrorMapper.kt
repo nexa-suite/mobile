@@ -3,7 +3,7 @@ package com.nexa.mobile.core.network
 object ApiErrorMapper {
     private val safeCode = Regex("[A-Z0-9_:-]{1,64}")
 
-    fun fromHttp(status: Int, problem: ProblemDetail? = null): ApiError {
+    fun fromHttp(status: Int, problem: ProblemDetail? = null, retryAfterSeconds: Long? = null): ApiError {
         val category = when (status) {
             400 -> ApiErrorCategory.VALIDATION
             401 -> ApiErrorCategory.UNAUTHORIZED
@@ -25,7 +25,7 @@ object ApiErrorMapper {
             status = status,
             code = problem?.code?.takeIf(safeCode::matches),
             retryable = retryable,
-            retryAfterSeconds = if (category == ApiErrorCategory.RATE_LIMITED) 60 else null,
+            retryAfterSeconds = if (category == ApiErrorCategory.RATE_LIMITED) retryAfterSeconds ?: 60 else null,
         )
     }
 
