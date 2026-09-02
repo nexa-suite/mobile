@@ -56,6 +56,24 @@ jobs:
               "platforms;android-36" \
               "build-tools;36.0.0"
           fi
+      - name: Validate Gradle project graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          projects="$(./gradlew projects --no-daemon)"
+          for project in \
+            ":operations" \
+            ":core:network" \
+            ":core:storage" \
+            ":core:designsystem" \
+            ":core:testing" \
+            ":feature:access" \
+            ":feature:warehouse"; do
+            grep -Fq "Project '$project'" <<<"$projects" || {
+              echo "Missing Gradle project: $project"
+              exit 1
+            }
+          done
       - name: Validate Gradle wrapper and native gates
         shell: bash
         run: |

@@ -36,7 +36,11 @@ for (const required of [
   'gradlew',
   'operations/build.gradle.kts',
   'operations/src/main/AndroidManifest.xml',
-  'feature/access/build.gradle.kts'
+  'feature/access/build.gradle.kts',
+  'feature/warehouse/build.gradle.kts',
+  'feature/warehouse/src/main/AndroidManifest.xml',
+  'feature/warehouse/src/test/java/com/nexa/mobile/feature/warehouse/WarehouseViewModelTest.kt',
+  'core/network/src/main/java/com/nexa/mobile/core/network/NativeCatalogClient.kt'
 ]) {
   if (!existsSync(join(root, required))) failures.push(`missing native preview file: ${required}`);
 }
@@ -62,6 +66,32 @@ for (const file of tracked) {
   const contents = readFileSync(join(root, file), 'utf8');
   if (secretPattern.test(contents)) failures.push(`credential-like material tracked: ${file}`);
 }
+
+const expectedProjects = [
+  ':operations',
+  ':core:network',
+  ':core:storage',
+  ':core:designsystem',
+  ':core:testing',
+  ':feature:access',
+  ':feature:warehouse'
+];
+const settings = readFileSync(join(root, 'settings.gradle.kts'), 'utf8');
+for (const project of expectedProjects) {
+  if (!settings.includes(`include("${project}")`)) failures.push(`missing native project registration: ${project}`);
+}
+
+const gradleFiles = tracked.filter(file => file === 'gradle/libs.versions.toml' || file.endsWith('.gradle.kts'));
+const unstableDependencyPattern = /(?:SNAPSHOT|\+|-(?:alpha|beta|rc)(?:[.\d-]|$))/i;
+const untrustedRepositoryPattern = /(?:jitpack\.io|github\.com|gitlab\.com|bitbucket\.org)/i;
+const customRepositoryPattern = /(?:^|\W)maven\s*\{/i;
+for (const file of gradleFiles) {
+  const contents = readFileSync(join(root, file), 'utf8');
+  if (unstableDependencyPattern.test(contents)) failures.push(`unstable dependency notation: ${file}`);
+  if (untrustedRepositoryPattern.test(contents)) failures.push(`untrusted dependency repository: ${file}`);
+  if (customRepositoryPattern.test(contents)) failures.push(`custom Maven repository requires review: ${file}`);
+}
+
 const policy = readFileSync(join(root, '.github/RELEASE_POLICY.md'), 'utf8');
 for (const phrase of ['Semantic Versioning', 'SSH-signed', 'git verify-tag', 'documentation foundations only']) {
   if (!policy.includes(phrase)) failures.push(`release policy missing: ${phrase}`);
