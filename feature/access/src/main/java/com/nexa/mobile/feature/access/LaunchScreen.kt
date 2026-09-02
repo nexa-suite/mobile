@@ -20,10 +20,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.core.designsystem.NexaStatusBanner
+import com.nexa.mobile.core.designsystem.NexaStatusTone
+import androidx.compose.ui.semantics.LiveRegionMode
 
 @Composable
 fun LaunchScreen(
@@ -45,6 +49,7 @@ fun LaunchScreen(
         LaunchUiState.Unauthorized -> R.string.launch_unauthorized
     }
     val progressDescription = stringResource(R.string.launch_loading)
+    val statusTone = state.statusTone()
 
     Scaffold(contentWindowInsets = WindowInsets.safeDrawing) { contentPadding: PaddingValues ->
         Column(
@@ -64,9 +69,12 @@ fun LaunchScreen(
                 text = stringResource(R.string.launch_subtitle),
                 style = MaterialTheme.typography.titleMedium,
             )
-            Text(
-                text = stringResource(message),
-                style = MaterialTheme.typography.bodyLarge,
+            NexaStatusBanner(
+                message = stringResource(message),
+                tone = statusTone,
+                modifier = Modifier.semantics {
+                    liveRegion = LiveRegionMode.Polite
+                },
             )
             Text(
                 text = stringResource(R.string.launch_provisional),
@@ -112,5 +120,18 @@ fun LaunchScreen(
             }
 
         }
+    }
+}
+
+private fun LaunchUiState.statusTone(): NexaStatusTone = when (this) {
+    LaunchUiState.Initial,
+    LaunchUiState.Loading,
+    LaunchUiState.NoSession -> NexaStatusTone.INFO
+    LaunchUiState.Confirmed -> NexaStatusTone.SUCCESS
+    LaunchUiState.Unauthorized -> NexaStatusTone.DANGER
+    is LaunchUiState.Unavailable -> if (failure == LaunchFailure.AUTH_SURFACE_BLOCKED) {
+        NexaStatusTone.WARNING
+    } else {
+        NexaStatusTone.DANGER
     }
 }

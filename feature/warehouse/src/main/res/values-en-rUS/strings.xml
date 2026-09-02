@@ -4,6 +4,7 @@
     <string name="warehouse_subtitle">Scan a barcode or enter an identifier. The tagged API decides the SKU.</string>
     <string name="warehouse_scan">Start camera scan</string>
     <string name="warehouse_scanning">Camera is active. Align one barcode in the preview.</string>
+    <string name="warehouse_camera_preview">Barcode camera preview. Camera only reads the physical identifier.</string>
     <string name="warehouse_identifier_label">Physical identifier</string>
     <string name="warehouse_resolve">Resolve identifier</string>
     <string name="warehouse_resolving">Resolving with Nexa.</string>

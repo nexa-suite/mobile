@@ -4,6 +4,7 @@
     <string name="warehouse_subtitle">Escanea un código de barras o ingresa un identificador. La API etiquetada decide el SKU.</string>
     <string name="warehouse_scan">Iniciar escaneo con cámara</string>
     <string name="warehouse_scanning">La cámara está activa. Alinea un código de barras en la vista previa.</string>
+    <string name="warehouse_camera_preview">Vista previa de cámara para códigos de barras. La cámara solo lee el identificador físico.</string>
     <string name="warehouse_identifier_label">Identificador físico</string>
     <string name="warehouse_resolve">Resolver identificador</string>
     <string name="warehouse_resolving">Resolviendo con Nexa.</string>

@@ -14,6 +14,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -35,6 +38,11 @@ internal fun BarcodeCamera(
     val controller = remember(context) { LifecycleCameraController(context) }
     val scanner = rememberBarcodeScanner()
     val executor = remember(context) { ContextCompat.getMainExecutor(context) }
+    val cameraDescription = stringResource(R.string.warehouse_camera_preview)
+
+    DisposableEffect(scanner) {
+        onDispose { scanner.close() }
+    }
 
     DisposableEffect(controller, lifecycleOwner, scanner, executor) {
         try {
@@ -61,14 +69,16 @@ internal fun BarcodeCamera(
         onDispose {
             runCatching { controller.clearImageAnalysisAnalyzer() }
             runCatching { controller.unbind() }
-            scanner.close()
         }
     }
 
     AndroidView(
         modifier = Modifier
             .fillMaxWidth()
-            .height(280.dp),
+            .height(280.dp)
+            .semantics {
+                contentDescription = cameraDescription
+            },
         factory = { viewContext: Context ->
             PreviewView(viewContext).apply {
                 implementationMode = PreviewView.ImplementationMode.COMPATIBLE

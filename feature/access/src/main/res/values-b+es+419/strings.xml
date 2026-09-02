@@ -23,6 +23,7 @@
     <string name="access_workspace_label">Slug del workspace</string>
     <string name="access_password_label">Contraseña</string>
     <string name="access_sign_in_submit">Iniciar sesión</string>
+    <string name="access_sign_in_loading">Iniciando sesión</string>
     <string name="access_sign_in_blocked">El acceso está bloqueado hasta configurar explícitamente un endpoint API y una superficie API aceptada.</string>
     <string name="access_sign_in_validation">Ingresa identificador, slug del workspace y contraseña.</string>
     <string name="access_sign_in_unauthorized">Las credenciales no fueron aceptadas. No se muestra contenido protegido.</string>
