@@ -13,6 +13,24 @@ identification surfaces needed for `MOB-US-001`, `MOB-US-002`, `MOB-US-003`,
 `MOB-US-011` and `MOB-US-012`. The API remains authoritative for identity,
 tenant/workspace scope, authorization and SKU resolution.
 
+## Current client implementation evidence
+
+The connected preview contains typed adapters for the observed contracts:
+
+- `core/network/NativeAccessClient.kt` models sign-in, refresh, current-session
+  and sign-out requests. Its base URL and `ClientSurface` are explicit build
+  inputs; the client does not infer a native surface from the app name.
+- `core/network/NativeCatalogClient.kt` calls the observed SKU resolver with a
+  bearer token and preserves the server response outcome without selecting a
+  local SKU.
+- `feature/warehouse` accepts camera or manual identifiers, then delegates
+  resolution only when a locally stored session is present. CameraX and ML Kit
+  decode input; the API remains the source of SKU truth.
+
+The adapter tests use deterministic request executors and fakes. They prove
+serialization, headers, state transitions and failure mapping; they do not
+prove a live API, camera, emulator or physical-device run.
+
 ## Authentication and session
 
 ### Workspace preview

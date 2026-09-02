@@ -11,13 +11,19 @@ All notable changes to this repository are documented here using Keep a Changelo
 
 ### Native engineering preview
 
-- Added the unmerged AV1 native Android foundation for Nexa Operations:
+- Added unmerged AV1 native Android preview slices for Nexa Operations:
   Compose, Navigation 3, feature-oriented modules, typed error mapping,
-  Keystore-backed session material and localized launch states.
+  Keystore-backed session material and localized launch/access states.
+- Added typed API v0.17.0 access/session and SKU-resolution adapters with
+  explicit configuration and fail-closed state handling.
+- Added a Warehouse identification preview with CameraX/ML Kit barcode input,
+  manual identifier input and server-owned resolution outcomes.
 - Added host/CI/Docker verification commands pinned to the recorded JDK 21,
-  Android API 36 and Gradle/AGP matrix.
-- Kept connected authentication and warehouse identification outside the
-  current foundation claim; `BLOCKED — AUTH SURFACE SEMANTICS` remains open.
+  Android API 36 and Gradle/AGP matrix, including project-graph and dependency
+  hygiene checks.
+- Kept live connected authentication blocked by unresolved `ClientSurface`
+  semantics; API, camera, emulator and physical-device runtime evidence is not
+  claimed.
 
 This entry does not publish `v0.2.0` and does not claim Mobile V1, runtime,
 emulator, physical-device or Product Acceptance evidence.

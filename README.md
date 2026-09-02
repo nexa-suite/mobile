@@ -18,17 +18,19 @@
 
 ## Overview
 
-This repository contains a runnable, uncommitted AV1 native Android engineering
-preview for Nexa Operations. The current foundation is experimental and does
-not claim Mobile V1, Product Acceptance, production readiness or physical-device
+This repository contains a runnable, unmerged AV1 native Android engineering
+preview for Nexa Operations. The current preview is experimental and does not
+claim Mobile V1, Product Acceptance, production readiness or physical-device
 validation.
 
-The implementation is deliberately staged. The current foundation includes the
+The implementation is deliberately staged. The current branch includes the
 Operations app shell, typed error mapping, Keystore-backed session storage,
-Navigation 3 launch states, localization and repository gates. Connected API
-authentication remains blocked until the tagged API's Operations
-`ClientSurface` mapping is approved. Warehouse identification remains a later
-preview slice.
+Navigation 3 launch states, localized access forms, explicit session recovery,
+and a Warehouse identification preview with CameraX, ML Kit barcode decoding,
+manual input and a tagged API resolver adapter. Connected API authentication
+remains blocked until the tagged API's Operations `ClientSurface` mapping is
+approved. Live API, camera, emulator and physical-device evidence remains
+unverified.
 
 ## Related repositories
 
@@ -44,7 +46,8 @@ The organization profile owns the full public ecosystem map. This repository lin
 
 - In scope for the complete AV1 plan: `MOB-US-001`, `MOB-US-002`,
   `MOB-US-003`, `MOB-US-011` and `MOB-US-012`.
-- The current branch stops at native foundation and access launch states.
+- The current branch contains partial implementation slices for that boundary;
+  passing tests and builds do not mark those stories accepted.
 - `MOB-US-013` and later stories are not started.
 - Mobile is a client projection; it creates no Bounded Context and does not
   become an authority for tenant, authorization, catalog, inventory or
@@ -68,6 +71,7 @@ access to `BC-01 Tenant & Access Governance` and product identification to
 | Application framework | Kotlin + Jetpack Compose |
 | Navigation | Navigation 3, typed serializable route keys |
 | Session material | Android Keystore-backed AES/GCM primitive |
+| Warehouse input | CameraX 1.6.1 + bundled ML Kit barcode scanning 17.3.0; runtime not evidenced |
 | API evidence | Nexa API `v0.17.0`, read-only |
 | Build baseline | Project JDK 21 (selected and locally verified); AGP 9.0.1 / Gradle 9.1.0 / compile-target SDK 36 |
 | Backend authority | Nexa API |
@@ -100,6 +104,7 @@ No emulator or physical-device result is implied by a successful host build.
     operations/             # Android application
     core/                   # network, storage, design system, test support
     feature/access/         # access projection and launch shell
+    feature/warehouse/      # camera/manual identification preview
     README.md
     CHANGELOG.md
     .github/

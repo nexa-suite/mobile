@@ -1,10 +1,10 @@
 # Android toolchain evidence — AV1 native preview
 
-Status: current local implementation evidence for the committed
-`feature/native-foundation` branch plus explicitly deferred candidates; it is
-not a canonical Nexa Product or Architecture decision.
+Status: current local implementation evidence for the committed foundation and
+connected-preview branches plus explicitly deferred candidates; it is not a
+canonical Nexa Product or Architecture decision.
 
-Captured: 2026-09-01.
+Captured: 2026-09-01. Updated: 2026-09-02.
 
 Task 2 resolution evidence: the first build attempt with BOM `2026.08.00`
 failed at AAR metadata validation because Compose `1.12.0` required AGP
@@ -24,7 +24,7 @@ requirement.
 | Android platform | API 36 and API 37.0 installed | API 36 is the selected compile/target baseline; API 37 is not selected |
 | Build tools | `36.0.0` installed | Selected for API 36 baseline |
 | Platform tools | `37.0.1` / adb 1.0.41 | Installed locally |
-| Emulator | `37.1.11.0` | No AVD and no connected device at capture time |
+| Emulator | `37.1.11.0` | `android emulator list` and selected-SDK `adb devices -l` show no AVD or connected device on 2026-09-02 |
 | Default terminal Java | OpenJDK `26.0.1` | Not selected for the Gradle build |
 | Android Studio JBR | OpenJDK `25.0.2` | Not selected for the Gradle build |
 | JDK 21 | Installed at `/Library/Java/JavaVirtualMachines/jdk-21.jdk` | `PROJECT BUILD JDK: 21`; selected and verified locally because it is the available LTS project/CI/Docker baseline |
@@ -48,9 +48,9 @@ passed.
 | minSdk | `23` | Deliberate support baseline for the AV1 preview; future scanner dependencies must be checked against it before adoption |
 | Compose | BOM `2026.06.01` | Stable BOM candidate compatible with the selected AGP 9.0.1 / compileSdk 36 gate; `2026.08.00` was rejected because its Compose 1.12.0 artifacts require AGP 9.1.0+ and compileSdk 37 |
 | Navigation 3 | `navigation3-runtime:1.1.7`, `navigation3-ui:1.1.7` | Stable line; exclude `1.2.0-beta01` |
-| CameraX | `1.6.1` | Stable candidate; exclude 1.7 alpha builds |
-| ML Kit barcode | bundled `com.google.mlkit:barcode-scanning:17.3.0` | On-device model; no dynamic Play Services model dependency |
-| HTTP | Not added yet | Planned for the connected access slice; exact client versions remain deferred until the API adapter task |
+| CameraX | `1.6.1` | Used by `:feature:warehouse`; stable candidate; exclude 1.7 alpha builds |
+| ML Kit barcode | bundled `com.google.mlkit:barcode-scanning:17.3.0` | Used by `:feature:warehouse`; on-device model; no dynamic Play Services model dependency |
+| HTTP | `java.net.HttpURLConnection` | Used by `:core:network`; Retrofit and OkHttp are not added |
 | Serialization | Kotlin serialization plugin `2.2.10` / `kotlinx.serialization` `1.9.0` | Used by `:feature:access` for typed Navigation 3 routes; no HTTP runtime is claimed by the foundation |
 | Lifecycle | `2.10.0` | Effective selected version for the access launch state and Navigation 3 dependency graph |
 | DI | Manual constructor-based DI | Keeps the foundation small and avoids an unverified Hilt/KSP matrix |
@@ -62,8 +62,8 @@ passed.
   `android.builtInKotlin=true` project property.
 - `org.jetbrains.kotlin.android`: not applied.
 - Effective KGP: `2.2.10`, supplied by AGP 9.0.1's runtime dependency. The
-  version catalog repeats `2.2.10` for the Compose compiler plugin and later
-  typed-serialization modules.
+  version catalog repeats `2.2.10` for the Compose compiler and serialization
+  plugins used by the current modules.
 - Compose compiler: `org.jetbrains.kotlin.plugin.compose`, applied by the
   Android modules that use Compose; no legacy compiler extension is configured.
 - JVM target: Gradle itself runs with the selected project JDK 21; Android
@@ -106,8 +106,8 @@ passed.
 
 The GitHub workflow installs the selected project build JDK 21, accepts the selected Android SDK
 licenses, installs `platform-tools`, `platforms;android-36` and
-`build-tools;36.0.0`, validates the executable Gradle wrapper and runs the
-same host gates:
+`build-tools;36.0.0`, validates the seven-project Gradle graph and executable
+wrapper, then runs the same host gates:
 
 ```text
 ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon
@@ -126,16 +126,18 @@ docker run --rm nexa-mobile-av1-build
 ```
 
 The image command runs the three Gradle gates in an ephemeral container, so
-credentials and host build outputs are excluded by `.dockerignore`. Docker
-parity is not run by the current GitHub workflow because the repository's
-30-minute hosted runner budget is reserved for the native gates; it remains a
-release gate and must be recorded as `BLOCKED — DOCKER BUILD` if unavailable.
+credentials and host build outputs are excluded by `.dockerignore`. A clean
+`linux/amd64` build and run were verified locally on 2026-09-02 with the
+pinned image and completed in 636.93 seconds. Docker parity is not run by the
+current GitHub workflow because the repository's 30-minute hosted runner budget
+is reserved for the native gates; it remains a release gate and must be
+recorded as `BLOCKED — DOCKER BUILD` if unavailable.
 
 ## Open gates
 
-- CameraX, ML Kit, Retrofit and OkHttp resolution remains open for the
-  connected/warehouse slices; they are intentionally not added to the
-  foundation.
+- CameraX and bundled ML Kit barcode decoding are implemented in the Warehouse
+  preview; camera runtime evidence remains open. Retrofit and OkHttp are not
+  added.
 - No emulator evidence exists until an AVD is intentionally created and the
   application is installed and exercised.
 - `BLOCKED — AUTH SURFACE SEMANTICS` remains active until the accepted API
@@ -163,3 +165,20 @@ the AndroidX Startup provider marked `exported="false"`. AndroidX also merges
 its `ProfileInstallReceiver`, which is `exported="true"` and protected by
 `android.permission.DUMP`; it is framework-owned and retained because the
 profileinstaller dependency is not artificially excluded.
+
+## Connected preview build evidence
+
+The connected preview branch also passes the same host gates with
+`JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home`:
+
+```text
+./gradlew projects --no-daemon                         PASS
+./gradlew testDebugUnitTest lintDebug assembleDebug    PASS
+node scripts/validate-repository.mjs                   PASS
+git diff --check                                       PASS
+```
+
+Running the Gradle gates with the default host JDK `26.0.1` failed during
+Android's `JdkImageTransform` while invoking `jlink`. Repeating the same gates
+with the selected JDK `21.0.9` passed. This is recorded as host-environment
+drift; the project does not claim that AGP requires exactly JDK 21.
