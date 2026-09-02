@@ -2,6 +2,7 @@ package com.nexa.mobile.core.network
 
 import java.io.IOException
 import java.net.URLEncoder
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -65,6 +66,8 @@ class NativeCatalogClient(
             } else {
                 ApiResult.Success(decode(response))
             }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
         } catch (_: IOException) {
             ApiResult.Failure(ApiErrorMapper.network())
         } catch (_: RuntimeException) {

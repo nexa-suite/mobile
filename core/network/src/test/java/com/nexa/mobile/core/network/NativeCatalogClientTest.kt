@@ -1,6 +1,7 @@
 package com.nexa.mobile.core.network
 
 import kotlinx.coroutines.runBlocking
+import kotlin.coroutines.cancellation.CancellationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -80,6 +81,16 @@ class NativeCatalogClientTest {
         assertEquals("NOT_FOUND", resolution.outcome)
         assertEquals(0, resolution.candidateCount)
         assertEquals(null, resolution.skuId)
+    }
+
+    @Test(expected = CancellationException::class)
+    fun transportCancellationIsNotConvertedIntoMalformedResponse() {
+        runBlocking {
+            NativeCatalogClient(
+                "https://api.example.test",
+                HttpRequestExecutor { throw CancellationException("test cancellation") },
+            ).resolveSku("SKU-001", "access-2")
+        }
     }
 
     private class RecordingExecutor(private val response: HttpResponse) : HttpRequestExecutor {

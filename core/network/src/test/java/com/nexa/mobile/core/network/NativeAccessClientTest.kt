@@ -1,6 +1,7 @@
 package com.nexa.mobile.core.network
 
 import kotlinx.coroutines.runBlocking
+import kotlin.coroutines.cancellation.CancellationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -168,6 +169,16 @@ class NativeAccessClientTest {
         assertNull(ApiClientSurface.parse("NATIVE"))
         assertNull(ApiClientSurface.parse("OPERATIONS"))
         assertNull(ApiClientSurface.parse("MOBILE"))
+    }
+
+    @Test(expected = CancellationException::class)
+    fun transportCancellationIsNotConvertedIntoMalformedResponse() {
+        runBlocking {
+            NativeAccessClient(
+                "https://api.example.test",
+                HttpRequestExecutor { throw CancellationException("test cancellation") },
+            ).currentSession("access-2")
+        }
     }
 
     private fun authenticationJson(surface: String): String = """
