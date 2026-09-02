@@ -27,12 +27,15 @@ The implementation is deliberately staged. The current branch includes the
 Operations app shell, typed error mapping, Keystore-backed session storage,
 Navigation 3 launch states, localized access forms, explicit session recovery,
 and a Warehouse identification preview with CameraX, ML Kit barcode decoding,
-manual input and a tagged API resolver adapter. The public workspace-preview
-preflight is wired before credential entry. Connected API authentication
-remains blocked until the tagged API's Operations `ClientSurface` mapping is
-approved. Live API, camera and physical-device evidence remains unverified. An
-Android API 36 emulator smoke run now verifies APK installation, launcher
-activation and the fail-closed access-preview screen only.
+manual input and a tagged API resolver adapter. Connected access now submits
+the explicit workspace slug with credentials using `ClientSurface.PLATFORM`
+and `X-Nexa-Client: NATIVE`; the public workspace-preview contract remains
+available only as non-native context discovery. The exact tagged API has been
+exercised with an isolated local fixture: native sign-in, session confirmation,
+refresh rotation and sign-out pass. Deployed API, camera and physical-device
+evidence remains unverified. An Android API 36 emulator smoke run verifies APK
+installation, launcher activation and the fail-closed access-preview screen
+only; it does not include live API networking.
 
 ## Related repositories
 
@@ -73,7 +76,7 @@ access to `BC-01 Tenant & Access Governance` and product identification to
 | Application framework | Kotlin + Jetpack Compose |
 | Navigation | Navigation 3, typed serializable route keys |
 | Session material | Android Keystore-backed AES/GCM primitive |
-| Access integration | API v0.17.0 public workspace preview before credential entry; live API not evidenced |
+| Access integration | API v0.17.0 explicit workspace sign-in with `PLATFORM` + `NATIVE`; isolated local fixture runtime PASS; deployed/API-on-device runtime not evidenced |
 | Warehouse input | CameraX 1.6.1 + bundled ML Kit barcode scanning 17.3.0; emulator app smoke PASS, camera/decoder runtime not evidenced |
 | API evidence | Nexa API `v0.17.0`, read-only |
 | Build baseline | Project JDK 21 (selected and locally verified); AGP 9.0.1 / Gradle 9.1.0 / compile-target SDK 36 |
@@ -102,7 +105,8 @@ docker run --rm nexa-mobile-av1-build
 
 No emulator or physical-device result is implied by a successful host build.
 The current emulator smoke evidence is recorded below; it does not prove live
-API, camera, barcode-decoder or physical-device behavior.
+API networking from Android, camera, barcode-decoder or physical-device
+behavior.
 
 ## Emulator smoke evidence
 
@@ -118,8 +122,10 @@ android layout --device emulator-5554 --pretty                                  
 
 The rendered state is `Nexa Operations` / `Native engineering preview` with
 no local session and an explicit blocked access-preview state. This is an
-emulator launch and fail-closed UI check, not live authentication, API,
-camera, SKU-resolution, physical-device or Product Acceptance evidence.
+emulator launch and fail-closed UI check, not live Android API networking,
+camera, SKU-resolution, physical-device or Product Acceptance evidence. The
+isolated local API fixture result is limited to the contract/runtime boundary
+recorded above.
 
 ## Repository Structure
 

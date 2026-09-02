@@ -20,9 +20,11 @@ The connected preview contains typed adapters for the observed contracts:
 - `core/network/NativeAccessClient.kt` models sign-in, refresh, current-session
   and sign-out requests. Its base URL and `ClientSurface` are explicit build
   inputs; the client does not infer a native surface from the app name.
-- The Access preview calls the observed public workspace-preview route before
-  exposing credential fields. Unknown or unavailable workspaces remain public
-  states; no preview response is persisted or treated as authorization.
+- Operations Access submits an explicit workspace slug with credentials using
+  `ClientSurface.PLATFORM` and `X-Nexa-Client: NATIVE`. The public
+  workspace-preview adapter remains contract evidence only; it is not called
+  by the native sign-in flow because the tagged API rejects native transport
+  on that route.
 - `core/network/NativeCatalogClient.kt` calls the observed SKU resolver with a
   bearer token and preserves the server response outcome without selecting a
   local SKU.
@@ -31,10 +33,11 @@ The connected preview contains typed adapters for the observed contracts:
   decode input; the API remains the source of SKU truth.
 
 The adapter tests use deterministic request executors and fakes. They prove
-serialization, headers, state transitions and failure mapping; they do not
-prove a live API, camera/barcode runtime or physical-device run. A separate
-Android API 36 emulator smoke run proves installation, launch and the
-fail-closed access-preview state only.
+serialization, headers, state transitions and failure mapping. A separate
+isolated run of the tagged API proves the native auth request against a
+tag-provided local fixture; it does not prove a deployed API, camera/barcode
+runtime or physical-device run. An Android API 36 emulator smoke run proves
+installation, launch and the fail-closed access-preview state only.
 
 ## Authentication and session
 
@@ -112,27 +115,42 @@ Source evidence in the API tag:
 - `src/main/java/com/nexa/api/tenantaccessgovernance/iam/application/service/CurrentSessionService.java`
 - `src/main/java/com/nexa/api/tenantaccessgovernance/iam/application/service/RefreshSessionService.java`
 
-## Authentication semantics blocker
+## Authentication surface mapping
 
-`BLOCKED — AUTH SURFACE SEMANTICS`
+### API evidence
 
-The tag proves that `ClientSurface` accepts only `PLATFORM` and `PORTAL`, and
-that `NATIVE` is a transport marker. It does not prove which accepted surface
-represents Nexa Operations Mobile. The preview must not invent `MOBILE` or
-`OPERATIONS`, nor silently assume that Operations maps to `PLATFORM`.
+The tag exposes only `PLATFORM` and `PORTAL` as `ClientSurface` values, and
+defines `NATIVE` as an explicit session-transport marker. The public
+`workspace-preview` route remains non-native context discovery and rejects the
+native transport marker.
 
-Allowed work while blocked:
+### ACCEPTED OWNER DECISION
 
-- typed request/response adapters with an explicit surface supplied by the
-  caller;
-- fake and contract tests that verify headers and serialization;
-- launch, loading, error, permission and navigation states that do not claim
-  real authenticated access.
+Operations Mobile uses `PLATFORM`. Buyer Mobile uses `PORTAL`. `NATIVE` remains
+a transport marker, not a `ClientSurface` value. This mapping comes from the
+accepted Owner decision and Nexa surface semantics; API `v0.17.0` does not
+claim to prove the Mobile mapping.
 
-Disallowed claim until Product/Architecture/API authority resolves the mapping:
+The native Operations request is therefore `surface=PLATFORM` plus
+`X-Nexa-Client: NATIVE`.
 
-- real Operations Mobile sign-in, session restoration or server-confirmed
-  access using an unapproved surface mapping.
+### Local runtime verification
+
+`AUTH SURFACE RUNTIME COMPATIBILITY: VERIFIED WITH LOCAL FIXTURE`.
+
+Against an isolated API checkout generated from tag `v0.17.0`, the explicit
+Operations flow completed with a tag-provided local fixture and workspace
+`icisa`:
+
+- native sign-in: HTTP 200;
+- `GET /api/v1/session`: HTTP 200, `surface=PLATFORM`, confirmed workspace and
+  user present;
+- native refresh: HTTP 200, replacement refresh header present;
+- native sign-out: HTTP 204.
+
+Credentials and token values were not committed or printed. This evidence
+does not claim deployed-environment compatibility or Android emulator network
+runtime.
 
 ## SKU identification
 
@@ -214,11 +232,11 @@ client projection.
 ## Local runtime evidence boundary
 
 The API tag contains local bootstrap and Testcontainers fixtures, including an
-`icisa-test` tenant/workspace and catalog data. The bootstrap is disabled by
-default and fixture coverage does not prove that every SKU has a sellable GTIN.
-This ledger therefore does not claim a successful live Mobile authentication
-or SKU-resolution run; the emulator smoke evidence does not change that
-boundary.
+`icisa-test` tenant/workspace and catalog data. The isolated local bootstrap
+provided the authentication evidence recorded above; it does not represent a
+deployed environment. Fixture coverage does not prove that every SKU has a
+sellable GTIN, and this ledger does not claim a live SKU-resolution run. The
+emulator smoke evidence does not change that boundary.
 
 ## Reproduction commands
 

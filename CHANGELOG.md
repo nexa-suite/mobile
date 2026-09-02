@@ -16,21 +16,25 @@ All notable changes to this repository are documented here using Keep a Changelo
   Keystore-backed session material and localized launch/access states.
 - Added typed API v0.17.0 access/session and SKU-resolution adapters with
   explicit configuration and fail-closed state handling.
-- Wired the public API v0.17.0 workspace-preview preflight before credential
-  entry; unknown or unavailable workspaces remain outside protected content.
+- Wired the API v0.17.0 native sign-in path with explicit `PLATFORM` surface
+  semantics, `X-Nexa-Client: NATIVE` transport and workspace slug input. The
+  public workspace-preview contract remains non-native context discovery.
 - Added a Warehouse identification preview with CameraX/ML Kit barcode input,
   manual identifier input and server-owned resolution outcomes.
 - Added host/CI/Docker verification commands pinned to the recorded JDK 21,
   Android API 36 and Gradle/AGP matrix, including project-graph and dependency
   hygiene checks.
-- Kept live connected authentication blocked by unresolved `ClientSurface`
-  semantics; live API, camera/decoder and physical-device runtime evidence is
-  not claimed. An Android API 36 emulator smoke run now verifies installation,
-  launcher activation and the fail-closed access-preview state only.
+- Recorded the accepted Operations Mobile `PLATFORM` surface decision and
+  verified native sign-in, session confirmation, refresh rotation and
+  sign-out against an isolated `api@v0.17.0` local fixture. Camera/decoder,
+  API-on-device and physical-device runtime evidence remains unclaimed. An
+  Android API 36 emulator smoke run verifies installation, launcher activation
+  and the fail-closed access-preview state only.
 
-This entry does not publish `v0.2.0` and does not claim Mobile V1, live
-API/camera runtime, physical-device or Product Acceptance evidence. The
-emulator result is limited to the smoke boundary described above.
+This entry does not publish `v0.2.0` and does not claim Mobile V1, deployed
+API-on-device/camera runtime, physical-device or Product Acceptance evidence.
+The isolated local API result and emulator result are limited to their stated
+boundaries.
 
 ## [0.1.1] - 2026-07-28
 
