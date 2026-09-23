@@ -9,7 +9,7 @@ This repository contains the technical foundation for the Nexa Operations Androi
 - Compose BOM 2026.09.00, Navigation 3 1.1.7, Hilt 2.60.1
 - Retrofit 3.0.0, OkHttp 4.12.0, kotlinx serialization 1.11.0
 
-Install JDK 17, Android SDK platform 37, and the SDK build tools. The checked in Gradle wrapper downloads Gradle 9.6.0. Use an API 37 emulator for feature verification and an API 29 emulator for promotion verification.
+Install JDK 17, Android SDK package `platforms;android-37.0`, and `build-tools;36.0.0`. The checked in Gradle wrapper downloads Gradle 9.6.0. Use an API 37 emulator for feature verification and an API 29 emulator for promotion verification. See the [verification guide](docs/verification.md) for exact commands and evidence locations.
 
 ## Modules
 
@@ -33,7 +33,7 @@ From `apps/operations-android` with `JAVA_HOME` pointing to JDK 17:
 ./gradlew :core:auth:connectedDebugAndroidTest :app:connectedDebugAndroidTest
 ```
 
-Gradle dependency verification is enabled in strict mode through `gradle/verification-metadata.xml`. Release assembly requires an explicitly supplied non-local HTTPS API origin:
+Gradle dependency verification uses `apps/operations-android/gradle/verification-metadata.xml`. Run the gates with `--dependency-verification strict`; the [verification guide](docs/verification.md) lists the complete command. Release assembly requires an explicitly supplied non-local HTTPS API origin:
 
 ```sh
 ./gradlew :app:assembleRelease -PnexaReleaseApiBaseUrl="$APPROVED_NEXA_API_ORIGIN"
