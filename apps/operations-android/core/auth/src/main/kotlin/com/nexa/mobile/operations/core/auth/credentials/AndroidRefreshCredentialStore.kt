@@ -53,10 +53,22 @@ class AndroidRefreshCredentialStore(
 
     override suspend fun clear() = withContext(Dispatchers.IO) {
         mutex.withLock {
-            atomicFile.delete()
-            check(!recordFile.exists() && !File("${recordFile.path}.bak").exists()) {
-                "Protected credential record could not be cleared"
+            // The alias belongs only to this credential store. Removing it also makes any
+            // surviving or restored ciphertext unusable if file deletion is incomplete.
+            val keyCleared = try {
+                val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+                store.deleteEntry(keyAlias)
+                !store.containsAlias(keyAlias)
+            } catch (_: Exception) {
+                false
             }
+            val fileCleared = try {
+                atomicFile.delete()
+                !recordFile.exists() && !File("${recordFile.path}.bak").exists()
+            } catch (_: Exception) {
+                false
+            }
+            check(keyCleared && fileCleared) { "Protected credential record could not be cleared" }
         }
     }
 

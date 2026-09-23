@@ -123,4 +123,23 @@ class AndroidRefreshCredentialStoreTest {
         assertArrayEquals(original, recordFile.readBytes())
         assertEquals(StoredRefreshCredential.Ready(value), store.read())
     }
+
+    @Test
+    fun clearInvalidatesDedicatedKeyAndRejectsRestoredCiphertext() = runBlocking {
+        val value = "synthetic-refresh-${UUID.randomUUID()}"
+        store.writeReady(value)
+        val oldCiphertext = recordFile.readBytes()
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        assertTrue(keyStore.containsAlias(alias))
+
+        store.clear()
+        assertFalse(recordFile.exists())
+        assertFalse(File("${recordFile.path}.bak").exists())
+        val reloadedKeyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        assertFalse(reloadedKeyStore.containsAlias(alias))
+
+        recordFile.writeBytes(oldCiphertext)
+        assertEquals(StoredRefreshCredential.Unusable, store.read())
+        assertFalse(recordFile.exists())
+    }
 }
