@@ -59,11 +59,15 @@ internal data class AuthenticationBody(val accessToken: String)
 
 @Serializable
 internal data class SessionBody(
+    val user: SessionUserBody? = null,
     val tenant: ContextBody? = null,
     val workspace: ContextBody? = null,
     val membership: ContextBody? = null,
     val surface: String? = null
 )
+
+@Serializable
+internal data class SessionUserBody(val userId: String? = null)
 
 @Serializable
 internal data class ContextBody(
@@ -101,6 +105,7 @@ class NexaAuthGateway private constructor(private val service: NativeAuthService
             val body = response.body() ?: throw AuthGatewayFailure.ProtocolFailure()
             VerifiedSession(
                 body.surface == PLATFORM &&
+                    !body.user?.userId.isNullOrBlank() &&
                     !body.tenant?.tenantId.isNullOrBlank() &&
                     !body.workspace?.workspaceId.isNullOrBlank() &&
                     !body.membership?.membershipId.isNullOrBlank()

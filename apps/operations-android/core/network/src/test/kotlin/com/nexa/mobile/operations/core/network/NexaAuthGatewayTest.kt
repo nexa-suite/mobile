@@ -96,6 +96,19 @@ class NexaAuthGatewayTest {
     }
 
     @Test
+    fun sessionWithoutUserIdentityCannotAuthorizeContext() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(
+                MockResponse().setBody(SESSION_JSON.replace("\"user\":{\"userId\":\"u\"},", ""))
+                    .addHeader("Content-Type", "application/json")
+            )
+            val gateway = NexaAuthGateway.create(ApiEndpoint(server.url("/").toString()))
+            assertFalse(gateway.currentSession("access-1").hasAuthorizedContext)
+        }
+    }
+
+    @Test
     fun ambiguousRefreshServerErrorIsNeverDefinitiveRejection() = runTest {
         MockWebServer().use { server ->
             server.start()
