@@ -31,4 +31,30 @@ class RootNavigationSecurityTest {
         composeRule.onNodeWithText("Sign in required").assertIsDisplayed()
         composeRule.onNodeWithText("Session verified").assertDoesNotExist()
     }
+
+    @Test
+    fun protectionAndContextFailuresRemoveProtectedRoot() {
+        val state = mutableStateOf<SessionState>(SessionState.Active)
+        composeRule.setContent {
+            OperationsTheme {
+                RootNavigation(state.value, onLogout = {}, onRetry = {})
+            }
+        }
+        composeRule.onNodeWithText("Session verified").assertIsDisplayed()
+
+        composeRule.runOnUiThread { state.value = SessionState.LocalProtectionError }
+        composeRule.onNodeWithText("Local session unavailable").assertIsDisplayed()
+        composeRule.onNodeWithText("Session verified").assertDoesNotExist()
+        composeRule.onNodeWithText("Sign out").assertDoesNotExist()
+
+        composeRule.runOnUiThread { state.value = SessionState.ContextRequired }
+        composeRule.onNodeWithText("Context required").assertIsDisplayed()
+        composeRule.onNodeWithText("Session verified").assertDoesNotExist()
+        composeRule.onNodeWithText("Clear local session").assertIsDisplayed()
+
+        composeRule.runOnUiThread { state.value = SessionState.ReauthenticationRequired }
+        composeRule.onNodeWithText("Sign in required").assertIsDisplayed()
+        composeRule.onNodeWithText("Session verified").assertDoesNotExist()
+        composeRule.onNodeWithText("Clear local session").assertDoesNotExist()
+    }
 }
