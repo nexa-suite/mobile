@@ -75,6 +75,12 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: '15859902'
+      - name: Select Android 37 capable AVD manager
+        run: |
+          test -x "$ANDROID_HOME/cmdline-tools/22.0/bin/avdmanager"
+          echo "$ANDROID_HOME/cmdline-tools/22.0/bin" >> "$GITHUB_PATH"
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-provider: basic
