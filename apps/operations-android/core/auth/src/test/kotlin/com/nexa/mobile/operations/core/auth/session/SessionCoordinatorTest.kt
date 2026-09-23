@@ -189,11 +189,28 @@ class SessionCoordinatorTest {
         val outcome = coordinator.logout()
 
         assertTrue(outcome.localMaterialCleared)
-        assertTrue(outcome.remoteRevocationConfirmed)
+        assertTrue(outcome.serverSignOutAcknowledged)
         assertEquals(1, gateway.signOutCalls)
         assertEquals(0, gateway.refreshCalls)
         assertNull(coordinator.currentAccess())
         assertEquals(StoredRefreshCredential.Missing, store.value)
+    }
+
+    @Test
+    fun secondUnauthorizedResponseRejectsOnlyTheObservedGeneration() = runTest {
+        val store = FakeStore()
+        val coordinator = SessionCoordinator(store, FakeGateway(), backgroundScope)
+        coordinator.signIn(NativeSignIn("synthetic", "synthetic-password", "synthetic"))
+        val old = coordinator.currentAccess()!!
+        val replacement = coordinator.recoverAfterUnauthorized(old)!!
+
+        coordinator.rejectCurrentAccess(old)
+        assertEquals(SessionState.Active, coordinator.sessionState.value)
+        coordinator.rejectCurrentAccess(replacement)
+
+        assertEquals(SessionState.ReauthenticationRequired, coordinator.sessionState.value)
+        assertEquals(StoredRefreshCredential.Missing, store.value)
+        assertNull(coordinator.currentAccess())
     }
 
     @Test

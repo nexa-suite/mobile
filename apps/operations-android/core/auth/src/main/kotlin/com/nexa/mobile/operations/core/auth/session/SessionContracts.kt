@@ -33,6 +33,10 @@ interface AccessTokenSource {
     suspend fun currentAccess(): AccessTokenLease?
 
     suspend fun recoverAfterUnauthorized(observed: AccessTokenLease): AccessTokenLease?
+
+    suspend fun rejectCurrentAccess(observed: AccessTokenLease)
+
+    suspend fun isEpochCurrent(epoch: Long): Boolean
 }
 
 data class NativeSignIn(
@@ -77,4 +81,5 @@ sealed class AuthGatewayFailure : Exception() {
     class ProtocolFailure : AuthGatewayFailure()
 }
 
-data class LocalLogoutResult(val remoteRevocationConfirmed: Boolean, val localMaterialCleared: Boolean)
+/** A successful HTTP sign-out response does not prove that a server session was revoked. */
+data class LocalLogoutResult(val serverSignOutAcknowledged: Boolean, val localMaterialCleared: Boolean)

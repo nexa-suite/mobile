@@ -33,6 +33,24 @@ class SessionCoordinator(
         access.takeIf { mutableState.value == SessionState.Active }
     }
 
+    override suspend fun isEpochCurrent(epoch: Long): Boolean = mutex.withLock { this.epoch == epoch }
+
+    override suspend fun rejectCurrentAccess(observed: AccessTokenLease) {
+        mutex.withLock {
+            if (epoch != observed.epoch || access?.generation != observed.generation) return
+            epoch++
+            access = null
+            pendingSessionAccess = null
+            refreshFlight = null
+            try {
+                credentialStore.clear()
+                mutableState.value = SessionState.ReauthenticationRequired
+            } catch (_: Exception) {
+                mutableState.value = SessionState.LocalProtectionError
+            }
+        }
+    }
+
     suspend fun restore() {
         val expectedEpoch = mutex.withLock {
             if (mutableState.value != SessionState.Bootstrapping) return
@@ -113,7 +131,7 @@ class SessionCoordinator(
         val oldAccess = mutex.withLock { access?.value }
         val cleared = clearLocal(SessionState.SignedOut)
         if (!cleared) return LocalLogoutResult(false, false)
-        val remoteConfirmed = if (oldAccess == null) {
+        val serverAcknowledged = if (oldAccess == null) {
             false
         } else {
             try {
@@ -128,7 +146,7 @@ class SessionCoordinator(
                 false
             }
         }
-        return LocalLogoutResult(remoteConfirmed, true)
+        return LocalLogoutResult(serverAcknowledged, true)
     }
 
     private suspend fun clearLocal(target: SessionState): Boolean = mutex.withLock {
