@@ -95,6 +95,65 @@ class ProtectedCallExecutorTest {
     }
 
     @Test
+    fun mutationWithoutIdempotencyKeyDoesNotReplayAfter401() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse().setResponseCode(401))
+            val endpoint = ApiEndpoint(server.url("/").toString())
+            val source = FakeSource()
+            val result = ProtectedCallExecutor(endpoint, ApiHttpClient.create(endpoint), source)
+                .execute(ProtectedRequest(ProtectedMethod.POST, "/api/v1/technical-test", "{}"))
+                as ProtectedResult.Failure
+
+            assertEquals(FailureKind.AuthenticationRequired, result.error.kind)
+            assertEquals(0, source.recoverCount)
+            assertEquals(1, server.requestCount)
+            assertNull(server.takeRequest().getHeader("Idempotency-Key"))
+        }
+    }
+
+    @Test
+    fun staleEtagProblemResponseKeepsServerDetailPrivate() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(
+                MockResponse().setResponseCode(412)
+                    .addHeader("Content-Type", "application/problem+json; charset=utf-8")
+                    .addHeader("X-Correlation-ID", "header-correlation")
+                    .setBody(
+                        """{"status":500,"code":"VERSION_CONFLICT","category":"CONFLICT",
+                           "retryable":false,"correlationId":"body-correlation",
+                           "detail":"private server detail"}"""
+                    )
+            )
+            val endpoint = ApiEndpoint(server.url("/").toString())
+            val source = FakeSource()
+            val result = ProtectedCallExecutor(endpoint, ApiHttpClient.create(endpoint), source)
+                .execute(
+                    ProtectedRequest(
+                        ProtectedMethod.PATCH,
+                        "/api/v1/technical-test",
+                        "{}",
+                        "command-key",
+                        "\"opaque-etag\""
+                    )
+                ) as ProtectedResult.Failure
+
+            assertEquals(FailureKind.StaleState, result.error.kind)
+            assertEquals(412, result.error.httpStatus)
+            assertEquals("VERSION_CONFLICT", result.error.problemCode)
+            assertEquals("CONFLICT", result.error.problemCategory)
+            assertEquals(false, result.error.retryable)
+            assertEquals("header-correlation", result.error.serverCorrelationId)
+            assertFalse(result.error.toString().contains("private server detail"))
+            val request = server.takeRequest()
+            assertEquals("\"opaque-etag\"", request.getHeader("If-Match"))
+            assertEquals("command-key", request.getHeader("Idempotency-Key"))
+            assertEquals(1, server.requestCount)
+        }
+    }
+
+    @Test
     fun commandConnectionLossIsUnknownOutcomeWithoutAuthReplay() = runBlocking {
         MockWebServer().use { server ->
             server.start()
