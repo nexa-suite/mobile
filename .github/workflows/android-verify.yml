@@ -99,9 +99,7 @@ jobs:
           disable-animations: true
           pre-emulator-launch-script: |
             grep -qx 'target=android-37.0' "$HOME/.android/avd/test.ini"
-          script: |
-            cd apps/operations-android
-            ./gradlew :core:auth:connectedDebugAndroidTest :app:connectedDebugAndroidTest --dependency-verification strict
+          script: cd apps/operations-android && ./gradlew :core:auth:connectedDebugAndroidTest :app:connectedDebugAndroidTest --dependency-verification strict
 
   android-promotion:
     needs: changes
@@ -141,9 +139,7 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
-          script: |
-            cd apps/operations-android
-            ./gradlew :core:auth:connectedDebugAndroidTest :app:connectedDebugAndroidTest --dependency-verification strict
+          script: cd apps/operations-android && ./gradlew :core:auth:connectedDebugAndroidTest :app:connectedDebugAndroidTest --dependency-verification strict
 
   verify:
     if: always()
