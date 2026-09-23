@@ -80,7 +80,9 @@ jobs:
       - name: Select Android 37 capable AVD manager
         run: |
           test -x "$ANDROID_HOME/cmdline-tools/22.0/bin/avdmanager"
-          echo "$ANDROID_HOME/cmdline-tools/22.0/bin" >> "$GITHUB_PATH"
+          rm -rf "$ANDROID_HOME/cmdline-tools/latest"
+          ln -s "$ANDROID_HOME/cmdline-tools/22.0" "$ANDROID_HOME/cmdline-tools/latest"
+          test -x "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager"
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-provider: basic
@@ -95,6 +97,8 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
+          pre-emulator-launch-script: |
+            grep -qx 'target=android-37.0' "$HOME/.android/avd/test.ini"
           script: |
             cd apps/operations-android
             ./gradlew :core:auth:connectedDebugAndroidTest :app:connectedDebugAndroidTest --dependency-verification strict
