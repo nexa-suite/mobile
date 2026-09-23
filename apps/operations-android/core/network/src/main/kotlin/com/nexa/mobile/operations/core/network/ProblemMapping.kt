@@ -17,7 +17,7 @@ enum class FailureKind {
     Timeout,
     RetryableServerFailure,
     UnknownOutcome,
-    ProtocolFailure,
+    ProtocolFailure
 }
 
 /** Safe to pass across app boundaries; raw server detail remains inside the network module. */
@@ -28,7 +28,7 @@ class ClientFailure internal constructor(
     val problemCategory: String? = null,
     val retryable: Boolean? = null,
     val serverCorrelationId: String? = null,
-    internal val problem: ProblemDetails? = null,
+    internal val problem: ProblemDetails? = null
 ) {
     override fun toString(): String =
         "ClientFailure(kind=$kind, httpStatus=$httpStatus, problemCode=$problemCode, serverCorrelationId=$serverCorrelationId)"
@@ -44,7 +44,7 @@ internal data class ProblemDetails(
     val code: String? = null,
     val category: String? = null,
     val retryable: Boolean? = null,
-    val correlationId: String? = null,
+    val correlationId: String? = null
 ) {
     override fun toString(): String = "ProblemDetails(status=$status, code=$code, detail=REDACTED)"
 }
@@ -52,8 +52,18 @@ internal data class ProblemDetails(
 internal object ProblemMapping {
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun fromHttp(status: Int, headers: Headers, contentType: String?, body: String?, mutation: Boolean): ClientFailure {
-        val problem = if (contentType?.substringBefore(';')?.trim()?.equals("application/problem+json", true) == true) {
+    fun fromHttp(
+        status: Int,
+        headers: Headers,
+        contentType: String?,
+        body: String?,
+        mutation: Boolean
+    ): ClientFailure {
+        val problem = if (contentType?.substringBefore(
+                ';'
+            )?.trim()?.equals("application/problem+json", true) ==
+            true
+        ) {
             try {
                 body?.let { json.decodeFromString<ProblemDetails>(it) }
             } catch (_: Exception) {
@@ -62,6 +72,8 @@ internal object ProblemMapping {
         } else {
             null
         }
+        val serverKind =
+            if (mutation) FailureKind.UnknownOutcome else FailureKind.RetryableServerFailure
         val kind = when (status) {
             400, 422 -> FailureKind.ValidationFailure
             401 -> FailureKind.AuthenticationRequired
@@ -71,7 +83,7 @@ internal object ProblemMapping {
             412 -> FailureKind.StaleState
             428 -> FailureKind.PreconditionRequired
             429 -> FailureKind.Throttled
-            in 500..599 -> if (mutation) FailureKind.UnknownOutcome else FailureKind.RetryableServerFailure
+            in 500..599 -> serverKind
             else -> FailureKind.ProtocolFailure
         }
         return ClientFailure(
@@ -81,7 +93,7 @@ internal object ProblemMapping {
             problemCategory = problem?.category,
             retryable = problem?.retryable,
             serverCorrelationId = headers["X-Correlation-ID"] ?: problem?.correlationId,
-            problem = problem,
+            problem = problem
         )
     }
 

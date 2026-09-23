@@ -37,12 +37,21 @@ class ProtectedCallExecutorTest {
         MockWebServer().use { server ->
             server.start()
             server.enqueue(MockResponse().setResponseCode(401))
-            server.enqueue(MockResponse().setResponseCode(200).setBody("{}")
-                .addHeader("ETag", "\"7\"").addHeader("X-Correlation-ID", "server-correlation"))
+            server.enqueue(
+                MockResponse().setResponseCode(200).setBody("{}")
+                    .addHeader("ETag", "\"7\"").addHeader("X-Correlation-ID", "server-correlation")
+            )
             val endpoint = ApiEndpoint(server.url("/").toString())
             val source = FakeSource()
             val executor = ProtectedCallExecutor(endpoint, ApiHttpClient.create(endpoint), source)
-            val command = ProtectedRequest(ProtectedMethod.POST, "/api/v1/technical-test", "{\"value\":1}", "opaque-key", "\"7\"")
+            val command =
+                ProtectedRequest(
+                    ProtectedMethod.POST,
+                    "/api/v1/technical-test",
+                    "{\"value\":1}",
+                    "opaque-key",
+                    "\"7\""
+                )
 
             val result = executor.execute(command) as ProtectedResult.Success
 
@@ -75,7 +84,9 @@ class ProtectedCallExecutorTest {
             val endpoint = ApiEndpoint(server.url("/").toString())
             val source = FakeSource()
             val result = ProtectedCallExecutor(endpoint, ApiHttpClient.create(endpoint), source)
-                .execute(ProtectedRequest(ProtectedMethod.GET, "/api/v1/technical-test")) as ProtectedResult.Failure
+                .execute(
+                    ProtectedRequest(ProtectedMethod.GET, "/api/v1/technical-test")
+                ) as ProtectedResult.Failure
             assertEquals(FailureKind.AuthenticationRequired, result.error.kind)
             assertEquals(1, source.recoverCount)
             assertEquals(1, source.rejectCount)
@@ -91,7 +102,14 @@ class ProtectedCallExecutorTest {
             val endpoint = ApiEndpoint(server.url("/").toString())
             val source = FakeSource()
             val result = ProtectedCallExecutor(endpoint, ApiHttpClient.create(endpoint), source)
-                .execute(ProtectedRequest(ProtectedMethod.POST, "/api/v1/technical-test", "{}", "opaque-key")) as ProtectedResult.Failure
+                .execute(
+                    ProtectedRequest(
+                        ProtectedMethod.POST,
+                        "/api/v1/technical-test",
+                        "{}",
+                        "opaque-key"
+                    )
+                ) as ProtectedResult.Failure
             assertEquals(FailureKind.UnknownOutcome, result.error.kind)
             assertEquals(0, source.recoverCount)
             assertEquals(1, server.requestCount)
@@ -107,48 +125,83 @@ class ProtectedCallExecutorTest {
             val refreshRequests = AtomicInteger()
             val dispatchedR1 = mutableListOf<String>()
             server.dispatcher = object : ServerDispatcher() {
-                override fun dispatch(request: RecordedRequest): MockResponse = when (request.path) {
-                    "/api/v1/authentication/sign-in" -> issued("access-1", "refresh-1")
-                    "/api/v1/authentication/refresh" -> {
-                        refreshRequests.incrementAndGet()
-                        synchronized(dispatchedR1) { dispatchedR1.add(request.getHeader("X-Nexa-Refresh-Token") ?: "missing") }
-                        issued("access-2", "refresh-2")
+                override fun dispatch(request: RecordedRequest): MockResponse =
+                    when (request.path) {
+                        "/api/v1/authentication/sign-in" -> issued("access-1", "refresh-1")
+
+                        "/api/v1/authentication/refresh" -> {
+                            refreshRequests.incrementAndGet()
+                            synchronized(dispatchedR1) {
+                                dispatchedR1.add(
+                                    request.getHeader("X-Nexa-Refresh-Token") ?: "missing"
+                                )
+                            }
+                            issued("access-2", "refresh-2")
+                        }
+
+                        "/api/v1/session" -> MockResponse().setBody(
+                            SESSION_JSON
+                        ).addHeader("Content-Type", "application/json")
+
+                        "/api/v1/technical-test" -> if (request.getHeader("Authorization") ==
+                            "Bearer access-1"
+                        ) {
+                            oldRequests.incrementAndGet()
+                            oldArrivals.countDown()
+                            if (!oldArrivals.await(15, TimeUnit.SECONDS)) {
+                                MockResponse().setResponseCode(500)
+                            } else {
+                                MockResponse().setResponseCode(401)
+                            }
+                        } else {
+                            replayRequests.incrementAndGet()
+                            MockResponse().setBody(
+                                "{}"
+                            ).addHeader("Content-Type", "application/json")
+                        }
+
+                        else -> MockResponse().setResponseCode(404)
                     }
-                    "/api/v1/session" -> MockResponse().setBody(SESSION_JSON).addHeader("Content-Type", "application/json")
-                    "/api/v1/technical-test" -> if (request.getHeader("Authorization") == "Bearer access-1") {
-                        oldRequests.incrementAndGet()
-                        oldArrivals.countDown()
-                        if (!oldArrivals.await(15, TimeUnit.SECONDS)) MockResponse().setResponseCode(500)
-                        else MockResponse().setResponseCode(401)
-                    } else {
-                        replayRequests.incrementAndGet()
-                        MockResponse().setBody("{}").addHeader("Content-Type", "application/json")
-                    }
-                    else -> MockResponse().setResponseCode(404)
-                }
             }
             server.start()
             val endpoint = ApiEndpoint(server.url("/").toString())
             val client = ApiHttpClient.create(endpoint).newBuilder()
-                .dispatcher(Dispatcher().apply { maxRequestsPerHost = 32; maxRequests = 64 })
+                .dispatcher(
+                    Dispatcher().apply {
+                        maxRequestsPerHost = 32
+                        maxRequests = 64
+                    }
+                )
                 .build()
             val store = MemoryStore()
             val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
             try {
-                val coordinator = SessionCoordinator(store, NexaAuthGateway.create(endpoint, client), appScope)
-                assertTrue(coordinator.signIn(NativeSignIn("synthetic", "synthetic-password", "synthetic")))
+                val coordinator =
+                    SessionCoordinator(store, NexaAuthGateway.create(endpoint, client), appScope)
+                assertTrue(
+                    coordinator.signIn(NativeSignIn("synthetic", "synthetic-password", "synthetic"))
+                )
                 val initial = coordinator.currentAccess()!!
                 val executor = ProtectedCallExecutor(endpoint, client, coordinator)
-                val calls = List(20) { async(Dispatchers.IO) {
-                    executor.execute(ProtectedRequest(ProtectedMethod.GET, "/api/v1/technical-test"))
-                } }
+                val calls = List(20) {
+                    async(Dispatchers.IO) {
+                        executor.execute(
+                            ProtectedRequest(ProtectedMethod.GET, "/api/v1/technical-test")
+                        )
+                    }
+                }
                 val outcomes = calls.awaitAll()
 
                 assertTrue(outcomes.all { it is ProtectedResult.Success })
                 assertEquals(20, oldRequests.get())
                 assertEquals(20, replayRequests.get())
                 assertEquals(1, refreshRequests.get())
-                assertEquals(listOf("refresh-1"), synchronized(dispatchedR1) { dispatchedR1.toList() })
+                assertEquals(
+                    listOf("refresh-1"),
+                    synchronized(dispatchedR1) {
+                        dispatchedR1.toList()
+                    }
+                )
                 assertEquals(StoredRefreshCredential.Ready("refresh-2"), store.value)
                 assertEquals(1, store.takeCount)
                 assertEquals(initial.generation + 1, coordinator.currentAccess()!!.generation)
@@ -168,13 +221,17 @@ class ProtectedCallExecutorTest {
 
         override suspend fun currentAccess(): AccessTokenLease = lease
 
-        override suspend fun recoverAfterUnauthorized(observed: AccessTokenLease): AccessTokenLease {
+        override suspend fun recoverAfterUnauthorized(
+            observed: AccessTokenLease
+        ): AccessTokenLease {
             recoverCount++
             lease = AccessTokenLease("access-2", 2, 1)
             return lease
         }
 
-        override suspend fun rejectCurrentAccess(observed: AccessTokenLease) { rejectCount++ }
+        override suspend fun rejectCurrentAccess(observed: AccessTokenLease) {
+            rejectCount++
+        }
 
         override suspend fun isEpochCurrent(epoch: Long): Boolean = epoch == 1L
     }
@@ -190,8 +247,13 @@ class ProtectedCallExecutorTest {
             return value.also { value = StoredRefreshCredential.InFlight }
         }
 
-        override suspend fun writeReady(credential: String) { value = StoredRefreshCredential.Ready(credential) }
+        override suspend fun writeReady(credential: String) {
+            value =
+                StoredRefreshCredential.Ready(credential)
+        }
 
-        override suspend fun clear() { value = StoredRefreshCredential.Missing }
+        override suspend fun clear() {
+            value = StoredRefreshCredential.Missing
+        }
     }
 }

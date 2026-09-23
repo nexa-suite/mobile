@@ -22,7 +22,7 @@ import kotlinx.coroutines.withContext
 class AndroidRefreshCredentialStore(
     context: Context,
     fileName: String = "native-session.record",
-    private val keyAlias: String = "com.nexa.mobile.operations.native-session.v1",
+    private val keyAlias: String = "com.nexa.mobile.operations.native-session.v1"
 ) : RefreshCredentialStore {
     private val recordFile = File(context.applicationContext.noBackupFilesDir, fileName)
     private val atomicFile = AtomicFile(recordFile)
@@ -40,6 +40,7 @@ class AndroidRefreshCredentialStore(
                     writeLocked(encodeState(STATE_IN_FLIGHT))
                     current
                 }
+
                 else -> current
             }
         }
@@ -137,12 +138,12 @@ class AndroidRefreshCredentialStore(
         generator.init(
             KeyGenParameterSpec.Builder(
                 keyAlias,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
             ).setKeySize(256)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setRandomizedEncryptionRequired(true)
-                .build(),
+                .build()
         )
         return generator.generateKey()
     }
@@ -176,7 +177,14 @@ class AndroidRefreshCredentialStore(
     }
 
     private companion object {
-        private val HEADER = byteArrayOf('N'.code.toByte(), 'X'.code.toByte(), 'S'.code.toByte(), 'R'.code.toByte(), 1)
+        private val HEADER =
+            byteArrayOf(
+                'N'.code.toByte(),
+                'X'.code.toByte(),
+                'S'.code.toByte(),
+                'R'.code.toByte(),
+                1
+            )
         private const val IV_LENGTH = 12
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val STATE_READY: Byte = 1

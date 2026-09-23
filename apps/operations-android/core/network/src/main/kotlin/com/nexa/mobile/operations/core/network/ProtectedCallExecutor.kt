@@ -5,6 +5,8 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenSource
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.util.UUID
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
@@ -14,8 +16,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 enum class ProtectedMethod { GET, POST, PUT, PATCH, DELETE }
 
@@ -25,11 +25,13 @@ class ProtectedRequest(
     val path: String,
     val payload: String? = null,
     val idempotencyKey: String? = null,
-    val ifMatch: String? = null,
+    val ifMatch: String? = null
 ) {
     init {
         require(path.startsWith("/api/v1/") && "//" !in path && "://" !in path)
-        require(idempotencyKey == null || (idempotencyKey.isNotBlank() && idempotencyKey.length <= 160))
+        require(
+            idempotencyKey == null || (idempotencyKey.isNotBlank() && idempotencyKey.length <= 160)
+        )
         require(ifMatch == null || ifMatch.isNotBlank())
         require(method != ProtectedMethod.GET || payload == null)
     }
@@ -37,7 +39,8 @@ class ProtectedRequest(
     val isMutation: Boolean get() = method != ProtectedMethod.GET
     val replayEligible: Boolean get() = !isMutation || idempotencyKey != null
 
-    override fun toString(): String = "ProtectedRequest(method=$method, path=REDACTED, payload=REDACTED)"
+    override fun toString(): String =
+        "ProtectedRequest(method=$method, path=REDACTED, payload=REDACTED)"
 
     companion object {
         fun newCommandKey(): String = UUID.randomUUID().toString()
@@ -49,7 +52,7 @@ sealed interface ProtectedResult {
         val status: Int,
         val body: String?,
         val etag: String?,
-        val serverCorrelationId: String?,
+        val serverCorrelationId: String?
     ) : ProtectedResult {
         override fun toString(): String = "Success(status=$status, body=REDACTED, etag=REDACTED)"
     }
@@ -60,11 +63,13 @@ sealed interface ProtectedResult {
 class ProtectedCallExecutor(
     private val endpoint: ApiEndpoint,
     private val client: OkHttpClient,
-    private val tokens: AccessTokenSource,
+    private val tokens: AccessTokenSource
 ) {
     suspend fun execute(command: ProtectedRequest): ProtectedResult {
         val access = tokens.currentAccess()
-            ?: return ProtectedResult.Failure(ProblemMapping.local(FailureKind.AuthenticationRequired))
+            ?: return ProtectedResult.Failure(
+                ProblemMapping.local(FailureKind.AuthenticationRequired)
+            )
         val url = endpoint.url.resolve(command.path)
             ?: return ProtectedResult.Failure(ProblemMapping.local(FailureKind.ProtocolFailure))
         if (!endpoint.isTrusted(url) || !url.encodedPath.startsWith("/api/v1/")) {
@@ -80,7 +85,9 @@ class ProtectedCallExecutor(
         if (first.status != 401 || !command.replayEligible) return mapResponse(command, first)
 
         val replacement = tokens.recoverAfterUnauthorized(access)
-            ?: return ProtectedResult.Failure(ProblemMapping.local(FailureKind.AuthenticationRequired))
+            ?: return ProtectedResult.Failure(
+                ProblemMapping.local(FailureKind.AuthenticationRequired)
+            )
         if (!tokens.isEpochCurrent(access.epoch)) {
             return ProtectedResult.Failure(ProblemMapping.local(FailureKind.AuthenticationRequired))
         }
@@ -96,7 +103,12 @@ class ProtectedCallExecutor(
 
     private fun mapResponse(command: ProtectedRequest, response: Exchange.Http): ProtectedResult =
         if (response.status in 200..299) {
-            ProtectedResult.Success(response.status, response.body, response.etag, response.correlationId)
+            ProtectedResult.Success(
+                response.status,
+                response.body,
+                response.etag,
+                response.correlationId
+            )
         } else {
             ProtectedResult.Failure(
                 ProblemMapping.fromHttp(
@@ -104,12 +116,15 @@ class ProtectedCallExecutor(
                     response.headers,
                     response.contentType,
                     response.body,
-                    command.isMutation,
-                ),
+                    command.isMutation
+                )
             )
         }
 
-    private fun networkFailure(command: ProtectedRequest, error: IOException): ProtectedResult.Failure {
+    private fun networkFailure(
+        command: ProtectedRequest,
+        error: IOException
+    ): ProtectedResult.Failure {
         val kind = when {
             command.isMutation -> FailureKind.UnknownOutcome
             error is SocketTimeoutException -> FailureKind.Timeout
@@ -118,7 +133,11 @@ class ProtectedCallExecutor(
         return ProtectedResult.Failure(ProblemMapping.local(kind))
     }
 
-    private suspend fun exchange(command: ProtectedRequest, access: AccessTokenLease, url: String): Exchange {
+    private suspend fun exchange(
+        command: ProtectedRequest,
+        access: AccessTokenLease,
+        url: String
+    ): Exchange {
         val body = if (command.isMutation) {
             (command.payload ?: "").toRequestBody("application/json".toMediaType())
         } else {
@@ -141,7 +160,7 @@ class ProtectedCallExecutor(
                     body = it.body?.string(),
                     contentType = it.body?.contentType()?.toString(),
                     etag = it.header("ETag"),
-                    correlationId = it.header("X-Correlation-ID"),
+                    correlationId = it.header("X-Correlation-ID")
                 )
             }
         } catch (cancelled: CancellationException) {
@@ -158,7 +177,7 @@ class ProtectedCallExecutor(
             val body: String?,
             val contentType: String?,
             val etag: String?,
-            val correlationId: String?,
+            val correlationId: String?
         ) : Exchange
 
         data class NetworkFailure(val cause: IOException) : Exchange

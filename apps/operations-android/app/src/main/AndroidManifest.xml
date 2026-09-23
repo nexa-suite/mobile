@@ -3,6 +3,7 @@
 
     <application
         android:name=".OperationsApplication"
+        android:icon="@drawable/ic_operations"
         android:label="@string/app_name"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity

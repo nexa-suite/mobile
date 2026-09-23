@@ -5,10 +5,10 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Response
-import okhttp3.HttpUrl.Companion.toHttpUrl
 
 /** Configuration is an origin, not a credential or a path supplied by a caller. */
 class ApiEndpoint(value: String) {
@@ -35,12 +35,11 @@ class OriginGuardInterceptor(private val endpoint: ApiEndpoint) : Interceptor {
 }
 
 class CorrelationInterceptor : Interceptor {
-    override fun intercept(chain: Interceptor.Chain): Response =
-        chain.proceed(
-            chain.request().newBuilder()
-                .header("X-Correlation-ID", UUID.randomUUID().toString())
-                .build(),
-        )
+    override fun intercept(chain: Interceptor.Chain): Response = chain.proceed(
+        chain.request().newBuilder()
+            .header("X-Correlation-ID", UUID.randomUUID().toString())
+            .build()
+    )
 }
 
 object ApiHttpClient {

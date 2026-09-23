@@ -26,20 +26,20 @@ internal interface NativeAuthService {
     @POST("api/v1/authentication/sign-in")
     suspend fun signIn(
         @Header("X-Nexa-Client") client: String = NATIVE,
-        @Body body: SignInBody,
+        @Body body: SignInBody
     ): Response<AuthenticationBody>
 
     @POST("api/v1/authentication/refresh")
     suspend fun refresh(
         @Header("X-Nexa-Client") client: String = NATIVE,
         @Header("X-Nexa-Surface") surface: String = PLATFORM,
-        @Header("X-Nexa-Refresh-Token") credential: String,
+        @Header("X-Nexa-Refresh-Token") credential: String
     ): Response<AuthenticationBody>
 
     @POST("api/v1/authentication/sign-out")
     suspend fun signOut(
         @Header("Authorization") authorization: String,
-        @Header("X-Nexa-Client") client: String = NATIVE,
+        @Header("X-Nexa-Client") client: String = NATIVE
     ): Response<Unit>
 
     @GET("api/v1/session")
@@ -51,7 +51,7 @@ internal data class SignInBody(
     val identifier: String,
     val password: String,
     val workspaceSlug: String,
-    val surface: String,
+    val surface: String
 )
 
 @Serializable
@@ -62,47 +62,64 @@ internal data class SessionBody(
     val tenant: ContextBody? = null,
     val workspace: ContextBody? = null,
     val membership: ContextBody? = null,
-    val surface: String? = null,
+    val surface: String? = null
 )
 
 @Serializable
 internal data class ContextBody(
     val tenantId: String? = null,
     val workspaceId: String? = null,
-    val membershipId: String? = null,
+    val membershipId: String? = null
 )
 
-class NexaAuthGateway private constructor(private val service: NativeAuthService) : AuthRemoteGateway {
-    override suspend fun signIn(input: NativeSignIn): IssuedNativeSession = runCall(ambiguousOnIo = false) {
-        issue(service.signIn(body = SignInBody(input.identifier, input.password, input.workspaceSlug, PLATFORM)))
-    }
+class NexaAuthGateway private constructor(private val service: NativeAuthService) :
+    AuthRemoteGateway {
+    override suspend fun signIn(input: NativeSignIn): IssuedNativeSession =
+        runCall(ambiguousOnIo = false) {
+            issue(
+                service.signIn(
+                    body = SignInBody(
+                        input.identifier,
+                        input.password,
+                        input.workspaceSlug,
+                        PLATFORM
+                    )
+                )
+            )
+        }
 
-    override suspend fun refresh(credential: String): IssuedNativeSession = runCall(ambiguousOnIo = true) {
-        requireHeaderValue(credential)
-        issue(service.refresh(credential = credential), ambiguousOnFailure = true)
-    }
+    override suspend fun refresh(credential: String): IssuedNativeSession =
+        runCall(ambiguousOnIo = true) {
+            requireHeaderValue(credential)
+            issue(service.refresh(credential = credential), ambiguousOnFailure = true)
+        }
 
-    override suspend fun currentSession(accessToken: String): VerifiedSession = runCall(ambiguousOnIo = false) {
-        val response = service.session(bearer(accessToken))
-        if (!response.isSuccessful) throw failure(response.code(), ambiguousOnFailure = false)
-        val body = response.body() ?: throw AuthGatewayFailure.ProtocolFailure()
-        VerifiedSession(
-            body.surface == PLATFORM &&
-                !body.tenant?.tenantId.isNullOrBlank() &&
-                !body.workspace?.workspaceId.isNullOrBlank() &&
-                !body.membership?.membershipId.isNullOrBlank(),
-        )
-    }
+    override suspend fun currentSession(accessToken: String): VerifiedSession =
+        runCall(ambiguousOnIo = false) {
+            val response = service.session(bearer(accessToken))
+            if (!response.isSuccessful) throw failure(response.code(), ambiguousOnFailure = false)
+            val body = response.body() ?: throw AuthGatewayFailure.ProtocolFailure()
+            VerifiedSession(
+                body.surface == PLATFORM &&
+                    !body.tenant?.tenantId.isNullOrBlank() &&
+                    !body.workspace?.workspaceId.isNullOrBlank() &&
+                    !body.membership?.membershipId.isNullOrBlank()
+            )
+        }
 
     override suspend fun signOut(accessToken: String): Unit = runCall(ambiguousOnIo = false) {
         val response = service.signOut(bearer(accessToken))
         if (response.code() != 204) throw failure(response.code(), ambiguousOnFailure = false)
     }
 
-    private fun issue(response: Response<AuthenticationBody>, ambiguousOnFailure: Boolean = false): IssuedNativeSession {
+    private fun issue(
+        response: Response<AuthenticationBody>,
+        ambiguousOnFailure: Boolean = false
+    ): IssuedNativeSession {
         if (!response.isSuccessful) throw failure(response.code(), ambiguousOnFailure)
         val access = response.body()?.accessToken ?: throw AuthGatewayFailure.ProtocolFailure()
-        val refresh = response.headers()["X-Nexa-Refresh-Token"] ?: throw AuthGatewayFailure.ProtocolFailure()
+        val refresh =
+            response.headers()["X-Nexa-Refresh-Token"] ?: throw AuthGatewayFailure.ProtocolFailure()
         if (access.isBlank() || refresh.isBlank()) throw AuthGatewayFailure.ProtocolFailure()
         requireHeaderValue(access)
         requireHeaderValue(refresh)
@@ -115,7 +132,11 @@ class NexaAuthGateway private constructor(private val service: NativeAuthService
     }
 
     private fun requireHeaderValue(value: String) {
-        if (value.isBlank() || '\r' in value || '\n' in value) throw AuthGatewayFailure.ProtocolFailure()
+        if (value.isBlank() || '\r' in value ||
+            '\n' in value
+        ) {
+            throw AuthGatewayFailure.ProtocolFailure()
+        }
     }
 
     private suspend fun <T> runCall(ambiguousOnIo: Boolean, call: suspend () -> T): T = try {
@@ -132,7 +153,10 @@ class NexaAuthGateway private constructor(private val service: NativeAuthService
     }
 
     companion object {
-        fun create(endpoint: ApiEndpoint, client: OkHttpClient = ApiHttpClient.create(endpoint)): NexaAuthGateway {
+        fun create(
+            endpoint: ApiEndpoint,
+            client: OkHttpClient = ApiHttpClient.create(endpoint)
+        ): NexaAuthGateway {
             val json = Json { ignoreUnknownKeys = true }
             val retrofit = Retrofit.Builder()
                 .baseUrl(endpoint.url)

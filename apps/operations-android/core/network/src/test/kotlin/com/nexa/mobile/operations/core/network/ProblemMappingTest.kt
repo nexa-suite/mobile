@@ -9,8 +9,17 @@ import org.junit.Test
 class ProblemMappingTest {
     @Test
     fun httpStatusWinsOverInconsistentProblemCategory() {
-        val problem = """{"type":"about:blank","title":"Unauthorized","status":401,"detail":"sensitive detail","instance":"/internal","code":"UNAUTHORIZED","category":"CLIENT_ERROR","retryable":false,"correlationId":"body-id"}"""
-        val mapped = ProblemMapping.fromHttp(401, Headers.headersOf("X-Correlation-ID", "server-id"), "application/problem+json", problem, false)
+        val problem =
+            """{"type":"about:blank","title":"Unauthorized","status":401,
+               "detail":"sensitive detail","instance":"/internal","code":"UNAUTHORIZED",
+               "category":"CLIENT_ERROR","retryable":false,"correlationId":"body-id"}"""
+        val mapped = ProblemMapping.fromHttp(
+            401,
+            Headers.headersOf("X-Correlation-ID", "server-id"),
+            "application/problem+json",
+            problem,
+            false
+        )
         assertEquals(FailureKind.AuthenticationRequired, mapped.kind)
         assertEquals("UNAUTHORIZED", mapped.problemCode)
         assertEquals("CLIENT_ERROR", mapped.problemCategory)
@@ -37,19 +46,48 @@ class ProblemMappingTest {
             412 to FailureKind.StaleState,
             428 to FailureKind.PreconditionRequired,
             429 to FailureKind.Throttled,
-            503 to FailureKind.RetryableServerFailure,
+            503 to FailureKind.RetryableServerFailure
         )
         expected.forEach { (status, kind) ->
-            assertEquals(kind, ProblemMapping.fromHttp(status, Headers.Builder().build(), "application/problem+json", "not-json", false).kind)
+            assertEquals(
+                kind,
+                ProblemMapping.fromHttp(
+                    status,
+                    Headers.Builder().build(),
+                    "application/problem+json",
+                    "not-json",
+                    false
+                ).kind
+            )
         }
         assertEquals(
             FailureKind.UnknownOutcome,
-            ProblemMapping.fromHttp(503, Headers.Builder().build(), "application/problem+json", "{}", true).kind,
+            ProblemMapping.fromHttp(
+                503,
+                Headers.Builder().build(),
+                "application/problem+json",
+                "{}",
+                true
+            ).kind
         )
         assertEquals(
             FailureKind.AuthenticationRequired,
-            ProblemMapping.fromHttp(401, Headers.Builder().build(), "text/html", "unauthorized", false).kind,
+            ProblemMapping.fromHttp(
+                401,
+                Headers.Builder().build(),
+                "text/html",
+                "unauthorized",
+                false
+            ).kind
         )
-        assertNull(ProblemMapping.fromHttp(400, Headers.Builder().build(), "application/problem+json", "{", false).problem)
+        assertNull(
+            ProblemMapping.fromHttp(
+                400,
+                Headers.Builder().build(),
+                "application/problem+json",
+                "{",
+                false
+            ).problem
+        )
     }
 }

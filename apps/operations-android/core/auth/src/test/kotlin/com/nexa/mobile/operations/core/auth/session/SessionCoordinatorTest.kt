@@ -82,7 +82,10 @@ class SessionCoordinatorTest {
     @Test
     fun definitiveRefreshRejectionClearsLocalMaterial() = runTest {
         val store = FakeStore()
-        val gateway = FakeGateway().apply { refreshFailure = AuthGatewayFailure.DefinitiveRejection() }
+        val gateway = FakeGateway().apply {
+            refreshFailure =
+                AuthGatewayFailure.DefinitiveRejection()
+        }
         val coordinator = SessionCoordinator(store, gateway, backgroundScope)
         coordinator.signIn(NativeSignIn("synthetic", "synthetic-password", "synthetic"))
         val old = coordinator.currentAccess()!!
@@ -105,7 +108,9 @@ class SessionCoordinatorTest {
 
         val logout = coordinator.logout()
         assertTrue(logout.localMaterialCleared)
-        gateway.refreshGate!!.complete(IssuedNativeSession("synthetic-late-access", "synthetic-late-r2"))
+        gateway.refreshGate!!.complete(
+            IssuedNativeSession("synthetic-late-access", "synthetic-late-r2")
+        )
         runCurrent()
 
         assertNull(waiting.await())
@@ -125,7 +130,9 @@ class SessionCoordinatorTest {
         runCurrent()
 
         assertTrue(coordinator.invalidateContext())
-        gateway.refreshGate!!.complete(IssuedNativeSession("synthetic-late-access", "synthetic-late-r2"))
+        gateway.refreshGate!!.complete(
+            IssuedNativeSession("synthetic-late-access", "synthetic-late-r2")
+        )
         runCurrent()
 
         assertNull(waiting.await())
@@ -170,7 +177,10 @@ class SessionCoordinatorTest {
 
         coordinator.restore()
         assertNull(coordinator.currentAccess())
-        assertEquals(SessionState.Restoring(canRetryConnection = true), coordinator.sessionState.value)
+        assertEquals(
+            SessionState.Restoring(canRetryConnection = true),
+            coordinator.sessionState.value
+        )
         assertEquals(StoredRefreshCredential.Ready("synthetic-r2"), store.value)
 
         gateway.sessionUnavailable = false
@@ -216,12 +226,26 @@ class SessionCoordinatorTest {
     @Test
     fun secretBearingValuesUseRedactedStringRepresentation() {
         assertFalse(AccessTokenLease("secret-access", 1, 1).toString().contains("secret-access"))
-        assertFalse(NativeSignIn("synthetic", "secret-password", "synthetic").toString().contains("secret-password"))
-        assertFalse(IssuedNativeSession("secret-access", "secret-refresh").toString().contains("secret-refresh"))
-        assertFalse(StoredRefreshCredential.Ready("secret-refresh").toString().contains("secret-refresh"))
+        assertFalse(
+            NativeSignIn(
+                "synthetic",
+                "secret-password",
+                "synthetic"
+            ).toString().contains("secret-password")
+        )
+        assertFalse(
+            IssuedNativeSession(
+                "secret-access",
+                "secret-refresh"
+            ).toString().contains("secret-refresh")
+        )
+        assertFalse(
+            StoredRefreshCredential.Ready("secret-refresh").toString().contains("secret-refresh")
+        )
     }
 
-    private class FakeStore(initial: StoredRefreshCredential = StoredRefreshCredential.Missing) : RefreshCredentialStore {
+    private class FakeStore(initial: StoredRefreshCredential = StoredRefreshCredential.Missing) :
+        RefreshCredentialStore {
         var value = initial
         var takeCalls = 0
 

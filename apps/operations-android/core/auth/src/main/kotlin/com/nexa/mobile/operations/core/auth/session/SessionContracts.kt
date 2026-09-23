@@ -19,12 +19,9 @@ sealed interface SessionState {
 }
 
 /** This lease is transport-only. It must never enter saved state, UI state, or diagnostics. */
-data class AccessTokenLease(
-    val value: String,
-    val generation: Long,
-    val epoch: Long,
-) {
-    override fun toString(): String = "AccessTokenLease(generation=$generation, epoch=$epoch, value=REDACTED)"
+data class AccessTokenLease(val value: String, val generation: Long, val epoch: Long) {
+    override fun toString(): String =
+        "AccessTokenLease(generation=$generation, epoch=$epoch, value=REDACTED)"
 }
 
 interface AccessTokenSource {
@@ -39,24 +36,19 @@ interface AccessTokenSource {
     suspend fun isEpochCurrent(epoch: Long): Boolean
 }
 
-data class NativeSignIn(
-    val identifier: String,
-    val password: String,
-    val workspaceSlug: String,
-) {
-    override fun toString(): String = "NativeSignIn(identifier=REDACTED, password=REDACTED, workspaceSlug=REDACTED)"
+data class NativeSignIn(val identifier: String, val password: String, val workspaceSlug: String) {
+    override fun toString(): String =
+        "NativeSignIn(identifier=REDACTED, password=REDACTED, workspaceSlug=REDACTED)"
 }
 
-data class IssuedNativeSession(
-    val accessToken: String,
-    val refreshCredential: String,
-) {
+data class IssuedNativeSession(val accessToken: String, val refreshCredential: String) {
     init {
         require(accessToken.isNotBlank() && refreshCredential.isNotBlank())
         require('\r' !in refreshCredential && '\n' !in refreshCredential)
     }
 
-    override fun toString(): String = "IssuedNativeSession(accessToken=REDACTED, refreshCredential=REDACTED)"
+    override fun toString(): String =
+        "IssuedNativeSession(accessToken=REDACTED, refreshCredential=REDACTED)"
 }
 
 data class VerifiedSession(val hasAuthorizedContext: Boolean)
@@ -82,4 +74,7 @@ sealed class AuthGatewayFailure : Exception() {
 }
 
 /** A successful HTTP sign-out response does not prove that a server session was revoked. */
-data class LocalLogoutResult(val serverSignOutAcknowledged: Boolean, val localMaterialCleared: Boolean)
+data class LocalLogoutResult(
+    val serverSignOutAcknowledged: Boolean,
+    val localMaterialCleared: Boolean
+)

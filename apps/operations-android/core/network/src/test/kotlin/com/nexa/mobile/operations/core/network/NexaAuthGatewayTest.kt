@@ -24,13 +24,20 @@ class NexaAuthGatewayTest {
             server.start()
             val gateway = NexaAuthGateway.create(ApiEndpoint(server.url("/").toString()))
             server.enqueue(issued("access-1", "refresh-1"))
-            val signIn = gateway.signIn(NativeSignIn("person@example.test", "secret-password", "workspace"))
+            val signIn = gateway.signIn(
+                NativeSignIn("person@example.test", "secret-password", "workspace")
+            )
             assertEquals("access-1", signIn.accessToken)
             val login = server.takeRequest()
             assertEquals("POST", login.method)
             assertEquals("/api/v1/authentication/sign-in", login.path)
             assertEquals("NATIVE", login.getHeader("X-Nexa-Client"))
-            assertEquals("PLATFORM", Json.parseToJsonElement(login.body.readUtf8()).jsonObject["surface"]?.jsonPrimitive?.content)
+            assertEquals(
+                "PLATFORM",
+                Json.parseToJsonElement(
+                    login.body.readUtf8()
+                ).jsonObject["surface"]?.jsonPrimitive?.content
+            )
             assertNull(login.getHeader("Authorization"))
             assertNull(login.getHeader("X-Nexa-Surface"))
             assertNull(login.getHeader("X-Nexa-Refresh-Token"))
@@ -46,7 +53,9 @@ class NexaAuthGatewayTest {
             assertNull(refresh.getHeader("Authorization"))
             assertEquals(0L, refresh.bodySize)
 
-            server.enqueue(MockResponse().setBody(SESSION_JSON).addHeader("Content-Type", "application/json"))
+            server.enqueue(
+                MockResponse().setBody(SESSION_JSON).addHeader("Content-Type", "application/json")
+            )
             assertTrue(gateway.currentSession("access-2").hasAuthorizedContext)
             val session = server.takeRequest()
             assertEquals("GET", session.method)
@@ -72,10 +81,16 @@ class NexaAuthGatewayTest {
     fun missingNativeRefreshHeaderFailsClosed() = runTest {
         MockWebServer().use { server ->
             server.start()
-            server.enqueue(MockResponse().setBody("{\"accessToken\":\"access\"}").addHeader("Content-Type", "application/json"))
+            server.enqueue(
+                MockResponse().setBody(
+                    "{\"accessToken\":\"access\"}"
+                ).addHeader("Content-Type", "application/json")
+            )
             val gateway = NexaAuthGateway.create(ApiEndpoint(server.url("/").toString()))
             assertThrows(AuthGatewayFailure.ProtocolFailure::class.java) {
-                kotlinx.coroutines.runBlocking { gateway.signIn(NativeSignIn("id", "password", "workspace")) }
+                kotlinx.coroutines.runBlocking {
+                    gateway.signIn(NativeSignIn("id", "password", "workspace"))
+                }
             }
         }
     }
@@ -102,15 +117,23 @@ class NexaAuthGatewayTest {
                 val endpoint = ApiEndpoint(trusted.url("/").toString())
                 val client = ApiHttpClient.create(endpoint)
                 assertThrows(IOException::class.java) {
-                    client.newCall(Request.Builder().url(foreign.url("/api/v1/secret"))
-                        .header("Authorization", "Bearer synthetic-secret")
-                        .header("X-Nexa-Refresh-Token", "synthetic-refresh")
-                        .build()).execute().close()
+                    client.newCall(
+                        Request.Builder().url(foreign.url("/api/v1/secret"))
+                            .header("Authorization", "Bearer synthetic-secret")
+                            .header("X-Nexa-Refresh-Token", "synthetic-refresh")
+                            .build()
+                    ).execute().close()
                 }
                 assertEquals(0, foreign.requestCount)
-                trusted.enqueue(MockResponse().setResponseCode(302).addHeader("Location", foreign.url("/api/v1/secret")))
-                client.newCall(Request.Builder().url(trusted.url("/api/v1/test"))
-                    .header("Authorization", "Bearer synthetic-secret").build()).execute().use {
+                trusted.enqueue(
+                    MockResponse().setResponseCode(
+                        302
+                    ).addHeader("Location", foreign.url("/api/v1/secret"))
+                )
+                client.newCall(
+                    Request.Builder().url(trusted.url("/api/v1/test"))
+                        .header("Authorization", "Bearer synthetic-secret").build()
+                ).execute().use {
                     assertEquals(302, it.code)
                 }
                 assertEquals(0, foreign.requestCount)
@@ -122,12 +145,19 @@ class NexaAuthGatewayTest {
     @Test
     fun endpointRequiresTrustedSchemeAndRoot() {
         assertThrows(IllegalArgumentException::class.java) { ApiEndpoint("http://example.test/") }
-        assertThrows(IllegalArgumentException::class.java) { ApiEndpoint("https://example.test/path/") }
-        assertThrows(IllegalArgumentException::class.java) { ApiEndpoint("https://user:password@example.test/") }
+        assertThrows(IllegalArgumentException::class.java) {
+            ApiEndpoint("https://example.test/path/")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ApiEndpoint("https://user:password@example.test/")
+        }
     }
 }
 
-internal const val SESSION_JSON = """{"user":{"userId":"u"},"tenant":{"tenantId":"t"},"workspace":{"workspaceId":"w"},"membership":{"membershipId":"m"},"surface":"PLATFORM"}"""
+internal val SESSION_JSON =
+    """{"user":{"userId":"u"},"tenant":{"tenantId":"t"},
+       "workspace":{"workspaceId":"w"},"membership":{"membershipId":"m"},
+       "surface":"PLATFORM"}"""
 
 internal fun issued(access: String, refresh: String): MockResponse = MockResponse()
     .setBody("""{"accessToken":"$access","tokenType":"Bearer","expiresIn":300}""")

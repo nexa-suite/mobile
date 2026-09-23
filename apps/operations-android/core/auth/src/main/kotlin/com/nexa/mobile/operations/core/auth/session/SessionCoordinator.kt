@@ -17,7 +17,7 @@ import kotlinx.coroutines.withTimeout
 class SessionCoordinator(
     private val credentialStore: RefreshCredentialStore,
     private val remote: AuthRemoteGateway,
-    private val applicationScope: CoroutineScope,
+    private val applicationScope: CoroutineScope
 ) : AccessTokenSource {
     private val mutex = Mutex()
     private val mutableState = MutableStateFlow<SessionState>(SessionState.Bootstrapping)
@@ -33,7 +33,9 @@ class SessionCoordinator(
         access.takeIf { mutableState.value == SessionState.Active }
     }
 
-    override suspend fun isEpochCurrent(epoch: Long): Boolean = mutex.withLock { this.epoch == epoch }
+    override suspend fun isEpochCurrent(epoch: Long): Boolean = mutex.withLock {
+        this.epoch == epoch
+    }
 
     override suspend fun rejectCurrentAccess(observed: AccessTokenLease) {
         mutex.withLock {
@@ -64,10 +66,15 @@ class SessionCoordinator(
             return
         }
         when (durable) {
-            StoredRefreshCredential.Missing -> setStateIfCurrent(expectedEpoch, SessionState.SignedOut)
+            StoredRefreshCredential.Missing -> setStateIfCurrent(
+                expectedEpoch,
+                SessionState.SignedOut
+            )
+
             StoredRefreshCredential.InFlight,
-            StoredRefreshCredential.Unusable,
+            StoredRefreshCredential.Unusable
             -> failReauthentication(expectedEpoch)
+
             is StoredRefreshCredential.Ready -> beginRefresh(expectedEpoch, generation).await()
         }
     }
@@ -103,11 +110,16 @@ class SessionCoordinator(
         val flight = mutex.withLock {
             if (observed.epoch != epoch) return null
             access?.let { current ->
-                if (current.generation > observed.generation && mutableState.value == SessionState.Active) {
+                if (current.generation > observed.generation &&
+                    mutableState.value == SessionState.Active
+                ) {
                     return current
                 }
             }
-            refreshFlight?.takeIf { it.epoch == observed.epoch && it.generation == observed.generation }?.let {
+            refreshFlight?.takeIf {
+                it.epoch == observed.epoch &&
+                    it.generation == observed.generation
+            }?.let {
                 return@withLock it.result
             }
             if (access?.generation != observed.generation) return null
@@ -164,11 +176,19 @@ class SessionCoordinator(
         }
     }
 
-    private suspend fun beginRefresh(expectedEpoch: Long, observedGeneration: Long): Deferred<AccessTokenLease?> =
+    private suspend fun beginRefresh(
+        expectedEpoch: Long,
+        observedGeneration: Long
+    ): Deferred<AccessTokenLease?> =
         mutex.withLock { beginRefreshLocked(expectedEpoch, observedGeneration) }
 
-    private fun beginRefreshLocked(expectedEpoch: Long, observedGeneration: Long): Deferred<AccessTokenLease?> {
-        refreshFlight?.takeIf { it.epoch == expectedEpoch && it.generation == observedGeneration }?.let {
+    private fun beginRefreshLocked(
+        expectedEpoch: Long,
+        observedGeneration: Long
+    ): Deferred<AccessTokenLease?> {
+        refreshFlight?.takeIf {
+            it.epoch == expectedEpoch && it.generation == observedGeneration
+        }?.let {
             return it.result
         }
         val result = applicationScope.async(start = CoroutineStart.LAZY) {
@@ -214,7 +234,10 @@ class SessionCoordinator(
         return verifyPendingSession(expectedEpoch, issued.accessToken)
     }
 
-    private suspend fun persistPendingSession(expectedEpoch: Long, issued: IssuedNativeSession): Boolean {
+    private suspend fun persistPendingSession(
+        expectedEpoch: Long,
+        issued: IssuedNativeSession
+    ): Boolean {
         return try {
             mutex.withLock {
                 if (epoch != expectedEpoch) return false
@@ -230,7 +253,10 @@ class SessionCoordinator(
         }
     }
 
-    private suspend fun verifyPendingSession(expectedEpoch: Long, token: String): AccessTokenLease? {
+    private suspend fun verifyPendingSession(
+        expectedEpoch: Long,
+        token: String
+    ): AccessTokenLease? {
         val verified = try {
             remote.currentSession(token)
         } catch (cancelled: CancellationException) {
@@ -277,11 +303,14 @@ class SessionCoordinator(
         mutex.withLock { if (epoch == expectedEpoch) mutableState.value = target }
     }
 
-    private suspend fun isCurrent(expectedEpoch: Long): Boolean = mutex.withLock { epoch == expectedEpoch }
+    private suspend fun isCurrent(expectedEpoch: Long): Boolean = mutex.withLock {
+        epoch ==
+            expectedEpoch
+    }
 
     private data class RefreshFlight(
         val epoch: Long,
         val generation: Long,
-        val result: Deferred<AccessTokenLease?>,
+        val result: Deferred<AccessTokenLease?>
     )
 }
