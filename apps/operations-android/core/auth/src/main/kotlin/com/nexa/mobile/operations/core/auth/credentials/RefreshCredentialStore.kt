@@ -19,5 +19,7 @@ sealed interface StoredRefreshCredential {
 
     data object Unusable : StoredRefreshCredential
 
-    data class Ready(val credential: String) : StoredRefreshCredential
+    data class Ready(val credential: String) : StoredRefreshCredential {
+        override fun toString(): String = "Ready(credential=REDACTED)"
+    }
 }
