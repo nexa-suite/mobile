@@ -8,8 +8,8 @@ import com.nexa.mobile.operations.core.auth.session.NativeSignIn
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import java.io.IOException
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
@@ -264,7 +264,10 @@ class ProtectedCallExecutorTest {
                 val dispatchedRequest = receivedRequests.single()
                 assertEquals("/api/v1/technical-test", dispatchedRequest.path)
                 assertEquals("POST", dispatchedRequest.method)
-                assertEquals("cancel-after-dispatch", dispatchedRequest.getHeader("Idempotency-Key"))
+                assertEquals(
+                    "cancel-after-dispatch",
+                    dispatchedRequest.getHeader("Idempotency-Key")
+                )
                 assertEquals(0, source.recoverCount)
                 assertEquals(0, source.rejectCount)
             } finally {
