@@ -7,9 +7,12 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenSource
 import com.nexa.mobile.operations.core.auth.session.NativeSignIn
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
+import java.io.IOException
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,7 +22,9 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
+import okhttp3.Call
 import okhttp3.Dispatcher
+import okhttp3.EventListener
 import okhttp3.mockwebserver.Dispatcher as ServerDispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -172,6 +177,100 @@ class ProtectedCallExecutorTest {
             assertEquals(FailureKind.UnknownOutcome, result.error.kind)
             assertEquals(0, source.recoverCount)
             assertEquals(1, server.requestCount)
+        }
+    }
+
+    @Test
+    fun cancellingDispatchedMutationPropagatesWithoutRefreshReplayOrRetry() = runBlocking {
+        MockWebServer().use { server ->
+            val requestDispatched = CountDownLatch(1)
+            val releaseResponse = CountDownLatch(1)
+            val unauthorizedResponseReady = CountDownLatch(1)
+            val callCancelled = CountDownLatch(1)
+            val callFailed = CountDownLatch(1)
+            val receivedRequests = CopyOnWriteArrayList<RecordedRequest>()
+            server.dispatcher = object : ServerDispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    receivedRequests.add(request)
+                    if (request.path == "/api/v1/technical-test") {
+                        requestDispatched.countDown()
+                        releaseResponse.await()
+                        unauthorizedResponseReady.countDown()
+                        return MockResponse().setResponseCode(401)
+                    }
+                    return MockResponse().setResponseCode(404)
+                }
+            }
+            server.start()
+            val endpoint = ApiEndpoint(server.url("/").toString())
+            val source = FakeSource()
+            val client = ApiHttpClient.create(endpoint).newBuilder()
+                .eventListenerFactory {
+                    object : EventListener() {
+                        override fun canceled(call: Call) {
+                            callCancelled.countDown()
+                        }
+
+                        override fun callFailed(call: Call, ioe: IOException) {
+                            callFailed.countDown()
+                        }
+                    }
+                }
+                .build()
+            val executor = ProtectedCallExecutor(endpoint, client, source)
+            val caller = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+            val command = caller.async {
+                executor.execute(
+                    ProtectedRequest(
+                        ProtectedMethod.POST,
+                        "/api/v1/technical-test",
+                        "{}",
+                        "cancel-after-dispatch"
+                    )
+                )
+            }
+
+            try {
+                assertTrue(
+                    "The mutation reached the server before caller cancellation",
+                    requestDispatched.await(5, TimeUnit.SECONDS)
+                )
+
+                command.cancel()
+
+                assertTrue(
+                    "Caller cancellation reached the in-flight OkHttp call",
+                    callCancelled.await(5, TimeUnit.SECONDS)
+                )
+                assertTrue(
+                    "The cancelled OkHttp call completed",
+                    callFailed.await(5, TimeUnit.SECONDS)
+                )
+                val cancellationPropagated = try {
+                    command.await()
+                    false
+                } catch (_: CancellationException) {
+                    true
+                }
+
+                assertTrue("Cancellation must reach the suspended caller", cancellationPropagated)
+                releaseResponse.countDown()
+                assertTrue(
+                    "The server prepared its delayed 401 response",
+                    unauthorizedResponseReady.await(5, TimeUnit.SECONDS)
+                )
+                assertEquals(1, server.requestCount)
+                assertEquals(1, receivedRequests.size)
+                val dispatchedRequest = receivedRequests.single()
+                assertEquals("/api/v1/technical-test", dispatchedRequest.path)
+                assertEquals("POST", dispatchedRequest.method)
+                assertEquals("cancel-after-dispatch", dispatchedRequest.getHeader("Idempotency-Key"))
+                assertEquals(0, source.recoverCount)
+                assertEquals(0, source.rejectCount)
+            } finally {
+                releaseResponse.countDown()
+                caller.cancel()
+            }
         }
     }
 
