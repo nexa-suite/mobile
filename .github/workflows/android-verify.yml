@@ -159,6 +159,12 @@ jobs:
           expect_rejected "Placeholder HTTPS origin" \
             "Release API base URL must be a non-local HTTPS origin" \
             -PnexaReleaseApiBaseUrl=https://example.com/
+          expect_rejected "Reserved example origin" \
+            "Release API base URL must be a non-local HTTPS origin" \
+            -PnexaReleaseApiBaseUrl=https://example.org/
+          expect_rejected "Reserved example subdomain" \
+            "Release API base URL must be a non-local HTTPS origin" \
+            -PnexaReleaseApiBaseUrl=https://api.example.net/
       - name: Verify release endpoint safety and shrinking
         working-directory: apps/operations-android
         run: |

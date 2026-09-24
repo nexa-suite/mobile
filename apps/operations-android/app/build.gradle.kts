@@ -68,7 +68,8 @@ val validateReleaseEndpoint = tasks.register("validateReleaseEndpoint") {
             "Release API base URL must be supplied as nexaReleaseApiBaseUrl"
         }
         val parsed = URI(url)
-        val host = parsed.host?.lowercase().orEmpty()
+        val host = parsed.host?.lowercase()?.trimEnd('.').orEmpty()
+        val exampleDomains = setOf("example.com", "example.net", "example.org")
         require(
             parsed.scheme == "https" && host.isNotBlank() && parsed.rawUserInfo == null &&
                 (parsed.rawPath.isNullOrEmpty() || parsed.rawPath == "/") &&
@@ -77,7 +78,8 @@ val validateReleaseEndpoint = tasks.register("validateReleaseEndpoint") {
                 host !in setOf("localhost", "127.0.0.1", "10.0.2.2", "0.0.0.0", "api.nexa.com") &&
                 !host.endsWith(".localhost") && !host.endsWith(".local") &&
                 !host.endsWith(".test") && !host.endsWith(".invalid") &&
-                !host.endsWith(".example") && host != "example.com" &&
+                !host.endsWith(".example") &&
+                exampleDomains.none { host == it || host.endsWith(".$it") } &&
                 !host.startsWith("10.") && !host.startsWith("192.168.") &&
                 !Regex("^172\\.(1[6-9]|2[0-9]|3[0-1])\\.").containsMatchIn(host)
         ) {
