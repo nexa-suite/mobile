@@ -1,0 +1,215 @@
+name: Operations Android verification
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      android: ${{ steps.filter.outputs.android }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            android:
+              - 'apps/operations-android/**'
+              - '.github/**'
+              - '.editorconfig'
+              - '.gitignore'
+              - 'AGENTS.md'
+              - 'gradle/**'
+              - 'build.gradle.kts'
+              - 'settings.gradle.kts'
+              - 'gradle.properties'
+
+  android-static:
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/operations-android
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+      - name: Install Android SDK 37
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
+      - name: Verify architecture, formatting, lint, contracts, and debug build
+        run: |
+          ./gradlew verifyAndroidArchitecture ktlintCheck lintDebug \
+            :core:auth:testDebugUnitTest :core:network:testDebugUnitTest \
+            :app:assembleDebug --dependency-verification strict
+
+  android-api37:
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: '15859902'
+      - name: Select Android 37 capable AVD manager
+        run: |
+          test -x "$ANDROID_HOME/cmdline-tools/22.0/bin/avdmanager"
+          rm -rf "$ANDROID_HOME/cmdline-tools/latest"
+          ln -s "$ANDROID_HOME/cmdline-tools/22.0" "$ANDROID_HOME/cmdline-tools/latest"
+          test -x "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager"
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: '37.0'
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          pre-emulator-launch-script: |
+            grep -qx 'target=android-37.0' "$HOME/.android/avd/test.ini"
+          script: cd apps/operations-android && ./gradlew :core:auth:connectedDebugAndroidTest :app:connectedDebugAndroidTest --dependency-verification strict
+
+  android-promotion:
+    needs: changes
+    if: >-
+      needs.changes.outputs.android == 'true' &&
+      ((github.event_name == 'pull_request' && github.base_ref == 'main') ||
+       (github.event_name == 'push' &&
+        (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+      - name: Install Android SDK 37
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
+      - name: Reject unsafe release API origins
+        working-directory: apps/operations-android
+        shell: bash
+        run: |
+          set -euo pipefail
+          expect_rejected() {
+            local case_name="$1"
+            local expected="$2"
+            shift 2
+            local log_file
+            log_file="$(mktemp)"
+            if ./gradlew :app:validateReleaseEndpoint \
+                --dependency-verification strict "$@" >"$log_file" 2>&1; then
+              echo "::error::${case_name} unexpectedly passed"
+              cat "$log_file"
+              rm -f "$log_file"
+              return 1
+            fi
+            if ! grep -Fq "$expected" "$log_file"; then
+              echo "::error::${case_name} failed for another reason"
+              cat "$log_file"
+              rm -f "$log_file"
+              return 1
+            fi
+            rm -f "$log_file"
+          }
+          expect_rejected "Missing origin" \
+            "Release API base URL must be supplied as nexaReleaseApiBaseUrl"
+          expect_rejected "Cleartext local origin" \
+            "Release API base URL must be a non-local HTTPS origin" \
+            -PnexaReleaseApiBaseUrl=http://10.0.2.2:8080/
+          expect_rejected "HTTPS local origin" \
+            "Release API base URL must be a non-local HTTPS origin" \
+            -PnexaReleaseApiBaseUrl=https://localhost/
+          expect_rejected "Placeholder HTTPS origin" \
+            "Release API base URL must be a non-local HTTPS origin" \
+            -PnexaReleaseApiBaseUrl=https://example.com/
+          expect_rejected "Reserved example origin" \
+            "Release API base URL must be a non-local HTTPS origin" \
+            -PnexaReleaseApiBaseUrl=https://example.org/
+          expect_rejected "Reserved example subdomain" \
+            "Release API base URL must be a non-local HTTPS origin" \
+            -PnexaReleaseApiBaseUrl=https://api.example.net/
+      - name: Verify release endpoint safety and shrinking
+        working-directory: apps/operations-android
+        run: |
+          ./gradlew :app:assembleRelease \
+            -PnexaReleaseApiBaseUrl=https://github.com/ \
+            --dependency-verification strict
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: cd apps/operations-android && ./gradlew :core:auth:connectedDebugAndroidTest :app:connectedDebugAndroidTest --dependency-verification strict
+
+  verify:
+    if: always()
+    needs:
+      - changes
+      - android-static
+      - android-api37
+      - android-promotion
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require applicable Android evidence
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          ANDROID_CHANGED: ${{ needs.changes.outputs.android }}
+          STATIC_RESULT: ${{ needs.android-static.result }}
+          API37_RESULT: ${{ needs.android-api37.result }}
+          PROMOTION_RESULT: ${{ needs.android-promotion.result }}
+          PROMOTION_REQUIRED: >-
+            ${{ (github.event_name == 'pull_request' && github.base_ref == 'main') ||
+                (github.event_name == 'push' &&
+                 (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')) }}
+        run: |
+          test "$CHANGES_RESULT" = success
+          if test "$ANDROID_CHANGED" = true; then
+            test "$STATIC_RESULT" = success
+            test "$API37_RESULT" = success
+            if test "$PROMOTION_REQUIRED" = true; then
+              test "$PROMOTION_RESULT" = success
+            fi
+          fi
