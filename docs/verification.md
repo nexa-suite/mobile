@@ -1,6 +1,6 @@
 # Android foundation verification
 
-Run Gradle commands from `apps/operations-android` with JDK 17. Install Android SDK packages `platforms;android-37.0`, `build-tools;36.0.0`, and `platform-tools`. Keep the Gradle wrapper and dependency verification metadata in the repository; review the bytes and source of a new dependency artifact before accepting its checksum.
+Run Gradle commands from `apps/operations-android` with JDK 17. Install Android SDK packages `platforms;android-37.0`, `build-tools;36.0.0`, and `platform-tools`. Keep the Gradle wrapper and dependency verification metadata in the repository; review the bytes and source of a new dependency artifact before accepting its checksum. The wrapper pins the official SHA-256 for the Gradle 9.6.0 binary distribution.
 
 ## Local static and JVM gates
 
@@ -36,8 +36,8 @@ Release assembly requires a non-local HTTPS root origin supplied at build time. 
   --dependency-verification strict
 ```
 
-Also verify that `:app:validateReleaseEndpoint` fails when the property is omitted or set to a cleartext or local origin. The release build uses R8 code and resource shrinking. No production endpoint or distribution signing material is stored here.
+Also verify that `:app:validateReleaseEndpoint` fails when the property is omitted or set to a cleartext, local, or obvious placeholder origin. The release build uses R8 code and resource shrinking. No production endpoint or distribution signing material is stored here.
 
 ## CI status
 
-The workflow `.github/workflows/android-verify.yml` emits one stable `verify` status. For Android changes on a feature branch it requires architecture, formatting, lint, JVM contract tests, debug assembly, and API 37 instrumentation. For a pull request to `main` or a push to `develop` or `main`, it additionally requires release assembly and API 29 instrumentation. Read the individual job conclusions along with `verify`; a skipped promotion job is expected on a feature push. A green local run does not substitute for the workflow result on the pushed commit.
+The workflow `.github/workflows/android-verify.yml` emits one stable `verify` status. For Android changes on a feature branch it requires architecture, formatting, lint, JVM contract tests, debug assembly, and API 37 instrumentation. For a pull request to `main` or a push to `develop` or `main`, it additionally requires Gradle to reject missing, cleartext local, HTTPS local, and placeholder release origins, then runs release assembly with a verification-only HTTPS origin and API 29 instrumentation. Read the individual job conclusions along with `verify`; a skipped promotion job is expected on a feature push. A green local run does not substitute for the workflow result on the pushed commit.
