@@ -1,6 +1,6 @@
 # Nexa Operations Android
 
-This repository contains the technical foundation for the Nexa Operations Android application. The Android project is in [`apps/operations-android`](apps/operations-android). It boots a Compose shell, observes server-confirmed session state, and provides native authentication transport and protected HTTP request boundaries. Product workflows are not implemented.
+This repository contains the Nexa Operations Android client. The Android project is in [`apps/operations-android`](apps/operations-android). It preserves the native session and protected HTTP foundation and implements the client UI for access, context selection, Operations work entry, manual product search, and confirmed SKU review.
 
 ## Toolchain
 
@@ -15,12 +15,14 @@ Install JDK 17, Android SDK package `platforms;android-37.0`, and `build-tools;3
 
 | Module | Responsibility |
 | --- | --- |
-| `:app` | Hilt composition, session driven Navigation 3 root, technical shell |
+| `:app` | Hilt composition, session-driven Navigation 3 root, authority-gated destinations, debug review entry |
 | `:core:auth` | Protected refresh credential store and session coordinator |
 | `:core:network` | Native auth transport, origin guard, problem mapping, protected calls |
-| `:core:designsystem` | Minimal Compose theme for the technical shell |
+| `:core:designsystem` | Nexa Compose theme and the reusable primitives used by Operations |
+| `:feature:access` | Access and workforce-context UI state, ViewModel, and screens |
+| `:feature:warehouse` | Operations work entry, manual search, and confirmed SKU UI state and screens |
 
-The API owns authentication, Tenant and Workspace authorization, and business outcomes. Client state and permission hints never grant server authority. See [foundation architecture](docs/android-foundation.md) for boundaries and [native session security](docs/native-session.md) for rotation behavior.
+The API owns authentication, Tenant and Workspace authorization, and business outcomes. Client state and permission hints never grant server authority. The accepted identity/context and catalog-confirmation contracts are not integrated yet; release gateways return safe unavailable outcomes until they are. The debug-only review activity uses visibly synthetic fixtures. See [foundation architecture](docs/android-foundation.md) for boundaries and [native session security](docs/native-session.md) for rotation behavior.
 
 ## Build and verify
 
@@ -30,6 +32,7 @@ From `apps/operations-android` with `JAVA_HOME` pointing to JDK 17:
 ./gradlew :app:assembleDebug
 ./gradlew verifyAndroidArchitecture ktlintCheck lintDebug
 ./gradlew :core:auth:testDebugUnitTest :core:network:testDebugUnitTest
+./gradlew :feature:access:testDebugUnitTest :feature:warehouse:testDebugUnitTest
 ./gradlew :core:auth:connectedDebugAndroidTest :app:connectedDebugAndroidTest
 ```
 
@@ -45,4 +48,4 @@ The CI workflow in [android-verify.yml](.github/workflows/android-verify.yml) ru
 
 ## Current limits
 
-There are no Product screens, Buyer client changes, live account fixtures, production API endpoint, distribution signing configuration, or physical device acceptance in this foundation. Local sign-out clears protected state even when server revocation cannot be confirmed. System and production readiness remain separate gates.
+No scanner, dashboard, inventory workflow, future module, API change, live account fixture, production API endpoint, or distribution signing configuration is included. No physical-device acceptance is claimed. Local sign-out clears protected state even when server revocation cannot be confirmed. System and production readiness remain separate gates.

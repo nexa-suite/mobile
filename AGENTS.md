@@ -1,7 +1,7 @@
 # Repository working agreement
 
 - Follow accepted Product and architecture decisions in the Nexa Blueprint repository and the current API contract. This repository implements the Android client; it does not define server authorization or Product behavior.
-- Keep the four-module boundary. `:core:auth` owns protected local session state and must not import Retrofit, OkHttp, or `:core:network`. `:core:network` owns HTTP transport and must not implement Product permission decisions. Presentation must not consume raw transport DTOs.
+- Preserve the four foundation module boundaries. Accepted client slices may add only their explicitly authorized feature modules; the Operations UI slice authorizes `:feature:access` and `:feature:warehouse`. `:core:auth` owns protected local session state and must not import Retrofit, OkHttp, or `:core:network`. `:core:network` owns HTTP transport and must not implement Product permission decisions. Presentation must not consume raw transport DTOs.
 - Keep access tokens in process memory. Protect refresh credentials with AndroidKeyStore, AES-GCM, and an atomic record in `noBackupFilesDir`. Persist `IN_FLIGHT` without the old credential before dispatching a refresh. Never retry an ambiguous rotation with the old credential.
 - Attach secret headers only to the configured API origin. Keep native auth headers on their verified routes. Do not add transparent mutation retry or global idempotency keys.
 - Add focused JVM, MockWebServer, and Android instrumentation coverage with behavior changes. Run architecture, ktlint, lint, dependency verification, and the relevant emulator gate before proposing integration.

@@ -61,6 +61,7 @@ jobs:
         run: |
           ./gradlew verifyAndroidArchitecture ktlintCheck lintDebug \
             :core:auth:testDebugUnitTest :core:network:testDebugUnitTest \
+            :feature:access:testDebugUnitTest :feature:warehouse:testDebugUnitTest \
             :app:assembleDebug --dependency-verification strict
 
   android-api37:

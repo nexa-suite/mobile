@@ -9,6 +9,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -22,6 +23,8 @@ class SessionCoordinator(
     private val mutex = Mutex()
     private val mutableState = MutableStateFlow<SessionState>(SessionState.Bootstrapping)
     override val sessionState = mutableState.asStateFlow()
+    private val mutableVerifiedSession = MutableStateFlow<VerifiedSession?>(null)
+    val verifiedSession: StateFlow<VerifiedSession?> = mutableVerifiedSession.asStateFlow()
 
     private var epoch = 0L
     private var generation = 0L
@@ -44,6 +47,7 @@ class SessionCoordinator(
             access = null
             pendingSessionAccess = null
             refreshFlight = null
+            mutableVerifiedSession.value = null
             try {
                 credentialStore.clear()
                 mutableState.value = SessionState.ReauthenticationRequired
@@ -85,6 +89,7 @@ class SessionCoordinator(
             epoch++
             access = null
             pendingSessionAccess = null
+            mutableVerifiedSession.value = null
             mutableState.value = SessionState.Restoring()
             try {
                 credentialStore.clear()
@@ -101,6 +106,27 @@ class SessionCoordinator(
         } catch (_: Exception) {
             setStateIfCurrent(expectedEpoch, SessionState.SignedOut)
             return false
+        }
+        if (!persistPendingSession(expectedEpoch, issued)) return false
+        return verifyPendingSession(expectedEpoch, issued.accessToken) != null
+    }
+
+    /** Establishes a native session issued by identity-first or context selection. */
+    suspend fun establish(issued: IssuedNativeSession): Boolean {
+        val expectedEpoch = mutex.withLock {
+            epoch++
+            access = null
+            pendingSessionAccess = null
+            refreshFlight = null
+            mutableVerifiedSession.value = null
+            mutableState.value = SessionState.Restoring()
+            try {
+                credentialStore.clear()
+            } catch (_: Exception) {
+                mutableState.value = SessionState.LocalProtectionError
+                return false
+            }
+            epoch
         }
         if (!persistPendingSession(expectedEpoch, issued)) return false
         return verifyPendingSession(expectedEpoch, issued.accessToken) != null
@@ -166,6 +192,7 @@ class SessionCoordinator(
         access = null
         pendingSessionAccess = null
         refreshFlight = null
+        mutableVerifiedSession.value = null
         return try {
             credentialStore.clear()
             mutableState.value = target
@@ -271,9 +298,11 @@ class SessionCoordinator(
         return mutex.withLock {
             if (epoch != expectedEpoch || pendingSessionAccess != token) return null
             if (!verified.hasAuthorizedContext) {
+                mutableVerifiedSession.value = verified
                 mutableState.value = SessionState.ContextRequired
                 return null
             }
+            mutableVerifiedSession.value = verified
             generation++
             AccessTokenLease(token, generation, epoch).also {
                 access = it
@@ -290,6 +319,7 @@ class SessionCoordinator(
             access = null
             pendingSessionAccess = null
             refreshFlight = null
+            mutableVerifiedSession.value = null
             try {
                 credentialStore.clear()
                 mutableState.value = SessionState.ReauthenticationRequired

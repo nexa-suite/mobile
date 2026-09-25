@@ -8,10 +8,11 @@ Run Gradle commands from `apps/operations-android` with JDK 17. Install Android 
 cd apps/operations-android
 ./gradlew verifyAndroidArchitecture ktlintCheck lintDebug \
   :core:auth:testDebugUnitTest :core:network:testDebugUnitTest \
+  :feature:access:testDebugUnitTest :feature:warehouse:testDebugUnitTest \
   :app:assembleDebug --dependency-verification strict
 ```
 
-The JUnit XML files are in `core/auth/build/test-results/testDebugUnitTest` and `core/network/build/test-results/testDebugUnitTest`. Lint reports are under each module's `build/reports/lint-results-debug.html`. A zero exit status is necessary, but inspect the XML test and failure counts before recording a result.
+The JUnit XML files are in each module's `build/test-results/testDebugUnitTest`. Lint reports are under each module's `build/reports/lint-results-debug.html`. A zero exit status is necessary, but inspect the XML test and failure counts before recording a result.
 
 ## Emulator gates
 
@@ -41,3 +42,18 @@ Also verify that `:app:validateReleaseEndpoint` fails when the property is omitt
 ## CI status
 
 The workflow `.github/workflows/android-verify.yml` emits one stable `verify` status. For Android changes on a feature branch it requires architecture, formatting, lint, JVM contract tests, debug assembly, and API 37 instrumentation. For a pull request to `main` or a push to `develop` or `main`, it additionally requires Gradle to reject missing, cleartext local, HTTPS local, and placeholder release origins, then runs release assembly with a verification-only HTTPS origin and API 29 instrumentation. Read the individual job conclusions along with `verify`; a skipped promotion job is expected on a feature push. A green local run does not substitute for the workflow result on the pushed commit.
+
+## Observed local feature run — 2026-09-24
+
+This connected instrumentation command exited 0 on the local `Nexa_API37` AVD:
+
+```sh
+./gradlew :core:auth:connectedDebugAndroidTest :app:connectedDebugAndroidTest \
+  --dependency-verification strict --no-daemon --console=plain
+```
+
+- `:core:auth`: 6 tests, 0 failures, 0 errors, 0 skipped.
+- `:app`: 15 tests, 0 failures, 0 errors, 0 skipped.
+- The XML reports are under each module's `build/outputs/androidTest-results/connected/debug` directory.
+- The run used the local dirty checkout at `0f6c620db8ec`; the results are not bound to an immutable candidate commit.
+- These instrumentation tests do not establish a live Android sign-in, access-context selection, or business workflow against the v0.18.0 API candidate. Product Acceptance remains open.

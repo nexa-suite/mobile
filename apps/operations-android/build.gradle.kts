@@ -10,21 +10,24 @@ plugins {
 
 ktlint { version.set("1.8.0") }
 
+val configuredAndroidModules = subprojects.filter { it.buildFile.isFile }
+
 tasks.named("ktlintCheck") {
-    dependsOn(subprojects.filter { it.path != ":core" }.map { "${it.path}:ktlintCheck" })
+    dependsOn(configuredAndroidModules.map { "${it.path}:ktlintCheck" })
 }
 
 tasks.named("ktlintFormat") {
-    dependsOn(subprojects.filter { it.path != ":core" }.map { "${it.path}:ktlintFormat" })
+    dependsOn(configuredAndroidModules.map { "${it.path}:ktlintFormat" })
 }
 
 tasks.register("lintDebug") {
-    dependsOn(subprojects.filter { it.path != ":core" }.map { "${it.path}:lintDebug" })
+    dependsOn(configuredAndroidModules.map { "${it.path}:lintDebug" })
 }
 
 tasks.register("verifyAndroidArchitecture") {
     group = "verification"
-    description = "Verifies the Operations Android foundation module boundaries."
+    description =
+        "Verifies the Operations Android foundation and accepted Product module boundaries."
     doLast {
         val authBuild = file("core/auth/build.gradle.kts").readText()
         val authSources = file("core/auth/src/main").walkTopDown().filter {
@@ -71,5 +74,87 @@ tasks.register("verifyAndroidArchitecture") {
                     .any(body::contains)
             }
         ) { "core:network contains Product routes or client authorization decisions" }
+
+        val settings = file("settings.gradle.kts").readText()
+        val includedModules = Regex("\"(:[^\"\\n]+)\"")
+            .findAll(settings.substringAfter("include("))
+            .map { it.groupValues[1] }
+            .toSet()
+        val expectedModules = setOf(
+            ":app",
+            ":core:auth",
+            ":core:network",
+            ":core:designsystem",
+            ":feature:access",
+            ":feature:warehouse"
+        )
+        check(includedModules == expectedModules) {
+            "Operations Android modules differ from the four foundations and two accepted features"
+        }
+
+        val featureModules = listOf("feature/access", "feature/warehouse")
+        featureModules.forEach { module ->
+            val buildFile = file("$module/build.gradle.kts")
+            val sources = file("$module/src/main").walkTopDown().filter {
+                it.extension == "kt"
+            }.toList()
+            val buildText = buildFile.readText()
+            check(
+                !buildText.contains("project(\":core:auth\")") &&
+                    !buildText.contains("project(\":core:network\")") &&
+                    !buildText.contains("project(\":feature:")
+            ) { "$module must remain independent of auth, transport, and other Product features" }
+            check(
+                listOf("room", "datastore", "work-runtime", "camera", "retrofit", "okhttp")
+                    .none { buildText.contains(it, ignoreCase = true) }
+            ) {
+                "$module added a forbidden persistence, background, device, or transport dependency"
+            }
+            check(
+                sources.none { source ->
+                    val body = source.readText()
+                    listOf(
+                        "import retrofit2.",
+                        "import okhttp3.",
+                        "com.nexa.mobile.operations.core.network",
+                        "com.nexa.mobile.operations.core.auth",
+                        "workspaceSlug",
+                        "NativeSignIn"
+                    ).any(body::contains)
+                }
+            ) { "$module source crosses a transport/security boundary or adds slug identity UX" }
+        }
+
+        val appBuild = file("app/build.gradle.kts").readText()
+        check(
+            appBuild.contains("project(\":feature:access\")") &&
+                appBuild.contains("project(\":feature:warehouse\")")
+        ) { ":app must compose the two accepted Product features" }
+
+        val designBuild = file("core/designsystem/build.gradle.kts").readText()
+        val designSources = file("core/designsystem/src/main").walkTopDown().filter {
+            it.extension == "kt"
+        }.toList()
+        check(!designBuild.contains("project(\":feature:")) {
+            ":core:designsystem must not depend on Product workflow modules"
+        }
+        check(
+            designSources.none { source ->
+                source.readText().contains("com.nexa.mobile.operations.feature.")
+            }
+        ) { ":core:designsystem contains Product workflow state" }
+
+        val appSources = file("app/src/main").walkTopDown().filter { it.extension == "kt" }.toList()
+        check(
+            appSources.none { source ->
+                val body = source.readText()
+                body.contains("DebugReviewActivity") || body.contains("ReviewScenarioProvider")
+            }
+        ) { "Debug review tooling leaked into release sources" }
+        check(
+            !file("app/src/main/AndroidManifest.xml").readText().contains("DebugReviewActivity")
+        ) {
+            "Debug review Activity must not appear in the release manifest"
+        }
     }
 }

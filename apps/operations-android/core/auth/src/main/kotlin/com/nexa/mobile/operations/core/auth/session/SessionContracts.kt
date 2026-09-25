@@ -51,7 +51,22 @@ data class IssuedNativeSession(val accessToken: String, val refreshCredential: S
         "IssuedNativeSession(accessToken=REDACTED, refreshCredential=REDACTED)"
 }
 
-data class VerifiedSession(val hasAuthorizedContext: Boolean)
+data class VerifiedSession(
+    val hasAuthorizedContext: Boolean,
+    val userId: String? = null,
+    val tenantId: String? = null,
+    val tenantName: String? = null,
+    val tenantSlug: String? = null,
+    val workspaceId: String? = null,
+    val workspaceName: String? = null,
+    val workspaceSlug: String? = null,
+    val membershipId: String? = null,
+    val permissions: Set<String> = emptySet()
+) {
+    override fun toString(): String =
+        "VerifiedSession(hasAuthorizedContext=$hasAuthorizedContext, " +
+            "membershipId=REDACTED, permissions=${permissions.size})"
+}
 
 interface AuthRemoteGateway {
     suspend fun signIn(input: NativeSignIn): IssuedNativeSession

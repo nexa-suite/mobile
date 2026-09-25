@@ -9,6 +9,7 @@ import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.network.ApiEndpoint
 import com.nexa.mobile.operations.core.network.ApiHttpClient
 import com.nexa.mobile.operations.core.network.NexaAuthGateway
+import com.nexa.mobile.operations.core.network.NexaIdentityAccessGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import dagger.Module
 import dagger.Provides
@@ -45,6 +46,13 @@ object FoundationModule {
     @Singleton
     fun remoteGateway(endpoint: ApiEndpoint, client: OkHttpClient): AuthRemoteGateway =
         NexaAuthGateway.create(endpoint, client)
+
+    @Provides
+    @Singleton
+    fun identityAccessGateway(
+        endpoint: ApiEndpoint,
+        client: OkHttpClient
+    ): NexaIdentityAccessGateway = NexaIdentityAccessGateway.create(endpoint, client)
 
     @Provides
     @Singleton

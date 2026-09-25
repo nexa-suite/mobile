@@ -1,0 +1,33 @@
+<resources>
+    <string name="nexa_brand_name">NEXA</string>
+    <string name="nexa_back_arrow">‹</string>
+    <string name="nexa_operations_wordmark">NEXA OPERATIONS</string>
+    <string name="nexa_current_context_description">Contexto actual: %1$s, %2$s</string>
+    <string name="nexa_context_change_description">Cambiar contexto desde %1$s, %2$s</string>
+    <string name="nexa_context_choice_description">%1$s, %2$s</string>
+    <string name="nexa_change_context">Cambiar contexto</string>
+    <string name="nexa_actual">Actual</string>
+    <string name="nexa_context_pending">Confirmando contexto</string>
+    <string name="nexa_open">Abrir</string>
+    <string name="nexa_search_label">Buscar producto</string>
+    <string name="nexa_search_hint">Nombre, SKU o presentación</string>
+    <string name="nexa_search_button">Buscar</string>
+    <string name="nexa_show_more">Mostrar más</string>
+    <string name="nexa_sku_label">SKU</string>
+    <string name="nexa_candidate_sku">SKU: %1$s</string>
+    <string name="nexa_candidate_sku_label">SKU</string>
+    <string name="nexa_variant">Variante</string>
+    <string name="nexa_presentation">Presentación</string>
+    <string name="nexa_brand">Marca</string>
+    <string name="nexa_unit">Unidad</string>
+    <string name="nexa_packaging">Empaque</string>
+    <string name="nexa_cold_chain">Cadena de frío</string>
+    <string name="nexa_context">Contexto</string>
+    <string name="nexa_back">Volver</string>
+    <string name="nexa_status_information">Información</string>
+    <string name="nexa_status_warning">Aviso</string>
+    <string name="nexa_status_error">Error</string>
+    <string name="nexa_status_success">Correcto</string>
+    <string name="nexa_loading">Cargando</string>
+    <string name="nexa_retry">Reintentar</string>
+</resources>
