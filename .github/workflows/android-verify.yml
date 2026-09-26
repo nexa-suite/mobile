@@ -102,7 +102,7 @@ jobs:
           pre-emulator-launch-script: |
             grep -qx 'target=android-37.0' "$HOME/.android/avd/test.ini"
           # Each command is launched in its own shell by android-emulator-runner; keep cd and Gradle invocations in one command.
-          script: cd apps/operations-android && ./gradlew :core:auth:connectedDebugAndroidTest --dependency-verification strict && ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=com.nexa.mobile.operations.LiveCandidateIdentityIntegrationTest --dependency-verification strict
+          script: cd apps/operations-android && ./gradlew :core:auth:connectedDebugAndroidTest --dependency-verification strict && ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=com.nexa.mobile.operations.LiveCandidateIdentityIntegrationTest --dependency-verification strict || { echo 'Android instrumentation result XML:'; cat app/build/outputs/androidTest-results/connected/debug/TEST-*.xml || true; exit 1; }
 
   android-promotion:
     needs: changes
@@ -187,7 +187,7 @@ jobs:
           arch: x86_64
           disable-animations: true
           # Each command is launched in its own shell by android-emulator-runner; keep cd and Gradle invocations in one command.
-          script: cd apps/operations-android && ./gradlew :core:auth:connectedDebugAndroidTest --dependency-verification strict && ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=com.nexa.mobile.operations.LiveCandidateIdentityIntegrationTest --dependency-verification strict
+          script: cd apps/operations-android && ./gradlew :core:auth:connectedDebugAndroidTest --dependency-verification strict && ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=com.nexa.mobile.operations.LiveCandidateIdentityIntegrationTest --dependency-verification strict || { echo 'Android instrumentation result XML:'; cat app/build/outputs/androidTest-results/connected/debug/TEST-*.xml || true; exit 1; }
 
   verify:
     if: always()
