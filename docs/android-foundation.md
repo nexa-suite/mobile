@@ -14,6 +14,15 @@ No Product services or generated OpenAPI client are included. The manually decla
 | `POST /api/v1/authentication/refresh` | `X-Nexa-Client: NATIVE`, `X-Nexa-Surface: PLATFORM`, `X-Nexa-Refresh-Token` | Rotated access token and refresh credential |
 | `POST /api/v1/authentication/sign-out` | Bearer token and `X-Nexa-Client: NATIVE` | HTTP acknowledgement; revocation is not inferred from 204 alone |
 | `GET /api/v1/session` | Bearer token | Server-confirmed Tenant, Workspace, membership, and surface presence |
+| `POST /api/v1/authentication/identity-sign-in` | `X-Nexa-Client: NATIVE`; identifier, password, and `PLATFORM` surface in JSON | `NO_WORK_CONTEXT`, established session, or selection-required outcome; the opaque selection ticket is returned only in `X-Nexa-Context-Ticket` |
+| `GET /api/v1/me/access-contexts` | `X-Nexa-Surface: PLATFORM`; exactly one of a native context ticket or Bearer access token | Current server-eligible context options, including Tenant and Workspace display names |
+| `POST /api/v1/me/access-context-selections` | `X-Nexa-Surface: PLATFORM`; exactly one authority; `membershipId` in JSON | Established native session and rotated refresh credential; successful ticket selection consumes the ticket |
+
+The identity-first and access-context rows use Nexa API v0.18.0 at immutable
+commit `05cb9ed3100e44d7ab0c6593cf6fbda86a4aa383` (`v0.18.0`). Every session
+issued by identity sign-in or context selection passes through the same
+`SessionCoordinator` and authoritative `GET /api/v1/session` verification
+before protected state becomes `Active`.
 
 `X-Correlation-ID` is a random request diagnostic value. The server response header is authoritative for an exchange. Problem Details retain diagnostic fields within the network boundary and map to a safe error taxonomy by HTTP status as well as code/category. Raw `detail` is not shown in the root UI or logged.
 

@@ -22,7 +22,7 @@ Install JDK 17, Android SDK package `platforms;android-37.0`, and `build-tools;3
 | `:feature:access` | Access and workforce-context UI state, ViewModel, and screens |
 | `:feature:warehouse` | Operations work entry, manual search, and confirmed SKU UI state and screens |
 
-The API owns authentication, Tenant and Workspace authorization, and business outcomes. Client state and permission hints never grant server authority. The accepted identity/context and catalog-confirmation contracts are not integrated yet; release gateways return safe unavailable outcomes until they are. The debug-only review activity uses visibly synthetic fixtures. See [foundation architecture](docs/android-foundation.md) for boundaries and [native session security](docs/native-session.md) for rotation behavior.
+The API owns authentication, Tenant and Workspace authorization, and business outcomes. Client state and permission hints never grant server authority. Identity sign-in and workforce-context selection use the released Nexa API v0.18.0 contract; every issued session is checked through `GET /api/v1/session` before the client enters `Active`. Warehouse search and SKU confirmation still return `IntegrationUnavailable`; there is no local stock authority or fabricated server result. The debug-only review activity uses visibly synthetic fixtures. These flows remain technical continuation work, not Product Acceptance. See [foundation architecture](docs/android-foundation.md) for boundaries and [native session security](docs/native-session.md) for rotation behavior.
 
 ## Build and verify
 

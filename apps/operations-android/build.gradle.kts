@@ -80,19 +80,29 @@ tasks.register("verifyAndroidArchitecture") {
             .findAll(settings.substringAfter("include("))
             .map { it.groupValues[1] }
             .toSet()
-        val expectedModules = setOf(
+        val foundationModules = setOf(
             ":app",
             ":core:auth",
             ":core:network",
-            ":core:designsystem",
-            ":feature:access",
-            ":feature:warehouse"
+            ":core:designsystem"
         )
-        check(includedModules == expectedModules) {
-            "Operations Android modules differ from the four foundations and two accepted features"
+        val requiredFeatureModules = setOf(":feature:access", ":feature:warehouse")
+        val allowedFeatureModules = setOf(
+            ":feature:access",
+            ":feature:warehouse",
+            ":feature:dispatch",
+            ":feature:delivery"
+        )
+        check(
+            includedModules.containsAll(foundationModules + requiredFeatureModules) &&
+                includedModules.all { it in foundationModules || it in allowedFeatureModules }
+        ) {
+            "Operations Android modules must use the foundations and Blueprint feature areas"
         }
 
-        val featureModules = listOf("feature/access", "feature/warehouse")
+        val featureModules = includedModules
+            .filter { it.startsWith(":feature:") }
+            .map { it.removePrefix(":").replace(':', '/') }
         featureModules.forEach { module ->
             val buildFile = file("$module/build.gradle.kts")
             val sources = file("$module/src/main").walkTopDown().filter {
@@ -129,7 +139,7 @@ tasks.register("verifyAndroidArchitecture") {
         check(
             appBuild.contains("project(\":feature:access\")") &&
                 appBuild.contains("project(\":feature:warehouse\")")
-        ) { ":app must compose the two accepted Product features" }
+        ) { ":app must compose the existing access and warehouse feature areas" }
 
         val designBuild = file("core/designsystem/build.gradle.kts").readText()
         val designSources = file("core/designsystem/src/main").walkTopDown().filter {
