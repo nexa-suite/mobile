@@ -101,13 +101,8 @@ jobs:
           disable-animations: true
           pre-emulator-launch-script: |
             grep -qx 'target=android-37.0' "$HOME/.android/avd/test.ini"
-          script: |
-            cd apps/operations-android
-            ./gradlew :core:auth:connectedDebugAndroidTest --dependency-verification strict
-            # Candidate credentials are not provisioned in CI; keep this live API test opt-in.
-            ./gradlew :app:connectedDebugAndroidTest \
-              -Pandroid.testInstrumentationRunnerArguments.notClass=com.nexa.mobile.operations.LiveCandidateIdentityIntegrationTest \
-              --dependency-verification strict
+          # Each command is launched in its own shell by android-emulator-runner; keep cd and Gradle invocations in one command.
+          script: cd apps/operations-android && ./gradlew :core:auth:connectedDebugAndroidTest --dependency-verification strict && ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=com.nexa.mobile.operations.LiveCandidateIdentityIntegrationTest --dependency-verification strict
 
   android-promotion:
     needs: changes
@@ -191,13 +186,8 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
-          script: |
-            cd apps/operations-android
-            ./gradlew :core:auth:connectedDebugAndroidTest --dependency-verification strict
-            # Candidate credentials are not provisioned in CI; keep this live API test opt-in.
-            ./gradlew :app:connectedDebugAndroidTest \
-              -Pandroid.testInstrumentationRunnerArguments.notClass=com.nexa.mobile.operations.LiveCandidateIdentityIntegrationTest \
-              --dependency-verification strict
+          # Each command is launched in its own shell by android-emulator-runner; keep cd and Gradle invocations in one command.
+          script: cd apps/operations-android && ./gradlew :core:auth:connectedDebugAndroidTest --dependency-verification strict && ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=com.nexa.mobile.operations.LiveCandidateIdentityIntegrationTest --dependency-verification strict
 
   verify:
     if: always()
