@@ -17,6 +17,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
@@ -232,6 +233,7 @@ class ProductScreensUiTest {
         composeRule.onNodeWithText("Identificación confirmada").assertIsDisplayed()
         composeRule.onNodeWithText("SKU-DEMO-001").assertIsDisplayed()
         composeRule.onNodeWithText("No se realizó ninguna operación de inventario.")
+            .performScrollTo()
             .assertIsDisplayed()
         composeRule.onNodeWithText("Recibir", substring = true).assertDoesNotExist()
         composeRule.onNodeWithText("Ajustar existencias", substring = true).assertDoesNotExist()

@@ -27,7 +27,7 @@ class DebugReviewActivityTest {
         composeRule.onNodeWithText("SKU · confirmación recibida").performClick()
 
         composeRule.onNodeWithText("Identificación confirmada").assertIsDisplayed()
-        composeRule.onNodeWithText("SKU-DEMO-001").assertIsDisplayed()
+        composeRule.onNodeWithText("SKU-DEMO-001").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("No se realizó ninguna operación de inventario.")
             .performScrollTo()
             .assertIsDisplayed()
