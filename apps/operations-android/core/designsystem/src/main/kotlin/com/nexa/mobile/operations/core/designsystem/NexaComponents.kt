@@ -572,7 +572,7 @@ fun NexaStatePanel(
         border = BorderStroke(1.dp, NexaColors.Border)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(title, style = androidx.compose.material3.MaterialTheme.typography.titleMedium)

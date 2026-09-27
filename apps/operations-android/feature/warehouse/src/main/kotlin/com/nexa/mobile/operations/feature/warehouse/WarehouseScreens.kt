@@ -44,7 +44,7 @@ fun OperationsWorkEntryScreen(
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         NexaTopAppBar(title = stringResource(R.string.warehouse_operations_title))
         state.activeContext?.let { context ->
@@ -299,9 +299,20 @@ fun ConfirmedSkuScreen(
             presentation = state.presentation,
             sku = state.sku,
             brand = state.brand,
-            unit = state.unit,
-            packaging = state.packaging,
-            coldChain = state.coldChain,
+            unit = when (state.unit) {
+                "UNIT" -> stringResource(R.string.warehouse_value_unit)
+                else -> state.unit
+            },
+            packaging = when (state.packaging) {
+                "UNSPECIFIED" -> stringResource(R.string.warehouse_value_packaging_unspecified)
+                else -> state.packaging
+            },
+            coldChain = when (state.coldChain) {
+                "NONE" -> stringResource(R.string.warehouse_value_cold_chain_none)
+                "REFRIGERATED" -> stringResource(R.string.warehouse_value_cold_chain_refrigerated)
+                "FROZEN" -> stringResource(R.string.warehouse_value_cold_chain_frozen)
+                else -> state.coldChain
+            },
             activeContext = "${state.context.companyName} · ${state.context.workspaceName}"
         )
         Text(

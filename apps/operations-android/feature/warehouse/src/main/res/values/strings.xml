@@ -37,5 +37,10 @@
     <string name="warehouse_integration_error">La búsqueda de productos todavía no está conectada en este entorno.</string>
     <string name="warehouse_confirmation_title">Identificación confirmada</string>
     <string name="warehouse_inventory_disclaimer">No se realizó ninguna operación de inventario.</string>
+    <string name="warehouse_value_unit">Unidad</string>
+    <string name="warehouse_value_packaging_unspecified">Sin especificar</string>
+    <string name="warehouse_value_cold_chain_none">Ninguno</string>
+    <string name="warehouse_value_cold_chain_refrigerated">Refrigerado</string>
+    <string name="warehouse_value_cold_chain_frozen">Congelado</string>
     <string name="warehouse_search_retry">Buscar de nuevo</string>
 </resources>

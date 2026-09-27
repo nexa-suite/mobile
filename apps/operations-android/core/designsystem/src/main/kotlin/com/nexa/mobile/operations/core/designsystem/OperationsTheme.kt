@@ -1,9 +1,12 @@
 package com.nexa.mobile.operations.core.designsystem
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -15,6 +18,7 @@ object NexaColors {
     val Brand = Color(0xFF2A67D9)
     val BrandStrong = Color(0xFF1D4ED8)
     val PrimaryContainer = Color(0xFFDBEAFE)
+    val OnPrimaryContainer = Color(0xFF1E40AF)
     val Canvas = Color(0xFFF6FAFF)
     val Surface = Color(0xFFFFFFFF)
     val SurfaceInset = Color(0xFFF1F5F9)
@@ -43,7 +47,7 @@ private val NexaLightColors = lightColorScheme(
     primary = NexaColors.Brand,
     onPrimary = Color.White,
     primaryContainer = NexaColors.PrimaryContainer,
-    onPrimaryContainer = NexaColors.BrandStrong,
+    onPrimaryContainer = NexaColors.OnPrimaryContainer,
     secondary = NexaColors.TextSecondary,
     onSecondary = Color.White,
     background = NexaColors.Canvas,
@@ -65,18 +69,18 @@ private val NexaTypography = androidx.compose.material3.Typography(
     headlineSmall = DefaultNexaTypography.headlineSmall.copy(
         fontFamily = FontFamily.SansSerif,
         fontSize = 24.sp,
-        fontWeight = FontWeight.SemiBold,
-        lineHeight = 30.sp
+        fontWeight = FontWeight.Bold,
+        lineHeight = 32.sp
     ),
     titleLarge = DefaultNexaTypography.titleLarge.copy(
         fontFamily = FontFamily.SansSerif,
-        fontSize = 20.sp,
+        fontSize = 22.sp,
         fontWeight = FontWeight.SemiBold,
-        lineHeight = 26.sp
+        lineHeight = 28.sp
     ),
     titleMedium = DefaultNexaTypography.titleMedium.copy(
         fontFamily = FontFamily.SansSerif,
-        fontSize = 18.sp,
+        fontSize = 16.sp,
         fontWeight = FontWeight.SemiBold,
         lineHeight = 24.sp
     ),
@@ -95,7 +99,7 @@ private val NexaTypography = androidx.compose.material3.Typography(
     labelLarge = DefaultNexaTypography.labelLarge.copy(
         fontFamily = FontFamily.SansSerif,
         fontSize = 14.sp,
-        fontWeight = FontWeight.Medium,
+        fontWeight = FontWeight.Bold,
         lineHeight = 20.sp
     )
 )
@@ -105,6 +109,13 @@ fun OperationsTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = NexaLightColors,
         typography = NexaTypography,
-        content = content
+        content = {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = NexaColors.Canvas,
+                contentColor = NexaColors.TextPrimary,
+                content = content
+            )
+        }
     )
 }
