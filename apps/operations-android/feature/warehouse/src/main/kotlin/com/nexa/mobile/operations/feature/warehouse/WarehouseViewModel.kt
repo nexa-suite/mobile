@@ -2,6 +2,7 @@ package com.nexa.mobile.operations.feature.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -22,9 +23,8 @@ class WarehouseViewModel(
             route = WarehouseRoute.WorkEntry,
             workEntryStatus = when (permissionHint) {
                 TaskVisibilityHint.Available -> WorkEntryStatus.TaskAvailable
-
-                TaskVisibilityHint.Unavailable,
-                TaskVisibilityHint.Unknown -> WorkEntryStatus.PermissionUnavailable
+                TaskVisibilityHint.Unavailable -> WorkEntryStatus.PermissionUnavailable
+                TaskVisibilityHint.Unknown -> WorkEntryStatus.PermissionUnknown
             },
             permissionHint = permissionHint,
             activeContext = context,
@@ -85,8 +85,16 @@ class WarehouseViewModel(
         val current = mutableState.value
         val search = current.search ?: return
         if (current.route != WarehouseRoute.ProductSearch) return
+        if (search.status in setOf(
+                ProductSearchStatus.Loading,
+                ProductSearchStatus.LoadingMore,
+                ProductSearchStatus.ConfirmationPending
+            )
+        ) {
+            return
+        }
         val query = search.query.trim()
-        if (query.isEmpty()) {
+        if (query.isEmpty() || query.length > 120) {
             mutableState.value = current.copy(
                 search = search.copy(
                     status = ProductSearchStatus.InvalidQuery,
@@ -129,7 +137,11 @@ class WarehouseViewModel(
         val search = current.search ?: return
         if (current.route != WarehouseRoute.ProductSearch) return
         if (search.status !in
-            setOf(ProductSearchStatus.OneCandidate, ProductSearchStatus.MultipleCandidates)
+            setOf(
+                ProductSearchStatus.OneCandidate,
+                ProductSearchStatus.MultipleCandidates,
+                ProductSearchStatus.LoadMoreFailed
+            )
         ) {
             return
         }
@@ -146,7 +158,10 @@ class WarehouseViewModel(
         )
         viewModelScope.launch {
             val result = runCatching { gateway.confirm(candidate, epoch, context) }
-                .getOrElse { CandidateConfirmationResult.ServiceUnavailable }
+                .getOrElse {
+                    if (it is CancellationException) throw it
+                    CandidateConfirmationResult.ServiceUnavailable
+                }
             if (!isCurrent(generation, epoch)) return@launch
             when (result) {
                 is CandidateConfirmationResult.Confirmed -> {
@@ -164,7 +179,16 @@ class WarehouseViewModel(
                     } else {
                         mutableState.value = mutableState.value.copy(
                             route = WarehouseRoute.ConfirmedSku,
-                            search = mutableState.value.search?.copy(pendingCandidateKey = null),
+                            search = mutableState.value.search?.let {
+                                it.copy(
+                                    status = if (it.candidates.size == 1) {
+                                        ProductSearchStatus.OneCandidate
+                                    } else {
+                                        ProductSearchStatus.MultipleCandidates
+                                    },
+                                    pendingCandidateKey = null
+                                )
+                            },
                             confirmedSku = confirmed.copy(context = context)
                         )
                     }
@@ -185,10 +209,7 @@ class WarehouseViewModel(
                     generation
                 )
 
-                CandidateConfirmationResult.PermissionDenied -> updateSearchFailure(
-                    ProductSearchStatus.PermissionDenied,
-                    generation
-                )
+                CandidateConfirmationResult.PermissionDenied -> permissionDenied()
 
                 CandidateConfirmationResult.ContextInvalidated -> invalidateContext()
 
@@ -280,16 +301,21 @@ class WarehouseViewModel(
         )
         viewModelScope.launch {
             val result = runCatching { gateway.search(query, pageKey, epoch) }
-                .getOrElse { ProductSearchResult.ServiceUnavailable }
+                .getOrElse {
+                    if (it is CancellationException) throw it
+                    ProductSearchResult.ServiceUnavailable
+                }
             if (!isCurrent(generation, epoch) || context.authorityEpoch != epoch) return@launch
             when (result) {
                 is ProductSearchResult.Page -> {
                     val currentSearch = mutableState.value.search ?: return@launch
-                    val items = if (append) {
-                        currentSearch.candidates + result.items
-                    } else {
-                        result.items
-                    }
+                    val items = (
+                        if (append) {
+                            currentSearch.candidates + result.items
+                        } else {
+                            result.items
+                        }
+                        ).distinctBy { it.key }
                     val status = when {
                         items.isEmpty() -> ProductSearchStatus.Empty
                         items.size == 1 -> ProductSearchStatus.OneCandidate
@@ -297,7 +323,7 @@ class WarehouseViewModel(
                     }
                     mutableState.value = mutableState.value.copy(
                         search = currentSearch.copy(
-                            query = previousSearch.query,
+                            query = query,
                             status = status,
                             candidates = items,
                             nextPageKey = result.nextPageKey,
@@ -325,10 +351,12 @@ class WarehouseViewModel(
                     generation
                 )
 
-                ProductSearchResult.PermissionDenied -> updateSearchFailure(
-                    ProductSearchStatus.PermissionDenied,
+                ProductSearchResult.InvalidQuery -> searchFailure(
+                    ProductSearchStatus.InvalidQuery,
                     generation
                 )
+
+                ProductSearchResult.PermissionDenied -> permissionDenied()
 
                 ProductSearchResult.ContextInvalidated -> invalidateContext()
 
@@ -356,6 +384,19 @@ class WarehouseViewModel(
                     pendingCandidateKey = null,
                     errorMessage = status
                 )
+            )
+        }
+    }
+
+    private fun permissionDenied() {
+        requestGeneration++
+        mutableState.update {
+            it.copy(
+                route = WarehouseRoute.WorkEntry,
+                workEntryStatus = WorkEntryStatus.PermissionUnavailable,
+                permissionHint = TaskVisibilityHint.Unavailable,
+                search = null,
+                confirmedSku = null
             )
         }
     }

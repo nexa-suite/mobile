@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavEntry
@@ -140,29 +141,10 @@ internal fun RootNavigation(
                 else -> mutableStateListOf<Any>(destination)
             }
         }
-        NavDisplay(
-            backStack = backStack,
-            onBack = {
-                when (destination) {
-                    ProductDestination.ProductSearch,
-                    ProductDestination.ConfirmedSku -> onWarehouseBack()
-
-                    ProductDestination.ContextChooser -> {
-                        val chooser = accessState.chooser
-                        if (
-                            chooser?.mode == ContextChooserMode.Change &&
-                            chooser.phase != ContextChooserPhase.SelectionPending
-                        ) {
-                            onContextBack()
-                        }
-                    }
-
-                    ProductDestination.Access, ProductDestination.WorkEntry -> Unit
-                }
-            },
-            entryProvider = { entryKey ->
+        val currentEntryRenderer = rememberUpdatedState<@Composable (Any) -> Unit>(
+            newValue = { entryKey ->
                 when (entryKey) {
-                    ProductDestination.Access -> NavEntry(entryKey) {
+                    ProductDestination.Access -> {
                         val displayedState = accessState.forSession(state, protectedContentAllowed)
                         AccessScreen(
                             state = displayedState,
@@ -177,7 +159,7 @@ internal fun RootNavigation(
                         )
                     }
 
-                    ProductDestination.ContextChooser -> NavEntry(entryKey) {
+                    ProductDestination.ContextChooser -> {
                         ContextChooserScreen(
                             state = accessState.chooser ?: AccessUiState().chooserFallback(),
                             notice = accessState.notice,
@@ -188,7 +170,7 @@ internal fun RootNavigation(
                         )
                     }
 
-                    ProductDestination.WorkEntry -> NavEntry(entryKey) {
+                    ProductDestination.WorkEntry -> {
                         WarehouseContentNotice(accessState.notice) {
                             OperationsWorkEntryScreen(
                                 state = warehouseState,
@@ -199,7 +181,7 @@ internal fun RootNavigation(
                         }
                     }
 
-                    ProductDestination.ProductSearch -> NavEntry(entryKey) {
+                    ProductDestination.ProductSearch -> {
                         val search = warehouseState.search
                         if (search != null && protectedContentAllowed) {
                             WarehouseContentNotice(accessState.notice) {
@@ -226,7 +208,7 @@ internal fun RootNavigation(
                         }
                     }
 
-                    ProductDestination.ConfirmedSku -> NavEntry(entryKey) {
+                    ProductDestination.ConfirmedSku -> {
                         val confirmed = warehouseState.confirmedSku
                         if (confirmed != null && protectedContentAllowed) {
                             WarehouseContentNotice(accessState.notice) {
@@ -244,6 +226,40 @@ internal fun RootNavigation(
                                 onIdentifyProduct = onIdentifyProduct
                             )
                         }
+                    }
+
+                    else -> error("Unknown Product destination")
+                }
+            }
+        )
+        NavDisplay(
+            backStack = backStack,
+            onBack = {
+                when (destination) {
+                    ProductDestination.ProductSearch,
+                    ProductDestination.ConfirmedSku -> onWarehouseBack()
+
+                    ProductDestination.ContextChooser -> {
+                        val chooser = accessState.chooser
+                        if (
+                            chooser?.mode == ContextChooserMode.Change &&
+                            chooser.phase != ContextChooserPhase.SelectionPending
+                        ) {
+                            onContextBack()
+                        }
+                    }
+
+                    ProductDestination.Access, ProductDestination.WorkEntry -> Unit
+                }
+            },
+            entryProvider = { entryKey ->
+                when (entryKey) {
+                    ProductDestination.Access,
+                    ProductDestination.ContextChooser,
+                    ProductDestination.WorkEntry,
+                    ProductDestination.ProductSearch,
+                    ProductDestination.ConfirmedSku -> NavEntry(entryKey) {
+                        currentEntryRenderer.value(entryKey)
                     }
 
                     else -> error("Unknown Product destination")
@@ -286,7 +302,10 @@ private fun AccessUiState.forSession(
     )
 
     SessionState.SignedOut -> copy(
-        stage = if (stage == AccessStage.NoContexts) stage else AccessStage.IdentityRequired,
+        stage = when (stage) {
+            AccessStage.Authenticating, AccessStage.NoContexts -> stage
+            else -> AccessStage.IdentityRequired
+        },
         chooser = null,
         activeContext = null
     )

@@ -5,6 +5,8 @@
     <string name="warehouse_no_task_body">No hay una tarea de Operations permitida en este contexto.</string>
     <string name="warehouse_permission_title">No tienes permiso para esta tarea</string>
     <string name="warehouse_permission_body">Tu sesión sigue activa. Si cambió tu acceso, vuelve a comprobarlo.</string>
+    <string name="warehouse_permission_unknown_title">No pudimos comprobar tus tareas</string>
+    <string name="warehouse_permission_unknown_body">Tu sesión sigue activa. Vuelve a comprobar tu contexto para conocer las tareas disponibles.</string>
     <string name="warehouse_context_invalid_title">El contexto de trabajo dejó de estar disponible</string>
     <string name="warehouse_context_invalid_body">Vuelve a elegir un contexto antes de continuar.</string>
     <string name="warehouse_session_invalid_title">Tu sesión dejó de estar disponible</string>
@@ -16,7 +18,7 @@
     <string name="warehouse_results_title">Resultados</string>
     <string name="warehouse_search_initial_title">Busca un producto</string>
     <string name="warehouse_search_initial_body">Los resultados aparecerán aquí después de una búsqueda.</string>
-    <string name="warehouse_search_invalid">Ingresa un nombre, SKU o presentación para buscar.</string>
+    <string name="warehouse_search_invalid">Ingresa un nombre, SKU o presentación de hasta 120 caracteres.</string>
     <string name="warehouse_search_loading_title">Buscando productos</string>
     <string name="warehouse_search_loading_body">Estamos consultando productos permitidos en el contexto actual.</string>
     <string name="warehouse_search_empty_title">No encontramos productos</string>

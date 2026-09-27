@@ -7,9 +7,12 @@ import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
 import com.nexa.mobile.operations.core.network.AccessContextSelectionOutcome
 import com.nexa.mobile.operations.core.network.AccessContextsOutcome
+import com.nexa.mobile.operations.core.network.CatalogDetailOutcome
+import com.nexa.mobile.operations.core.network.CatalogSearchOutcome
 import com.nexa.mobile.operations.core.network.IdentitySignInOutcome
 import com.nexa.mobile.operations.core.network.NativeAccessContext
 import com.nexa.mobile.operations.core.network.NativeAuthenticationSession
+import com.nexa.mobile.operations.core.network.NexaCatalogGateway
 import com.nexa.mobile.operations.core.network.NexaIdentityAccessGateway
 import com.nexa.mobile.operations.feature.access.AccessGateway
 import com.nexa.mobile.operations.feature.access.AccessViewModel
@@ -21,6 +24,7 @@ import com.nexa.mobile.operations.feature.access.SignInResult
 import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
 import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
 import com.nexa.mobile.operations.feature.warehouse.CandidateConfirmationResult
+import com.nexa.mobile.operations.feature.warehouse.ConfirmedSkuUiState
 import com.nexa.mobile.operations.feature.warehouse.ProductCandidate
 import com.nexa.mobile.operations.feature.warehouse.ProductSearchResult
 import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
@@ -33,7 +37,8 @@ import kotlinx.coroutines.flow.map
 @Singleton
 internal class OperationsAccessGateway @Inject constructor(
     private val identity: NexaIdentityAccessGateway,
-    private val sessions: SessionCoordinator
+    private val sessions: SessionCoordinator,
+    private val catalog: NexaCatalogGateway
 ) : AccessGateway,
     WarehouseGateway {
     val currentContext = sessions.verifiedSession.map { it?.toWorkforceContext() }
@@ -131,13 +136,123 @@ internal class OperationsAccessGateway @Inject constructor(
         query: String,
         pageKey: String?,
         authorityEpoch: Long
-    ): ProductSearchResult = ProductSearchResult.IntegrationUnavailable
+    ): ProductSearchResult {
+        val access = sessions.currentAccess() ?: return ProductSearchResult.SessionInvalidated
+        val context = sessions.verifiedSession.value
+            ?: return ProductSearchResult.ContextInvalidated
+        val result = catalog.search(query, pageKey)
+        if (!sessions.isEpochCurrent(access.epoch)) return ProductSearchResult.SessionInvalidated
+        val current = sessions.verifiedSession.value
+            ?: return ProductSearchResult.ContextInvalidated
+        if (!contextIsCurrent(context, current)) return ProductSearchResult.ContextInvalidated
+        if (catalogReadHint(current.permissions) ==
+            PermissionHint.Unavailable
+        ) {
+            return ProductSearchResult.PermissionDenied
+        }
+        return when (result) {
+            is CatalogSearchOutcome.Page -> ProductSearchResult.Page(
+                result.value.candidates.map {
+                    ProductCandidate(
+                        key = it.catalogItemId,
+                        productDisplayName = it.productFamilyName ?: it.itemName,
+                        brandOrVariant = listOfNotNull(it.brandName, it.productVariantName)
+                            .distinct().joinToString(" · ").takeIf(String::isNotBlank),
+                        presentation = it.presentation,
+                        sku = it.skuCode
+                    )
+                },
+                result.value.nextPageKey
+            )
+
+            CatalogSearchOutcome.InvalidQuery -> ProductSearchResult.InvalidQuery
+
+            CatalogSearchOutcome.NetworkUnavailable -> ProductSearchResult.NetworkUnavailable
+
+            CatalogSearchOutcome.ServiceUnavailable -> ProductSearchResult.ServiceUnavailable
+
+            CatalogSearchOutcome.PermissionDenied -> ProductSearchResult.PermissionDenied
+
+            CatalogSearchOutcome.ContextInvalidated -> {
+                sessions.invalidateContext()
+                ProductSearchResult.ContextInvalidated
+            }
+
+            CatalogSearchOutcome.SessionExpired -> ProductSearchResult.SessionInvalidated
+        }
+    }
 
     override suspend fun confirm(
         candidate: ProductCandidate,
         authorityEpoch: Long,
         context: ActiveOperationsContext
-    ): CandidateConfirmationResult = CandidateConfirmationResult.IntegrationUnavailable
+    ): CandidateConfirmationResult {
+        val access = sessions.currentAccess()
+            ?: return CandidateConfirmationResult.SessionInvalidated
+        val verified = sessions.verifiedSession.value
+            ?: return CandidateConfirmationResult.ContextInvalidated
+        val result = catalog.loadDetail(candidate.key)
+        if (!sessions.isEpochCurrent(access.epoch)) {
+            return CandidateConfirmationResult.SessionInvalidated
+        }
+        val current = sessions.verifiedSession.value
+            ?: return CandidateConfirmationResult.ContextInvalidated
+        if (!contextIsCurrent(
+                verified,
+                current
+            )
+        ) {
+            return CandidateConfirmationResult.ContextInvalidated
+        }
+        if (catalogReadHint(current.permissions) ==
+            PermissionHint.Unavailable
+        ) {
+            return CandidateConfirmationResult.PermissionDenied
+        }
+        return when (result) {
+            is CatalogDetailOutcome.Found -> {
+                val detail = result.value
+                CandidateConfirmationResult.Confirmed(
+                    ConfirmedSkuUiState(
+                        candidateKey = detail.catalogItemId,
+                        productDisplayName = detail.productFamilyName ?: detail.itemName,
+                        variant = detail.productVariantName,
+                        presentation = detail.presentation,
+                        sku = detail.skuCode,
+                        brand = detail.brandName,
+                        unit = detail.unitOfMeasure,
+                        packaging = detail.packagingType,
+                        coldChain = detail.coldChainRequirement,
+                        context = context,
+                        authorityEpoch = authorityEpoch
+                    )
+                )
+            }
+
+            CatalogDetailOutcome.CandidateUnavailable ->
+                CandidateConfirmationResult.CandidateUnavailable
+
+            CatalogDetailOutcome.NetworkUnavailable ->
+                CandidateConfirmationResult.NetworkUnavailable
+
+            CatalogDetailOutcome.ServiceUnavailable ->
+                CandidateConfirmationResult.ServiceUnavailable
+
+            CatalogDetailOutcome.PermissionDenied -> CandidateConfirmationResult.PermissionDenied
+
+            CatalogDetailOutcome.ContextInvalidated -> {
+                sessions.invalidateContext()
+                CandidateConfirmationResult.ContextInvalidated
+            }
+
+            CatalogDetailOutcome.SessionExpired -> CandidateConfirmationResult.SessionInvalidated
+        }
+    }
+
+    private fun contextIsCurrent(expected: VerifiedSession, current: VerifiedSession): Boolean =
+        current.hasAuthorizedContext && current.userId == expected.userId &&
+            current.tenantId == expected.tenantId && current.workspaceId == expected.workspaceId &&
+            current.membershipId == expected.membershipId
 
     private suspend fun establishContext(
         issued: com.nexa.mobile.operations.core.auth.session.IssuedNativeSession,

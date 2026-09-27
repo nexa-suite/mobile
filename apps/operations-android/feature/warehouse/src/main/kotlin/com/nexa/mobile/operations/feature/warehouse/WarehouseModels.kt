@@ -8,6 +8,7 @@ enum class WorkEntryStatus {
     TaskAvailable,
     NoPermittedTask,
     PermissionUnavailable,
+    PermissionUnknown,
     ContextInvalidated,
     SessionInvalidated
 }
@@ -104,6 +105,7 @@ data class WarehouseUiState(
 sealed interface ProductSearchResult {
     data class Page(val items: List<ProductCandidate>, val nextPageKey: String?) :
         ProductSearchResult
+    data object InvalidQuery : ProductSearchResult
     data object NetworkUnavailable : ProductSearchResult
     data object ServiceUnavailable : ProductSearchResult
     data object PermissionDenied : ProductSearchResult

@@ -9,6 +9,7 @@ import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.network.ApiEndpoint
 import com.nexa.mobile.operations.core.network.ApiHttpClient
 import com.nexa.mobile.operations.core.network.NexaAuthGateway
+import com.nexa.mobile.operations.core.network.NexaCatalogGateway
 import com.nexa.mobile.operations.core.network.NexaIdentityAccessGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import dagger.Module
@@ -64,6 +65,11 @@ object FoundationModule {
 
     @Provides
     fun accessTokenSource(coordinator: SessionCoordinator): AccessTokenSource = coordinator
+
+    @Provides
+    @Singleton
+    fun catalogGateway(protectedCalls: ProtectedCallExecutor): NexaCatalogGateway =
+        NexaCatalogGateway(protectedCalls)
 
     @Provides
     @Singleton

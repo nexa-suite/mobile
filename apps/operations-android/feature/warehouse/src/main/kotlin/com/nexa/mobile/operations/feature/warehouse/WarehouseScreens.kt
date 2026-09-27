@@ -51,7 +51,7 @@ fun OperationsWorkEntryScreen(
             NexaActiveContextBar(
                 companyName = context.companyName,
                 workspaceName = context.workspaceName,
-                enabled = false,
+                enabled = true,
                 onClick = onChangeContext
             )
         }
@@ -76,6 +76,11 @@ fun OperationsWorkEntryScreen(
             WorkEntryStatus.PermissionUnavailable -> NexaStatePanel(
                 title = stringResource(R.string.warehouse_permission_title),
                 description = stringResource(R.string.warehouse_permission_body)
+            )
+
+            WorkEntryStatus.PermissionUnknown -> NexaStatePanel(
+                title = stringResource(R.string.warehouse_permission_unknown_title),
+                description = stringResource(R.string.warehouse_permission_unknown_body)
             )
 
             WorkEntryStatus.ContextInvalidated -> NexaStatePanel(
@@ -120,7 +125,7 @@ fun ProductSearchScreen(
                 NexaActiveContextBar(
                     companyName = context.companyName,
                     workspaceName = context.workspaceName,
-                    enabled = false,
+                    enabled = true,
                     onClick = onChangeContext
                 )
             }
@@ -213,7 +218,8 @@ fun ProductSearchScreen(
                         pending = state.pendingCandidateKey == candidate.key,
                         enabled = state.status in setOf(
                             ProductSearchStatus.OneCandidate,
-                            ProductSearchStatus.MultipleCandidates
+                            ProductSearchStatus.MultipleCandidates,
+                            ProductSearchStatus.LoadMoreFailed
                         ),
                         onClick = { onSelectCandidate(candidate.key) }
                     )
@@ -280,7 +286,7 @@ fun ConfirmedSkuScreen(
         NexaActiveContextBar(
             companyName = state.context.companyName,
             workspaceName = state.context.workspaceName,
-            enabled = false,
+            enabled = true,
             onClick = onChangeContext
         )
         Text(

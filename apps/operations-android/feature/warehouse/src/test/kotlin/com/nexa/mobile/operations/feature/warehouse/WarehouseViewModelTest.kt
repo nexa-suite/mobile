@@ -57,6 +57,7 @@ class WarehouseViewModelTest {
         viewModel.back()
         assertEquals(WarehouseRoute.ProductSearch, viewModel.state.value.route)
         assertEquals("gouda", viewModel.state.value.search?.query)
+        assertEquals(ProductSearchStatus.OneCandidate, viewModel.state.value.search?.status)
         assertNull(viewModel.state.value.confirmedSku)
     }
 
@@ -107,11 +108,244 @@ class WarehouseViewModelTest {
         assertNull(viewModel.state.value.confirmedSku)
     }
 
+    @Test
+    fun unknownPermissionProjectionKeepsTaskClosedWithoutClaimingDenial() {
+        val viewModel = WarehouseViewModel(FakeWarehouseGateway())
+        viewModel.enterOperations(context(1), TaskVisibilityHint.Unknown)
+        viewModel.openProductSearch()
+        assertEquals(WorkEntryStatus.PermissionUnknown, viewModel.state.value.workEntryStatus)
+        assertEquals(WarehouseRoute.WorkEntry, viewModel.state.value.route)
+        assertNull(viewModel.state.value.search)
+    }
+
+    @Test
+    fun blankAndOversizedQueriesNeverReachGateway() = runTest {
+        val gateway = FakeWarehouseGateway()
+        val viewModel = readySearch(gateway)
+        for (query in listOf("   ", "ñ".repeat(121))) {
+            viewModel.queryChanged(query)
+            viewModel.submitSearch()
+            advanceUntilIdle()
+            assertEquals(ProductSearchStatus.InvalidQuery, viewModel.state.value.search?.status)
+        }
+        assertEquals(0, gateway.searchCalls)
+    }
+
+    @Test
+    fun emptyAndMultipleCandidatesStayUnconfirmed() = runTest {
+        val gateway = FakeWarehouseGateway()
+        val viewModel = readySearch(gateway)
+        viewModel.submitSearch()
+        advanceUntilIdle()
+        assertEquals(ProductSearchStatus.Empty, viewModel.state.value.search?.status)
+        gateway.searchResult = ProductSearchResult.Page(
+            listOf(candidate, candidate.copy(key = "second")),
+            null
+        )
+        viewModel.submitSearch()
+        advanceUntilIdle()
+        assertEquals(ProductSearchStatus.MultipleCandidates, viewModel.state.value.search?.status)
+        assertNull(viewModel.state.value.confirmedSku)
+        assertEquals(0, gateway.confirmationCalls)
+    }
+
+    @Test
+    fun pagesAppendWithoutDuplicatesAndRepeatedTapRequestsOnlyOnce() = runTest {
+        val gateway = FakeWarehouseGateway().apply {
+            searchResult = ProductSearchResult.Page(listOf(candidate), "1")
+        }
+        val viewModel = readySearch(gateway)
+        viewModel.submitSearch()
+        viewModel.submitSearch()
+        advanceUntilIdle()
+        assertEquals(listOf<String?>(null), gateway.pageKeys)
+        val deferred = CompletableDeferred<ProductSearchResult>()
+        gateway.searchDeferred = deferred
+        viewModel.loadMore()
+        viewModel.loadMore()
+        runCurrent()
+        assertEquals(listOf(null, "1"), gateway.pageKeys)
+        val second = candidate.copy(key = "second", sku = "SKU-DEMO-002")
+        deferred.complete(ProductSearchResult.Page(listOf(candidate, second), null))
+        advanceUntilIdle()
+        assertEquals(listOf(candidate, second), viewModel.state.value.search?.candidates)
+        assertNull(viewModel.state.value.search?.nextPageKey)
+    }
+
+    @Test
+    fun retainedCandidateCanConfirmAfterLoadingMoreFails() = runTest {
+        val gateway = FakeWarehouseGateway().apply {
+            searchResult = ProductSearchResult.Page(listOf(candidate), "1")
+            confirmationResult = CandidateConfirmationResult.Confirmed(
+                confirmed(candidate, 1).copy(sku = "FRESH-SKU")
+            )
+        }
+        val viewModel = readySearch(gateway)
+        viewModel.submitSearch()
+        advanceUntilIdle()
+
+        val nextPage = CompletableDeferred<ProductSearchResult>()
+        gateway.searchDeferred = nextPage
+        viewModel.loadMore()
+        runCurrent()
+        nextPage.complete(ProductSearchResult.ServiceUnavailable)
+        advanceUntilIdle()
+
+        assertEquals(ProductSearchStatus.LoadMoreFailed, viewModel.state.value.search?.status)
+        assertEquals(listOf(candidate), viewModel.state.value.search?.candidates)
+
+        gateway.searchDeferred = null
+        viewModel.selectCandidate(candidate.key)
+        advanceUntilIdle()
+
+        assertEquals(1, gateway.confirmationCalls)
+        assertEquals(WarehouseRoute.ConfirmedSku, viewModel.state.value.route)
+        assertEquals("FRESH-SKU", viewModel.state.value.confirmedSku?.sku)
+    }
+
+    @Test
+    fun oldPageCannotAppendAfterQueryChanges() = runTest {
+        val gateway = FakeWarehouseGateway().apply {
+            searchResult = ProductSearchResult.Page(listOf(candidate), "1")
+        }
+        val viewModel = readySearch(gateway)
+        viewModel.submitSearch()
+        advanceUntilIdle()
+        val deferred = CompletableDeferred<ProductSearchResult>()
+        gateway.searchDeferred = deferred
+        viewModel.loadMore()
+        runCurrent()
+        viewModel.queryChanged("nuevo")
+        deferred.complete(ProductSearchResult.Page(listOf(candidate), null))
+        advanceUntilIdle()
+        assertEquals("nuevo", viewModel.state.value.search?.query)
+        assertTrue(viewModel.state.value.search!!.candidates.isEmpty())
+        assertEquals(ProductSearchStatus.Typing, viewModel.state.value.search?.status)
+    }
+
+    @Test
+    fun lateConfirmationCannotSurviveReplacementOrLogout() = runTest {
+        for (logout in listOf(false, true)) {
+            val deferred = CompletableDeferred<CandidateConfirmationResult>()
+            val gateway = FakeWarehouseGateway().apply {
+                searchResult = ProductSearchResult.Page(listOf(candidate), null)
+                confirmationDeferred = deferred
+            }
+            val viewModel = readySearch(gateway)
+            viewModel.submitSearch()
+            advanceUntilIdle()
+            viewModel.selectCandidate(candidate.key)
+            runCurrent()
+            assertEquals(candidate.key, gateway.selectedCandidate?.key)
+            if (logout) {
+                viewModel.sessionInvalidated()
+            } else {
+                viewModel.authorityReplaced(context(2), TaskVisibilityHint.Available)
+            }
+            deferred.complete(CandidateConfirmationResult.Confirmed(confirmed(candidate, 1)))
+            advanceUntilIdle()
+            assertEquals(WarehouseRoute.WorkEntry, viewModel.state.value.route)
+            assertNull(viewModel.state.value.confirmedSku)
+            assertNull(viewModel.state.value.search)
+        }
+    }
+
+    @Test
+    fun confirmationUsesFreshDetailAndFailureNeverConfirms() = runTest {
+        val gateway = FakeWarehouseGateway().apply {
+            searchResult = ProductSearchResult.Page(listOf(candidate), null)
+        }
+        val viewModel = readySearch(gateway)
+        for (
+        (result, expected) in listOf(
+            CandidateConfirmationResult.CandidateUnavailable to
+                ProductSearchStatus.CandidateUnavailable,
+            CandidateConfirmationResult.NetworkUnavailable to
+                ProductSearchStatus.NetworkUnavailable,
+            CandidateConfirmationResult.ServiceUnavailable to
+                ProductSearchStatus.ServiceUnavailable
+        )
+        ) {
+            gateway.confirmationResult = result
+            viewModel.submitSearch()
+            advanceUntilIdle()
+            viewModel.selectCandidate(candidate.key)
+            advanceUntilIdle()
+            assertEquals(expected, viewModel.state.value.search?.status)
+            assertNull(viewModel.state.value.confirmedSku)
+        }
+        gateway.confirmationResult = CandidateConfirmationResult.Confirmed(
+            confirmed(candidate, 1).copy(sku = "FRESH-SKU", productDisplayName = "Nombre vigente")
+        )
+        viewModel.submitSearch()
+        advanceUntilIdle()
+        viewModel.selectCandidate(candidate.key)
+        advanceUntilIdle()
+        assertEquals("FRESH-SKU", viewModel.state.value.confirmedSku?.sku)
+        assertEquals("Nombre vigente", viewModel.state.value.confirmedSku?.productDisplayName)
+    }
+
+    @Test
+    fun serverDenialClosesTaskDespiteAvailableHint() = runTest {
+        for (duringConfirmation in listOf(false, true)) {
+            val gateway = FakeWarehouseGateway().apply {
+                searchResult = if (duringConfirmation) {
+                    ProductSearchResult.Page(listOf(candidate), null)
+                } else {
+                    ProductSearchResult.PermissionDenied
+                }
+                confirmationResult = CandidateConfirmationResult.PermissionDenied
+            }
+            val viewModel = readySearch(gateway)
+            viewModel.submitSearch()
+            advanceUntilIdle()
+            if (duringConfirmation) {
+                viewModel.selectCandidate(candidate.key)
+                advanceUntilIdle()
+            }
+            assertEquals(WarehouseRoute.WorkEntry, viewModel.state.value.route)
+            assertEquals(TaskVisibilityHint.Unavailable, viewModel.state.value.permissionHint)
+            assertEquals(
+                WorkEntryStatus.PermissionUnavailable,
+                viewModel.state.value.workEntryStatus
+            )
+            assertNull(viewModel.state.value.search)
+            assertNull(viewModel.state.value.confirmedSku)
+            viewModel.openProductSearch()
+            assertEquals(WarehouseRoute.WorkEntry, viewModel.state.value.route)
+        }
+    }
+
+    @Test
+    fun permissionRevalidationClosesSearchAndIgnoresItsLateResponse() = runTest {
+        val deferred = CompletableDeferred<ProductSearchResult>()
+        val gateway = FakeWarehouseGateway().apply { searchDeferred = deferred }
+        val viewModel = readySearch(gateway)
+        viewModel.submitSearch()
+        runCurrent()
+        viewModel.authorityReplaced(context(2), TaskVisibilityHint.Unavailable)
+        deferred.complete(ProductSearchResult.Page(listOf(candidate), null))
+        advanceUntilIdle()
+        assertEquals(WorkEntryStatus.PermissionUnavailable, viewModel.state.value.workEntryStatus)
+        assertNull(viewModel.state.value.search)
+        assertNull(viewModel.state.value.confirmedSku)
+    }
+
+    private fun readySearch(gateway: WarehouseGateway) = WarehouseViewModel(gateway).apply {
+        enterOperations(context(1), TaskVisibilityHint.Available)
+        openProductSearch()
+        queryChanged("gouda")
+    }
+
     private class FakeWarehouseGateway : WarehouseGateway {
         var searchResult: ProductSearchResult = ProductSearchResult.Page(emptyList(), null)
         var confirmationResult: CandidateConfirmationResult =
             CandidateConfirmationResult.CandidateUnavailable
         var searchDeferred: CompletableDeferred<ProductSearchResult>? = null
+        var confirmationDeferred: CompletableDeferred<CandidateConfirmationResult>? = null
+        var confirmationCalls = 0
+        var selectedCandidate: ProductCandidate? = null
+        val pageKeys = mutableListOf<String?>()
         var searchCalls = 0
         var lastQuery: String? = null
 
@@ -121,6 +355,7 @@ class WarehouseViewModelTest {
             authorityEpoch: Long
         ): ProductSearchResult {
             searchCalls++
+            pageKeys += pageKey
             lastQuery = query
             return searchDeferred?.await() ?: searchResult
         }
@@ -129,7 +364,11 @@ class WarehouseViewModelTest {
             candidate: ProductCandidate,
             authorityEpoch: Long,
             context: ActiveOperationsContext
-        ): CandidateConfirmationResult = confirmationResult
+        ): CandidateConfirmationResult {
+            confirmationCalls++
+            selectedCandidate = candidate
+            return confirmationDeferred?.await() ?: confirmationResult
+        }
     }
 
     private fun context(epoch: Long) = ActiveOperationsContext(

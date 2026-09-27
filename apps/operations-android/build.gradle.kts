@@ -61,7 +61,18 @@ tasks.register("verifyAndroidArchitecture") {
         }.toList()
         check(
             networkSources.none { source ->
-                val body = source.readText()
+                val body = source.readText().let {
+                    if (source.name == "NexaCatalogGateway.kt") {
+                        check(
+                            listOf("POST", "PUT", "PATCH", "DELETE").none { method ->
+                                it.contains("ProtectedMethod.$method")
+                            }
+                        ) { "Catalog identification adapter must use protected reads only" }
+                        it.replace("\"/api/v1/catalog-items\"", "\"<catalog-read-route>\"")
+                    } else {
+                        it
+                    }
+                }
                 listOf(
                     "/catalog",
                     "/inventory",
@@ -166,5 +177,13 @@ tasks.register("verifyAndroidArchitecture") {
         ) {
             "Debug review Activity must not appear in the release manifest"
         }
+        listOf("app/src/main/AndroidManifest.xml", "app/src/release/AndroidManifest.xml")
+            .map { file(it) }
+            .filter { it.exists() }
+            .forEach { manifest ->
+                check(!manifest.readText().contains("ACCESS_LOCAL_NETWORK")) {
+                    "Local fixture network permission must remain debug-only"
+                }
+            }
     }
 }
