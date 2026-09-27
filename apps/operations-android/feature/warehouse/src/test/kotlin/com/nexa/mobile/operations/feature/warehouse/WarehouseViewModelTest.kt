@@ -103,6 +103,7 @@ class WarehouseViewModelTest {
         assertNull(viewModel.state.value.confirmedSku)
         viewModel.contextInvalidated()
         assertEquals(WorkEntryStatus.ContextInvalidated, viewModel.state.value.workEntryStatus)
+        assertEquals(1L, viewModel.state.value.invalidatedFromAuthorityEpoch)
         assertNull(viewModel.state.value.activeContext)
         assertNull(viewModel.state.value.search)
         assertNull(viewModel.state.value.confirmedSku)
@@ -239,6 +240,7 @@ class WarehouseViewModelTest {
             assertEquals(candidate.key, gateway.selectedCandidate?.key)
             if (logout) {
                 viewModel.sessionInvalidated()
+                assertEquals(1L, viewModel.state.value.invalidatedFromAuthorityEpoch)
             } else {
                 viewModel.authorityReplaced(context(2), TaskVisibilityHint.Available)
             }

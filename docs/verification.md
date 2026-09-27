@@ -82,20 +82,24 @@ This connected instrumentation command exited 0 on the local `Nexa_API37` AVD:
 
 ## Observed Wave 2 candidate — 2026-09-27
 
-The final Wave 2 Android source passed the following local gates with strict dependency verification. The execution record retains the tested file hashes and Android source fingerprint `05b0ffb98978e313ed3b4122b0d3adf4e643d71f4fcfff1df95de9b92dc4a08a` so that the later signed candidate can be compared with the tested bytes.
+The final Wave 2 Android source passed the following local gates with strict dependency verification. The execution record retains the tested file hashes and Android source fingerprint `5286ca57b7be867cabbea380887c3929d37a7c16a525394cfd6088d11f4e1ae3` so that the signed candidate can be compared with the tested bytes.
 
 | Gate | Exit status | Tests | Failures / errors / skips |
 | --- | --- | --- | --- |
-| Architecture, ktlint, debug lint, JVM tests, debug/test APK assembly and release shrinking | 0 | 72 JVM | 0 / 0 / 0 |
+| Architecture, ktlint, debug lint, JVM tests, debug/test APK assembly and release shrinking | 0 | 75 JVM | 0 / 0 / 0 |
 | Ordinary API 37 instrumentation, excluding the opt-in live test | 0 | 28 | 0 / 0 / 0 |
 | Ordinary API 29 instrumentation, excluding the opt-in live test | 0 | 28 | 0 / 0 / 0 |
 | Opt-in native identity and Catalog integration on API 37 | 0 | 1 | 0 / 0 / 0 |
 
 The static command was the local gate above with `:app:assembleDebugAndroidTest` and `:app:assembleRelease -PnexaReleaseApiBaseUrl=https://github.com/` added. Each ordinary connected run used the emulator command above. The live run selected only `LiveCandidateIdentityIntegrationTest` and supplied its arguments from private local configuration.
 
-JUnit XML recorded 12 auth, 36 network, 7 access, 14 warehouse and 3 app JVM tests. Connected XML recorded 6 auth and 22 app tests on each emulator. The app tests include current-state Navigation 3 regression coverage and production A-01, C-01, P-01, W-01 and W-02 controls in a 320×640dp viewport at 200% font scale.
+JUnit XML recorded 12 auth, 36 network, 7 access, 14 warehouse and 6 app JVM tests. Connected XML recorded 6 auth and 22 app tests on each emulator. The app tests include current-state Navigation 3 regression coverage and production A-01, C-01, P-01, W-01 and W-02 controls in a 320×640dp viewport at 200% font scale.
 
 The native integration reached identity sign-in, a server-confirmed current context, permitted task entry, explicit Catalog search, unconfirmed candidate selection and detail-confirmed W-02. It used existing local development data and performed no inventory operation. This automated fixture had one context; the opt-in test alone does not prove a real multi-context account or physical-device execution.
+
+A separate manual runtime fixture used an isolated PostgreSQL clone with two real authorized contexts. Context A reached detail-confirmed `PROD-0003`; switching to context B cleared A's confirmed identity, recalculated task visibility, and allowed a fresh explicit search and detail confirmation in B. Back navigation returned to B's work entry without exposing A's confirmed SKU. This exercised the production identity, access-context and Catalog gateways through the installed debug APK and local API. The original database was not mutated by the fixture.
+
+This fixture also exposed a stale warehouse failure from an earlier session that could log out a newly selected context. The root navigation now acts on a warehouse invalidation only when its originating authority epoch matches the currently authorized context. Three JVM regressions cover stale, current and unscoped failure routing; the corrected APK was used for the two-context run and both emulator suites.
 
 Repeated native verification exposed response-body reads on Android Main after asynchronous response headers. Protected transport now consumes and closes the response body on the OkHttp callback thread before resuming the caller. Focused regressions cover the consuming thread and cancellation after headers while body consumption is active. The thread regression failed against the previous implementation and passed after the correction. Native timeout diagnostics retain only route, status, failure category, candidate count and confirmation presence; assertions and deadlines remain unchanged.
 

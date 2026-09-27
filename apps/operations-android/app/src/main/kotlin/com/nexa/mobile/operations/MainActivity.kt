@@ -115,23 +115,23 @@ class MainActivity : ComponentActivity() {
                 }
                 androidx.compose.runtime.LaunchedEffect(
                     state,
+                    accessState.stage,
+                    accessState.authorityEpoch,
                     warehouseState.workEntryStatus,
-                    warehouseState.authorityEpoch
+                    warehouseState.invalidatedFromAuthorityEpoch
                 ) {
-                    if (state == SessionState.Active && warehouseState.authorityEpoch > 0) {
-                        when (warehouseState.workEntryStatus) {
-                            WorkEntryStatus.ContextInvalidated -> {
-                                accessViewModel.contextInvalidated()
-                                viewModel.invalidateContext()
-                            }
-
-                            WorkEntryStatus.SessionInvalidated -> {
-                                accessViewModel.sessionInvalidated(expired = true)
-                                viewModel.logout()
-                            }
-
-                            else -> Unit
+                    when (activeWarehouseInvalidation(state, accessState, warehouseState)) {
+                        WorkEntryStatus.ContextInvalidated -> {
+                            accessViewModel.contextInvalidated()
+                            viewModel.invalidateContext()
                         }
+
+                        WorkEntryStatus.SessionInvalidated -> {
+                            accessViewModel.sessionInvalidated(expired = true)
+                            viewModel.logout()
+                        }
+
+                        else -> Unit
                     }
                 }
                 androidx.compose.runtime.LaunchedEffect(

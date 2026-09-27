@@ -265,21 +265,25 @@ class WarehouseViewModel(
 
     fun contextInvalidated() {
         requestGeneration++
-        val nextEpoch = mutableState.value.authorityEpoch + 1
+        val previous = mutableState.value
+        val nextEpoch = previous.authorityEpoch + 1
         mutableState.value = WarehouseUiState(
             route = WarehouseRoute.WorkEntry,
             workEntryStatus = WorkEntryStatus.ContextInvalidated,
-            authorityEpoch = nextEpoch
+            authorityEpoch = nextEpoch,
+            invalidatedFromAuthorityEpoch = previous.activeContext?.authorityEpoch
         )
     }
 
     fun sessionInvalidated() {
         requestGeneration++
-        val nextEpoch = mutableState.value.authorityEpoch + 1
+        val previous = mutableState.value
+        val nextEpoch = previous.authorityEpoch + 1
         mutableState.value = WarehouseUiState(
             route = WarehouseRoute.WorkEntry,
             workEntryStatus = WorkEntryStatus.SessionInvalidated,
-            authorityEpoch = nextEpoch
+            authorityEpoch = nextEpoch,
+            invalidatedFromAuthorityEpoch = previous.activeContext?.authorityEpoch
         )
     }
 

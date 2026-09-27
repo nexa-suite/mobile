@@ -96,7 +96,8 @@ data class WarehouseUiState(
     val activeContext: ActiveOperationsContext? = null,
     val search: ProductSearchUiState? = null,
     val confirmedSku: ConfirmedSkuUiState? = null,
-    val authorityEpoch: Long = 0
+    val authorityEpoch: Long = 0,
+    val invalidatedFromAuthorityEpoch: Long? = null
 ) {
     override fun toString(): String =
         "WarehouseUiState(route=$route, workEntryStatus=$workEntryStatus, authorityEpoch=$authorityEpoch)"

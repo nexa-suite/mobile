@@ -19,4 +19,9 @@ active during body consumption, so caller cancellation also cancels the HTTP cal
 after headers have arrived. Epoch checks and the single eligible 401 replay remain
 unchanged.
 
+Warehouse invalidation records the authority epoch from which it arose. The
+activity propagates a session or context failure only while that same epoch is
+the authorized access context. A failure left by an earlier session cannot
+log out a newly selected context; a current scoped failure still clears access.
+
 JVM tests cover state transitions, 20 concurrent callers, cancellation, generation, epoch races, and ambiguous outcomes. MockWebServer tests cover actual 20x401 replay, header placement, origin rejection, command identity, unsafe mutation replay denial, stale ETag responses, and Problem Details. Android instrumentation exercises Keystore encryption, unique IVs, tamper rejection, old ciphertext rejection after clear, atomic write recovery, and in-flight state on emulator APIs 37 and 29.
