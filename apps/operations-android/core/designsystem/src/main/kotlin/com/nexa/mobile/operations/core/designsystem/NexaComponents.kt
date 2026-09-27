@@ -40,7 +40,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 enum class NexaFeedbackTone { Information, Success, Warning, Error }
 
@@ -48,22 +47,28 @@ enum class NexaFeedbackTone { Information, Success, Warning, Error }
 fun NexaTopAppBar(title: String, modifier: Modifier = Modifier, onBack: (() -> Unit)? = null) {
     Surface(color = NexaColors.Surface, modifier = modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.heightIn(min = NexaSizes.topBarMinHeight).padding(
+                horizontal = NexaSpacing.screenHorizontal,
+                vertical = NexaSpacing.topBarVertical
+            ),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(NexaSpacing.inline)
         ) {
             if (onBack != null) {
-                IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier.size(NexaSizes.minimumTouchTarget)
+                ) {
                     Text(
                         stringResource(R.string.nexa_back_arrow),
                         color = NexaColors.BrandStrong,
-                        fontSize = 28.sp
+                        style = NexaTypography.backGlyph
                     )
                 }
             }
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                verticalArrangement = Arrangement.spacedBy(NexaSpacing.textTight)
             ) {
                 Text(
                     stringResource(R.string.nexa_brand_name),
@@ -98,7 +103,7 @@ fun NexaActiveContextBar(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 56.dp)
+            .heightIn(min = NexaSizes.controlMinHeight)
             .semantics(mergeDescendants = true) {
                 role = Role.Button
                 contentDescription = description
@@ -106,16 +111,19 @@ fun NexaActiveContextBar(
         enabled = enabled,
         shape = NexaShapes.row,
         color = NexaColors.Surface,
-        border = BorderStroke(1.dp, NexaColors.Border)
+        border = BorderStroke(NexaSizes.borderWidth, NexaColors.Border)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.padding(
+                horizontal = NexaSpacing.screenHorizontal,
+                vertical = NexaSpacing.rowVertical
+            ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                verticalArrangement = Arrangement.spacedBy(NexaSpacing.textTight)
             ) {
                 Text(
                     companyName,
@@ -127,7 +135,7 @@ fun NexaActiveContextBar(
                     color = NexaColors.TextSecondary
                 )
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(NexaSpacing.inline))
             Text(
                 stringResource(if (isCurrent) R.string.nexa_change_context else R.string.nexa_open),
                 style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
@@ -151,7 +159,7 @@ fun NexaTextField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier.fillMaxWidth().heightIn(min = 56.dp).semantics {
+        modifier = modifier.fillMaxWidth().heightIn(min = NexaSizes.controlMinHeight).semantics {
             if (errorText != null) error(errorText)
         },
         label = { Text(label) },
@@ -183,7 +191,7 @@ fun NexaPasswordField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier.fillMaxWidth().heightIn(min = 56.dp).semantics {
+        modifier = modifier.fillMaxWidth().heightIn(min = NexaSizes.controlMinHeight).semantics {
             if (errorText != null) error(errorText)
         },
         label = { Text(label) },
@@ -202,11 +210,11 @@ fun NexaPasswordField(
         trailingIcon = {
             IconButton(
                 onClick = onVisibilityChange,
-                modifier = Modifier.size(48.dp).semantics {
+                modifier = Modifier.size(NexaSizes.minimumTouchTarget).semantics {
                     contentDescription = if (visible) hideLabel else showLabel
                 }
             ) {
-                Canvas(Modifier.size(24.dp)) {
+                Canvas(Modifier.size(NexaSizes.icon)) {
                     val eye = Path().apply {
                         moveTo(2.dp.toPx(), size.height / 2)
                         cubicTo(
@@ -260,7 +268,7 @@ fun NexaPrimaryButton(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .defaultMinSize(minHeight = 52.dp)
+            .defaultMinSize(minHeight = NexaSizes.primaryButtonMinHeight)
             .semantics {
                 if (loadingStateDescription != null) {
                     stateDescription = loadingStateDescription
@@ -270,8 +278,11 @@ fun NexaPrimaryButton(
         shape = NexaShapes.button
     ) {
         if (loading) {
-            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-            Spacer(Modifier.width(10.dp))
+            CircularProgressIndicator(
+                modifier = Modifier.size(NexaSizes.buttonProgress),
+                strokeWidth = 2.dp
+            )
+            Spacer(Modifier.width(NexaSpacing.buttonIndicatorGap))
         }
         Text(label)
     }
@@ -301,7 +312,7 @@ fun NexaContextChoiceRow(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 72.dp)
+            .heightIn(min = NexaSizes.contextChoiceMinHeight)
             .semantics(mergeDescendants = true) {
                 role = Role.Button
                 contentDescription = desc
@@ -312,16 +323,22 @@ fun NexaContextChoiceRow(
         enabled = enabled && !pending,
         shape = NexaShapes.row,
         color = NexaColors.Surface,
-        border = BorderStroke(1.dp, if (current) NexaColors.Brand else NexaColors.Border)
+        border = BorderStroke(
+            NexaSizes.borderWidth,
+            if (current) NexaColors.Brand else NexaColors.Border
+        )
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.padding(
+                horizontal = NexaSpacing.screenHorizontal,
+                vertical = NexaSpacing.rowVertical
+            ),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(NexaSpacing.inline)
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(NexaSpacing.textCompact)
             ) {
                 Text(
                     companyName,
@@ -342,7 +359,7 @@ fun NexaContextChoiceRow(
             }
             if (pending) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(NexaSizes.progress),
                     strokeWidth = 2.dp
                 )
             }
@@ -365,23 +382,26 @@ fun NexaTaskRow(
     Surface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().heightIn(
-            min = 80.dp
+            min = NexaSizes.taskRowMinHeight
         ).semantics(mergeDescendants = true) {
             role = Role.Button
             contentDescription = rowDescription
         },
         shape = NexaShapes.row,
         color = NexaColors.Surface,
-        border = BorderStroke(1.dp, NexaColors.Border)
+        border = BorderStroke(NexaSizes.borderWidth, NexaColors.Border)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+            modifier = Modifier.padding(
+                horizontal = NexaSpacing.screenHorizontal,
+                vertical = NexaSpacing.surfaceInset
+            ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(NexaSpacing.textCompact)
             ) {
                 Text(title, style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
                 Text(
@@ -390,7 +410,7 @@ fun NexaTaskRow(
                     color = NexaColors.TextSecondary
                 )
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(NexaSpacing.inline))
             Text(
                 stringResource(R.string.nexa_open),
                 style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
@@ -413,7 +433,7 @@ fun NexaSearchField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier.fillMaxWidth().heightIn(min = 56.dp).semantics {
+        modifier = modifier.fillMaxWidth().heightIn(min = NexaSizes.controlMinHeight).semantics {
             if (errorText != null) error(errorText)
         },
         label = { Text(label) },
@@ -455,7 +475,7 @@ fun NexaProductCandidateRow(
     Surface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().heightIn(
-            min = 88.dp
+            min = NexaSizes.candidateRowMinHeight
         ).semantics(mergeDescendants = true) {
             role = Role.Button
             contentDescription = rowDescription
@@ -466,16 +486,19 @@ fun NexaProductCandidateRow(
         enabled = enabled && !pending,
         shape = NexaShapes.row,
         color = NexaColors.Surface,
-        border = BorderStroke(1.dp, NexaColors.Border)
+        border = BorderStroke(NexaSizes.borderWidth, NexaColors.Border)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            modifier = Modifier.padding(
+                horizontal = NexaSpacing.screenHorizontal,
+                vertical = NexaSpacing.candidateRowVertical
+            ),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(NexaSpacing.inline)
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(NexaSpacing.textCompact)
             ) {
                 Text(name, style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
                 if (!variant.isNullOrBlank()) {
@@ -498,7 +521,7 @@ fun NexaProductCandidateRow(
             }
             if (pending) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(NexaSizes.progress),
                     strokeWidth = 2.dp
                 )
             }
@@ -537,11 +560,11 @@ fun NexaFeedbackBanner(message: String, tone: NexaFeedbackTone, modifier: Modifi
         modifier = modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
         shape = NexaShapes.surface,
         color = background,
-        border = BorderStroke(1.dp, foreground.copy(alpha = 0.24f))
+        border = BorderStroke(NexaSizes.borderWidth, foreground.copy(alpha = 0.24f))
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            modifier = Modifier.padding(NexaSpacing.surfaceInset),
+            verticalArrangement = Arrangement.spacedBy(NexaSpacing.textCompact)
         ) {
             Text(
                 stringResource(label),
@@ -569,11 +592,11 @@ fun NexaStatePanel(
         modifier = modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
         shape = NexaShapes.surface,
         color = NexaColors.Surface,
-        border = BorderStroke(1.dp, NexaColors.Border)
+        border = BorderStroke(NexaSizes.borderWidth, NexaColors.Border)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(NexaSpacing.surfaceInset),
+            verticalArrangement = Arrangement.spacedBy(NexaSpacing.inline)
         ) {
             Text(title, style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
             Text(
@@ -605,11 +628,11 @@ fun NexaConfirmedSkuSummary(
         modifier = modifier.fillMaxWidth(),
         shape = NexaShapes.surface,
         color = NexaColors.Surface,
-        border = BorderStroke(1.dp, NexaColors.Border)
+        border = BorderStroke(NexaSizes.borderWidth, NexaColors.Border)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(NexaSpacing.summaryInset),
+            verticalArrangement = Arrangement.spacedBy(NexaSpacing.inline)
         ) {
             Text(
                 productName,
@@ -644,7 +667,7 @@ fun NexaConfirmedSkuSummary(
 
 @Composable
 private fun AttributeRow(label: String, value: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(NexaSpacing.textTight)) {
         Text(
             label,
             style = androidx.compose.material3.MaterialTheme.typography.labelLarge,

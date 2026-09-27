@@ -4,10 +4,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -17,6 +19,7 @@ import androidx.compose.ui.unit.sp
 object NexaColors {
     val Brand = Color(0xFF2A67D9)
     val BrandStrong = Color(0xFF1D4ED8)
+    val OnBrand = Color.White
     val PrimaryContainer = Color(0xFFDBEAFE)
     val OnPrimaryContainer = Color(0xFF1E40AF)
     val Canvas = Color(0xFFF6FAFF)
@@ -37,19 +40,49 @@ object NexaColors {
     val Danger = Color(0xFF991B1B)
 }
 
-internal object NexaShapes {
+/** Semantic shapes used by the Operations component set. */
+object NexaShapes {
     val button = RoundedCornerShape(12.dp)
     val surface = RoundedCornerShape(16.dp)
     val row = RoundedCornerShape(12.dp)
 }
 
+/** Repeated spacing roles; one-off layout details stay local to their component. */
+object NexaSpacing {
+    val textTight = 2.dp
+    val textCompact = 4.dp
+    val topBarVertical = 8.dp
+    val buttonIndicatorGap = 10.dp
+    val inline = 12.dp
+    val rowVertical = 12.dp
+    val candidateRowVertical = 14.dp
+    val screenHorizontal = 16.dp
+    val surfaceInset = 16.dp
+    val summaryInset = 20.dp
+}
+
+/** Shared component dimensions and touch-target sizes. */
+object NexaSizes {
+    val borderWidth = 1.dp
+    val topBarMinHeight = 56.dp
+    val controlMinHeight = 56.dp
+    val primaryButtonMinHeight = 52.dp
+    val minimumTouchTarget = 48.dp
+    val icon = 24.dp
+    val buttonProgress = 18.dp
+    val progress = 22.dp
+    val contextChoiceMinHeight = 72.dp
+    val taskRowMinHeight = 80.dp
+    val candidateRowMinHeight = 88.dp
+}
+
 private val NexaLightColors = lightColorScheme(
     primary = NexaColors.Brand,
-    onPrimary = Color.White,
+    onPrimary = NexaColors.OnBrand,
     primaryContainer = NexaColors.PrimaryContainer,
     onPrimaryContainer = NexaColors.OnPrimaryContainer,
     secondary = NexaColors.TextSecondary,
-    onSecondary = Color.White,
+    onSecondary = NexaColors.OnBrand,
     background = NexaColors.Canvas,
     onBackground = NexaColors.TextPrimary,
     surface = NexaColors.Surface,
@@ -59,56 +92,68 @@ private val NexaLightColors = lightColorScheme(
     outline = NexaColors.BorderStrong,
     outlineVariant = NexaColors.Border,
     error = NexaColors.Danger,
-    onError = Color.White,
+    onError = NexaColors.OnBrand,
     errorContainer = NexaColors.DangerSurface,
     onErrorContainer = NexaColors.Danger
 )
 
-private val DefaultNexaTypography = androidx.compose.material3.Typography()
-private val NexaTypography = androidx.compose.material3.Typography(
-    headlineSmall = DefaultNexaTypography.headlineSmall.copy(
+/** Typography roles consumed by OperationsTheme and reusable components. */
+object NexaTypography {
+    private val defaults = Typography()
+
+    val headlineSmall = defaults.headlineSmall.copy(
         fontFamily = FontFamily.SansSerif,
         fontSize = 24.sp,
         fontWeight = FontWeight.Bold,
         lineHeight = 32.sp
-    ),
-    titleLarge = DefaultNexaTypography.titleLarge.copy(
+    )
+    val titleLarge = defaults.titleLarge.copy(
         fontFamily = FontFamily.SansSerif,
         fontSize = 22.sp,
         fontWeight = FontWeight.SemiBold,
         lineHeight = 28.sp
-    ),
-    titleMedium = DefaultNexaTypography.titleMedium.copy(
+    )
+    val titleMedium = defaults.titleMedium.copy(
         fontFamily = FontFamily.SansSerif,
         fontSize = 16.sp,
         fontWeight = FontWeight.SemiBold,
         lineHeight = 24.sp
-    ),
-    bodyLarge = DefaultNexaTypography.bodyLarge.copy(
+    )
+    val bodyLarge = defaults.bodyLarge.copy(
         fontFamily = FontFamily.SansSerif,
         fontSize = 16.sp,
         fontWeight = FontWeight.Normal,
         lineHeight = 24.sp
-    ),
-    bodyMedium = DefaultNexaTypography.bodyMedium.copy(
+    )
+    val bodyMedium = defaults.bodyMedium.copy(
         fontFamily = FontFamily.SansSerif,
         fontSize = 14.sp,
         fontWeight = FontWeight.Normal,
         lineHeight = 20.sp
-    ),
-    labelLarge = DefaultNexaTypography.labelLarge.copy(
+    )
+    val labelLarge = defaults.labelLarge.copy(
         fontFamily = FontFamily.SansSerif,
         fontSize = 14.sp,
         fontWeight = FontWeight.Bold,
         lineHeight = 20.sp
     )
-)
+    val backGlyph = TextStyle(fontSize = 28.sp)
+
+    val material = Typography(
+        headlineSmall = headlineSmall,
+        titleLarge = titleLarge,
+        titleMedium = titleMedium,
+        bodyLarge = bodyLarge,
+        bodyMedium = bodyMedium,
+        labelLarge = labelLarge
+    )
+}
 
 @Composable
 fun OperationsTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = NexaLightColors,
-        typography = NexaTypography,
+        typography = NexaTypography.material,
         content = {
             Surface(
                 modifier = Modifier.fillMaxSize(),
