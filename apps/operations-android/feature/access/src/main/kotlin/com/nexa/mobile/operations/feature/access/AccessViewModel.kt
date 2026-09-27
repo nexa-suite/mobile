@@ -98,6 +98,16 @@ class AccessViewModel(
         }
     }
 
+    fun sessionContextRevalidated(context: WorkforceContextSummary) {
+        val current = mutableState.value
+        if (current.stage != AccessStage.WorkAuthorized) return
+        val confirmed = context.copy(isCurrent = true)
+        if (current.activeContext != confirmed) {
+            requestGeneration++
+            authorizeContext(confirmed)
+        }
+    }
+
     fun resolveCurrentSessionContext() {
         if (mutableState.value.stage == AccessStage.ResolvingContexts) return
         val generation = ++requestGeneration

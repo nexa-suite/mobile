@@ -114,7 +114,32 @@ internal fun RootNavigation(
         accessState.authorityEpoch,
         warehouseState.authorityEpoch
     ) {
-        val backStack = remember(destination) { mutableStateListOf<Any>(destination) }
+        val backStack = remember(destination, accessState.chooser?.phase) {
+            when (destination) {
+                ProductDestination.ProductSearch -> mutableStateListOf<Any>(
+                    ProductDestination.WorkEntry,
+                    ProductDestination.ProductSearch
+                )
+
+                ProductDestination.ConfirmedSku -> mutableStateListOf<Any>(
+                    ProductDestination.WorkEntry,
+                    ProductDestination.ProductSearch,
+                    ProductDestination.ConfirmedSku
+                )
+
+                ProductDestination.ContextChooser -> if (
+                    isSessionActive &&
+                    accessState.chooser?.mode == ContextChooserMode.Change &&
+                    accessState.chooser?.phase != ContextChooserPhase.SelectionPending
+                ) {
+                    mutableStateListOf<Any>(ProductDestination.WorkEntry, destination)
+                } else {
+                    mutableStateListOf<Any>(destination)
+                }
+
+                else -> mutableStateListOf<Any>(destination)
+            }
+        }
         NavDisplay(
             backStack = backStack,
             onBack = {

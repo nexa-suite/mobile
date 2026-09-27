@@ -44,8 +44,16 @@ class MainActivity : ComponentActivity() {
                 val state = viewModel.state.collectAsStateWithLifecycle().value
                 val accessState = accessViewModel.state.collectAsStateWithLifecycle().value
                 val warehouseState = warehouseViewModel.state.collectAsStateWithLifecycle().value
+                val verifiedContext = operationsGateway.currentContext
+                    .collectAsStateWithLifecycle(initialValue = null).value
                 var previousSessionState by remember { mutableStateOf<SessionState?>(null) }
                 var logoutRequested by remember { mutableStateOf(false) }
+
+                androidx.compose.runtime.LaunchedEffect(state, verifiedContext) {
+                    if (state == SessionState.Active) {
+                        verifiedContext?.let(accessViewModel::sessionContextRevalidated)
+                    }
+                }
 
                 androidx.compose.runtime.LaunchedEffect(state) {
                     if (state == SessionState.SignedOut || state == SessionState.ContextRequired) {

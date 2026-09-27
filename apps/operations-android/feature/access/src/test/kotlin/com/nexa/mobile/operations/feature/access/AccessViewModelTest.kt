@@ -130,6 +130,29 @@ class AccessViewModelTest {
         assertNull(viewModel.state.value.chooser)
     }
 
+    @Test
+    fun revalidatedPermissionChangeReplacesAuthorityWithoutTrustingOldHint() = runTest {
+        val gateway = FakeAccessGateway().apply {
+            currentContextResult = CurrentSessionContextResult.Available(contextA)
+        }
+        val viewModel = AccessViewModel(gateway)
+        viewModel.resolveCurrentSessionContext()
+        advanceUntilIdle()
+        viewModel.sessionContextRevalidated(
+            contextA.copy(permissionHint = PermissionHint.Unavailable)
+        )
+        assertEquals(2L, viewModel.state.value.authorityEpoch)
+        assertEquals(
+            PermissionHint.Unavailable,
+            viewModel.state.value.activeContext?.permissionHint
+        )
+        assertEquals(AccessStage.WorkAuthorized, viewModel.state.value.stage)
+        viewModel.sessionInvalidated()
+        viewModel.sessionContextRevalidated(contextA)
+        assertNull(viewModel.state.value.activeContext)
+        assertEquals(AccessStage.IdentityRequired, viewModel.state.value.stage)
+    }
+
     private class FakeAccessGateway : AccessGateway {
         var signInResult: SignInResult = SignInResult.SelectionRequired
         var currentContextResult: CurrentSessionContextResult =

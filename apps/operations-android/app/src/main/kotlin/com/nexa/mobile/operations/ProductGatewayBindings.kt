@@ -28,6 +28,7 @@ import com.nexa.mobile.operations.feature.warehouse.WarehouseGateway
 import com.nexa.mobile.operations.feature.warehouse.WarehouseViewModel
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.map
 
 @Singleton
 internal class OperationsAccessGateway @Inject constructor(
@@ -35,6 +36,7 @@ internal class OperationsAccessGateway @Inject constructor(
     private val sessions: SessionCoordinator
 ) : AccessGateway,
     WarehouseGateway {
+    val currentContext = sessions.verifiedSession.map { it?.toWorkforceContext() }
     override suspend fun signIn(identifier: String, password: String): SignInResult =
         when (val result = identity.identitySignIn(identifier, password)) {
             is IdentitySignInOutcome.Authenticated -> {
@@ -169,14 +171,7 @@ internal class OperationsAccessGateway @Inject constructor(
         val membership = membershipId?.takeIf(String::isNotBlank) ?: return null
         val tenant = tenantName?.takeIf(String::isNotBlank) ?: return null
         val workspace = workspaceName?.takeIf(String::isNotBlank) ?: return null
-        val permissionHint = when {
-            "warehouse.read" in permissions || "inventory.read" in permissions ->
-                PermissionHint.Available
-
-            permissions.isEmpty() -> PermissionHint.Unknown
-
-            else -> PermissionHint.Unavailable
-        }
+        val permissionHint = catalogReadHint(permissions)
         return WorkforceContextSummary(
             key = membership,
             companyName = tenant,
@@ -191,6 +186,12 @@ internal class OperationsAccessGateway @Inject constructor(
         workspaceName = workspaceName,
         permissionHint = PermissionHint.Unknown
     )
+}
+
+internal fun catalogReadHint(permissions: Set<String>): PermissionHint = when {
+    "catalog.read" in permissions || "catalog:read" in permissions -> PermissionHint.Available
+    permissions.isEmpty() -> PermissionHint.Unknown
+    else -> PermissionHint.Unavailable
 }
 
 internal class AccessViewModelFactory(private val gateway: AccessGateway) :
