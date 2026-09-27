@@ -21,6 +21,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nexa.mobile.operations.feature.access.AccessViewModel
 import com.nexa.mobile.operations.feature.access.R as AccessResources
+import com.nexa.mobile.operations.feature.warehouse.WarehouseViewModel
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
@@ -124,15 +125,40 @@ class LiveCandidateIdentityIntegrationTest {
         composeRule.onNodeWithText("Buscar", substring = false).performScrollTo().performClick()
         val candidateMatcher = hasClickAction() and !hasSetTextAction() and
             hasText(expectedSku!!, substring = true)
-        composeRule.waitUntil(timeoutMillis = 15_000) {
-            composeRule.onAllNodes(candidateMatcher)
-                .fetchSemanticsNodes().isNotEmpty()
+        try {
+            composeRule.waitUntil(timeoutMillis = 15_000) {
+                composeRule.onAllNodes(candidateMatcher)
+                    .fetchSemanticsNodes().isNotEmpty()
+            }
+        } catch (timeout: ComposeTimeoutException) {
+            val warehouse = ViewModelProvider(composeRule.activity)[WarehouseViewModel::class.java]
+                .state.value
+            throw AssertionError(
+                "Native Catalog candidate unavailable; route=${warehouse.route}, " +
+                    "searchStatus=${warehouse.search?.status}, " +
+                    "searchError=${warehouse.search?.errorMessage}, " +
+                    "candidates=${warehouse.search?.candidates?.size}, " +
+                    "confirmed=${warehouse.confirmedSku != null}",
+                timeout
+            )
         }
         composeRule.onNodeWithText("Identificación confirmada").assertDoesNotExist()
         composeRule.onNode(candidateMatcher).performScrollTo().assertIsDisplayed().performClick()
-        composeRule.waitUntil(timeoutMillis = 15_000) {
-            composeRule.onAllNodes(hasText("Identificación confirmada"))
-                .fetchSemanticsNodes().isNotEmpty()
+        try {
+            composeRule.waitUntil(timeoutMillis = 15_000) {
+                composeRule.onAllNodes(hasText("Identificación confirmada"))
+                    .fetchSemanticsNodes().isNotEmpty()
+            }
+        } catch (timeout: ComposeTimeoutException) {
+            val warehouse = ViewModelProvider(composeRule.activity)[WarehouseViewModel::class.java]
+                .state.value
+            throw AssertionError(
+                "Native Catalog detail unavailable; route=${warehouse.route}, " +
+                    "searchStatus=${warehouse.search?.status}, " +
+                    "searchError=${warehouse.search?.errorMessage}, " +
+                    "confirmed=${warehouse.confirmedSku != null}",
+                timeout
+            )
         }
         composeRule.onNodeWithText(expectedSku, substring = true).assertIsDisplayed()
         composeRule.onNodeWithText("No se realizó ninguna operación de inventario.")

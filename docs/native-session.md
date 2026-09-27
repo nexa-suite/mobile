@@ -12,4 +12,11 @@ One application-scoped coroutine flight serves callers observing the same access
 
 Auth headers are route-specific. `Authorization` is used for session, sign-out, and protected requests. `X-Nexa-Refresh-Token` is used only for refresh. `X-Nexa-Client: NATIVE` is used only for sign-in, refresh, and sign-out; `X-Nexa-Surface: PLATFORM` is used on refresh. The origin guard compares exact scheme, host, and port and redirects are disabled. No BODY HTTP logger is installed.
 
+Protected response bodies are consumed and closed on the OkHttp callback thread
+before the caller resumes. Reading a body after resuming a UI coroutine can block
+Main even when headers arrived asynchronously. The cancellable exchange remains
+active during body consumption, so caller cancellation also cancels the HTTP call
+after headers have arrived. Epoch checks and the single eligible 401 replay remain
+unchanged.
+
 JVM tests cover state transitions, 20 concurrent callers, cancellation, generation, epoch races, and ambiguous outcomes. MockWebServer tests cover actual 20x401 replay, header placement, origin rejection, command identity, unsafe mutation replay denial, stale ETag responses, and Problem Details. Android instrumentation exercises Keystore encryption, unique IVs, tamper rejection, old ciphertext rejection after clear, atomic write recovery, and in-flight state on emulator APIs 37 and 29.
