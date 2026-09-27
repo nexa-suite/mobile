@@ -103,7 +103,9 @@ private enum class ReviewScenario(val title: Int, val group: ReviewGroup) {
     CandidateUnavailable(R.string.review_candidate_unavailable, ReviewGroup.Search),
     PermissionDenied(R.string.review_permission_denied, ReviewGroup.Search),
     SearchNetworkUnavailable(R.string.review_search_network, ReviewGroup.Search),
-    ConfirmedSku(R.string.review_confirmed_sku, ReviewGroup.Confirmed)
+    ConfirmedSku(R.string.review_confirmed_sku, ReviewGroup.Confirmed),
+    ConfirmedSkuOptionalMissing(R.string.review_confirmed_optional_missing, ReviewGroup.Confirmed),
+    ConfirmedSkuLongName(R.string.review_confirmed_long_name, ReviewGroup.Confirmed)
 }
 
 private sealed interface ReviewFrame {
@@ -459,35 +461,51 @@ private class ReviewScenarioProvider(private val context: Context) {
             error = ProductSearchStatus.NetworkUnavailable
         )
 
-        ReviewScenario.ConfirmedSku -> ReviewFrame.Product(
-            WarehouseUiState(
-                route = WarehouseRoute.ConfirmedSku,
-                workEntryStatus = WorkEntryStatus.TaskAvailable,
-                permissionHint = TaskVisibilityHint.Available,
-                activeContext = activePrimary,
-                search = ProductSearchUiState(
-                    query = context.getString(R.string.review_demo_query),
-                    status = ProductSearchStatus.OneCandidate,
-                    candidates = listOf(gouda),
-                    authorityEpoch = 1
-                ),
-                confirmedSku = ConfirmedSkuUiState(
-                    candidateKey = gouda.key,
-                    productDisplayName = gouda.productDisplayName,
-                    variant = context.getString(R.string.review_demo_variant),
-                    presentation = gouda.presentation,
-                    sku = gouda.sku,
-                    brand = context.getString(R.string.review_demo_brand),
-                    unit = context.getString(R.string.review_demo_unit),
-                    packaging = context.getString(R.string.review_demo_packaging),
-                    coldChain = context.getString(R.string.review_demo_cold_chain),
-                    context = activePrimary,
-                    authorityEpoch = 1
-                ),
-                authorityEpoch = 1
-            )
+        ReviewScenario.ConfirmedSku -> confirmedSku()
+
+        ReviewScenario.ConfirmedSkuOptionalMissing -> confirmedSku(missingOptionalFields = true)
+
+        ReviewScenario.ConfirmedSkuLongName -> confirmedSku(
+            productName = context.getString(R.string.review_demo_long_product_name)
         )
     }
+
+    private fun confirmedSku(
+        productName: String = gouda.productDisplayName,
+        missingOptionalFields: Boolean = false
+    ) = ReviewFrame.Product(
+        WarehouseUiState(
+            route = WarehouseRoute.ConfirmedSku,
+            workEntryStatus = WorkEntryStatus.TaskAvailable,
+            permissionHint = TaskVisibilityHint.Available,
+            activeContext = activePrimary,
+            search = ProductSearchUiState(
+                query = context.getString(R.string.review_demo_query),
+                status = ProductSearchStatus.OneCandidate,
+                candidates = listOf(gouda),
+                authorityEpoch = 1
+            ),
+            confirmedSku = ConfirmedSkuUiState(
+                candidateKey = gouda.key,
+                productDisplayName = productName,
+                variant = context.getString(R.string.review_demo_variant)
+                    .takeUnless { missingOptionalFields },
+                presentation = gouda.presentation,
+                sku = gouda.sku,
+                brand = context.getString(R.string.review_demo_brand)
+                    .takeUnless { missingOptionalFields },
+                unit = context.getString(R.string.review_demo_unit)
+                    .takeUnless { missingOptionalFields },
+                packaging = context.getString(R.string.review_demo_packaging)
+                    .takeUnless { missingOptionalFields },
+                coldChain = context.getString(R.string.review_demo_cold_chain)
+                    .takeUnless { missingOptionalFields },
+                context = activePrimary,
+                authorityEpoch = 1
+            ),
+            authorityEpoch = 1
+        )
+    )
 
     private fun productWork(context: ActiveOperationsContext, notice: AccessNotice? = null) =
         ReviewFrame.Product(

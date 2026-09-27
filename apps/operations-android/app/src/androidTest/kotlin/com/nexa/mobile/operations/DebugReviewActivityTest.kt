@@ -32,4 +32,38 @@ class DebugReviewActivityTest {
             .performScrollTo()
             .assertIsDisplayed()
     }
+
+    @Test
+    fun optionalCatalogAttributesCanBeReviewedWithoutInventedValues() {
+        selectScenario("SKU · atributos opcionales ausentes")
+
+        composeRule.onNodeWithText("Identificación confirmada").assertIsDisplayed()
+        composeRule.onNodeWithText("SKU-DEMO-001").performScrollTo().assertIsDisplayed()
+        for (label in listOf("Variante", "Marca", "Unidad", "Empaque", "Cadena de frío")) {
+            composeRule.onNodeWithText(label).assertDoesNotExist()
+        }
+        composeRule.onNodeWithText("No se realizó ninguna operación de inventario.")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun longProductNameCanBeReviewedOnTheProductionConfirmationScreen() {
+        selectScenario("SKU · nombre largo")
+
+        composeRule.onNodeWithText(
+            "Queso Gouda Demo de maduración prolongada para presentación institucional"
+        ).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("SKU-DEMO-001").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("No se realizó ninguna operación de inventario.")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    private fun selectScenario(label: String) {
+        composeRule.onNodeWithText("Escenarios de revisión").performClick()
+        composeRule.onNodeWithTag("review-scenario-picker")
+            .performScrollToNode(hasText(label))
+        composeRule.onNodeWithText(label).performClick()
+    }
 }

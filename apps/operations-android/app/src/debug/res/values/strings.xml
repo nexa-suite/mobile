@@ -40,11 +40,14 @@
     <string name="review_permission_denied">Búsqueda · permiso rechazado</string>
     <string name="review_search_network">Búsqueda · sin conexión</string>
     <string name="review_confirmed_sku">SKU · confirmación recibida</string>
+    <string name="review_confirmed_optional_missing">SKU · atributos opcionales ausentes</string>
+    <string name="review_confirmed_long_name">SKU · nombre largo</string>
     <string name="review_demo_company">Nexa Demo Distribución</string>
     <string name="review_demo_workspace">Almacén Principal</string>
     <string name="review_demo_alternate_company">Nexa Demo Norte</string>
     <string name="review_demo_alternate_workspace">Almacén Secundario</string>
     <string name="review_demo_gouda">Queso Gouda Demo</string>
+    <string name="review_demo_long_product_name">Queso Gouda Demo de maduración prolongada para presentación institucional</string>
     <string name="review_demo_cheddar">Queso Cheddar Demo</string>
     <string name="review_demo_variant">Lácteo</string>
     <string name="review_demo_brand">Marca Demo</string>
