@@ -54,111 +54,19 @@ fun AccessScreen(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        NexaTopAppBar(title = stringResource(R.string.access_product_label))
-        Image(
-            painter = painterResource(R.drawable.nexa_brand),
-            contentDescription = stringResource(R.string.access_brand_description),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 48.dp),
-            contentScale = ContentScale.Fit
+        AccessBrandHeader()
+        AccessStageContent(
+            state = state,
+            onIdentifierChanged = onIdentifierChanged,
+            onPasswordChanged = onPasswordChanged,
+            onPasswordVisibilityChanged = onPasswordVisibilityChanged,
+            onSignIn = onSignIn,
+            onRetry = onRetry,
+            onClearLocalSession = onClearLocalSession,
+            showRetry = showRetry
         )
-
-        when (state.stage) {
-            AccessStage.RestoringSession -> {
-                NexaStatePanel(
-                    title = stringResource(R.string.access_session_restoring_title),
-                    description = stringResource(R.string.access_session_restoring_body)
-                )
-                CenteredProgress()
-                if (showRetry) {
-                    NexaPrimaryButton(
-                        label = stringResource(R.string.access_context_retry),
-                        onClick = onRetry
-                    )
-                }
-            }
-
-            AccessStage.Authenticating -> {
-                NexaStatePanel(
-                    title = stringResource(R.string.access_sign_in_loading_title),
-                    description = stringResource(R.string.access_sign_in_loading_body)
-                )
-                CenteredProgress()
-            }
-
-            AccessStage.ResolvingContexts -> {
-                NexaStatePanel(
-                    title = stringResource(R.string.access_context_loading_title),
-                    description = stringResource(R.string.access_context_loading_body)
-                )
-                CenteredProgress()
-            }
-
-            AccessStage.NoContexts -> NexaStatePanel(
-                title = stringResource(R.string.access_no_context_title),
-                description = stringResource(R.string.access_no_context_body),
-                actionLabel = stringResource(R.string.access_local_logout),
-                onAction = onClearLocalSession
-            )
-
-            AccessStage.LocalProtectionError -> NexaStatePanel(
-                title = stringResource(R.string.access_local_error_title),
-                description = stringResource(R.string.access_local_error_body),
-                actionLabel = stringResource(R.string.access_local_logout),
-                onAction = onClearLocalSession
-            )
-
-            AccessStage.IdentityRequired, AccessStage.SessionExpired, AccessStage.ContextChooser,
-            AccessStage.WorkAuthorized
-            -> {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text(
-                        stringResource(R.string.access_sign_in_title),
-                        style = MaterialTheme.typography.headlineSmall
-                    )
-                    Text(
-                        stringResource(R.string.access_sign_in_support),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    NexaTextField(
-                        value = state.identifier,
-                        onValueChange = onIdentifierChanged,
-                        label = stringResource(R.string.access_identifier_label),
-                        errorText = if (state.identifierError) {
-                            stringResource(
-                                R.string.access_identifier_error
-                            )
-                        } else {
-                            null
-                        }
-                    )
-                    NexaPasswordField(
-                        value = state.password,
-                        onValueChange = onPasswordChanged,
-                        visible = state.passwordVisible,
-                        onVisibilityChange = onPasswordVisibilityChanged,
-                        label = stringResource(R.string.access_password_label),
-                        showLabel = stringResource(R.string.access_password_show),
-                        hideLabel = stringResource(R.string.access_password_hide),
-                        errorText = if (state.passwordError) {
-                            stringResource(
-                                R.string.access_password_error
-                            )
-                        } else {
-                            null
-                        }
-                    )
-                    NexaPrimaryButton(
-                        label = stringResource(R.string.access_submit),
-                        onClick = onSignIn
-                    )
-                }
-            }
-        }
         state.notice?.let { notice ->
-            NexaFeedbackBanner(
-                message = stringResource(notice.messageResource()),
-                tone = notice.tone()
-            )
+            AccessNoticeBanner(notice)
         }
         Spacer(Modifier.padding(bottom = 8.dp))
     }
@@ -183,153 +91,313 @@ fun ContextChooserScreen(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        NexaTopAppBar(
-            title = stringResource(R.string.access_product_label),
-            onBack = if (changeMode &&
-                state.phase != ContextChooserPhase.SelectionPending
-            ) {
-                onBack
-            } else {
-                null
-            }
-        )
-        Text(
-            stringResource(
-                if (changeMode) R.string.context_change_title else R.string.context_initial_title
-            ),
-            style = MaterialTheme.typography.headlineSmall
-        )
-        Text(
-            stringResource(
-                if (changeMode) {
-                    R.string.context_change_support
-                } else {
-                    R.string.context_initial_support
-                }
-            ),
-            style = MaterialTheme.typography.bodyLarge
+        ContextChooserHeader(
+            state = state,
+            changeMode = changeMode,
+            onBack = onBack
         )
         if (notice != null) {
-            NexaFeedbackBanner(
-                message = stringResource(notice.messageResource()),
-                tone = notice.tone()
-            )
+            AccessNoticeBanner(notice)
         }
-        when (state.phase) {
-            ContextChooserPhase.Loading -> {
-                NexaStatePanel(
-                    title = stringResource(R.string.context_loading_title),
-                    description = stringResource(R.string.context_loading_body)
-                )
-                CenteredProgress()
-            }
-
-            ContextChooserPhase.ListUnavailable -> {
-                val currentValid =
-                    state.unavailableReason == ContextUnavailableReason.CurrentContextRemainsValid
-                NexaStatePanel(
-                    title = stringResource(
-                        if (currentValid) {
-                            R.string.context_current_valid_title
-                        } else {
-                            R.string.context_no_active_title
-                        }
-                    ),
-                    description = stringResource(
-                        if (currentValid) {
-                            R.string.context_current_valid_body
-                        } else {
-                            R.string.context_no_active_body
-                        }
-                    ),
-                    actionLabel = stringResource(
-                        if (currentValid) R.string.context_back_to_work else R.string.context_retry
-                    ),
-                    onAction = if (currentValid) onBack else onRetry
-                )
-                if (currentValid) {
-                    state.current?.let { context -> CurrentContextRow(context) }
-                    NexaPrimaryButton(
-                        label = stringResource(R.string.context_retry),
-                        onClick = onRetry
-                    )
-                }
-                if (!currentValid && onClearLocalSession != null) {
-                    NexaPrimaryButton(
-                        label = stringResource(R.string.access_local_logout),
-                        onClick = onClearLocalSession
-                    )
-                }
-            }
-
-            ContextChooserPhase.OnlyCurrent -> {
-                state.current?.let { context -> CurrentContextRow(context) }
-                NexaStatePanel(
-                    title = stringResource(R.string.context_only_current_title),
-                    description = stringResource(R.string.context_only_current_body),
-                    actionLabel = if (changeMode) {
-                        stringResource(
-                            R.string.context_back_to_work
-                        )
-                    } else {
-                        null
-                    },
-                    onAction = if (changeMode) onBack else null
-                )
-            }
-
-            ContextChooserPhase.SelectionPending -> {
-                state.choices.forEach { context ->
-                    NexaContextChoiceRow(
-                        companyName = context.companyName,
-                        workspaceName = context.workspaceName,
-                        current = context.isCurrent,
-                        pending = state.pendingKey == context.key,
-                        enabled = false,
-                        onClick = {}
-                    )
-                }
-                NexaStatePanel(
-                    title = stringResource(R.string.context_loading_title),
-                    description = stringResource(R.string.context_selection_pending)
-                )
-                CenteredProgress()
-            }
-
-            ContextChooserPhase.SelectionRejected -> {
-                NexaStatePanel(
-                    title = stringResource(R.string.context_selection_rejected),
-                    description = stringResource(R.string.context_initial_support)
-                )
-                state.choices.filterNot { it.isCurrent }.forEach { context ->
-                    NexaContextChoiceRow(
-                        companyName = context.companyName,
-                        workspaceName = context.workspaceName,
-                        onClick = { onSelect(context.key) }
-                    )
-                }
-            }
-
-            ContextChooserPhase.Choices -> {
-                state.current?.takeIf { current -> state.choices.none { it.key == current.key } }
-                    ?.let { CurrentContextRow(it) }
-                state.choices.forEach { context ->
-                    NexaContextChoiceRow(
-                        companyName = context.companyName,
-                        workspaceName = context.workspaceName,
-                        current = context.isCurrent,
-                        pending = state.pendingKey == context.key,
-                        enabled = state.phase == ContextChooserPhase.Choices,
-                        onClick = { onSelect(context.key) }
-                    )
-                }
-            }
-        }
+        ContextChooserPhaseContent(
+            state = state,
+            changeMode = changeMode,
+            onSelect = onSelect,
+            onRetry = onRetry,
+            onBack = onBack,
+            onClearLocalSession = onClearLocalSession
+        )
         if (notice == AccessNotice.ContextSelectionRejected) {
             NexaPrimaryButton(label = stringResource(R.string.context_retry), onClick = onRetry)
         }
         Spacer(Modifier.padding(bottom = 8.dp))
     }
+}
+
+@Composable
+private fun AccessBrandHeader() {
+    NexaTopAppBar(title = stringResource(R.string.access_product_label))
+    Image(
+        painter = painterResource(R.drawable.nexa_brand),
+        contentDescription = stringResource(R.string.access_brand_description),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 48.dp),
+        contentScale = ContentScale.Fit
+    )
+}
+
+@Composable
+private fun AccessStageContent(
+    state: AccessUiState,
+    onIdentifierChanged: (String) -> Unit,
+    onPasswordChanged: (String) -> Unit,
+    onPasswordVisibilityChanged: () -> Unit,
+    onSignIn: () -> Unit,
+    onRetry: () -> Unit,
+    onClearLocalSession: () -> Unit,
+    showRetry: Boolean
+) {
+    when (state.stage) {
+        AccessStage.RestoringSession -> {
+            NexaStatePanel(
+                title = stringResource(R.string.access_session_restoring_title),
+                description = stringResource(R.string.access_session_restoring_body)
+            )
+            CenteredProgress()
+            if (showRetry) {
+                NexaPrimaryButton(
+                    label = stringResource(R.string.access_context_retry),
+                    onClick = onRetry
+                )
+            }
+        }
+
+        AccessStage.Authenticating -> {
+            NexaStatePanel(
+                title = stringResource(R.string.access_sign_in_loading_title),
+                description = stringResource(R.string.access_sign_in_loading_body)
+            )
+            CenteredProgress()
+        }
+
+        AccessStage.ResolvingContexts -> {
+            NexaStatePanel(
+                title = stringResource(R.string.access_context_loading_title),
+                description = stringResource(R.string.access_context_loading_body)
+            )
+            CenteredProgress()
+        }
+
+        AccessStage.NoContexts -> NexaStatePanel(
+            title = stringResource(R.string.access_no_context_title),
+            description = stringResource(R.string.access_no_context_body),
+            actionLabel = stringResource(R.string.access_local_logout),
+            onAction = onClearLocalSession
+        )
+
+        AccessStage.LocalProtectionError -> NexaStatePanel(
+            title = stringResource(R.string.access_local_error_title),
+            description = stringResource(R.string.access_local_error_body),
+            actionLabel = stringResource(R.string.access_local_logout),
+            onAction = onClearLocalSession
+        )
+
+        AccessStage.IdentityRequired, AccessStage.SessionExpired, AccessStage.ContextChooser,
+        AccessStage.WorkAuthorized
+        -> AccessCredentialsForm(
+            state = state,
+            onIdentifierChanged = onIdentifierChanged,
+            onPasswordChanged = onPasswordChanged,
+            onPasswordVisibilityChanged = onPasswordVisibilityChanged,
+            onSignIn = onSignIn
+        )
+    }
+}
+
+@Composable
+private fun AccessCredentialsForm(
+    state: AccessUiState,
+    onIdentifierChanged: (String) -> Unit,
+    onPasswordChanged: (String) -> Unit,
+    onPasswordVisibilityChanged: () -> Unit,
+    onSignIn: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(
+            stringResource(R.string.access_sign_in_title),
+            style = MaterialTheme.typography.headlineSmall
+        )
+        Text(
+            stringResource(R.string.access_sign_in_support),
+            style = MaterialTheme.typography.bodyLarge
+        )
+        NexaTextField(
+            value = state.identifier,
+            onValueChange = onIdentifierChanged,
+            label = stringResource(R.string.access_identifier_label),
+            errorText = if (state.identifierError) {
+                stringResource(R.string.access_identifier_error)
+            } else {
+                null
+            }
+        )
+        NexaPasswordField(
+            value = state.password,
+            onValueChange = onPasswordChanged,
+            visible = state.passwordVisible,
+            onVisibilityChange = onPasswordVisibilityChanged,
+            label = stringResource(R.string.access_password_label),
+            showLabel = stringResource(R.string.access_password_show),
+            hideLabel = stringResource(R.string.access_password_hide),
+            errorText = if (state.passwordError) {
+                stringResource(R.string.access_password_error)
+            } else {
+                null
+            }
+        )
+        NexaPrimaryButton(
+            label = stringResource(R.string.access_submit),
+            onClick = onSignIn
+        )
+    }
+}
+
+@Composable
+private fun ContextChooserHeader(
+    state: ContextChooserUiState,
+    changeMode: Boolean,
+    onBack: () -> Unit
+) {
+    NexaTopAppBar(
+        title = stringResource(R.string.access_product_label),
+        onBack = if (changeMode && state.phase != ContextChooserPhase.SelectionPending) {
+            onBack
+        } else {
+            null
+        }
+    )
+    Text(
+        stringResource(
+            if (changeMode) R.string.context_change_title else R.string.context_initial_title
+        ),
+        style = MaterialTheme.typography.headlineSmall
+    )
+    Text(
+        stringResource(
+            if (changeMode) {
+                R.string.context_change_support
+            } else {
+                R.string.context_initial_support
+            }
+        ),
+        style = MaterialTheme.typography.bodyLarge
+    )
+}
+
+@Composable
+private fun ContextChooserPhaseContent(
+    state: ContextChooserUiState,
+    changeMode: Boolean,
+    onSelect: (String) -> Unit,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+    onClearLocalSession: (() -> Unit)?
+) {
+    when (state.phase) {
+        ContextChooserPhase.Loading -> {
+            NexaStatePanel(
+                title = stringResource(R.string.context_loading_title),
+                description = stringResource(R.string.context_loading_body)
+            )
+            CenteredProgress()
+        }
+
+        ContextChooserPhase.ListUnavailable -> {
+            val currentValid =
+                state.unavailableReason == ContextUnavailableReason.CurrentContextRemainsValid
+            NexaStatePanel(
+                title = stringResource(
+                    if (currentValid) {
+                        R.string.context_current_valid_title
+                    } else {
+                        R.string.context_no_active_title
+                    }
+                ),
+                description = stringResource(
+                    if (currentValid) {
+                        R.string.context_current_valid_body
+                    } else {
+                        R.string.context_no_active_body
+                    }
+                ),
+                actionLabel = stringResource(
+                    if (currentValid) R.string.context_back_to_work else R.string.context_retry
+                ),
+                onAction = if (currentValid) onBack else onRetry
+            )
+            if (currentValid) {
+                state.current?.let { context -> CurrentContextRow(context) }
+                NexaPrimaryButton(
+                    label = stringResource(R.string.context_retry),
+                    onClick = onRetry
+                )
+            }
+            if (!currentValid && onClearLocalSession != null) {
+                NexaPrimaryButton(
+                    label = stringResource(R.string.access_local_logout),
+                    onClick = onClearLocalSession
+                )
+            }
+        }
+
+        ContextChooserPhase.OnlyCurrent -> {
+            state.current?.let { context -> CurrentContextRow(context) }
+            NexaStatePanel(
+                title = stringResource(R.string.context_only_current_title),
+                description = stringResource(R.string.context_only_current_body),
+                actionLabel = if (changeMode) {
+                    stringResource(R.string.context_back_to_work)
+                } else {
+                    null
+                },
+                onAction = if (changeMode) onBack else null
+            )
+        }
+
+        ContextChooserPhase.SelectionPending -> {
+            state.choices.forEach { context ->
+                NexaContextChoiceRow(
+                    companyName = context.companyName,
+                    workspaceName = context.workspaceName,
+                    current = context.isCurrent,
+                    pending = state.pendingKey == context.key,
+                    enabled = false,
+                    onClick = {}
+                )
+            }
+            NexaStatePanel(
+                title = stringResource(R.string.context_loading_title),
+                description = stringResource(R.string.context_selection_pending)
+            )
+            CenteredProgress()
+        }
+
+        ContextChooserPhase.SelectionRejected -> {
+            NexaStatePanel(
+                title = stringResource(R.string.context_selection_rejected),
+                description = stringResource(R.string.context_initial_support)
+            )
+            state.choices.filterNot { it.isCurrent }.forEach { context ->
+                NexaContextChoiceRow(
+                    companyName = context.companyName,
+                    workspaceName = context.workspaceName,
+                    onClick = { onSelect(context.key) }
+                )
+            }
+        }
+
+        ContextChooserPhase.Choices -> {
+            state.current?.takeIf { current -> state.choices.none { it.key == current.key } }
+                ?.let { CurrentContextRow(it) }
+            state.choices.forEach { context ->
+                NexaContextChoiceRow(
+                    companyName = context.companyName,
+                    workspaceName = context.workspaceName,
+                    current = context.isCurrent,
+                    pending = state.pendingKey == context.key,
+                    enabled = state.phase == ContextChooserPhase.Choices,
+                    onClick = { onSelect(context.key) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccessNoticeBanner(notice: AccessNotice) {
+    NexaFeedbackBanner(
+        message = stringResource(notice.messageResource()),
+        tone = notice.tone()
+    )
 }
 
 @Composable
