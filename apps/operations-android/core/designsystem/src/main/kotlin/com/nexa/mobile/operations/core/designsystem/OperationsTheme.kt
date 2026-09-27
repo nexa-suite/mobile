@@ -1,27 +1,30 @@
 package com.nexa.mobile.operations.core.designsystem
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Color and type roles mapped from the current Nexa Design Lab evidence. */
+/** Color roles align with the mobile token reference; text keeps Android's native sans-serif. */
 object NexaColors {
-    val Brand = Color(0xFF2563EB)
-    val BrandStrong = Color(0xFF1D52C6)
+    val Brand = Color(0xFF2A67D9)
+    val BrandStrong = Color(0xFF1D4ED8)
+    val PrimaryContainer = Color(0xFFDBEAFE)
     val Canvas = Color(0xFFF6FAFF)
     val Surface = Color(0xFFFFFFFF)
     val SurfaceInset = Color(0xFFF1F5F9)
     val TextPrimary = Color(0xFF0F172A)
-    val TextSecondary = Color(0xFF334155)
+    val TextSecondary = Color(0xFF64748B)
     val TextMuted = Color(0xFF64748B)
     val Border = Color(0xFFE2E8F0)
     val BorderStrong = Color(0xFFCBD5E1)
-    val InfoSurface = Color(0xFFF0F5FF)
-    val Info = Color(0xFF1D52C6)
+    val InfoSurface = Color(0xFFEEF6FF)
+    val Info = BrandStrong
     val SuccessSurface = Color(0xFFF0FDF4)
     val Success = Color(0xFF15803D)
     val WarningSurface = Color(0xFFFFFBEB)
@@ -30,10 +33,16 @@ object NexaColors {
     val Danger = Color(0xFF991B1B)
 }
 
+internal object NexaShapes {
+    val button = RoundedCornerShape(12.dp)
+    val surface = RoundedCornerShape(16.dp)
+    val row = RoundedCornerShape(12.dp)
+}
+
 private val NexaLightColors = lightColorScheme(
     primary = NexaColors.Brand,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFDBEAFE),
+    primaryContainer = NexaColors.PrimaryContainer,
     onPrimaryContainer = NexaColors.BrandStrong,
     secondary = NexaColors.TextSecondary,
     onSecondary = Color.White,
@@ -42,7 +51,7 @@ private val NexaLightColors = lightColorScheme(
     surface = NexaColors.Surface,
     onSurface = NexaColors.TextPrimary,
     surfaceVariant = NexaColors.SurfaceInset,
-    onSurfaceVariant = NexaColors.TextSecondary,
+    onSurfaceVariant = NexaColors.TextPrimary,
     outline = NexaColors.BorderStrong,
     outlineVariant = NexaColors.Border,
     error = NexaColors.Danger,

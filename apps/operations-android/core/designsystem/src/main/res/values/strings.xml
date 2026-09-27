@@ -15,6 +15,8 @@
     <string name="nexa_show_more">Mostrar más</string>
     <string name="nexa_sku_label">SKU</string>
     <string name="nexa_candidate_sku">SKU: %1$s</string>
+    <string name="nexa_task_row_action_description">%1$s. %2$s. Abrir tarea.</string>
+    <string name="nexa_candidate_row_action_description">%1$s. Seleccionar producto.</string>
     <string name="nexa_candidate_sku_label">SKU</string>
     <string name="nexa_variant">Variante</string>
     <string name="nexa_presentation">Presentación</string>

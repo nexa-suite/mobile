@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -29,10 +28,13 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -59,7 +61,10 @@ fun NexaTopAppBar(title: String, modifier: Modifier = Modifier, onBack: (() -> U
                     )
                 }
             }
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
                 Text(
                     stringResource(R.string.nexa_brand_name),
                     style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
@@ -94,9 +99,12 @@ fun NexaActiveContextBar(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .semantics(mergeDescendants = true) { contentDescription = description },
+            .semantics(mergeDescendants = true) {
+                role = Role.Button
+                contentDescription = description
+            },
         enabled = enabled,
-        shape = RoundedCornerShape(12.dp),
+        shape = NexaShapes.row,
         color = NexaColors.Surface,
         border = BorderStroke(1.dp, NexaColors.Border)
     ) {
@@ -243,11 +251,23 @@ fun NexaPrimaryButton(
     enabled: Boolean = true,
     loading: Boolean = false
 ) {
+    val loadingStateDescription = if (loading) {
+        stringResource(R.string.nexa_loading)
+    } else {
+        null
+    }
     Button(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 52.dp)
+            .semantics {
+                if (loadingStateDescription != null) {
+                    stateDescription = loadingStateDescription
+                }
+            },
         enabled = enabled && !loading,
-        shape = RoundedCornerShape(10.dp)
+        shape = NexaShapes.button
     ) {
         if (loading) {
             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -272,14 +292,25 @@ fun NexaContextChoiceRow(
     } else {
         stringResource(R.string.nexa_context_choice_description, companyName, workspaceName)
     }
+    val pendingStateDescription = if (pending) {
+        stringResource(R.string.nexa_context_pending)
+    } else {
+        null
+    }
     Surface(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 72.dp)
-            .semantics(mergeDescendants = true) { contentDescription = desc },
+            .semantics(mergeDescendants = true) {
+                role = Role.Button
+                contentDescription = desc
+                if (pendingStateDescription != null) {
+                    stateDescription = pendingStateDescription
+                }
+            },
         enabled = enabled && !pending,
-        shape = RoundedCornerShape(12.dp),
+        shape = NexaShapes.row,
         color = NexaColors.Surface,
         border = BorderStroke(1.dp, if (current) NexaColors.Brand else NexaColors.Border)
     ) {
@@ -326,13 +357,20 @@ fun NexaTaskRow(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val rowDescription = stringResource(
+        R.string.nexa_task_row_action_description,
+        title,
+        description
+    )
     Surface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().heightIn(
             min = 80.dp
         ).semantics(mergeDescendants = true) {
+            role = Role.Button
+            contentDescription = rowDescription
         },
-        shape = RoundedCornerShape(12.dp),
+        shape = NexaShapes.row,
         color = NexaColors.Surface,
         border = BorderStroke(1.dp, NexaColors.Border)
     ) {
@@ -399,14 +437,34 @@ fun NexaProductCandidateRow(
     enabled: Boolean = true,
     onClick: () -> Unit
 ) {
+    val candidateDetails = listOfNotNull(
+        name,
+        variant?.takeIf { it.isNotBlank() },
+        presentation,
+        stringResource(R.string.nexa_candidate_sku, sku)
+    ).joinToString()
+    val rowDescription = stringResource(
+        R.string.nexa_candidate_row_action_description,
+        candidateDetails
+    )
+    val pendingStateDescription = if (pending) {
+        stringResource(R.string.nexa_loading)
+    } else {
+        null
+    }
     Surface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().heightIn(
             min = 88.dp
         ).semantics(mergeDescendants = true) {
+            role = Role.Button
+            contentDescription = rowDescription
+            if (pendingStateDescription != null) {
+                stateDescription = pendingStateDescription
+            }
         },
         enabled = enabled && !pending,
-        shape = RoundedCornerShape(12.dp),
+        shape = NexaShapes.row,
         color = NexaColors.Surface,
         border = BorderStroke(1.dp, NexaColors.Border)
     ) {
@@ -477,7 +535,7 @@ fun NexaFeedbackBanner(message: String, tone: NexaFeedbackTone, modifier: Modifi
     }
     Surface(
         modifier = modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
-        shape = RoundedCornerShape(10.dp),
+        shape = NexaShapes.surface,
         color = background,
         border = BorderStroke(1.dp, foreground.copy(alpha = 0.24f))
     ) {
@@ -508,8 +566,8 @@ fun NexaStatePanel(
     onAction: (() -> Unit)? = null
 ) {
     Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        modifier = modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+        shape = NexaShapes.surface,
         color = NexaColors.Surface,
         border = BorderStroke(1.dp, NexaColors.Border)
     ) {
@@ -545,7 +603,7 @@ fun NexaConfirmedSkuSummary(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        shape = NexaShapes.surface,
         color = NexaColors.Surface,
         border = BorderStroke(1.dp, NexaColors.Border)
     ) {
