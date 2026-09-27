@@ -22,7 +22,7 @@ Install JDK 17, Android SDK package `platforms;android-37.0`, and `build-tools;3
 | `:feature:access` | Access and workforce-context UI state, ViewModel, and screens |
 | `:feature:warehouse` | Operations work entry, manual search, and confirmed SKU UI state and screens |
 
-The API owns authentication, Tenant and Workspace authorization, and business outcomes. Client state and permission hints never grant server authority. Identity sign-in and workforce-context selection use the released Nexa API v0.18.0 contract; every issued session is checked through `GET /api/v1/session` before the client enters `Active`. Warehouse search and SKU confirmation still return `IntegrationUnavailable`; there is no local stock authority or fabricated server result. The debug-only review activity uses visibly synthetic fixtures. These flows remain technical continuation work, not Product Acceptance. See [foundation architecture](docs/android-foundation.md) for boundaries and [native session security](docs/native-session.md) for rotation behavior.
+The API owns authentication, Tenant and Workspace authorization, and business outcomes. Client state and permission hints never grant server authority. Identity sign-in and workforce-context selection use the released Nexa API v0.18.0 contract; every issued session is checked through `GET /api/v1/session` before the client enters `Active`. Production gateways also consume protected Catalog list/detail reads. Manual identification requires explicit search and candidate selection; only a current successful detail response creates a display-only confirmed SKU. The debug-only review activity uses visibly synthetic fixtures. These flows remain technical continuation work, not Product Acceptance. See [product boundaries](docs/operations-product-boundaries.md), [foundation architecture](docs/android-foundation.md) and [native session security](docs/native-session.md).
 
 ## Build and verify
 
@@ -48,4 +48,4 @@ The CI workflow in [android-verify.yml](.github/workflows/android-verify.yml) ru
 
 ## Current limits
 
-No scanner, dashboard, inventory workflow, future module, API change, live account fixture, production API endpoint, or distribution signing configuration is included. No physical-device acceptance is claimed. Local sign-out clears protected state even when server revocation cannot be confirmed. System and production readiness remain separate gates.
+Scanner, dashboard and inventory workflows remain outside this slice. The app uses existing API contracts and does not contain live account credentials, a production API endpoint, or distribution signing configuration. No physical-device acceptance is claimed. Local sign-out clears protected state even when server revocation cannot be confirmed. Product Acceptance, System Acceptance and production readiness remain separate gates.
