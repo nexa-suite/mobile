@@ -59,7 +59,18 @@ import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
 class DebugReviewActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { OperationsTheme { DebugReviewExperience() } }
+        val initialScenario = ReviewScenario.entries.firstOrNull {
+            it.name == intent.getStringExtra("review_scenario")
+        } ?: ReviewScenario.MultipleCandidates
+        val cleanCapture = intent.getBooleanExtra("review_clean", false)
+        setContent {
+            OperationsTheme {
+                DebugReviewExperience(
+                    initialScenario = initialScenario,
+                    cleanCapture = cleanCapture
+                )
+            }
+        }
     }
 }
 
@@ -116,9 +127,9 @@ private sealed interface ReviewFrame {
 }
 
 @Composable
-private fun DebugReviewExperience() {
+private fun DebugReviewExperience(initialScenario: ReviewScenario, cleanCapture: Boolean) {
     val context = LocalContext.current
-    var scenario by remember { mutableStateOf(ReviewScenario.MultipleCandidates) }
+    var scenario by remember { mutableStateOf(initialScenario) }
     var selecting by remember { mutableStateOf(false) }
     val frame = remember(scenario) { ReviewScenarioProvider(context).frame(scenario) }
     var accessState by remember(scenario) {
@@ -127,29 +138,37 @@ private fun DebugReviewExperience() {
     var warehouseState by remember(scenario) {
         mutableStateOf((frame as? ReviewFrame.Product)?.state ?: WarehouseUiState())
     }
+    NexaSystemBars(authCanopyVisible = frame is ReviewFrame.Access)
+    val scenarioPickerLabel = stringResource(
+        if (selecting) R.string.review_close_scenarios else R.string.review_choose_scenario
+    )
 
     Column(
-        modifier = Modifier.fillMaxSize().background(NexaColors.Canvas).padding(12.dp),
+        modifier = Modifier.fillMaxSize().background(NexaColors.Canvas)
+            .padding(if (cleanCapture) 0.dp else 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Surface(color = NexaColors.InfoSurface, shape = MaterialTheme.shapes.medium) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    stringResource(R.string.review_banner_title),
-                    style = MaterialTheme.typography.labelLarge
-                )
-                Text(stringResource(scenario.title), style = MaterialTheme.typography.bodyMedium)
+        if (!cleanCapture) {
+            Surface(color = NexaColors.InfoSurface, shape = MaterialTheme.shapes.medium) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.review_banner_title),
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    Text(
+                        stringResource(scenario.title),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
             }
+            NexaPrimaryButton(
+                label = scenarioPickerLabel,
+                onClick = { selecting = !selecting }
+            )
         }
-        NexaPrimaryButton(
-            label = stringResource(
-                if (selecting) R.string.review_close_scenarios else R.string.review_choose_scenario
-            ),
-            onClick = { selecting = !selecting }
-        )
         if (selecting) {
             ScenarioPicker(onChoose = {
                 scenario = it
