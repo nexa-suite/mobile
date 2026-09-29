@@ -19,6 +19,9 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -26,10 +29,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.core.designsystem.NexaActiveContextBar
 import com.nexa.mobile.operations.core.designsystem.NexaAuthCanopy
@@ -181,11 +187,14 @@ private fun AccessStageContent(
         }
 
         AccessStage.Authenticating -> {
-            NexaStatePanel(
-                title = stringResource(R.string.access_sign_in_loading_title),
-                description = stringResource(R.string.access_sign_in_loading_body)
+            AccessCredentialsForm(
+                state = state,
+                onIdentifierChanged = onIdentifierChanged,
+                onPasswordChanged = onPasswordChanged,
+                onPasswordVisibilityChanged = onPasswordVisibilityChanged,
+                onSignIn = onSignIn,
+                loading = true
             )
-            CenteredProgress()
         }
 
         AccessStage.ResolvingContexts -> {
@@ -228,21 +237,36 @@ private fun AccessCredentialsForm(
     onIdentifierChanged: (String) -> Unit,
     onPasswordChanged: (String) -> Unit,
     onPasswordVisibilityChanged: () -> Unit,
-    onSignIn: () -> Unit
+    onSignIn: () -> Unit,
+    loading: Boolean = false
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(
-            stringResource(R.string.access_sign_in_title),
-            style = MaterialTheme.typography.headlineSmall
-        )
-        Text(
-            stringResource(R.string.access_sign_in_support),
-            style = MaterialTheme.typography.bodyLarge
-        )
+    val focusManager = LocalFocusManager.current
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                stringResource(R.string.access_sign_in_title),
+                style = MaterialTheme.typography.headlineSmall,
+                color = NexaColors.TextPrimary
+            )
+            Spacer(
+                Modifier.width(44.dp).height(4.dp)
+                    .background(NexaColors.Primary, RoundedCornerShape(2.dp))
+            )
+            Text(
+                stringResource(R.string.access_sign_in_support),
+                style = MaterialTheme.typography.bodyMedium,
+                color = NexaColors.TextSecondary
+            )
+        }
         NexaTextField(
             value = state.identifier,
             onValueChange = onIdentifierChanged,
             label = stringResource(R.string.access_identifier_label),
+            enabled = !loading,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(
+                onNext = { focusManager.moveFocus(FocusDirection.Down) }
+            ),
             errorText = if (state.identifierError) {
                 stringResource(R.string.access_identifier_error)
             } else {
@@ -257,6 +281,7 @@ private fun AccessCredentialsForm(
             label = stringResource(R.string.access_password_label),
             showLabel = stringResource(R.string.access_password_show),
             hideLabel = stringResource(R.string.access_password_hide),
+            enabled = !loading,
             errorText = if (state.passwordError) {
                 stringResource(R.string.access_password_error)
             } else {
@@ -265,8 +290,23 @@ private fun AccessCredentialsForm(
         )
         NexaPrimaryButton(
             label = stringResource(R.string.access_submit),
-            onClick = onSignIn
+            onClick = onSignIn,
+            loading = loading
         )
+        if (loading) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    stringResource(R.string.access_sign_in_loading_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = NexaColors.PrimaryStrong
+                )
+                Text(
+                    stringResource(R.string.access_sign_in_loading_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = NexaColors.TextSecondary
+                )
+            }
+        }
     }
 }
 

@@ -185,13 +185,15 @@ fun NexaTextField(
     supportingText: String? = null,
     errorText: String? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    keyboardActions: KeyboardActions = KeyboardActions.Default
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    enabled: Boolean = true
 ) {
     NexaUnderlinedField(
         value = value,
         onValueChange = onValueChange,
         label = label,
         modifier = modifier,
+        enabled = enabled,
         supportingText = supportingText,
         errorText = errorText,
         keyboardOptions = keyboardOptions,
@@ -209,13 +211,15 @@ fun NexaPasswordField(
     showLabel: String,
     hideLabel: String,
     modifier: Modifier = Modifier,
-    errorText: String? = null
+    errorText: String? = null,
+    enabled: Boolean = true
 ) {
     NexaUnderlinedField(
         value = value,
         onValueChange = onValueChange,
         label = label,
         modifier = modifier,
+        enabled = enabled,
         errorText = errorText,
         visualTransformation = if (visible) {
             VisualTransformation.None
@@ -230,6 +234,7 @@ fun NexaPasswordField(
             val description = if (visible) hideLabel else showLabel
             IconButton(
                 onClick = onVisibilityChange,
+                enabled = enabled,
                 modifier = Modifier.size(NexaSizes.minimumTouchTarget).semantics {
                     contentDescription = description
                 }
@@ -277,6 +282,7 @@ private fun NexaUnderlinedField(
     onValueChange: (String) -> Unit,
     label: String,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     supportingText: String? = null,
     errorText: String? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
@@ -302,6 +308,7 @@ private fun NexaUnderlinedField(
                     if (errorText != null) error(errorText)
                 },
             textStyle = MaterialTheme.typography.bodyLarge,
+            enabled = enabled,
             singleLine = true,
             isError = errorText != null,
             visualTransformation = visualTransformation,
@@ -316,7 +323,9 @@ private fun NexaUnderlinedField(
                 errorContainerColor = Color.Transparent,
                 focusedIndicatorColor = NexaColors.Primary,
                 unfocusedIndicatorColor = NexaColors.BorderStrong,
+                disabledIndicatorColor = NexaColors.BorderStrong,
                 errorIndicatorColor = NexaColors.DangerBorder,
+                disabledTextColor = NexaColors.TextPrimary,
                 cursorColor = NexaColors.Primary,
                 errorCursorColor = NexaColors.DangerBorder
             )
