@@ -7,97 +7,83 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 
-/** A brand-only plane. Authentication state and controls belong to its caller. */
+/** Frozen Design Lab/Web auth grid and Mobile Style wave, drawn as native decoration. */
 @Composable
 fun NexaAuthCanopy(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
     Box(
         modifier = modifier.clipToBounds().drawWithCache {
             val width = size.width
             val height = size.height
-            val contourStroke = 1.2.dp.toPx()
-            val glow = Brush.radialGradient(
-                colors = listOf(NexaColors.PrimaryStrong.copy(alpha = 0.35f), Color.Transparent),
-                center = Offset(width * 0.52f, height * 0.24f),
-                radius = width * 0.8f
+            val gridStep = 32.dp.toPx()
+            val gridStroke = 1.dp.toPx()
+            val gridColor = Color.White.copy(alpha = 0.10f)
+            val gridX = generateSequence(0f) { it + gridStep }.takeWhile { it <= width }.toList()
+            val gridY = generateSequence(0f) { it + gridStep }.takeWhile { it <= height }.toList()
+            val gradient = Brush.linearGradient(
+                colors = listOf(
+                    NexaColors.PrimaryDeep,
+                    NexaColors.BrandNavy,
+                    NexaColors.PrimaryStrong
+                ),
+                start = Offset.Zero,
+                end = Offset(width, height * 1.15f)
             )
-            val contourRings = listOf(
-                0.09f to 0.09f,
-                0.17f to 0.18f,
-                0.26f to 0.28f,
-                0.36f to 0.39f,
-                0.47f to 0.52f,
-                0.60f to 0.66f,
-                0.73f to 0.81f
-            ).mapIndexed { index, (radiusX, radiusY) ->
-                val centerX = width * (0.56f + index * 0.003f)
-                val centerY = height * (0.36f - index * 0.004f)
-                Path().apply {
-                    addOval(
-                        Rect(
-                            centerX - width * radiusX,
-                            centerY - height * radiusY,
-                            centerX + width * radiusX,
-                            centerY + height * radiusY
-                        )
-                    )
-                }
-            }
-            val secondaryRing = Path().apply {
-                addOval(
-                    Rect(
-                        width * 0.02f,
-                        height * 0.56f,
-                        width * 0.34f,
-                        height * 0.88f
-                    )
-                )
-            }
-            val waveHeight = 52.dp.toPx()
+            val markSize = 32.dp.toPx()
+            val markGap = 8.dp.toPx()
+            val markX = width - 24.dp.toPx() - markSize * 2 - markGap
+            val markY = height * 0.51f
+            val waveHeight = 66.dp.toPx()
             val waveTop = height - waveHeight
             val wave = Path().apply {
-                moveTo(0f, waveTop + waveHeight * 25f / 60f)
+                moveTo(0f, waveTop + waveHeight * 0.45f)
                 cubicTo(
-                    width * 95f / 390f,
-                    waveTop + waveHeight * 50f / 60f,
-                    width * 170f / 390f,
-                    waveTop + waveHeight * 55f / 60f,
-                    width * 240f / 390f,
-                    waveTop + waveHeight * 30f / 60f
+                    width * 0.15f,
+                    waveTop + waveHeight * 0.70f,
+                    width * 0.35f,
+                    waveTop + waveHeight * 0.84f,
+                    width * 0.51f,
+                    waveTop + waveHeight * 0.67f
                 )
                 cubicTo(
-                    width * 300f / 390f,
-                    waveTop + waveHeight * 8f / 60f,
-                    width * 350f / 390f,
-                    waveTop + waveHeight * 12f / 60f,
+                    width * 0.70f,
+                    waveTop + waveHeight * 0.45f,
+                    width * 0.77f,
+                    waveTop + waveHeight * 0.12f,
                     width,
-                    waveTop + waveHeight * 30f / 60f
+                    waveTop + waveHeight * 0.41f
                 )
                 lineTo(width, height)
                 lineTo(0f, height)
                 close()
             }
             onDrawBehind {
-                drawRect(NexaColors.BrandNavy)
-                drawRect(glow)
-                contourRings.forEachIndexed { index, ring ->
-                    drawPath(
-                        ring,
-                        NexaColors.BrandCeleste.copy(alpha = 0.22f - index * 0.012f),
-                        style = Stroke(width = contourStroke)
-                    )
+                drawRect(gradient)
+                gridX.forEach { x ->
+                    drawLine(gridColor, Offset(x, 0f), Offset(x, height), gridStroke)
                 }
-                drawPath(
-                    secondaryRing,
-                    NexaColors.BrandCeleste.copy(alpha = 0.14f),
-                    style = Stroke(width = contourStroke)
-                )
+                gridY.forEach { y ->
+                    drawLine(gridColor, Offset(0f, y), Offset(width, y), gridStroke)
+                }
+                repeat(2) { row ->
+                    repeat(2) { column ->
+                        drawRoundRect(
+                            color = Color.White.copy(alpha = 0.36f),
+                            topLeft = Offset(
+                                markX + column * (markSize + markGap),
+                                markY + row * (markSize + markGap)
+                            ),
+                            size = androidx.compose.ui.geometry.Size(markSize, markSize),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(7.dp.toPx()),
+                            style = Stroke(width = gridStroke)
+                        )
+                    }
+                }
                 drawPath(wave, NexaColors.Surface)
             }
         },

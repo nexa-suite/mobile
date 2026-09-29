@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 object NexaColors {
     val Primary = Color(0xFF2563EB)
     val PrimaryStrong = Color(0xFF1D4ED8)
+    val PrimaryDeep = Color(0xFF172554)
     val OnPrimary = Color.White
     val PrimaryContainer = Color(0xFFDBEAFE)
     val OnPrimaryContainer = Color(0xFF1E40AF)
