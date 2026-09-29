@@ -1,5 +1,6 @@
 package com.nexa.mobile.operations.feature.warehouse
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -21,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.core.designsystem.NexaActiveContextBar
+import com.nexa.mobile.operations.core.designsystem.NexaColors
 import com.nexa.mobile.operations.core.designsystem.NexaConfirmedSkuSummary
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackBanner
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackTone
@@ -41,57 +43,62 @@ fun OperationsWorkEntryScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(NexaColors.Canvas)
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         NexaTopAppBar(title = stringResource(R.string.warehouse_operations_title))
-        state.activeContext?.let { context ->
-            NexaActiveContextBar(
-                companyName = context.companyName,
-                workspaceName = context.workspaceName,
-                enabled = true,
-                onClick = onChangeContext
-            )
-        }
-        when (state.workEntryStatus) {
-            WorkEntryStatus.TaskAvailable -> {
-                Text(
-                    stringResource(R.string.warehouse_work_available),
-                    style = MaterialTheme.typography.titleMedium
-                )
-                NexaTaskRow(
-                    title = stringResource(R.string.warehouse_identify_product),
-                    description = stringResource(R.string.warehouse_identify_product_support),
-                    onClick = onIdentifyProduct
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            state.activeContext?.let { context ->
+                NexaActiveContextBar(
+                    companyName = context.companyName,
+                    workspaceName = context.workspaceName,
+                    enabled = true,
+                    onClick = onChangeContext
                 )
             }
+            when (state.workEntryStatus) {
+                WorkEntryStatus.TaskAvailable -> {
+                    Text(
+                        stringResource(R.string.warehouse_work_available),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = NexaColors.TextPrimary
+                    )
+                    NexaTaskRow(
+                        title = stringResource(R.string.warehouse_identify_product),
+                        description = stringResource(R.string.warehouse_identify_product_support),
+                        onClick = onIdentifyProduct
+                    )
+                }
 
-            WorkEntryStatus.NoPermittedTask -> NexaStatePanel(
-                title = stringResource(R.string.warehouse_no_task_title),
-                description = stringResource(R.string.warehouse_no_task_body)
-            )
+                WorkEntryStatus.NoPermittedTask -> NexaStatePanel(
+                    title = stringResource(R.string.warehouse_no_task_title),
+                    description = stringResource(R.string.warehouse_no_task_body)
+                )
 
-            WorkEntryStatus.PermissionUnavailable -> NexaStatePanel(
-                title = stringResource(R.string.warehouse_permission_title),
-                description = stringResource(R.string.warehouse_permission_body)
-            )
+                WorkEntryStatus.PermissionUnavailable -> NexaStatePanel(
+                    title = stringResource(R.string.warehouse_permission_title),
+                    description = stringResource(R.string.warehouse_permission_body)
+                )
 
-            WorkEntryStatus.PermissionUnknown -> NexaStatePanel(
-                title = stringResource(R.string.warehouse_permission_unknown_title),
-                description = stringResource(R.string.warehouse_permission_unknown_body)
-            )
+                WorkEntryStatus.PermissionUnknown -> NexaStatePanel(
+                    title = stringResource(R.string.warehouse_permission_unknown_title),
+                    description = stringResource(R.string.warehouse_permission_unknown_body)
+                )
 
-            WorkEntryStatus.ContextInvalidated -> NexaStatePanel(
-                title = stringResource(R.string.warehouse_context_invalid_title),
-                description = stringResource(R.string.warehouse_context_invalid_body)
-            )
+                WorkEntryStatus.ContextInvalidated -> NexaStatePanel(
+                    title = stringResource(R.string.warehouse_context_invalid_title),
+                    description = stringResource(R.string.warehouse_context_invalid_body)
+                )
 
-            WorkEntryStatus.SessionInvalidated -> NexaStatePanel(
-                title = stringResource(R.string.warehouse_session_invalid_title),
-                description = stringResource(R.string.warehouse_session_invalid_body)
-            )
+                WorkEntryStatus.SessionInvalidated -> NexaStatePanel(
+                    title = stringResource(R.string.warehouse_session_invalid_title),
+                    description = stringResource(R.string.warehouse_session_invalid_body)
+                )
+            }
         }
     }
 }
