@@ -4,6 +4,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -58,7 +59,9 @@ class RootNavigationStateTest {
                     onSignIn = {
                         signInCalls += 1
                         accessState.value = accessState.value.copy(
-                            stage = AccessStage.Authenticating
+                            stage = AccessStage.Authenticating,
+                            password = "",
+                            passwordVisible = false
                         )
                     }
                 )
@@ -96,10 +99,14 @@ class RootNavigationStateTest {
         composeRule.onNodeWithText("Estamos comprobando tu identidad.")
             .performScrollTo()
             .assertIsDisplayed()
-        composeRule.onNodeWithText("Identificador").assertDoesNotExist()
+        composeRule.onNodeWithText("Identificador").assertIsDisplayed()
+        composeRule.onAllNodes(hasSetTextAction(), useUnmergedTree = true)
+            .assertCountEquals(0)
+        composeRule.onNodeWithText("Iniciar sesión").assertIsNotEnabled()
         composeRule.runOnIdle {
             assertEquals(1, signInCalls)
             assertEquals(AccessStage.Authenticating, accessState.value.stage)
+            assertEquals("", accessState.value.password)
             assertEquals(0L, accessState.value.authorityEpoch)
             assertEquals(SessionState.SignedOut, session)
             assertEquals(RootDestination.SignedOut, session.rootDestination())
