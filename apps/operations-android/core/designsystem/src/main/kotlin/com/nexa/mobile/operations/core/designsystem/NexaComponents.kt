@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -40,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -148,36 +150,71 @@ fun NexaActiveContextBar(
         color = NexaColors.Surface,
         border = BorderStroke(NexaSizes.borderWidth, NexaColors.Border)
     ) {
-        Row(
-            modifier = Modifier.padding(
+        BoxWithConstraints {
+            val actionLabel = stringResource(
+                if (isCurrent) R.string.nexa_change_context else R.string.nexa_open
+            )
+            val actionColor = if (enabled) NexaColors.PrimaryStrong else NexaColors.TextSecondary
+            val stacked = maxWidth < 300.dp || LocalDensity.current.fontScale >= 1.5f
+            val contentPadding = Modifier.padding(
                 horizontal = NexaSpacing.screenHorizontal,
                 vertical = NexaSpacing.rowVertical
-            ),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(NexaSpacing.textTight)
-            ) {
-                Text(
-                    companyName,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = NexaColors.TextPrimary
-                )
-                Text(
-                    workspaceName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = NexaColors.TextSecondary
-                )
-            }
-            Spacer(Modifier.width(NexaSpacing.base))
-            Text(
-                stringResource(if (isCurrent) R.string.nexa_change_context else R.string.nexa_open),
-                style = MaterialTheme.typography.labelMedium,
-                color = if (enabled) NexaColors.PrimaryStrong else NexaColors.TextSecondary
             )
+            if (stacked) {
+                Column(
+                    modifier = contentPadding,
+                    verticalArrangement = Arrangement.spacedBy(NexaSpacing.base)
+                ) {
+                    ContextNameLabels(companyName, workspaceName)
+                    Text(
+                        actionLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = actionColor
+                    )
+                }
+            } else {
+                Row(
+                    modifier = contentPadding,
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    ContextNameLabels(
+                        companyName,
+                        workspaceName,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(NexaSpacing.base))
+                    Text(
+                        actionLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = actionColor
+                    )
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun ContextNameLabels(
+    companyName: String,
+    workspaceName: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(NexaSpacing.textTight)
+    ) {
+        Text(
+            companyName,
+            style = MaterialTheme.typography.titleSmall,
+            color = NexaColors.TextPrimary
+        )
+        Text(
+            workspaceName,
+            style = MaterialTheme.typography.bodyMedium,
+            color = NexaColors.TextSecondary
+        )
     }
 }
 
