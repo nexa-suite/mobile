@@ -5,6 +5,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -189,6 +190,18 @@ class RootNavigationStateTest {
         composeRule.onNodeWithText("Buscar", useUnmergedTree = true)
             .performScrollTo()
             .performClick()
+        composeRule.runOnIdle {
+            assertEquals(1, searchCalls)
+            assertEquals("queso", warehouseState.value.search?.query)
+            assertEquals(ProductSearchStatus.OneCandidate, warehouseState.value.search?.status)
+            assertEquals(listOf(candidate), warehouseState.value.search?.candidates)
+            assertNull(warehouseState.value.confirmedSku)
+            assertNull(selectedCandidate)
+        }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodes(hasText("Queso Gouda Demo"))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onNodeWithText("Queso Gouda Demo")
             .performScrollTo()
             .assertIsDisplayed()
