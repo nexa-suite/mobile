@@ -29,11 +29,6 @@ object NexaColors {
     val BrandNavy = Color(0xFF082846)
     val BrandCeleste = Color(0xFF38C8FF)
 
-    // Transitional aliases keep the existing component API compiling until its visual pass.
-    val Brand = Primary
-    val BrandStrong = PrimaryStrong
-    val OnBrand = OnPrimary
-
     val Canvas = Color(0xFFF6FAFF)
     val Surface = Color(0xFFFFFFFF)
     val SurfaceInset = Color(0xFFF1F5F9)
@@ -91,7 +86,6 @@ object NexaSpacing {
     val textTight = 2.dp
     val textCompact = 4.dp
     val topBarVertical = 8.dp
-    val buttonIndicatorGap = 10.dp
     val inline = 12.dp
     val rowVertical = 12.dp
     val candidateRowVertical = 14.dp
@@ -110,6 +104,7 @@ object NexaSizes {
     val icon = 24.dp
     val buttonProgress = 18.dp
     val progress = 22.dp
+    val activeContextMinHeight = 64.dp
     val contextChoiceMinHeight = 72.dp
     val taskRowMinHeight = 80.dp
     val candidateRowMinHeight = 88.dp
@@ -221,7 +216,6 @@ object NexaTypography {
         fontWeight = FontWeight.Medium,
         lineHeight = 18.sp
     )
-    val backGlyph = TextStyle(fontSize = 28.sp)
 
     val material = Typography(
         headlineLarge = headlineLarge,
