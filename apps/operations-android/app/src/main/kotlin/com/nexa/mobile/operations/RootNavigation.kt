@@ -101,6 +101,8 @@ internal fun RootNavigation(
         else -> ProductDestination.Access
     }
 
+    NexaSystemBars(authCanopyVisible = destination == ProductDestination.Access)
+
     key(
         state.rootDestination(),
         destination,

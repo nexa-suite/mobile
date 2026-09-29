@@ -9,6 +9,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -64,7 +65,7 @@ class ProductScreensUiTest {
             }
         }
 
-        composeRule.onNodeWithText("NEXA").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Marca Nexa").assertIsDisplayed()
         composeRule.onAllNodesWithText("Operations").assertCountEquals(1)
         composeRule.onNodeWithText("Inicia sesión").assertIsDisplayed()
         composeRule.onNodeWithText("Identificador").assertIsDisplayed()
@@ -134,6 +135,34 @@ class ProductScreensUiTest {
             "Nexa Demo Norte, Almacén Secundario"
         ).performClick()
         composeRule.runOnIdle { assertEquals("context-alternate", selectedContext) }
+    }
+
+    @Test
+    fun pendingContextSelectionKeepsChoicesVisibleButUnavailable() {
+        var selectionCalls = 0
+        composeRule.setContent {
+            OperationsTheme {
+                ContextChooserScreen(
+                    state = ContextChooserUiState(
+                        mode = ContextChooserMode.Change,
+                        phase = ContextChooserPhase.SelectionPending,
+                        current = currentContext,
+                        choices = listOf(currentContext, alternateContext),
+                        pendingKey = alternateContext.key
+                    ),
+                    onSelect = { selectionCalls += 1 },
+                    onRetry = {},
+                    onBack = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Actual", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Nexa Demo Norte, Almacén Secundario")
+            .assertIsDisplayed()
+            .assertIsNotEnabled()
+        composeRule.onNodeWithText("Confirmando el contexto seleccionado.").assertIsDisplayed()
+        composeRule.runOnIdle { assertEquals(0, selectionCalls) }
     }
 
     @Test
