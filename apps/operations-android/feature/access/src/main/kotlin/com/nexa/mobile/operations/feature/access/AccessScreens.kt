@@ -1,15 +1,22 @@
 package com.nexa.mobile.operations.feature.access
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -20,10 +27,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.core.designsystem.NexaActiveContextBar
+import com.nexa.mobile.operations.core.designsystem.NexaAuthCanopy
+import com.nexa.mobile.operations.core.designsystem.NexaColors
 import com.nexa.mobile.operations.core.designsystem.NexaContextChoiceRow
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackBanner
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackTone
@@ -32,6 +42,7 @@ import com.nexa.mobile.operations.core.designsystem.NexaPrimaryButton
 import com.nexa.mobile.operations.core.designsystem.NexaStatePanel
 import com.nexa.mobile.operations.core.designsystem.NexaTextField
 import com.nexa.mobile.operations.core.designsystem.NexaTopAppBar
+import com.nexa.mobile.operations.core.designsystem.R as DesignR
 
 @Composable
 fun AccessScreen(
@@ -45,30 +56,39 @@ fun AccessScreen(
     onClearLocalSession: () -> Unit = {},
     showRetry: Boolean = false
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .imePadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+    BoxWithConstraints(
+        modifier = modifier.fillMaxSize().background(NexaColors.Surface)
     ) {
-        AccessBrandHeader()
-        AccessStageContent(
-            state = state,
-            onIdentifierChanged = onIdentifierChanged,
-            onPasswordChanged = onPasswordChanged,
-            onPasswordVisibilityChanged = onPasswordVisibilityChanged,
-            onSignIn = onSignIn,
-            onRetry = onRetry,
-            onClearLocalSession = onClearLocalSession,
-            showRetry = showRetry
-        )
-        state.notice?.let { notice ->
-            AccessNoticeBanner(notice)
+        val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val canopyHeight = if (LocalDensity.current.fontScale >= 1.8f) {
+            176.dp
+        } else {
+            (maxHeight * 0.33f).coerceIn(208.dp, 274.dp)
         }
-        Spacer(Modifier.padding(bottom = 8.dp))
+        Column(
+            modifier = Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState())
+        ) {
+            NexaAuthCanopy(Modifier.fillMaxWidth().height(canopyHeight)) {
+                AccessBrandHeader(statusTop)
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                AccessStageContent(
+                    state = state,
+                    onIdentifierChanged = onIdentifierChanged,
+                    onPasswordChanged = onPasswordChanged,
+                    onPasswordVisibilityChanged = onPasswordVisibilityChanged,
+                    onSignIn = onSignIn,
+                    onRetry = onRetry,
+                    onClearLocalSession = onClearLocalSession,
+                    showRetry = showRetry
+                )
+                state.notice?.let { notice -> AccessNoticeBanner(notice) }
+                Spacer(Modifier.height(24.dp).windowInsetsPadding(WindowInsets.navigationBars))
+            }
+        }
     }
 }
 
@@ -115,14 +135,23 @@ fun ContextChooserScreen(
 }
 
 @Composable
-private fun AccessBrandHeader() {
-    NexaTopAppBar(title = stringResource(R.string.access_product_label))
-    Image(
-        painter = painterResource(R.drawable.nexa_brand),
-        contentDescription = stringResource(R.string.access_brand_description),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 48.dp),
-        contentScale = ContentScale.Fit
-    )
+private fun AccessBrandHeader(statusTop: androidx.compose.ui.unit.Dp) {
+    Column(
+        modifier = Modifier.padding(start = 24.dp, top = statusTop + 22.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Image(
+            painter = painterResource(DesignR.drawable.nexa_wordmark_white),
+            contentDescription = stringResource(R.string.access_brand_description),
+            modifier = Modifier.width(112.dp).height(35.dp),
+            contentScale = ContentScale.Fit
+        )
+        Text(
+            stringResource(R.string.access_product_label),
+            style = MaterialTheme.typography.labelMedium,
+            color = NexaColors.BrandCeleste
+        )
+    }
 }
 
 @Composable
