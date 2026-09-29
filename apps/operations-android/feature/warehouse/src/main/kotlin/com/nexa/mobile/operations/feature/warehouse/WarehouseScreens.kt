@@ -3,6 +3,7 @@ package com.nexa.mobile.operations.feature.warehouse
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,16 +13,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.core.designsystem.NexaActiveContextBar
+import com.nexa.mobile.operations.core.designsystem.NexaColdChainTone
 import com.nexa.mobile.operations.core.designsystem.NexaColors
 import com.nexa.mobile.operations.core.designsystem.NexaConfirmedSkuSummary
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackBanner
@@ -32,6 +38,7 @@ import com.nexa.mobile.operations.core.designsystem.NexaSearchField
 import com.nexa.mobile.operations.core.designsystem.NexaStatePanel
 import com.nexa.mobile.operations.core.designsystem.NexaTaskRow
 import com.nexa.mobile.operations.core.designsystem.NexaTopAppBar
+import com.nexa.mobile.operations.core.designsystem.R as DesignR
 
 @Composable
 fun OperationsWorkEntryScreen(
@@ -163,10 +170,9 @@ fun ConfirmedSkuScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(NexaColors.Canvas)
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         WarehouseSurfaceHeader(
             title = stringResource(R.string.warehouse_operations_title),
@@ -174,7 +180,12 @@ fun ConfirmedSkuScreen(
             onChangeContext = onChangeContext,
             onBack = onBack
         )
-        ConfirmedSkuHierarchy(state = state)
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            ConfirmedSkuHierarchy(state = state)
+        }
     }
 }
 
@@ -377,10 +388,24 @@ private fun ProductCandidateResult(
 
 @Composable
 private fun ConfirmedSkuHierarchy(state: ConfirmedSkuUiState) {
-    Text(
-        stringResource(R.string.warehouse_confirmation_title),
-        style = MaterialTheme.typography.headlineSmall
-    )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Surface(shape = CircleShape, color = NexaColors.SuccessSurface) {
+            Icon(
+                painter = painterResource(DesignR.drawable.ic_check),
+                contentDescription = null,
+                tint = NexaColors.Success,
+                modifier = Modifier.padding(8.dp)
+            )
+        }
+        Text(
+            stringResource(R.string.warehouse_confirmation_title),
+            style = MaterialTheme.typography.headlineSmall,
+            color = NexaColors.TextPrimary
+        )
+    }
     NexaConfirmedSkuSummary(
         productName = state.productDisplayName,
         variant = state.variant,
@@ -401,11 +426,17 @@ private fun ConfirmedSkuHierarchy(state: ConfirmedSkuUiState) {
             "FROZEN" -> stringResource(R.string.warehouse_value_cold_chain_frozen)
             else -> state.coldChain
         },
+        coldChainTone = when (state.coldChain) {
+            "REFRIGERATED" -> NexaColdChainTone.Refrigerated
+            "FROZEN" -> NexaColdChainTone.Frozen
+            else -> NexaColdChainTone.Neutral
+        },
         activeContext = "${state.context.companyName} · ${state.context.workspaceName}"
     )
     Text(
         stringResource(R.string.warehouse_inventory_disclaimer),
-        style = MaterialTheme.typography.bodyMedium
+        style = MaterialTheme.typography.bodyMedium,
+        color = NexaColors.TextSecondary
     )
 }
 
