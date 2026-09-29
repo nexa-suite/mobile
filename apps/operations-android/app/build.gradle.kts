@@ -3,6 +3,7 @@ import java.net.URI
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ktlint)
@@ -22,8 +23,8 @@ android {
         applicationId = "com.nexa.mobile.operations"
         minSdk = 29
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -93,6 +94,8 @@ dependencies {
     implementation(project(":core:auth"))
     implementation(project(":core:network"))
     implementation(project(":core:designsystem"))
+    implementation(project(":feature:access"))
+    implementation(project(":feature:warehouse"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
@@ -104,6 +107,7 @@ dependencies {
     implementation(libs.navigation3.ui)
     implementation(libs.hilt.android)
     implementation(libs.okhttp)
+    implementation(libs.serialization.json)
     ksp(libs.hilt.compiler)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.compose.bom))

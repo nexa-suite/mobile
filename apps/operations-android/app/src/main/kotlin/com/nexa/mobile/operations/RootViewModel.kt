@@ -22,4 +22,8 @@ class RootViewModel @Inject constructor(private val session: SessionCoordinator)
     fun logout() {
         viewModelScope.launch { session.logout() }
     }
+
+    fun invalidateContext() {
+        viewModelScope.launch { session.invalidateContext() }
+    }
 }

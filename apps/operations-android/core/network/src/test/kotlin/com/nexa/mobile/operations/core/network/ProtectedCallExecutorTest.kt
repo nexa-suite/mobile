@@ -12,6 +12,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,11 +26,19 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.Call
 import okhttp3.Dispatcher
 import okhttp3.EventListener
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Protocol
+import okhttp3.ResponseBody
 import okhttp3.mockwebserver.Dispatcher as ServerDispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import okhttp3.mockwebserver.SocketPolicy
+import okio.Buffer
+import okio.BufferedSource
+import okio.Source
+import okio.Timeout
+import okio.buffer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -155,6 +164,136 @@ class ProtectedCallExecutorTest {
             assertEquals("\"opaque-etag\"", request.getHeader("If-Match"))
             assertEquals("command-key", request.getHeader("Idempotency-Key"))
             assertEquals(1, server.requestCount)
+        }
+    }
+
+    @Test
+    fun responseBodyIsConsumedAwayFromCallingThread() = runBlocking {
+        val callerThread = Thread.currentThread()
+        val sourceReadThread = AtomicReference<Thread?>()
+        val bodyText = "{\"result\":\"ok\"}"
+        val bodyBuffer = Buffer().writeUtf8(bodyText)
+        val bodySource = object : Source {
+            override fun read(sink: Buffer, byteCount: Long): Long {
+                val currentThread = Thread.currentThread()
+                sourceReadThread.set(currentThread)
+                check(currentThread !== callerThread) {
+                    "response body read on caller thread"
+                }
+                return bodyBuffer.read(sink, byteCount)
+            }
+
+            override fun timeout(): Timeout = Timeout.NONE
+
+            override fun close() = Unit
+        }.buffer()
+        val body = object : ResponseBody() {
+            override fun contentType() = "application/json".toMediaType()
+
+            override fun contentLength(): Long = bodyText.length.toLong()
+
+            override fun source(): BufferedSource = bodySource
+        }
+        val endpoint = ApiEndpoint("http://localhost/")
+        val client = ApiHttpClient.create(endpoint).newBuilder()
+            .addInterceptor { chain ->
+                okhttp3.Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(body)
+                    .build()
+            }
+            .build()
+
+        val result = ProtectedCallExecutor(endpoint, client, FakeSource()).execute(
+            ProtectedRequest(ProtectedMethod.GET, "/api/v1/technical-test")
+        ) as ProtectedResult.Success
+
+        assertEquals(bodyText, result.body)
+        assertTrue("response source must be consumed", sourceReadThread.get() != null)
+        assertFalse(
+            "response source must not be consumed on caller thread",
+            callerThread === sourceReadThread.get()
+        )
+    }
+
+    @Test
+    fun cancellationDuringResponseBodyReadCancelsCall() = runBlocking {
+        val sourceReadStarted = CountDownLatch(1)
+        val releaseSourceRead = CountDownLatch(1)
+        val callCancelled = CountDownLatch(1)
+        val bodyText = "{\"result\":\"ok\"}"
+        val bodyBuffer = Buffer().writeUtf8(bodyText)
+        val bodySource = object : Source {
+            override fun read(sink: Buffer, byteCount: Long): Long {
+                sourceReadStarted.countDown()
+                check(releaseSourceRead.await(5, TimeUnit.SECONDS)) {
+                    "test response body read was not released"
+                }
+                return bodyBuffer.read(sink, byteCount)
+            }
+
+            override fun timeout(): Timeout = Timeout.NONE
+
+            override fun close() = Unit
+        }.buffer()
+        val body = object : ResponseBody() {
+            override fun contentType() = "application/json".toMediaType()
+
+            override fun contentLength(): Long = bodyText.length.toLong()
+
+            override fun source(): BufferedSource = bodySource
+        }
+        val endpoint = ApiEndpoint("http://localhost/")
+        val client = ApiHttpClient.create(endpoint).newBuilder()
+            .eventListenerFactory {
+                object : EventListener() {
+                    override fun canceled(call: Call) {
+                        callCancelled.countDown()
+                    }
+                }
+            }
+            .addInterceptor { chain ->
+                okhttp3.Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(body)
+                    .build()
+            }
+            .build()
+        val caller = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val executor = ProtectedCallExecutor(endpoint, client, FakeSource())
+        val request = caller.async {
+            executor.execute(
+                ProtectedRequest(ProtectedMethod.GET, "/api/v1/technical-test")
+            )
+        }
+
+        try {
+            assertTrue(
+                "response source read must begin before cancellation",
+                sourceReadStarted.await(5, TimeUnit.SECONDS)
+            )
+            request.cancel()
+            assertTrue(
+                "cancelling caller must cancel the in-flight OkHttp call",
+                callCancelled.await(5, TimeUnit.SECONDS)
+            )
+            releaseSourceRead.countDown()
+            val cancellationPropagated = try {
+                request.await()
+                false
+            } catch (_: CancellationException) {
+                true
+            }
+            assertTrue("cancellation must reach the suspended caller", cancellationPropagated)
+        } finally {
+            releaseSourceRead.countDown()
+            caller.cancel()
         }
     }
 

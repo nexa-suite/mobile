@@ -61,6 +61,8 @@ jobs:
         run: |
           ./gradlew verifyAndroidArchitecture ktlintCheck lintDebug \
             :core:auth:testDebugUnitTest :core:network:testDebugUnitTest \
+            :feature:access:testDebugUnitTest :feature:warehouse:testDebugUnitTest \
+            :app:testDebugUnitTest \
             :app:assembleDebug --dependency-verification strict
 
   android-api37:
@@ -92,6 +94,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - uses: reactivecircus/android-emulator-runner@v2
+        name: Run Android 37 instrumentation without candidate credentials
         with:
           api-level: '37.0'
           target: google_apis
@@ -99,7 +102,8 @@ jobs:
           disable-animations: true
           pre-emulator-launch-script: |
             grep -qx 'target=android-37.0' "$HOME/.android/avd/test.ini"
-          script: cd apps/operations-android && ./gradlew :core:auth:connectedDebugAndroidTest :app:connectedDebugAndroidTest --dependency-verification strict
+          # Each command is launched in its own shell by android-emulator-runner; keep cd and Gradle invocations in one command.
+          script: cd apps/operations-android && ./gradlew :core:auth:connectedDebugAndroidTest --dependency-verification strict && ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=com.nexa.mobile.operations.LiveCandidateIdentityIntegrationTest --dependency-verification strict || { echo 'Android instrumentation result XML:'; cat app/build/outputs/androidTest-results/connected/debug/TEST-*.xml || true; exit 1; }
 
   android-promotion:
     needs: changes
@@ -177,12 +181,14 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - uses: reactivecircus/android-emulator-runner@v2
+        name: Run promotion instrumentation without candidate credentials
         with:
           api-level: 29
           target: google_apis
           arch: x86_64
           disable-animations: true
-          script: cd apps/operations-android && ./gradlew :core:auth:connectedDebugAndroidTest :app:connectedDebugAndroidTest --dependency-verification strict
+          # Each command is launched in its own shell by android-emulator-runner; keep cd and Gradle invocations in one command.
+          script: cd apps/operations-android && ./gradlew :core:auth:connectedDebugAndroidTest --dependency-verification strict && ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=com.nexa.mobile.operations.LiveCandidateIdentityIntegrationTest --dependency-verification strict || { echo 'Android instrumentation result XML:'; cat app/build/outputs/androidTest-results/connected/debug/TEST-*.xml || true; exit 1; }
 
   verify:
     if: always()

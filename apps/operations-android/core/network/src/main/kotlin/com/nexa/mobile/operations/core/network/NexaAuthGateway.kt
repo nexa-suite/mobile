@@ -60,9 +60,9 @@ internal data class AuthenticationBody(val accessToken: String)
 @Serializable
 internal data class SessionBody(
     val user: SessionUserBody? = null,
-    val tenant: ContextBody? = null,
-    val workspace: ContextBody? = null,
-    val membership: ContextBody? = null,
+    val tenant: TenantBody? = null,
+    val workspace: WorkspaceBody? = null,
+    val membership: MembershipBody? = null,
     val surface: String? = null
 )
 
@@ -70,10 +70,23 @@ internal data class SessionBody(
 internal data class SessionUserBody(val userId: String? = null)
 
 @Serializable
-internal data class ContextBody(
+internal data class TenantBody(
     val tenantId: String? = null,
+    val tenantName: String? = null,
+    val tenantSlug: String? = null
+)
+
+@Serializable
+internal data class WorkspaceBody(
     val workspaceId: String? = null,
-    val membershipId: String? = null
+    val workspaceName: String? = null,
+    val workspaceSlug: String? = null
+)
+
+@Serializable
+internal data class MembershipBody(
+    val membershipId: String? = null,
+    val permissions: Set<String> = emptySet()
 )
 
 class NexaAuthGateway private constructor(private val service: NativeAuthService) :
@@ -108,7 +121,16 @@ class NexaAuthGateway private constructor(private val service: NativeAuthService
                     !body.user?.userId.isNullOrBlank() &&
                     !body.tenant?.tenantId.isNullOrBlank() &&
                     !body.workspace?.workspaceId.isNullOrBlank() &&
-                    !body.membership?.membershipId.isNullOrBlank()
+                    !body.membership?.membershipId.isNullOrBlank(),
+                userId = body.user?.userId,
+                tenantId = body.tenant?.tenantId,
+                tenantName = body.tenant?.tenantName,
+                tenantSlug = body.tenant?.tenantSlug,
+                workspaceId = body.workspace?.workspaceId,
+                workspaceName = body.workspace?.workspaceName,
+                workspaceSlug = body.workspace?.workspaceSlug,
+                membershipId = body.membership?.membershipId,
+                permissions = body.membership?.permissions.orEmpty()
             )
         }
 

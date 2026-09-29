@@ -56,7 +56,10 @@ class NexaAuthGatewayTest {
             server.enqueue(
                 MockResponse().setBody(SESSION_JSON).addHeader("Content-Type", "application/json")
             )
-            assertTrue(gateway.currentSession("access-2").hasAuthorizedContext)
+            val verifiedSession = gateway.currentSession("access-2")
+            assertTrue(verifiedSession.hasAuthorizedContext)
+            assertEquals("Tenant Name", verifiedSession.tenantName)
+            assertEquals("Workspace Name", verifiedSession.workspaceName)
             val session = server.takeRequest()
             assertEquals("GET", session.method)
             assertEquals("/api/v1/session", session.path)
@@ -168,8 +171,8 @@ class NexaAuthGatewayTest {
 }
 
 internal val SESSION_JSON =
-    """{"user":{"userId":"u"},"tenant":{"tenantId":"t"},
-       "workspace":{"workspaceId":"w"},"membership":{"membershipId":"m"},
+    """{"user":{"userId":"u"},"tenant":{"tenantId":"t","tenantName":"Tenant Name"},
+       "workspace":{"workspaceId":"w","workspaceName":"Workspace Name"},"membership":{"membershipId":"m"},
        "surface":"PLATFORM"}"""
 
 internal fun issued(access: String, refresh: String): MockResponse = MockResponse()
