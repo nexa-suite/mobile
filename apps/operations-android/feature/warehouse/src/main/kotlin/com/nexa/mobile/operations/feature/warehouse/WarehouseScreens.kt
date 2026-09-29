@@ -117,153 +117,28 @@ fun ProductSearchScreen(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        NexaTopAppBar(title = stringResource(R.string.warehouse_operations_title), onBack = onBack)
-        if (state.status !in
-            setOf(ProductSearchStatus.ContextInvalidated, ProductSearchStatus.SessionInvalidated)
-        ) {
-            activeContext?.let { context ->
-                NexaActiveContextBar(
-                    companyName = context.companyName,
-                    workspaceName = context.workspaceName,
-                    enabled = true,
-                    onClick = onChangeContext
+        WarehouseSurfaceHeader(
+            title = stringResource(R.string.warehouse_operations_title),
+            activeContext = activeContext.takeUnless {
+                state.status in setOf(
+                    ProductSearchStatus.ContextInvalidated,
+                    ProductSearchStatus.SessionInvalidated
                 )
-            }
-        }
-        Text(
-            stringResource(R.string.warehouse_search_title),
-            style = MaterialTheme.typography.headlineSmall
-        )
-        Text(
-            stringResource(R.string.warehouse_search_helper),
-            style = MaterialTheme.typography.bodyMedium
-        )
-        NexaSearchField(
-            value = state.query,
-            onValueChange = onQueryChanged,
-            label = stringResource(
-                com.nexa.mobile.operations.core.designsystem.R.string.nexa_search_label
-            ),
-            hint = stringResource(
-                com.nexa.mobile.operations.core.designsystem.R.string.nexa_search_hint
-            ),
-            errorText = if (state.status == ProductSearchStatus.InvalidQuery) {
-                stringResource(R.string.warehouse_search_invalid)
-            } else {
-                null
             },
-            onImeSearch = onSearch
+            onChangeContext = onChangeContext,
+            onBack = onBack
         )
-        NexaPrimaryButton(
-            label = stringResource(
-                com.nexa.mobile.operations.core.designsystem.R.string.nexa_search_button
-            ),
-            onClick = onSearch,
-            loading = state.status == ProductSearchStatus.Loading
+        ProductSearchQuerySection(
+            state = state,
+            onQueryChanged = onQueryChanged,
+            onSearch = onSearch
         )
-        Text(
-            stringResource(R.string.warehouse_results_title),
-            style = MaterialTheme.typography.titleMedium
+        ProductSearchResultsSection(
+            state = state,
+            onLoadMore = onLoadMore,
+            onSearch = onSearch,
+            onSelectCandidate = onSelectCandidate
         )
-        when (state.status) {
-            ProductSearchStatus.Initial, ProductSearchStatus.Typing -> NexaStatePanel(
-                title = stringResource(R.string.warehouse_search_initial_title),
-                description = stringResource(R.string.warehouse_search_initial_body)
-            )
-
-            ProductSearchStatus.InvalidQuery -> Unit
-
-            ProductSearchStatus.Loading -> LoadingPanel()
-
-            ProductSearchStatus.Empty -> NexaStatePanel(
-                title = stringResource(R.string.warehouse_search_empty_title),
-                description = stringResource(R.string.warehouse_search_empty_body)
-            )
-
-            ProductSearchStatus.OneCandidate,
-            ProductSearchStatus.MultipleCandidates,
-            ProductSearchStatus.LoadingMore,
-            ProductSearchStatus.LoadMoreFailed,
-            ProductSearchStatus.ConfirmationPending,
-            ProductSearchStatus.CandidateUnavailable,
-            ProductSearchStatus.NetworkUnavailable,
-            ProductSearchStatus.ServiceUnavailable,
-            ProductSearchStatus.PermissionDenied,
-            ProductSearchStatus.IntegrationUnavailable
-            -> {
-                if (state.status == ProductSearchStatus.ConfirmationPending) {
-                    NexaFeedbackBanner(
-                        message = stringResource(R.string.warehouse_confirmation_pending_body),
-                        tone = NexaFeedbackTone.Information
-                    )
-                }
-                if (state.status == ProductSearchStatus.CandidateUnavailable) {
-                    NexaStatePanel(
-                        title = stringResource(R.string.warehouse_candidate_unavailable_title),
-                        description = stringResource(R.string.warehouse_candidate_unavailable_body)
-                    )
-                }
-                state.errorMessage?.let { status ->
-                    NexaFeedbackBanner(
-                        message = stringResource(status.messageResource()),
-                        tone = status.tone()
-                    )
-                }
-                state.candidates.forEach { candidate ->
-                    NexaProductCandidateRow(
-                        name = candidate.productDisplayName,
-                        variant = candidate.brandOrVariant,
-                        presentation = candidate.presentation,
-                        sku = candidate.sku,
-                        pending = state.pendingCandidateKey == candidate.key,
-                        enabled = state.status in setOf(
-                            ProductSearchStatus.OneCandidate,
-                            ProductSearchStatus.MultipleCandidates,
-                            ProductSearchStatus.LoadMoreFailed
-                        ),
-                        onClick = { onSelectCandidate(candidate.key) }
-                    )
-                }
-                if (state.status == ProductSearchStatus.LoadMoreFailed) {
-                    NexaPrimaryButton(
-                        label = stringResource(R.string.warehouse_load_more_retry),
-                        onClick = onLoadMore
-                    )
-                } else if (state.nextPageKey != null &&
-                    state.status != ProductSearchStatus.ConfirmationPending
-                ) {
-                    NexaPrimaryButton(
-                        label = stringResource(
-                            com.nexa.mobile.operations.core.designsystem.R.string.nexa_show_more
-                        ),
-                        onClick = onLoadMore,
-                        enabled = state.status != ProductSearchStatus.LoadingMore,
-                        loading = state.status == ProductSearchStatus.LoadingMore
-                    )
-                }
-                if (state.status in setOf(
-                        ProductSearchStatus.NetworkUnavailable,
-                        ProductSearchStatus.ServiceUnavailable,
-                        ProductSearchStatus.IntegrationUnavailable
-                    )
-                ) {
-                    NexaPrimaryButton(
-                        label = stringResource(R.string.warehouse_search_retry),
-                        onClick = onSearch
-                    )
-                }
-            }
-
-            ProductSearchStatus.ContextInvalidated -> NexaStatePanel(
-                title = stringResource(R.string.warehouse_context_invalid_title),
-                description = stringResource(R.string.warehouse_context_error)
-            )
-
-            ProductSearchStatus.SessionInvalidated -> NexaStatePanel(
-                title = stringResource(R.string.warehouse_session_invalid_title),
-                description = stringResource(R.string.warehouse_session_error)
-            )
-        }
     }
 }
 
@@ -282,44 +157,241 @@ fun ConfirmedSkuScreen(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        NexaTopAppBar(title = stringResource(R.string.warehouse_operations_title), onBack = onBack)
+        WarehouseSurfaceHeader(
+            title = stringResource(R.string.warehouse_operations_title),
+            activeContext = state.context,
+            onChangeContext = onChangeContext,
+            onBack = onBack
+        )
+        ConfirmedSkuHierarchy(state = state)
+    }
+}
+
+@Composable
+private fun WarehouseSurfaceHeader(
+    title: String,
+    activeContext: ActiveOperationsContext?,
+    onChangeContext: () -> Unit,
+    onBack: (() -> Unit)? = null
+) {
+    NexaTopAppBar(title = title, onBack = onBack)
+    activeContext?.let { context ->
         NexaActiveContextBar(
-            companyName = state.context.companyName,
-            workspaceName = state.context.workspaceName,
+            companyName = context.companyName,
+            workspaceName = context.workspaceName,
             enabled = true,
             onClick = onChangeContext
         )
-        Text(
-            stringResource(R.string.warehouse_confirmation_title),
-            style = MaterialTheme.typography.headlineSmall
+    }
+}
+
+@Composable
+private fun ProductSearchQuerySection(
+    state: ProductSearchUiState,
+    onQueryChanged: (String) -> Unit,
+    onSearch: () -> Unit
+) {
+    Text(
+        stringResource(R.string.warehouse_search_title),
+        style = MaterialTheme.typography.headlineSmall
+    )
+    Text(
+        stringResource(R.string.warehouse_search_helper),
+        style = MaterialTheme.typography.bodyMedium
+    )
+    NexaSearchField(
+        value = state.query,
+        onValueChange = onQueryChanged,
+        label = stringResource(
+            com.nexa.mobile.operations.core.designsystem.R.string.nexa_search_label
+        ),
+        hint = stringResource(
+            com.nexa.mobile.operations.core.designsystem.R.string.nexa_search_hint
+        ),
+        errorText = if (state.status == ProductSearchStatus.InvalidQuery) {
+            stringResource(R.string.warehouse_search_invalid)
+        } else {
+            null
+        },
+        onImeSearch = onSearch
+    )
+    NexaPrimaryButton(
+        label = stringResource(
+            com.nexa.mobile.operations.core.designsystem.R.string.nexa_search_button
+        ),
+        onClick = onSearch,
+        loading = state.status == ProductSearchStatus.Loading
+    )
+}
+
+@Composable
+private fun ProductSearchResultsSection(
+    state: ProductSearchUiState,
+    onLoadMore: () -> Unit,
+    onSearch: () -> Unit,
+    onSelectCandidate: (String) -> Unit
+) {
+    Text(
+        stringResource(R.string.warehouse_results_title),
+        style = MaterialTheme.typography.titleMedium
+    )
+    when (state.status) {
+        ProductSearchStatus.Initial, ProductSearchStatus.Typing -> NexaStatePanel(
+            title = stringResource(R.string.warehouse_search_initial_title),
+            description = stringResource(R.string.warehouse_search_initial_body)
         )
-        NexaConfirmedSkuSummary(
-            productName = state.productDisplayName,
-            variant = state.variant,
-            presentation = state.presentation,
-            sku = state.sku,
-            brand = state.brand,
-            unit = when (state.unit) {
-                "UNIT" -> stringResource(R.string.warehouse_value_unit)
-                else -> state.unit
-            },
-            packaging = when (state.packaging) {
-                "UNSPECIFIED" -> stringResource(R.string.warehouse_value_packaging_unspecified)
-                else -> state.packaging
-            },
-            coldChain = when (state.coldChain) {
-                "NONE" -> stringResource(R.string.warehouse_value_cold_chain_none)
-                "REFRIGERATED" -> stringResource(R.string.warehouse_value_cold_chain_refrigerated)
-                "FROZEN" -> stringResource(R.string.warehouse_value_cold_chain_frozen)
-                else -> state.coldChain
-            },
-            activeContext = "${state.context.companyName} · ${state.context.workspaceName}"
+
+        ProductSearchStatus.InvalidQuery -> Unit
+
+        ProductSearchStatus.Loading -> LoadingPanel()
+
+        ProductSearchStatus.Empty -> NexaStatePanel(
+            title = stringResource(R.string.warehouse_search_empty_title),
+            description = stringResource(R.string.warehouse_search_empty_body)
         )
-        Text(
-            stringResource(R.string.warehouse_inventory_disclaimer),
-            style = MaterialTheme.typography.bodyMedium
+
+        ProductSearchStatus.OneCandidate,
+        ProductSearchStatus.MultipleCandidates,
+        ProductSearchStatus.LoadingMore,
+        ProductSearchStatus.LoadMoreFailed,
+        ProductSearchStatus.ConfirmationPending,
+        ProductSearchStatus.CandidateUnavailable,
+        ProductSearchStatus.NetworkUnavailable,
+        ProductSearchStatus.ServiceUnavailable,
+        ProductSearchStatus.PermissionDenied,
+        ProductSearchStatus.IntegrationUnavailable
+        -> {
+            ProductSearchFeedback(
+                status = state.status,
+                errorMessage = state.errorMessage
+            )
+            val candidateSelectionEnabled = state.status in setOf(
+                ProductSearchStatus.OneCandidate,
+                ProductSearchStatus.MultipleCandidates,
+                ProductSearchStatus.LoadMoreFailed
+            )
+            state.candidates.forEach { candidate ->
+                ProductCandidateResult(
+                    candidate = candidate,
+                    pending = state.pendingCandidateKey == candidate.key,
+                    enabled = candidateSelectionEnabled,
+                    onSelectCandidate = onSelectCandidate
+                )
+            }
+            if (state.status == ProductSearchStatus.LoadMoreFailed) {
+                NexaPrimaryButton(
+                    label = stringResource(R.string.warehouse_load_more_retry),
+                    onClick = onLoadMore
+                )
+            } else if (state.nextPageKey != null &&
+                state.status != ProductSearchStatus.ConfirmationPending
+            ) {
+                NexaPrimaryButton(
+                    label = stringResource(
+                        com.nexa.mobile.operations.core.designsystem.R.string.nexa_show_more
+                    ),
+                    onClick = onLoadMore,
+                    enabled = state.status != ProductSearchStatus.LoadingMore,
+                    loading = state.status == ProductSearchStatus.LoadingMore
+                )
+            }
+            if (state.status in setOf(
+                    ProductSearchStatus.NetworkUnavailable,
+                    ProductSearchStatus.ServiceUnavailable,
+                    ProductSearchStatus.IntegrationUnavailable
+                )
+            ) {
+                NexaPrimaryButton(
+                    label = stringResource(R.string.warehouse_search_retry),
+                    onClick = onSearch
+                )
+            }
+        }
+
+        ProductSearchStatus.ContextInvalidated -> NexaStatePanel(
+            title = stringResource(R.string.warehouse_context_invalid_title),
+            description = stringResource(R.string.warehouse_context_error)
+        )
+
+        ProductSearchStatus.SessionInvalidated -> NexaStatePanel(
+            title = stringResource(R.string.warehouse_session_invalid_title),
+            description = stringResource(R.string.warehouse_session_error)
         )
     }
+}
+
+@Composable
+private fun ProductSearchFeedback(status: ProductSearchStatus, errorMessage: ProductSearchStatus?) {
+    if (status == ProductSearchStatus.ConfirmationPending) {
+        NexaFeedbackBanner(
+            message = stringResource(R.string.warehouse_confirmation_pending_body),
+            tone = NexaFeedbackTone.Information
+        )
+    }
+    if (status == ProductSearchStatus.CandidateUnavailable) {
+        NexaStatePanel(
+            title = stringResource(R.string.warehouse_candidate_unavailable_title),
+            description = stringResource(R.string.warehouse_candidate_unavailable_body)
+        )
+    }
+    errorMessage?.let { messageStatus ->
+        NexaFeedbackBanner(
+            message = stringResource(messageStatus.messageResource()),
+            tone = messageStatus.tone()
+        )
+    }
+}
+
+@Composable
+private fun ProductCandidateResult(
+    candidate: ProductCandidate,
+    pending: Boolean,
+    enabled: Boolean,
+    onSelectCandidate: (String) -> Unit
+) {
+    NexaProductCandidateRow(
+        name = candidate.productDisplayName,
+        variant = candidate.brandOrVariant,
+        presentation = candidate.presentation,
+        sku = candidate.sku,
+        pending = pending,
+        enabled = enabled,
+        onClick = { onSelectCandidate(candidate.key) }
+    )
+}
+
+@Composable
+private fun ConfirmedSkuHierarchy(state: ConfirmedSkuUiState) {
+    Text(
+        stringResource(R.string.warehouse_confirmation_title),
+        style = MaterialTheme.typography.headlineSmall
+    )
+    NexaConfirmedSkuSummary(
+        productName = state.productDisplayName,
+        variant = state.variant,
+        presentation = state.presentation,
+        sku = state.sku,
+        brand = state.brand,
+        unit = when (state.unit) {
+            "UNIT" -> stringResource(R.string.warehouse_value_unit)
+            else -> state.unit
+        },
+        packaging = when (state.packaging) {
+            "UNSPECIFIED" -> stringResource(R.string.warehouse_value_packaging_unspecified)
+            else -> state.packaging
+        },
+        coldChain = when (state.coldChain) {
+            "NONE" -> stringResource(R.string.warehouse_value_cold_chain_none)
+            "REFRIGERATED" -> stringResource(R.string.warehouse_value_cold_chain_refrigerated)
+            "FROZEN" -> stringResource(R.string.warehouse_value_cold_chain_frozen)
+            else -> state.coldChain
+        },
+        activeContext = "${state.context.companyName} · ${state.context.workspaceName}"
+    )
+    Text(
+        stringResource(R.string.warehouse_inventory_disclaimer),
+        style = MaterialTheme.typography.bodyMedium
+    )
 }
 
 @Composable
