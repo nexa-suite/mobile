@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.1 - 2026-09-28
+
+### Added
+
+- Consolidated Wave 2 and design-readiness presentation baseline for Operations Android.
+- Authoritative warehouse identification, root navigation context routing, and debug review harness.
+- Protected `NexaCatalogGateway` with product search, detail gateway, and epoch-scoped warehouse invalidation.
+- Design-ready theme tokens and visual foundations aligned with Nexa Design Lab (Navy `#082846` palette, Knox biometric, high-contrast states).
+- SCM reconciliation unifying canonical branches across Wave 2 and Wave 3 handoff.
+
 ## 0.1.0 - 2026-09-23
 
 ### Added
