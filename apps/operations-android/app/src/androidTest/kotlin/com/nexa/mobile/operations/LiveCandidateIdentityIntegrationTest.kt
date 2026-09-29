@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.compose.ui.test.ComposeTimeoutException
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
@@ -61,15 +62,16 @@ class LiveCandidateIdentityIntegrationTest {
         }
 
         composeRule.waitUntil(timeoutMillis = 15_000) {
-            composeRule.onAllNodes(hasSetTextAction() and hasText("Identificador"))
-                .fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodes(hasSetTextAction(), useUnmergedTree = true)
+                .fetchSemanticsNodes().size == 2
         }
-        composeRule.onNode(hasSetTextAction() and hasText("Identificador"))
-            .performTextInput(identifier!!)
-        composeRule.onNode(hasSetTextAction() and hasText("Contraseña"))
-            .performTextInput(password!!)
-        composeRule.onNode(hasSetTextAction() and hasText("Contraseña"))
-            .performImeAction()
+        val identityFields = composeRule.onAllNodes(hasSetTextAction(), useUnmergedTree = true)
+        identityFields.assertCountEquals(2)
+        composeRule.onNodeWithText("Identificador").assertIsDisplayed()
+        composeRule.onNodeWithText("Contraseña").assertIsDisplayed()
+        identityFields[0].performTextInput(identifier!!)
+        identityFields[1].performTextInput(password!!)
+        identityFields[1].performImeAction()
         Espresso.closeSoftKeyboard()
         val form = ViewModelProvider(composeRule.activity)[AccessViewModel::class.java].state.value
         assertTrue(
