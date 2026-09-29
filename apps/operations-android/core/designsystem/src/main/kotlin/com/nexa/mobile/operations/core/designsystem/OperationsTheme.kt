@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -138,52 +139,102 @@ private val NexaLightColors = lightColorScheme(
 /** Typography roles consumed by OperationsTheme and reusable components. */
 object NexaTypography {
     private val defaults = Typography()
+    private val display = FontFamily(
+        Font(R.font.plus_jakarta_sans_semibold, weight = FontWeight.SemiBold),
+        Font(R.font.plus_jakarta_sans_bold, weight = FontWeight.Bold)
+    )
+    private val body = FontFamily(
+        Font(R.font.inter_regular, weight = FontWeight.Normal),
+        Font(R.font.inter_semibold, weight = FontWeight.SemiBold)
+    )
+
+    val headlineLarge = defaults.headlineLarge.copy(
+        fontFamily = display,
+        fontSize = 30.sp,
+        fontWeight = FontWeight.Bold,
+        lineHeight = 36.sp
+    )
 
     val headlineSmall = defaults.headlineSmall.copy(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = display,
         fontSize = 24.sp,
         fontWeight = FontWeight.Bold,
         lineHeight = 32.sp
     )
     val titleLarge = defaults.titleLarge.copy(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = display,
         fontSize = 22.sp,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Bold,
         lineHeight = 28.sp
     )
     val titleMedium = defaults.titleMedium.copy(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = display,
         fontSize = 16.sp,
         fontWeight = FontWeight.SemiBold,
         lineHeight = 24.sp
     )
+    val titleSmall = defaults.titleSmall.copy(
+        fontFamily = display,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.SemiBold,
+        lineHeight = 20.sp
+    )
     val bodyLarge = defaults.bodyLarge.copy(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = body,
         fontSize = 16.sp,
         fontWeight = FontWeight.Normal,
         lineHeight = 24.sp
     )
     val bodyMedium = defaults.bodyMedium.copy(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = body,
         fontSize = 14.sp,
         fontWeight = FontWeight.Normal,
         lineHeight = 20.sp
     )
+    val bodySmall = defaults.bodySmall.copy(
+        fontFamily = body,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Normal,
+        lineHeight = 18.sp
+    )
     val labelLarge = defaults.labelLarge.copy(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = body,
         fontSize = 14.sp,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.SemiBold,
         lineHeight = 20.sp
+    )
+    val labelMedium = defaults.labelMedium.copy(
+        fontFamily = body,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        lineHeight = 18.sp
+    )
+    val labelSmall = defaults.labelSmall.copy(
+        fontFamily = body,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        lineHeight = 16.sp
+    )
+    val identifier = TextStyle(
+        fontFamily = FontFamily.Monospace,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Medium,
+        lineHeight = 18.sp
     )
     val backGlyph = TextStyle(fontSize = 28.sp)
 
     val material = Typography(
+        headlineLarge = headlineLarge,
         headlineSmall = headlineSmall,
         titleLarge = titleLarge,
         titleMedium = titleMedium,
+        titleSmall = titleSmall,
         bodyLarge = bodyLarge,
         bodyMedium = bodyMedium,
-        labelLarge = labelLarge
+        bodySmall = bodySmall,
+        labelLarge = labelLarge,
+        labelMedium = labelMedium,
+        labelSmall = labelSmall
     )
 }
 
