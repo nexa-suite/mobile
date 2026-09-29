@@ -15,40 +15,78 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Color roles align with the mobile token reference; text keeps Android's native sans-serif. */
+/** Frozen Design Lab v1.1.1 semantic colors; brand-only roles stay separate. */
 object NexaColors {
-    val Brand = Color(0xFF2A67D9)
-    val BrandStrong = Color(0xFF1D4ED8)
-    val OnBrand = Color.White
+    val Primary = Color(0xFF2563EB)
+    val PrimaryStrong = Color(0xFF1D4ED8)
+    val OnPrimary = Color.White
     val PrimaryContainer = Color(0xFFDBEAFE)
     val OnPrimaryContainer = Color(0xFF1E40AF)
+    val Focus = Primary
+
+    // The frozen Mobile Style uses these only on Nexa identity surfaces.
+    val BrandNavy = Color(0xFF082846)
+    val BrandCeleste = Color(0xFF38C8FF)
+
+    // Transitional aliases keep the existing component API compiling until its visual pass.
+    val Brand = Primary
+    val BrandStrong = PrimaryStrong
+    val OnBrand = OnPrimary
+
     val Canvas = Color(0xFFF6FAFF)
     val Surface = Color(0xFFFFFFFF)
     val SurfaceInset = Color(0xFFF1F5F9)
     val TextPrimary = Color(0xFF0F172A)
     val TextSecondary = Color(0xFF64748B)
-    val TextMuted = Color(0xFF64748B)
+    val TextMuted = Color(0xFF94A3B8)
     val Border = Color(0xFFE2E8F0)
     val BorderStrong = Color(0xFFCBD5E1)
-    val InfoSurface = Color(0xFFEEF6FF)
-    val Info = BrandStrong
+    val InfoSurface = Color(0xFFEFF6FF)
+    val InfoBorder = Color(0xFF93C5FD)
+    val Info = Color(0xFF1D4ED8)
     val SuccessSurface = Color(0xFFF0FDF4)
+    val SuccessBorder = Color(0xFFBBF7D0)
     val Success = Color(0xFF15803D)
     val WarningSurface = Color(0xFFFFFBEB)
+    val WarningBorder = Color(0xFFFCD34D)
     val Warning = Color(0xFF92400E)
     val DangerSurface = Color(0xFFFEF2F2)
+    val DangerBorder = Color(0xFFDC2626)
     val Danger = Color(0xFF991B1B)
+
+    val ColdRefrigerated = Color(0xFF0284C7)
+    val ColdRefrigeratedSurface = Color(0xFFF0F9FF)
+    val ColdRefrigeratedBorder = Color(0xFFBAE6FD)
+    val ColdRefrigeratedText = Color(0xFF075985)
+    val ColdFrozen = Color(0xFF4F46E5)
+    val ColdFrozenSurface = Color(0xFFEEF2FF)
+    val ColdFrozenBorder = Color(0xFFC7D2FE)
+    val ColdFrozenText = Color(0xFF3730A3)
 }
 
 /** Semantic shapes used by the Operations component set. */
 object NexaShapes {
+    val control = RoundedCornerShape(10.dp)
     val button = RoundedCornerShape(12.dp)
-    val surface = RoundedCornerShape(16.dp)
     val row = RoundedCornerShape(12.dp)
+    val card = RoundedCornerShape(16.dp)
+    val surface = card
+    val panel = RoundedCornerShape(18.dp)
+    val dialog = RoundedCornerShape(24.dp)
+    val pill = RoundedCornerShape(percent = 50)
 }
 
 /** Repeated spacing roles; one-off layout details stay local to their component. */
 object NexaSpacing {
+    val micro = 4.dp
+    val base = 8.dp
+    val compact = 12.dp
+    val standard = 16.dp
+    val comfortable = 20.dp
+    val section = 24.dp
+    val large = 32.dp
+    val hero = 40.dp
+
     val textTight = 2.dp
     val textCompact = 4.dp
     val topBarVertical = 8.dp
@@ -66,7 +104,7 @@ object NexaSizes {
     val borderWidth = 1.dp
     val topBarMinHeight = 56.dp
     val controlMinHeight = 56.dp
-    val primaryButtonMinHeight = 52.dp
+    val primaryButtonMinHeight = 56.dp
     val minimumTouchTarget = 48.dp
     val icon = 24.dp
     val buttonProgress = 18.dp
@@ -77,22 +115,22 @@ object NexaSizes {
 }
 
 private val NexaLightColors = lightColorScheme(
-    primary = NexaColors.Brand,
-    onPrimary = NexaColors.OnBrand,
+    primary = NexaColors.Primary,
+    onPrimary = NexaColors.OnPrimary,
     primaryContainer = NexaColors.PrimaryContainer,
     onPrimaryContainer = NexaColors.OnPrimaryContainer,
     secondary = NexaColors.TextSecondary,
-    onSecondary = NexaColors.OnBrand,
+    onSecondary = NexaColors.OnPrimary,
     background = NexaColors.Canvas,
     onBackground = NexaColors.TextPrimary,
     surface = NexaColors.Surface,
     onSurface = NexaColors.TextPrimary,
     surfaceVariant = NexaColors.SurfaceInset,
-    onSurfaceVariant = NexaColors.TextPrimary,
+    onSurfaceVariant = NexaColors.TextSecondary,
     outline = NexaColors.BorderStrong,
     outlineVariant = NexaColors.Border,
-    error = NexaColors.Danger,
-    onError = NexaColors.OnBrand,
+    error = NexaColors.DangerBorder,
+    onError = NexaColors.OnPrimary,
     errorContainer = NexaColors.DangerSurface,
     onErrorContainer = NexaColors.Danger
 )
