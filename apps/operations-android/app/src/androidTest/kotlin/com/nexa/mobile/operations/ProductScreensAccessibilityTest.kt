@@ -11,6 +11,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -292,6 +293,96 @@ class ProductScreensAccessibilityTest {
         composeRule.onNodeWithText("Recibir", substring = true).assertDoesNotExist()
         composeRule.onNodeWithText("Ajustar existencias", substring = true).assertDoesNotExist()
         composeRule.runOnIdle { assertEquals(1, contextChanges) }
+    }
+
+    @Test
+    fun longCandidateKeepsItsIdentityReadableAndPendingSelectionUnavailableAtLargeFont() {
+        val candidate = ProductCandidate(
+            key = "candidate-long",
+            productDisplayName =
+                "Queso Gouda Demo de maduración prolongada para presentación institucional",
+            brandOrVariant = "Lácteo de larga denominación",
+            presentation = "Bloque refrigerado · 500 g",
+            sku = "SKU-DEMO-LONG-001"
+        )
+        composeRule.setContent {
+            OperationsTheme {
+                CompactViewport {
+                    ProductSearchScreen(
+                        state = ProductSearchUiState(
+                            query = "gouda",
+                            status = ProductSearchStatus.ConfirmationPending,
+                            candidates = listOf(candidate),
+                            pendingCandidateKey = candidate.key
+                        ),
+                        activeContext = ActiveOperationsContext(
+                            "Nexa Demo Distribución",
+                            "Almacén Principal",
+                            0
+                        ),
+                        onChangeContext = {},
+                        onBack = {},
+                        onQueryChanged = {},
+                        onSearch = {},
+                        onLoadMore = {},
+                        onSelectCandidate = {}
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithText(candidate.productDisplayName, useUnmergedTree = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("SKU: SKU-DEMO-LONG-001", useUnmergedTree = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(
+            "${candidate.productDisplayName}, ${candidate.brandOrVariant}, " +
+                "${candidate.presentation}, SKU: ${candidate.sku}. Seleccionar producto."
+        ).assertIsNotEnabled()
+    }
+
+    @Test
+    fun longConfirmedProductAndInventoryDisclaimerRemainReachableAtLargeFont() {
+        val productName =
+            "Queso Gouda Demo de maduración prolongada para presentación institucional"
+        composeRule.setContent {
+            OperationsTheme {
+                CompactViewport {
+                    ConfirmedSkuScreen(
+                        state = ConfirmedSkuUiState(
+                            candidateKey = "candidate-long",
+                            productDisplayName = productName,
+                            variant = null,
+                            presentation = "Bloque · 500 g",
+                            sku = "SKU-DEMO-LONG-001",
+                            brand = null,
+                            unit = null,
+                            packaging = null,
+                            coldChain = "FROZEN",
+                            context = ActiveOperationsContext(
+                                "Nexa Demo Distribución",
+                                "Almacén Principal",
+                                0
+                            ),
+                            authorityEpoch = 0
+                        ),
+                        onChangeContext = {},
+                        onBack = {}
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithText(productName).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("SKU-DEMO-LONG-001")
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("Congelado").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("No se realizó ninguna operación de inventario.")
+            .performScrollTo()
+            .assertIsDisplayed()
     }
 }
 

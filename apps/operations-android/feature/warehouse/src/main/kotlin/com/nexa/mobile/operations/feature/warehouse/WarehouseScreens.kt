@@ -1,7 +1,9 @@
 package com.nexa.mobile.operations.feature.warehouse
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,16 +13,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.core.designsystem.NexaActiveContextBar
+import com.nexa.mobile.operations.core.designsystem.NexaColdChainTone
+import com.nexa.mobile.operations.core.designsystem.NexaColors
 import com.nexa.mobile.operations.core.designsystem.NexaConfirmedSkuSummary
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackBanner
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackTone
@@ -30,6 +38,7 @@ import com.nexa.mobile.operations.core.designsystem.NexaSearchField
 import com.nexa.mobile.operations.core.designsystem.NexaStatePanel
 import com.nexa.mobile.operations.core.designsystem.NexaTaskRow
 import com.nexa.mobile.operations.core.designsystem.NexaTopAppBar
+import com.nexa.mobile.operations.core.designsystem.R as DesignR
 
 @Composable
 fun OperationsWorkEntryScreen(
@@ -41,57 +50,62 @@ fun OperationsWorkEntryScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(NexaColors.Canvas)
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         NexaTopAppBar(title = stringResource(R.string.warehouse_operations_title))
-        state.activeContext?.let { context ->
-            NexaActiveContextBar(
-                companyName = context.companyName,
-                workspaceName = context.workspaceName,
-                enabled = true,
-                onClick = onChangeContext
-            )
-        }
-        when (state.workEntryStatus) {
-            WorkEntryStatus.TaskAvailable -> {
-                Text(
-                    stringResource(R.string.warehouse_work_available),
-                    style = MaterialTheme.typography.titleMedium
-                )
-                NexaTaskRow(
-                    title = stringResource(R.string.warehouse_identify_product),
-                    description = stringResource(R.string.warehouse_identify_product_support),
-                    onClick = onIdentifyProduct
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            state.activeContext?.let { context ->
+                NexaActiveContextBar(
+                    companyName = context.companyName,
+                    workspaceName = context.workspaceName,
+                    enabled = true,
+                    onClick = onChangeContext
                 )
             }
+            when (state.workEntryStatus) {
+                WorkEntryStatus.TaskAvailable -> {
+                    Text(
+                        stringResource(R.string.warehouse_work_available),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = NexaColors.TextPrimary
+                    )
+                    NexaTaskRow(
+                        title = stringResource(R.string.warehouse_identify_product),
+                        description = stringResource(R.string.warehouse_identify_product_support),
+                        onClick = onIdentifyProduct
+                    )
+                }
 
-            WorkEntryStatus.NoPermittedTask -> NexaStatePanel(
-                title = stringResource(R.string.warehouse_no_task_title),
-                description = stringResource(R.string.warehouse_no_task_body)
-            )
+                WorkEntryStatus.NoPermittedTask -> NexaStatePanel(
+                    title = stringResource(R.string.warehouse_no_task_title),
+                    description = stringResource(R.string.warehouse_no_task_body)
+                )
 
-            WorkEntryStatus.PermissionUnavailable -> NexaStatePanel(
-                title = stringResource(R.string.warehouse_permission_title),
-                description = stringResource(R.string.warehouse_permission_body)
-            )
+                WorkEntryStatus.PermissionUnavailable -> NexaStatePanel(
+                    title = stringResource(R.string.warehouse_permission_title),
+                    description = stringResource(R.string.warehouse_permission_body)
+                )
 
-            WorkEntryStatus.PermissionUnknown -> NexaStatePanel(
-                title = stringResource(R.string.warehouse_permission_unknown_title),
-                description = stringResource(R.string.warehouse_permission_unknown_body)
-            )
+                WorkEntryStatus.PermissionUnknown -> NexaStatePanel(
+                    title = stringResource(R.string.warehouse_permission_unknown_title),
+                    description = stringResource(R.string.warehouse_permission_unknown_body)
+                )
 
-            WorkEntryStatus.ContextInvalidated -> NexaStatePanel(
-                title = stringResource(R.string.warehouse_context_invalid_title),
-                description = stringResource(R.string.warehouse_context_invalid_body)
-            )
+                WorkEntryStatus.ContextInvalidated -> NexaStatePanel(
+                    title = stringResource(R.string.warehouse_context_invalid_title),
+                    description = stringResource(R.string.warehouse_context_invalid_body)
+                )
 
-            WorkEntryStatus.SessionInvalidated -> NexaStatePanel(
-                title = stringResource(R.string.warehouse_session_invalid_title),
-                description = stringResource(R.string.warehouse_session_invalid_body)
-            )
+                WorkEntryStatus.SessionInvalidated -> NexaStatePanel(
+                    title = stringResource(R.string.warehouse_session_invalid_title),
+                    description = stringResource(R.string.warehouse_session_invalid_body)
+                )
+            }
         }
     }
 }
@@ -111,11 +125,10 @@ fun ProductSearchScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(NexaColors.Canvas)
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .imePadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         WarehouseSurfaceHeader(
             title = stringResource(R.string.warehouse_operations_title),
@@ -128,17 +141,22 @@ fun ProductSearchScreen(
             onChangeContext = onChangeContext,
             onBack = onBack
         )
-        ProductSearchQuerySection(
-            state = state,
-            onQueryChanged = onQueryChanged,
-            onSearch = onSearch
-        )
-        ProductSearchResultsSection(
-            state = state,
-            onLoadMore = onLoadMore,
-            onSearch = onSearch,
-            onSelectCandidate = onSelectCandidate
-        )
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            ProductSearchQuerySection(
+                state = state,
+                onQueryChanged = onQueryChanged,
+                onSearch = onSearch
+            )
+            ProductSearchResultsSection(
+                state = state,
+                onLoadMore = onLoadMore,
+                onSearch = onSearch,
+                onSelectCandidate = onSelectCandidate
+            )
+        }
     }
 }
 
@@ -152,10 +170,9 @@ fun ConfirmedSkuScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(NexaColors.Canvas)
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         WarehouseSurfaceHeader(
             title = stringResource(R.string.warehouse_operations_title),
@@ -163,7 +180,12 @@ fun ConfirmedSkuScreen(
             onChangeContext = onChangeContext,
             onBack = onBack
         )
-        ConfirmedSkuHierarchy(state = state)
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            ConfirmedSkuHierarchy(state = state)
+        }
     }
 }
 
@@ -179,6 +201,7 @@ private fun WarehouseSurfaceHeader(
         NexaActiveContextBar(
             companyName = context.companyName,
             workspaceName = context.workspaceName,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
             enabled = true,
             onClick = onChangeContext
         )
@@ -193,11 +216,13 @@ private fun ProductSearchQuerySection(
 ) {
     Text(
         stringResource(R.string.warehouse_search_title),
-        style = MaterialTheme.typography.headlineSmall
+        style = MaterialTheme.typography.headlineSmall,
+        color = NexaColors.TextPrimary
     )
     Text(
         stringResource(R.string.warehouse_search_helper),
-        style = MaterialTheme.typography.bodyMedium
+        style = MaterialTheme.typography.bodyMedium,
+        color = NexaColors.TextSecondary
     )
     NexaSearchField(
         value = state.query,
@@ -233,7 +258,8 @@ private fun ProductSearchResultsSection(
 ) {
     Text(
         stringResource(R.string.warehouse_results_title),
-        style = MaterialTheme.typography.titleMedium
+        style = MaterialTheme.typography.titleMedium,
+        color = NexaColors.TextPrimary
     )
     when (state.status) {
         ProductSearchStatus.Initial, ProductSearchStatus.Typing -> NexaStatePanel(
@@ -362,10 +388,24 @@ private fun ProductCandidateResult(
 
 @Composable
 private fun ConfirmedSkuHierarchy(state: ConfirmedSkuUiState) {
-    Text(
-        stringResource(R.string.warehouse_confirmation_title),
-        style = MaterialTheme.typography.headlineSmall
-    )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Surface(shape = CircleShape, color = NexaColors.SuccessSurface) {
+            Icon(
+                painter = painterResource(DesignR.drawable.ic_check),
+                contentDescription = null,
+                tint = NexaColors.Success,
+                modifier = Modifier.padding(8.dp)
+            )
+        }
+        Text(
+            stringResource(R.string.warehouse_confirmation_title),
+            style = MaterialTheme.typography.headlineSmall,
+            color = NexaColors.TextPrimary
+        )
+    }
     NexaConfirmedSkuSummary(
         productName = state.productDisplayName,
         variant = state.variant,
@@ -386,11 +426,17 @@ private fun ConfirmedSkuHierarchy(state: ConfirmedSkuUiState) {
             "FROZEN" -> stringResource(R.string.warehouse_value_cold_chain_frozen)
             else -> state.coldChain
         },
+        coldChainTone = when (state.coldChain) {
+            "REFRIGERATED" -> NexaColdChainTone.Refrigerated
+            "FROZEN" -> NexaColdChainTone.Frozen
+            else -> NexaColdChainTone.Neutral
+        },
         activeContext = "${state.context.companyName} · ${state.context.workspaceName}"
     )
     Text(
         stringResource(R.string.warehouse_inventory_disclaimer),
-        style = MaterialTheme.typography.bodyMedium
+        style = MaterialTheme.typography.bodyMedium,
+        color = NexaColors.TextSecondary
     )
 }
 

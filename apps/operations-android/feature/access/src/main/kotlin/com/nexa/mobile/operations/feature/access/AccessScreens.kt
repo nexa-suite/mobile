@@ -1,17 +1,27 @@
 package com.nexa.mobile.operations.feature.access
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -19,11 +29,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.core.designsystem.NexaActiveContextBar
+import com.nexa.mobile.operations.core.designsystem.NexaAuthCanopy
+import com.nexa.mobile.operations.core.designsystem.NexaColors
 import com.nexa.mobile.operations.core.designsystem.NexaContextChoiceRow
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackBanner
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackTone
@@ -32,6 +48,7 @@ import com.nexa.mobile.operations.core.designsystem.NexaPrimaryButton
 import com.nexa.mobile.operations.core.designsystem.NexaStatePanel
 import com.nexa.mobile.operations.core.designsystem.NexaTextField
 import com.nexa.mobile.operations.core.designsystem.NexaTopAppBar
+import com.nexa.mobile.operations.core.designsystem.R as DesignR
 
 @Composable
 fun AccessScreen(
@@ -45,30 +62,39 @@ fun AccessScreen(
     onClearLocalSession: () -> Unit = {},
     showRetry: Boolean = false
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .imePadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+    BoxWithConstraints(
+        modifier = modifier.fillMaxSize().background(NexaColors.Surface)
     ) {
-        AccessBrandHeader()
-        AccessStageContent(
-            state = state,
-            onIdentifierChanged = onIdentifierChanged,
-            onPasswordChanged = onPasswordChanged,
-            onPasswordVisibilityChanged = onPasswordVisibilityChanged,
-            onSignIn = onSignIn,
-            onRetry = onRetry,
-            onClearLocalSession = onClearLocalSession,
-            showRetry = showRetry
-        )
-        state.notice?.let { notice ->
-            AccessNoticeBanner(notice)
+        val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val canopyHeight = if (LocalDensity.current.fontScale >= 1.8f) {
+            176.dp
+        } else {
+            (maxHeight * 0.33f).coerceIn(208.dp, 274.dp)
         }
-        Spacer(Modifier.padding(bottom = 8.dp))
+        Column(
+            modifier = Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState())
+        ) {
+            NexaAuthCanopy(Modifier.fillMaxWidth().height(canopyHeight)) {
+                AccessBrandHeader(statusTop)
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                AccessStageContent(
+                    state = state,
+                    onIdentifierChanged = onIdentifierChanged,
+                    onPasswordChanged = onPasswordChanged,
+                    onPasswordVisibilityChanged = onPasswordVisibilityChanged,
+                    onSignIn = onSignIn,
+                    onRetry = onRetry,
+                    onClearLocalSession = onClearLocalSession,
+                    showRetry = showRetry
+                )
+                state.notice?.let { notice -> AccessNoticeBanner(notice) }
+                Spacer(Modifier.height(24.dp).windowInsetsPadding(WindowInsets.navigationBars))
+            }
+        }
     }
 }
 
@@ -86,43 +112,60 @@ fun ContextChooserScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(NexaColors.Canvas)
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        ContextChooserHeader(
-            state = state,
-            changeMode = changeMode,
-            onBack = onBack
+        NexaTopAppBar(
+            title = stringResource(R.string.access_product_label),
+            onBack = if (changeMode && state.phase != ContextChooserPhase.SelectionPending) {
+                onBack
+            } else {
+                null
+            }
         )
-        if (notice != null) {
-            AccessNoticeBanner(notice)
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            ContextChooserHeader(changeMode = changeMode)
+            if (notice != null) {
+                AccessNoticeBanner(notice)
+            }
+            ContextChooserPhaseContent(
+                state = state,
+                changeMode = changeMode,
+                onSelect = onSelect,
+                onRetry = onRetry,
+                onBack = onBack,
+                onClearLocalSession = onClearLocalSession
+            )
+            if (notice == AccessNotice.ContextSelectionRejected) {
+                NexaPrimaryButton(label = stringResource(R.string.context_retry), onClick = onRetry)
+            }
+            Spacer(Modifier.height(8.dp))
         }
-        ContextChooserPhaseContent(
-            state = state,
-            changeMode = changeMode,
-            onSelect = onSelect,
-            onRetry = onRetry,
-            onBack = onBack,
-            onClearLocalSession = onClearLocalSession
-        )
-        if (notice == AccessNotice.ContextSelectionRejected) {
-            NexaPrimaryButton(label = stringResource(R.string.context_retry), onClick = onRetry)
-        }
-        Spacer(Modifier.padding(bottom = 8.dp))
     }
 }
 
 @Composable
-private fun AccessBrandHeader() {
-    NexaTopAppBar(title = stringResource(R.string.access_product_label))
-    Image(
-        painter = painterResource(R.drawable.nexa_brand),
-        contentDescription = stringResource(R.string.access_brand_description),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 48.dp),
-        contentScale = ContentScale.Fit
-    )
+private fun AccessBrandHeader(statusTop: androidx.compose.ui.unit.Dp) {
+    Column(
+        modifier = Modifier.padding(start = 24.dp, top = statusTop + 22.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Image(
+            painter = painterResource(DesignR.drawable.nexa_wordmark_white),
+            contentDescription = stringResource(R.string.access_brand_description),
+            modifier = Modifier.width(112.dp).height(35.dp),
+            contentScale = ContentScale.Fit
+        )
+        Text(
+            stringResource(R.string.access_product_label),
+            style = MaterialTheme.typography.labelMedium,
+            color = NexaColors.BrandCeleste
+        )
+    }
 }
 
 @Composable
@@ -152,11 +195,14 @@ private fun AccessStageContent(
         }
 
         AccessStage.Authenticating -> {
-            NexaStatePanel(
-                title = stringResource(R.string.access_sign_in_loading_title),
-                description = stringResource(R.string.access_sign_in_loading_body)
+            AccessCredentialsForm(
+                state = state,
+                onIdentifierChanged = onIdentifierChanged,
+                onPasswordChanged = onPasswordChanged,
+                onPasswordVisibilityChanged = onPasswordVisibilityChanged,
+                onSignIn = onSignIn,
+                loading = true
             )
-            CenteredProgress()
         }
 
         AccessStage.ResolvingContexts -> {
@@ -199,21 +245,36 @@ private fun AccessCredentialsForm(
     onIdentifierChanged: (String) -> Unit,
     onPasswordChanged: (String) -> Unit,
     onPasswordVisibilityChanged: () -> Unit,
-    onSignIn: () -> Unit
+    onSignIn: () -> Unit,
+    loading: Boolean = false
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(
-            stringResource(R.string.access_sign_in_title),
-            style = MaterialTheme.typography.headlineSmall
-        )
-        Text(
-            stringResource(R.string.access_sign_in_support),
-            style = MaterialTheme.typography.bodyLarge
-        )
+    val focusManager = LocalFocusManager.current
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                stringResource(R.string.access_sign_in_title),
+                style = MaterialTheme.typography.headlineSmall,
+                color = NexaColors.TextPrimary
+            )
+            Spacer(
+                Modifier.width(44.dp).height(4.dp)
+                    .background(NexaColors.Primary, RoundedCornerShape(2.dp))
+            )
+            Text(
+                stringResource(R.string.access_sign_in_support),
+                style = MaterialTheme.typography.bodyMedium,
+                color = NexaColors.TextSecondary
+            )
+        }
         NexaTextField(
             value = state.identifier,
             onValueChange = onIdentifierChanged,
             label = stringResource(R.string.access_identifier_label),
+            enabled = !loading,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(
+                onNext = { focusManager.moveFocus(FocusDirection.Down) }
+            ),
             errorText = if (state.identifierError) {
                 stringResource(R.string.access_identifier_error)
             } else {
@@ -228,6 +289,7 @@ private fun AccessCredentialsForm(
             label = stringResource(R.string.access_password_label),
             showLabel = stringResource(R.string.access_password_show),
             hideLabel = stringResource(R.string.access_password_hide),
+            enabled = !loading,
             errorText = if (state.passwordError) {
                 stringResource(R.string.access_password_error)
             } else {
@@ -236,41 +298,48 @@ private fun AccessCredentialsForm(
         )
         NexaPrimaryButton(
             label = stringResource(R.string.access_submit),
-            onClick = onSignIn
+            onClick = onSignIn,
+            loading = loading
         )
+        if (loading) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    stringResource(R.string.access_sign_in_loading_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = NexaColors.PrimaryStrong
+                )
+                Text(
+                    stringResource(R.string.access_sign_in_loading_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = NexaColors.TextSecondary
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun ContextChooserHeader(
-    state: ContextChooserUiState,
-    changeMode: Boolean,
-    onBack: () -> Unit
-) {
-    NexaTopAppBar(
-        title = stringResource(R.string.access_product_label),
-        onBack = if (changeMode && state.phase != ContextChooserPhase.SelectionPending) {
-            onBack
-        } else {
-            null
-        }
-    )
-    Text(
-        stringResource(
-            if (changeMode) R.string.context_change_title else R.string.context_initial_title
-        ),
-        style = MaterialTheme.typography.headlineSmall
-    )
-    Text(
-        stringResource(
-            if (changeMode) {
-                R.string.context_change_support
-            } else {
-                R.string.context_initial_support
-            }
-        ),
-        style = MaterialTheme.typography.bodyLarge
-    )
+private fun ContextChooserHeader(changeMode: Boolean) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            stringResource(
+                if (changeMode) R.string.context_change_title else R.string.context_initial_title
+            ),
+            style = MaterialTheme.typography.headlineSmall,
+            color = NexaColors.TextPrimary
+        )
+        Text(
+            stringResource(
+                if (changeMode) {
+                    R.string.context_change_support
+                } else {
+                    R.string.context_initial_support
+                }
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            color = NexaColors.TextSecondary
+        )
+    }
 }
 
 @Composable
