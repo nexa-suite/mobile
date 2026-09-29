@@ -118,11 +118,10 @@ fun ProductSearchScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(NexaColors.Canvas)
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .imePadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         WarehouseSurfaceHeader(
             title = stringResource(R.string.warehouse_operations_title),
@@ -135,17 +134,22 @@ fun ProductSearchScreen(
             onChangeContext = onChangeContext,
             onBack = onBack
         )
-        ProductSearchQuerySection(
-            state = state,
-            onQueryChanged = onQueryChanged,
-            onSearch = onSearch
-        )
-        ProductSearchResultsSection(
-            state = state,
-            onLoadMore = onLoadMore,
-            onSearch = onSearch,
-            onSelectCandidate = onSelectCandidate
-        )
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            ProductSearchQuerySection(
+                state = state,
+                onQueryChanged = onQueryChanged,
+                onSearch = onSearch
+            )
+            ProductSearchResultsSection(
+                state = state,
+                onLoadMore = onLoadMore,
+                onSearch = onSearch,
+                onSelectCandidate = onSelectCandidate
+            )
+        }
     }
 }
 
@@ -186,6 +190,7 @@ private fun WarehouseSurfaceHeader(
         NexaActiveContextBar(
             companyName = context.companyName,
             workspaceName = context.workspaceName,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
             enabled = true,
             onClick = onChangeContext
         )
@@ -200,11 +205,13 @@ private fun ProductSearchQuerySection(
 ) {
     Text(
         stringResource(R.string.warehouse_search_title),
-        style = MaterialTheme.typography.headlineSmall
+        style = MaterialTheme.typography.headlineSmall,
+        color = NexaColors.TextPrimary
     )
     Text(
         stringResource(R.string.warehouse_search_helper),
-        style = MaterialTheme.typography.bodyMedium
+        style = MaterialTheme.typography.bodyMedium,
+        color = NexaColors.TextSecondary
     )
     NexaSearchField(
         value = state.query,
@@ -240,7 +247,8 @@ private fun ProductSearchResultsSection(
 ) {
     Text(
         stringResource(R.string.warehouse_results_title),
-        style = MaterialTheme.typography.titleMedium
+        style = MaterialTheme.typography.titleMedium,
+        color = NexaColors.TextPrimary
     )
     when (state.status) {
         ProductSearchStatus.Initial, ProductSearchStatus.Typing -> NexaStatePanel(
