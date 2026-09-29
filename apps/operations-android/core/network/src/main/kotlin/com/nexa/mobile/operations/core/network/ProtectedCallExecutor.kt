@@ -152,22 +152,46 @@ class ProtectedCallExecutor(
             .method(command.method.name, body)
             .build()
         return try {
-            val response = client.newCall(request).await()
-            response.use {
-                Exchange.Http(
-                    status = it.code,
-                    headers = it.headers,
-                    body = it.body?.string(),
-                    contentType = it.body?.contentType()?.toString(),
-                    etag = it.header("ETag"),
-                    correlationId = it.header("X-Correlation-ID")
-                )
-            }
+            client.newCall(request).await()
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: IOException) {
             Exchange.NetworkFailure(failure)
         }
+    }
+
+    private suspend fun Call.await(): Exchange = suspendCancellableCoroutine { continuation ->
+        continuation.invokeOnCancellation { cancel() }
+        enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                if (continuation.isActive) continuation.resumeWithException(e)
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (!continuation.isActive) {
+                    response.close()
+                    return
+                }
+                val exchange = try {
+                    response.use {
+                        Exchange.Http(
+                            status = it.code,
+                            headers = it.headers,
+                            body = it.body?.string(),
+                            contentType = it.body?.contentType()?.toString(),
+                            etag = it.header("ETag"),
+                            correlationId = it.header("X-Correlation-ID")
+                        )
+                    }
+                } catch (failure: Throwable) {
+                    if (continuation.isActive) {
+                        continuation.resumeWithException(failure)
+                    }
+                    return
+                }
+                if (continuation.isActive) continuation.resume(exchange)
+            }
+        })
     }
 
     private sealed interface Exchange {
@@ -182,17 +206,4 @@ class ProtectedCallExecutor(
 
         data class NetworkFailure(val cause: IOException) : Exchange
     }
-}
-
-private suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->
-    continuation.invokeOnCancellation { cancel() }
-    enqueue(object : Callback {
-        override fun onFailure(call: Call, e: IOException) {
-            if (continuation.isActive) continuation.resumeWithException(e)
-        }
-
-        override fun onResponse(call: Call, response: Response) {
-            if (continuation.isActive) continuation.resume(response) else response.close()
-        }
-    })
 }

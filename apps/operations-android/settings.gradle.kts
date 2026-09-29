@@ -15,4 +15,11 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "nexa-operations-android"
-include(":app", ":core:auth", ":core:network", ":core:designsystem")
+include(
+    ":app",
+    ":core:auth",
+    ":core:network",
+    ":core:designsystem",
+    ":feature:access",
+    ":feature:warehouse"
+)

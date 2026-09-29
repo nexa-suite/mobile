@@ -13,7 +13,7 @@ class MainActivitySmokeTest {
     @get:Rule val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun applicationGraphResolvesAndShellRenders() {
-        composeRule.onNodeWithText("Operations technical shell").assertIsDisplayed()
+    fun applicationGraphResolvesAndAccessProductScreenRenders() {
+        composeRule.onNodeWithText("Operations").assertIsDisplayed()
     }
 }
