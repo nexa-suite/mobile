@@ -112,31 +112,39 @@ fun ContextChooserScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(NexaColors.Canvas)
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        ContextChooserHeader(
-            state = state,
-            changeMode = changeMode,
-            onBack = onBack
+        NexaTopAppBar(
+            title = stringResource(R.string.access_product_label),
+            onBack = if (changeMode && state.phase != ContextChooserPhase.SelectionPending) {
+                onBack
+            } else {
+                null
+            }
         )
-        if (notice != null) {
-            AccessNoticeBanner(notice)
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            ContextChooserHeader(changeMode = changeMode)
+            if (notice != null) {
+                AccessNoticeBanner(notice)
+            }
+            ContextChooserPhaseContent(
+                state = state,
+                changeMode = changeMode,
+                onSelect = onSelect,
+                onRetry = onRetry,
+                onBack = onBack,
+                onClearLocalSession = onClearLocalSession
+            )
+            if (notice == AccessNotice.ContextSelectionRejected) {
+                NexaPrimaryButton(label = stringResource(R.string.context_retry), onClick = onRetry)
+            }
+            Spacer(Modifier.height(8.dp))
         }
-        ContextChooserPhaseContent(
-            state = state,
-            changeMode = changeMode,
-            onSelect = onSelect,
-            onRetry = onRetry,
-            onBack = onBack,
-            onClearLocalSession = onClearLocalSession
-        )
-        if (notice == AccessNotice.ContextSelectionRejected) {
-            NexaPrimaryButton(label = stringResource(R.string.context_retry), onClick = onRetry)
-        }
-        Spacer(Modifier.padding(bottom = 8.dp))
     }
 }
 
@@ -311,35 +319,27 @@ private fun AccessCredentialsForm(
 }
 
 @Composable
-private fun ContextChooserHeader(
-    state: ContextChooserUiState,
-    changeMode: Boolean,
-    onBack: () -> Unit
-) {
-    NexaTopAppBar(
-        title = stringResource(R.string.access_product_label),
-        onBack = if (changeMode && state.phase != ContextChooserPhase.SelectionPending) {
-            onBack
-        } else {
-            null
-        }
-    )
-    Text(
-        stringResource(
-            if (changeMode) R.string.context_change_title else R.string.context_initial_title
-        ),
-        style = MaterialTheme.typography.headlineSmall
-    )
-    Text(
-        stringResource(
-            if (changeMode) {
-                R.string.context_change_support
-            } else {
-                R.string.context_initial_support
-            }
-        ),
-        style = MaterialTheme.typography.bodyLarge
-    )
+private fun ContextChooserHeader(changeMode: Boolean) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            stringResource(
+                if (changeMode) R.string.context_change_title else R.string.context_initial_title
+            ),
+            style = MaterialTheme.typography.headlineSmall,
+            color = NexaColors.TextPrimary
+        )
+        Text(
+            stringResource(
+                if (changeMode) {
+                    R.string.context_change_support
+                } else {
+                    R.string.context_initial_support
+                }
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            color = NexaColors.TextSecondary
+        )
+    }
 }
 
 @Composable
