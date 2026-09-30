@@ -8,6 +8,7 @@ import com.nexa.mobile.operations.core.auth.session.VerifiedSession
 import com.nexa.mobile.operations.core.network.AccessContextSelectionOutcome
 import com.nexa.mobile.operations.core.network.AccessContextsOutcome
 import com.nexa.mobile.operations.core.network.CatalogDetailOutcome
+import com.nexa.mobile.operations.core.network.CatalogDetailProjection
 import com.nexa.mobile.operations.core.network.CatalogSearchOutcome
 import com.nexa.mobile.operations.core.network.IdentitySignInOutcome
 import com.nexa.mobile.operations.core.network.NativeAccessContext
@@ -211,24 +212,12 @@ internal class OperationsAccessGateway @Inject constructor(
             return CandidateConfirmationResult.PermissionDenied
         }
         return when (result) {
-            is CatalogDetailOutcome.Found -> {
-                val detail = result.value
-                CandidateConfirmationResult.Confirmed(
-                    ConfirmedSkuUiState(
-                        candidateKey = detail.catalogItemId,
-                        productDisplayName = detail.productFamilyName ?: detail.itemName,
-                        variant = detail.productVariantName,
-                        presentation = detail.presentation,
-                        sku = detail.skuCode,
-                        brand = detail.brandName,
-                        unit = detail.unitOfMeasure,
-                        packaging = detail.packagingType,
-                        coldChain = detail.coldChainRequirement,
-                        context = context,
-                        authorityEpoch = authorityEpoch
-                    )
-                )
-            }
+            is CatalogDetailOutcome.Found -> mapConfirmedCatalogDetail(
+                candidate = candidate,
+                detail = result.value,
+                context = context,
+                authorityEpoch = authorityEpoch
+            )
 
             CatalogDetailOutcome.CandidateUnavailable ->
                 CandidateConfirmationResult.CandidateUnavailable
@@ -282,6 +271,32 @@ internal class OperationsAccessGateway @Inject constructor(
         companyName = tenantName,
         workspaceName = workspaceName,
         permissionHint = PermissionHint.Unknown
+    )
+}
+
+internal fun mapConfirmedCatalogDetail(
+    candidate: ProductCandidate,
+    detail: CatalogDetailProjection,
+    context: ActiveOperationsContext,
+    authorityEpoch: Long
+): CandidateConfirmationResult {
+    if (detail.catalogItemId != candidate.key || detail.skuCode != candidate.sku) {
+        return CandidateConfirmationResult.CandidateUnavailable
+    }
+    return CandidateConfirmationResult.Confirmed(
+        ConfirmedSkuUiState(
+            candidateKey = candidate.key,
+            productDisplayName = detail.productFamilyName ?: detail.itemName,
+            variant = detail.productVariantName,
+            presentation = detail.presentation,
+            sku = detail.skuCode,
+            brand = detail.brandName,
+            unit = detail.unitOfMeasure,
+            packaging = detail.packagingType,
+            coldChain = detail.coldChainRequirement,
+            context = context,
+            authorityEpoch = authorityEpoch
+        )
     )
 }
 
