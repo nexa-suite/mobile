@@ -56,6 +56,29 @@ class ScannerPermissionReturnTest {
         )
     }
 
+    @Test fun fastValidationCompletionDoesNotRequireObservingRestoring() {
+        val validating = pending.copy(sessionRevalidationObserved = false).beginRevalidation()
+        val completed = validating.completeRevalidation(validating.revalidationId)!!
+        assertEquals(
+            ScannerPermissionReturnDecision.Resume(true, false),
+            completed.decision(SessionState.Active, access(authority))
+        )
+    }
+
+    @Test fun staleCompletionCannotReviveClearedOrNewPermissionReturn() {
+        val previous = pending.beginRevalidation()
+        val next = pending.beginRevalidation()
+        assertEquals(next, next.completeRevalidation(previous.revalidationId))
+        assertEquals(
+            ScannerPermissionReturnDecision.Wait,
+            next.completeRevalidation(previous.revalidationId)!!.decision(
+                SessionState.Active,
+                access(authority)
+            )
+        )
+        assertEquals(null, null.completeRevalidation(previous.revalidationId))
+    }
+
     private fun access(currentAuthority: VerifiedContextAuthority) = AccessUiState(
         stage = AccessStage.WorkAuthorized,
         activeContext = WorkforceContextSummary(

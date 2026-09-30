@@ -64,9 +64,7 @@ class MainActivity : ComponentActivity() {
             invalidateProtectedContentForForegroundReturn()
         }
         pendingScannerPermissionReturn?.let { pending ->
-            pendingScannerPermissionReturn = pending.copy(
-                foregroundReturnObserved = true,
-                sessionRevalidationObserved = false,
+            pendingScannerPermissionReturn = pending.beginRevalidation().copy(
                 permissionGranted = if (pending.source ==
                     ScannerPermissionReturnSource.AppSettings
                 ) {
@@ -83,7 +81,7 @@ class MainActivity : ComponentActivity() {
                 }
             )
         }
-        viewModel.verifyForegroundReturn()
+        verifyScannerForegroundReturn()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -130,15 +128,6 @@ class MainActivity : ComponentActivity() {
                     accessState
                 ) {
                     val pending = pendingScannerPermissionReturn ?: return@LaunchedEffect
-                    if (pending.foregroundReturnObserved &&
-                        state is SessionState.Restoring &&
-                        !pending.sessionRevalidationObserved
-                    ) {
-                        pendingScannerPermissionReturn = pending.copy(
-                            sessionRevalidationObserved = true
-                        )
-                        return@LaunchedEffect
-                    }
                     when (val decision = pending.decision(state, accessState)) {
                         ScannerPermissionReturnDecision.Wait -> Unit
 
@@ -322,6 +311,7 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onLogout = {
+                        pendingScannerPermissionReturn = null
                         logoutRequested = true
                         accessViewModel.sessionInvalidated()
                         warehouseViewModel.sessionInvalidated()
@@ -331,6 +321,7 @@ class MainActivity : ComponentActivity() {
                     onSelectContext = accessViewModel::selectContext,
                     onContextBack = accessViewModel::backFromContextChooser,
                     onChangeContext = {
+                        pendingScannerPermissionReturn = null
                         if (warehouseState.route == WarehouseRoute.Scanner) {
                             scannerViewModel.routeClosed()
                         }
@@ -410,15 +401,20 @@ class MainActivity : ComponentActivity() {
         scannerViewModel.sessionInvalidated()
     }
 
+    private fun verifyScannerForegroundReturn() {
+        val revalidationId = pendingScannerPermissionReturn?.revalidationId
+        viewModel.verifyForegroundReturn {
+            pendingScannerPermissionReturn =
+                pendingScannerPermissionReturn.completeRevalidation(revalidationId)
+        }
+    }
+
     private fun beginScannerForegroundRevalidation() {
         invalidateProtectedContentForForegroundReturn()
         pendingScannerPermissionReturn?.let { pending ->
-            pendingScannerPermissionReturn = pending.copy(
-                foregroundReturnObserved = true,
-                sessionRevalidationObserved = false
-            )
+            pendingScannerPermissionReturn = pending.beginRevalidation()
         }
-        viewModel.verifyForegroundReturn()
+        verifyScannerForegroundReturn()
     }
 }
 

@@ -4,6 +4,7 @@ import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.feature.access.AccessStage
 import com.nexa.mobile.operations.feature.access.AccessUiState
 import com.nexa.mobile.operations.feature.access.VerifiedContextAuthority
+import java.util.UUID
 
 internal enum class ScannerPermissionReturnSource { RuntimePrompt, AppSettings }
 
@@ -14,7 +15,8 @@ internal data class PendingScannerPermissionReturn(
     val permissionGranted: Boolean? = null,
     val permanentlyDenied: Boolean = false,
     val foregroundReturnObserved: Boolean = false,
-    val sessionRevalidationObserved: Boolean = false
+    val sessionRevalidationObserved: Boolean = false,
+    val revalidationId: String? = null
 ) {
     override fun toString(): String =
         "PendingScannerPermissionReturn(source=$source, result=${permissionGranted != null})"
@@ -51,3 +53,20 @@ internal fun PendingScannerPermissionReturn.decision(
     val granted = permissionGranted ?: return ScannerPermissionReturnDecision.Wait
     return ScannerPermissionReturnDecision.Resume(granted, permanentlyDenied)
 }
+
+/** Completion belongs to one foreground validation, never a later permission request. */
+internal fun PendingScannerPermissionReturn.beginRevalidation(): PendingScannerPermissionReturn =
+    copy(
+        foregroundReturnObserved = true,
+        sessionRevalidationObserved = false,
+        revalidationId = UUID.randomUUID().toString()
+    )
+
+internal fun PendingScannerPermissionReturn?.completeRevalidation(
+    completedId: String?
+): PendingScannerPermissionReturn? =
+    if (this != null && completedId != null && revalidationId == completedId) {
+        copy(sessionRevalidationObserved = true)
+    } else {
+        this
+    }
