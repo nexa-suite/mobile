@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
@@ -23,6 +24,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nexa.mobile.operations.feature.access.AccessViewModel
 import com.nexa.mobile.operations.feature.access.R as AccessResources
+import com.nexa.mobile.operations.feature.warehouse.ReceivingCommandStatus
+import com.nexa.mobile.operations.feature.warehouse.ReceivingViewModel
 import com.nexa.mobile.operations.feature.warehouse.WarehouseViewModel
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -188,6 +191,70 @@ class LiveCandidateIdentityIntegrationTest {
                 "Foreground return must use fresh authority",
                 accessModel.state.value.authorityEpoch > priorEpoch
             )
+        }
+
+        if (arguments.getString("nexaLiveReceiving") == "true") {
+            composeRule.onNode(hasClickAction() and hasText("Registrar llegada"))
+                .performScrollTo().performClick()
+            composeRule.onNodeWithText("Elegir producto").performScrollTo().performClick()
+            composeRule.onNode(hasSetTextAction() and hasText("Buscar producto"))
+                .performTextInput(query)
+            Espresso.closeSoftKeyboard()
+            composeRule.onNodeWithText("Buscar", substring = false).performScrollTo().performClick()
+            composeRule.waitUntil(timeoutMillis = 15_000) {
+                composeRule.onAllNodes(candidateMatcher).fetchSemanticsNodes().isNotEmpty()
+            }
+            composeRule.onNode(candidateMatcher).performScrollTo().performClick()
+            val receivingModel = ViewModelProvider(
+                composeRule.activity
+            )[ReceivingViewModel::class.java]
+            composeRule.waitUntil(timeoutMillis = 15_000) {
+                receivingModel.state.value.product != null &&
+                    receivingModel.state.value.warehouses.isNotEmpty()
+            }
+            val warehouse = receivingModel.state.value.warehouses.first()
+            composeRule.onNodeWithText("${warehouse.name} · ${warehouse.code}")
+                .performScrollTo().performClick()
+            composeRule.waitUntil(timeoutMillis = 15_000) {
+                receivingModel.state.value.zones.isNotEmpty()
+            }
+            val zone = receivingModel.state.value.zones.first()
+            composeRule.onNodeWithText("${zone.name} · ${zone.code}")
+                .performScrollTo().performClick()
+            val batch = "ANDROID-W4-${System.currentTimeMillis()}"
+            fun fill(label: String, value: String) {
+                val field = composeRule.onNode(hasSetTextAction() and hasText(label))
+                field.performScrollTo()
+                field.performTextClearance()
+                field.performTextInput(value)
+                Espresso.closeSoftKeyboard()
+            }
+            fill("Lote", batch)
+            fill("Fecha de vencimiento", "2099-01-01")
+            fill("Cantidad recibida", "1.25")
+            fill("Unidad", receivingModel.state.value.product!!.unit.ifBlank { "UNIT" })
+            fill(
+                "Lectura de temperatura (opcional)",
+                arguments.getString("nexaLiveTemperature") ?: "20"
+            )
+            composeRule.onNode(hasClickAction() and hasText("Registrar llegada"))
+                .performScrollTo().performClick()
+            composeRule.waitUntil(timeoutMillis = 20_000) {
+                receivingModel.state.value.command == ReceivingCommandStatus.Confirmed
+            }
+            composeRule.onNodeWithText(
+                "Lote confirmado por Nexa"
+            ).performScrollTo().assertIsDisplayed()
+            val lot = receivingModel.state.value.confirmedLot!!
+            assertTrue(
+                "server must confirm the exact submitted Warehouse",
+                lot.warehouseId == warehouse.id
+            )
+            assertTrue(
+                "server must confirm exact received quantity",
+                lot.onHand.compareTo(java.math.BigDecimal("1.25")) == 0
+            )
+            assertTrue("server must confirm exact submitted batch", lot.batchNumber == batch)
         }
     }
 }
