@@ -92,6 +92,7 @@ tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn(valida
 
 dependencies {
     implementation(project(":core:auth"))
+    implementation(project(":core:local"))
     implementation(project(":core:network"))
     implementation(project(":core:device"))
     implementation(project(":core:designsystem"))
