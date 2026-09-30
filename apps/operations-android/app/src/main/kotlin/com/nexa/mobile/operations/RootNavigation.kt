@@ -45,6 +45,7 @@ internal enum class ProductDestination {
     ProductSearch,
     ConfirmedSku,
     Receiving,
+    StockCondition,
     Scanner
 }
 
@@ -87,7 +88,9 @@ internal fun RootNavigation(
     onScannerRetry: () -> Unit = {},
     onScannerManualSearch: () -> Unit = {},
     onReceiveStock: () -> Unit = {},
-    receivingContent: @Composable () -> Unit = {}
+    receivingContent: @Composable () -> Unit = {},
+    onViewStock: () -> Unit = {},
+    stockConditionContent: @Composable () -> Unit = {}
 ) {
     val isSessionActive = state == SessionState.Active
     val currentContext = accessState.activeContext
@@ -162,6 +165,18 @@ internal fun RootNavigation(
                 ProductDestination.WorkEntry
             }
 
+            WarehouseRoute.StockCondition -> if (OperationsCapabilities.permitsEntry(
+                    WarehouseRoute.StockCondition,
+                    state,
+                    accessState,
+                    warehouseState
+                )
+            ) {
+                ProductDestination.StockCondition
+            } else {
+                ProductDestination.WorkEntry
+            }
+
             WarehouseRoute.Receiving -> if (OperationsCapabilities.permitsEntry(
                     WarehouseRoute.Receiving,
                     state,
@@ -205,6 +220,11 @@ internal fun RootNavigation(
                     ProductDestination.WorkEntry,
                     ProductDestination.ProductSearch,
                     ProductDestination.ConfirmedSku
+                )
+
+                ProductDestination.StockCondition -> mutableStateListOf<Any>(
+                    ProductDestination.WorkEntry,
+                    ProductDestination.StockCondition
                 )
 
                 ProductDestination.Receiving -> mutableStateListOf<Any>(
@@ -266,6 +286,17 @@ internal fun RootNavigation(
                                     warehouseState
                                 } else {
                                     warehouseState.copy(activeContext = null)
+                                },
+                                onViewStock = {
+                                    if (OperationsCapabilities.permitsEntry(
+                                            WarehouseRoute.StockCondition,
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        )
+                                    ) {
+                                        onViewStock()
+                                    }
                                 },
                                 onReceiveStock = {
                                     if (OperationsCapabilities.permitsEntry(
@@ -400,6 +431,8 @@ internal fun RootNavigation(
 
                     ProductDestination.Receiving -> receivingContent()
 
+                    ProductDestination.StockCondition -> stockConditionContent()
+
                     ProductDestination.Scanner -> {
                         if (scannerAllowed) {
                             ProductScannerScreen(
@@ -434,6 +467,7 @@ internal fun RootNavigation(
                     ProductDestination.ProductSearch,
                     ProductDestination.ConfirmedSku,
                     ProductDestination.Receiving,
+                    ProductDestination.StockCondition,
                     ProductDestination.Scanner -> onWarehouseBack()
 
                     ProductDestination.ContextChooser -> {
@@ -457,6 +491,7 @@ internal fun RootNavigation(
                     ProductDestination.ProductSearch,
                     ProductDestination.ConfirmedSku,
                     ProductDestination.Receiving,
+                    ProductDestination.StockCondition,
                     ProductDestination.Scanner -> NavEntry(entryKey) {
                         if (entryKey == destination) currentEntryRenderer.value(entryKey)
                     }

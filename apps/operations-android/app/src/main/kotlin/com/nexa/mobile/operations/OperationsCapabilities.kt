@@ -15,6 +15,7 @@ internal enum class OperationsRouteIdentity(val stableId: String) {
     CatalogSearch("operations.warehouse.catalog-search"),
     ConfirmedSku("operations.warehouse.confirmed-sku"),
     Receiving("operations.warehouse.receiving"),
+    StockCondition("operations.warehouse.stock-condition"),
     BarcodeScanner("operations.warehouse.barcode-scanner")
 }
 
@@ -24,7 +25,8 @@ internal enum class CapabilityGuardBehavior {
     SearchInCurrentAuthorityEpoch,
     ConfirmedSkuFromSearchInCurrentAuthorityEpoch,
     ScannerInCurrentAuthorityEpoch,
-    ReceivingInCurrentAuthorityEpoch
+    ReceivingInCurrentAuthorityEpoch,
+    StockConditionInCurrentAuthorityEpoch
 }
 
 internal enum class DeepRouteInvalidationBehavior { ReturnToEntry }
@@ -65,6 +67,17 @@ internal object OperationsCapabilities {
             featureOwner = OperationsFeatureOwner.Warehouse,
             guardBehavior =
                 CapabilityGuardBehavior.ConfirmedSkuFromSearchInCurrentAuthorityEpoch,
+            deepRouteInvalidationBehavior = DeepRouteInvalidationBehavior.ReturnToEntry
+        ),
+        OperationsCapability(
+            routeIdentity = OperationsRouteIdentity.StockCondition,
+            destination = WarehouseRoute.StockCondition,
+            entryDestination = WarehouseRoute.WorkEntry,
+            requiredProductCapability = WorkEntryCapability.StockCondition,
+            requiredContextPermissionHint = PermissionHint.Available,
+            requiredTaskVisibilityHint = TaskVisibilityHint.Available,
+            featureOwner = OperationsFeatureOwner.Warehouse,
+            guardBehavior = CapabilityGuardBehavior.StockConditionInCurrentAuthorityEpoch,
             deepRouteInvalidationBehavior = DeepRouteInvalidationBehavior.ReturnToEntry
         ),
         OperationsCapability(
@@ -122,7 +135,8 @@ internal object OperationsCapabilities {
         val capability = capabilityFor(destination) ?: return false
         if (!hasCurrentAuthority(session, access, warehouse, capability)) return false
         return when (capability.guardBehavior) {
-            CapabilityGuardBehavior.ReceivingInCurrentAuthorityEpoch -> true
+            CapabilityGuardBehavior.ReceivingInCurrentAuthorityEpoch,
+            CapabilityGuardBehavior.StockConditionInCurrentAuthorityEpoch -> true
 
             CapabilityGuardBehavior.SearchInCurrentAuthorityEpoch ->
                 warehouse.search?.authorityEpoch == access.authorityEpoch
@@ -171,6 +185,8 @@ internal object OperationsCapabilities {
             (
                 capability.guardBehavior !=
                     CapabilityGuardBehavior.ReceivingInCurrentAuthorityEpoch &&
+                    capability.guardBehavior !=
+                    CapabilityGuardBehavior.StockConditionInCurrentAuthorityEpoch &&
                     context.permissionHint != capability.requiredContextPermissionHint
                 )
         ) {
@@ -189,13 +205,24 @@ internal object OperationsCapabilities {
             return false
         }
         if (capability.guardBehavior == CapabilityGuardBehavior.ScannerInCurrentAuthorityEpoch ||
-            capability.guardBehavior == CapabilityGuardBehavior.ReceivingInCurrentAuthorityEpoch
+            capability.guardBehavior == CapabilityGuardBehavior.ReceivingInCurrentAuthorityEpoch ||
+            capability.guardBehavior ==
+            CapabilityGuardBehavior.StockConditionInCurrentAuthorityEpoch
         ) {
             val authority = context.verifiedAuthority ?: return false
             val scannerIdentity = warehouseContext.verifiedIdentity ?: return false
             if (capability.guardBehavior ==
                 CapabilityGuardBehavior.ReceivingInCurrentAuthorityEpoch &&
                 authority.permissions.none { it == "inventory.receive" || it == "warehouse:write" }
+            ) {
+                return false
+            }
+            if (capability.guardBehavior ==
+                CapabilityGuardBehavior.StockConditionInCurrentAuthorityEpoch &&
+                authority.permissions.none {
+                    it in
+                        setOf("warehouse.read", "inventory.read", "warehouse:read")
+                }
             ) {
                 return false
             }

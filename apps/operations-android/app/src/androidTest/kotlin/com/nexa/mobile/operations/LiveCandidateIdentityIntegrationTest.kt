@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -15,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.Lifecycle
@@ -26,6 +28,10 @@ import com.nexa.mobile.operations.feature.access.AccessViewModel
 import com.nexa.mobile.operations.feature.access.R as AccessResources
 import com.nexa.mobile.operations.feature.warehouse.ReceivingCommandStatus
 import com.nexa.mobile.operations.feature.warehouse.ReceivingViewModel
+import com.nexa.mobile.operations.feature.warehouse.StockConditionAvailabilityStatus
+import com.nexa.mobile.operations.feature.warehouse.StockConditionDetailStatus
+import com.nexa.mobile.operations.feature.warehouse.StockConditionStatus
+import com.nexa.mobile.operations.feature.warehouse.StockConditionViewModel
 import com.nexa.mobile.operations.feature.warehouse.WarehouseViewModel
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -255,6 +261,38 @@ class LiveCandidateIdentityIntegrationTest {
                 lot.onHand.compareTo(java.math.BigDecimal("1.25")) == 0
             )
             assertTrue("server must confirm exact submitted batch", lot.batchNumber == batch)
+            composeRule.onNodeWithText("Volver").performScrollTo().performClick()
+            composeRule.onNode(hasClickAction() and hasText("Estado de existencias"))
+                .performScrollTo().performClick()
+            val stockModel = ViewModelProvider(
+                composeRule.activity
+            )[StockConditionViewModel::class.java]
+            composeRule.waitUntil(timeoutMillis = 15_000) {
+                stockModel.state.value.status == StockConditionStatus.Current &&
+                    stockModel.state.value.lots.any { it.id == lot.id }
+            }
+            val lotIndex = stockModel.state.value.lots.indexOfFirst { it.id == lot.id }
+            assertTrue("received lot remains in current list", lotIndex >= 0)
+            composeRule.onNode(hasScrollToIndexAction()).performScrollToIndex(4 + lotIndex)
+            composeRule.onNode(hasClickAction() and hasText(batch, substring = true))
+                .assertIsDisplayed().performClick()
+            composeRule.waitUntil(timeoutMillis = 15_000) {
+                stockModel.state.value.detailStatus == StockConditionDetailStatus.Current &&
+                    stockModel.state.value.availabilityStatus ==
+                    StockConditionAvailabilityStatus.Current
+            }
+            assertTrue(
+                "stock detail matches receipt lot",
+                stockModel.state.value.selectedLot?.id == lot.id
+            )
+            assertTrue(
+                "stock Warehouse matches authorized receipt",
+                stockModel.state.value.selectedLot?.warehouseId == warehouse.id
+            )
+            assertTrue(
+                "sellable quantity supplied by server",
+                stockModel.state.value.availability != null
+            )
         }
     }
 }

@@ -45,6 +45,18 @@ class WarehouseViewModel(
         }
     }
 
+    fun openStockCondition() {
+        val current = mutableState.value
+        if (current.activeContext == null ||
+            current.workEntryStatus != WorkEntryStatus.TaskAvailable
+        ) {
+            return
+        }
+        requestGeneration++
+        mutableState.value =
+            current.copy(route = WarehouseRoute.StockCondition, search = null, confirmedSku = null)
+    }
+
     fun openReceiving() {
         val current = mutableState.value
         if (current.activeContext == null ||
@@ -282,7 +294,7 @@ class WarehouseViewModel(
                 )
             }
 
-            WarehouseRoute.Receiving, WarehouseRoute.Scanner -> {
+            WarehouseRoute.Receiving, WarehouseRoute.Scanner, WarehouseRoute.StockCondition -> {
                 requestGeneration++
                 mutableState.value = current.copy(
                     route = WarehouseRoute.WorkEntry,

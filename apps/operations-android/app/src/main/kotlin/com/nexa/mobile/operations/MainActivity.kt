@@ -34,6 +34,8 @@ import com.nexa.mobile.operations.feature.warehouse.ReceivingAuthority
 import com.nexa.mobile.operations.feature.warehouse.ReceivingProductReference
 import com.nexa.mobile.operations.feature.warehouse.ReceivingScreen
 import com.nexa.mobile.operations.feature.warehouse.ReceivingViewModel
+import com.nexa.mobile.operations.feature.warehouse.StockConditionScreen
+import com.nexa.mobile.operations.feature.warehouse.StockConditionViewModel
 import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
 import com.nexa.mobile.operations.feature.warehouse.VerifiedOperationsIdentity
 import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute
@@ -47,6 +49,11 @@ class MainActivity : ComponentActivity() {
     @Inject internal lateinit var receivingBindings: ReceivingGatewayBindings
     private val receivingViewModel: ReceivingViewModel by viewModels {
         receivingBindings.viewModelFactory()
+    }
+
+    @Inject internal lateinit var stockConditionFactory: StockConditionViewModelFactory
+    private val stockConditionViewModel: StockConditionViewModel by viewModels {
+        stockConditionFactory
     }
     private var choosingReceivingProduct by mutableStateOf(false)
 
@@ -126,6 +133,8 @@ class MainActivity : ComponentActivity() {
                 val accessState = accessViewModel.state.collectAsStateWithLifecycle().value
                 val warehouseState = warehouseViewModel.state.collectAsStateWithLifecycle().value
                 val scannerState = scannerViewModel.state.collectAsStateWithLifecycle().value
+                val stockConditionState =
+                    stockConditionViewModel.state.collectAsStateWithLifecycle().value
                 val receivingState = receivingViewModel.state.collectAsStateWithLifecycle().value
                 val scannerReturnContinuationPending =
                     pendingScannerPermissionReturn != null
@@ -309,6 +318,23 @@ class MainActivity : ComponentActivity() {
                     ) {
                         choosingReceivingProduct = false
                         receivingViewModel.invalidate()
+                        stockConditionViewModel.invalidateContext()
+                    }
+                }
+                androidx.compose.runtime.LaunchedEffect(
+                    state,
+                    accessState.authorityEpoch,
+                    accessState.activeContext
+                ) {
+                    val permissions = accessState.activeContext?.verifiedAuthority?.permissions
+                    if (state != SessionState.Active || permissions == null ||
+                        permissions.none {
+                            it in
+                                setOf("warehouse.read", "inventory.read", "warehouse:read")
+                        } ||
+                        stockConditionState.authorityEpoch != accessState.authorityEpoch
+                    ) {
+                        stockConditionViewModel.invalidateContext()
                     }
                 }
                 androidx.compose.runtime.LaunchedEffect(
@@ -341,6 +367,21 @@ class MainActivity : ComponentActivity() {
                     accessState = accessState,
                     warehouseState = warehouseState,
                     scannerState = scannerState,
+                    onViewStock = {
+                        warehouseState.activeContext?.let { context ->
+                            stockConditionViewModel.activate(context)
+                            warehouseViewModel.openStockCondition()
+                        }
+                    },
+                    stockConditionContent = {
+                        StockConditionScreen(
+                            stockConditionState,
+                            onBack = warehouseViewModel::back,
+                            onRefresh = stockConditionViewModel::refresh,
+                            onSelectLot = stockConditionViewModel::selectLot,
+                            onRouteClosed = stockConditionViewModel::invalidateContext
+                        )
+                    },
                     onReceiveStock = {
                         accessState.activeContext?.verifiedAuthority?.let { authority ->
                             receivingViewModel.activate(
@@ -402,6 +443,7 @@ class MainActivity : ComponentActivity() {
                         pendingScannerPermissionReturn = null
                         choosingReceivingProduct = false
                         receivingViewModel.invalidate()
+                        stockConditionViewModel.invalidateContext()
                         logoutRequested = true
                         accessViewModel.sessionInvalidated()
                         warehouseViewModel.sessionInvalidated()
@@ -414,6 +456,7 @@ class MainActivity : ComponentActivity() {
                         pendingScannerPermissionReturn = null
                         choosingReceivingProduct = false
                         receivingViewModel.invalidate()
+                        stockConditionViewModel.invalidateContext()
                         if (warehouseState.route == WarehouseRoute.Scanner) {
                             scannerViewModel.routeClosed()
                         }
@@ -490,6 +533,7 @@ class MainActivity : ComponentActivity() {
     private fun invalidateProtectedContentForForegroundReturn() {
         choosingReceivingProduct = false
         receivingViewModel.invalidate()
+        stockConditionViewModel.invalidateContext()
         accessViewModel.sessionInvalidated()
         warehouseViewModel.sessionInvalidated()
         scannerViewModel.sessionInvalidated()
@@ -540,7 +584,14 @@ private fun AccessUiState.shouldResolveCurrentContext(logoutRequested: Boolean):
 
 private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHint =
     if (verifiedAuthority?.permissions?.any {
-            it == "inventory.receive" || it == "warehouse:write"
+            it in
+                setOf(
+                    "inventory.receive",
+                    "warehouse:write",
+                    "warehouse.read",
+                    "inventory.read",
+                    "warehouse:read"
+                )
         } == true
     ) {
         TaskVisibilityHint.Available

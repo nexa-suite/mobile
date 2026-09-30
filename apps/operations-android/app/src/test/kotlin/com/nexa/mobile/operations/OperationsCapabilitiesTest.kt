@@ -97,11 +97,80 @@ class OperationsCapabilitiesTest {
             )
         )
         assertEquals(
-            listOf(WorkEntryCapability.Receiving),
+            listOf(WorkEntryCapability.StockCondition, WorkEntryCapability.Receiving),
             OperationsCapabilities.workEntryCapabilities(
                 SessionState.Active,
                 receivingAccess,
                 receivingWarehouse
+            )
+        )
+    }
+
+    @Test fun stockReadRequiresCurrentIdentityAndOwnPermissionWithoutCatalog() {
+        val verified =
+            VerifiedContextAuthority(
+                "user",
+                "tenant",
+                "workspace",
+                "membership",
+                setOf("warehouse.read")
+            )
+        val stockAccess = access.copy(
+            activeContext = access.activeContext!!.copy(
+                permissionHint = PermissionHint.Unavailable,
+                verifiedAuthority = verified
+            )
+        )
+        val stockWarehouse = warehouse.copy(
+            route = WarehouseRoute.StockCondition,
+            activeContext = warehouse.activeContext!!.copy(
+                verifiedIdentity = VerifiedOperationsIdentity(
+                    verified.userId,
+                    verified.tenantId,
+                    verified.workspaceId,
+                    verified.membershipId,
+                    verified.permissions
+                )
+            )
+        )
+        assertTrue(
+            OperationsCapabilities.permitsEntry(
+                WarehouseRoute.StockCondition,
+                SessionState.Active,
+                stockAccess,
+                stockWarehouse
+            )
+        )
+        assertFalse(
+            OperationsCapabilities.permitsEntry(
+                WarehouseRoute.StockCondition,
+                SessionState.Active,
+                stockAccess.copy(authorityEpoch = 4),
+                stockWarehouse
+            )
+        )
+        assertFalse(
+            OperationsCapabilities.permitsEntry(
+                WarehouseRoute.StockCondition,
+                SessionState.Active,
+                stockAccess.copy(
+                    activeContext = stockAccess.activeContext!!.copy(
+                        verifiedAuthority = verified.copy(membershipId = "other")
+                    )
+                ),
+                stockWarehouse
+            )
+        )
+        assertFalse(
+            OperationsCapabilities.permitsEntry(
+                WarehouseRoute.StockCondition,
+                SessionState.Active,
+                stockAccess.copy(
+                    activeContext = stockAccess.activeContext!!.copy(
+                        verifiedAuthority = verified.copy(permissions = setOf("catalog.read"))
+                    )
+                ),
+                stockWarehouse
             )
         )
     }
@@ -130,6 +199,7 @@ class OperationsCapabilitiesTest {
             listOf(
                 "operations.warehouse.catalog-search",
                 "operations.warehouse.confirmed-sku",
+                "operations.warehouse.stock-condition",
                 "operations.warehouse.receiving",
                 "operations.warehouse.barcode-scanner"
             ),
