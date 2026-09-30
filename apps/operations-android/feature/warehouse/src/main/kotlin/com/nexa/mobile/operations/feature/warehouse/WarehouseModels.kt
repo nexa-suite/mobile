@@ -4,6 +4,9 @@ import androidx.compose.runtime.Immutable
 
 enum class WarehouseRoute { WorkEntry, ProductSearch, ConfirmedSku }
 
+/** A work-entry item must have a registered destination and a real action. */
+enum class WorkEntryCapability { CatalogIdentification }
+
 enum class WorkEntryStatus {
     TaskAvailable,
     NoPermittedTask,

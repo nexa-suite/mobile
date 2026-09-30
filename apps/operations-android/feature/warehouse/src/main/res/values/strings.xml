@@ -6,7 +6,7 @@
     <string name="warehouse_permission_title">No tienes permiso para esta tarea</string>
     <string name="warehouse_permission_body">Tu sesión sigue activa. Si cambió tu acceso, vuelve a comprobarlo.</string>
     <string name="warehouse_permission_unknown_title">No pudimos comprobar tus tareas</string>
-    <string name="warehouse_permission_unknown_body">Tu sesión sigue activa. Vuelve a comprobar tu contexto para conocer las tareas disponibles.</string>
+    <string name="warehouse_permission_unknown_body">Se requiere confirmar el permiso actual antes de abrir esta tarea. Vuelve a comprobar tu contexto.</string>
     <string name="warehouse_context_invalid_title">El contexto de trabajo dejó de estar disponible</string>
     <string name="warehouse_context_invalid_body">Vuelve a elegir un contexto antes de continuar.</string>
     <string name="warehouse_session_invalid_title">Tu sesión dejó de estar disponible</string>
