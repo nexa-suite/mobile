@@ -23,5 +23,6 @@ include(
     ":core:designsystem",
     ":core:device",
     ":feature:access",
-    ":feature:warehouse"
+    ":feature:warehouse",
+    ":feature:dispatch"
 )
