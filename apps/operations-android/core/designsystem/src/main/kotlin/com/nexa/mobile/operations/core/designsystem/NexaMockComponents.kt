@@ -3,6 +3,7 @@ package com.nexa.mobile.operations.core.designsystem
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,22 +15,21 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -67,7 +67,11 @@ fun NexaBottomNavigationBar(
                 Triple("routes", stringResource(R.string.nexa_tab_routes), R.drawable.ic_truck),
                 Triple("dispatch", stringResource(R.string.nexa_tab_dispatch), R.drawable.ic_send),
                 Triple("picking", stringResource(R.string.nexa_tab_picking), R.drawable.ic_box),
-                Triple("checklist", stringResource(R.string.nexa_tab_checklist), R.drawable.ic_check_square),
+                Triple(
+                    "checklist",
+                    stringResource(R.string.nexa_tab_checklist),
+                    R.drawable.ic_check_square
+                ),
                 Triple("buyer", stringResource(R.string.nexa_tab_buyer), R.drawable.ic_shopping_bag)
             )
 
@@ -149,7 +153,9 @@ fun NexaDriverProfileCard(
                 ) {
                     Text(
                         text = driverName,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
                         color = NexaColors.TextPrimary
                     )
                     NexaStatusPill(
@@ -179,10 +185,7 @@ fun NexaDriverProfileCard(
  * Cold-chain temperature telemetry badge.
  */
 @Composable
-fun NexaColdChainBadge(
-    temperatureRange: String,
-    modifier: Modifier = Modifier
-) {
+fun NexaColdChainBadge(temperatureRange: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(8.dp),
@@ -228,7 +231,10 @@ fun NexaStatusPill(
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp
+            ),
             color = textColor,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
         )
@@ -260,7 +266,16 @@ fun NexaQuantityStepper(
                 .clickable(enabled = quantity > min) { onQuantityChanged(quantity - 1) },
             shape = RoundedCornerShape(8.dp),
             color = if (quantity > min) NexaColors.Surface else NexaColors.SurfaceInset,
-            border = BorderStroke(1.dp, if (quantity > min) NexaColors.Border else Color.Transparent)
+            border = BorderStroke(
+                1.dp,
+                if (quantity >
+                    min
+                ) {
+                    NexaColors.Border
+                } else {
+                    Color.Transparent
+                }
+            )
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
@@ -277,7 +292,10 @@ fun NexaQuantityStepper(
         ) {
             Text(
                 text = quantity.toString(),
-                style = NexaTypography.identifier.copy(fontWeight = FontWeight.Bold, fontSize = 15.sp),
+                style = NexaTypography.identifier.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                ),
                 color = NexaColors.TextPrimary
             )
             Text(
@@ -293,7 +311,16 @@ fun NexaQuantityStepper(
                 .clickable(enabled = quantity < max) { onQuantityChanged(quantity + 1) },
             shape = RoundedCornerShape(8.dp),
             color = if (quantity < max) NexaColors.PrimaryStrong else NexaColors.SurfaceInset,
-            border = BorderStroke(1.dp, if (quantity < max) NexaColors.PrimaryStrong else Color.Transparent)
+            border = BorderStroke(
+                1.dp,
+                if (quantity <
+                    max
+                ) {
+                    NexaColors.PrimaryStrong
+                } else {
+                    Color.Transparent
+                }
+            )
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
@@ -355,7 +382,7 @@ fun NexaFilterChips(
 @Composable
 fun NexaInteractiveToggle(
     title: String,
-    subtitle: String? = null,
+    subtitle: String,
     checked: Boolean,
     modifier: Modifier = Modifier,
     onCheckedChange: (Boolean) -> Unit
@@ -380,17 +407,17 @@ fun NexaInteractiveToggle(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.Bold
+                    ),
                     color = NexaColors.TextPrimary
                 )
-                if (subtitle != null) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = NexaColors.TextSecondary
-                    )
-                }
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = NexaColors.TextSecondary
+                )
             }
             Switch(
                 checked = checked,
@@ -461,11 +488,7 @@ fun NexaSeveritySelector(
  * Progress indicator for offline mutations synchronization.
  */
 @Composable
-fun NexaSyncProgressBar(
-    progress: Float,
-    syncStatus: String,
-    modifier: Modifier = Modifier
-) {
+fun NexaSyncProgressBar(progress: Float, syncStatus: String, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -482,7 +505,10 @@ fun NexaSyncProgressBar(
             )
             Text(
                 text = "${(progress * 100).toInt()}%",
-                style = NexaTypography.identifier.copy(fontSize = 12.sp, fontWeight = FontWeight.Bold),
+                style = NexaTypography.identifier.copy(
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                ),
                 color = NexaColors.PrimaryStrong
             )
         }
@@ -497,4 +523,3 @@ fun NexaSyncProgressBar(
         )
     }
 }
-

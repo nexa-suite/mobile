@@ -40,6 +40,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Locale
 
 /**
  * PANTALLA 1: CONDUCCIÓN Y RUTA EN CURSO (MOB-US-026, 027, 028, 031, 033, 034)
@@ -47,9 +48,9 @@ import androidx.compose.ui.unit.sp
  */
 @Composable
 fun MockDriverRouteScreen(
+    modifier: Modifier = Modifier,
     onConfirmDelivery: () -> Unit = {},
-    onScanHandoff: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onScanHandoff: () -> Unit = {}
 ) {
     var hasArrived by remember { mutableStateOf(false) }
     var currentTemp by remember { mutableFloatStateOf(3.8f) }
@@ -100,13 +101,27 @@ fun MockDriverRouteScreen(
                     color = NexaColors.SurfaceInset
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text("−", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                        Text(
+                            "−",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
                     }
                 }
                 Text(
-                    text = String.format("%.1f°C", currentTemp),
-                    style = NexaTypography.identifier.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
-                    color = if (currentTemp in 2.0f..6.0f) NexaColors.ColdRefrigerated else NexaColors.Danger
+                    text = String.format(Locale.ROOT, "%.1f°C", currentTemp),
+                    style = NexaTypography.identifier.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    ),
+                    color = if (currentTemp in
+                        2.0f..6.0f
+                    ) {
+                        NexaColors.ColdRefrigerated
+                    } else {
+                        NexaColors.Danger
+                    }
                 )
                 Surface(
                     modifier = Modifier
@@ -117,7 +132,12 @@ fun MockDriverRouteScreen(
                     color = NexaColors.SurfaceInset
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text("+", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                        Text(
+                            "+",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
                     }
                 }
             }
@@ -142,16 +162,27 @@ fun MockDriverRouteScreen(
                 ) {
                     Text(
                         text = "SO-2026-0018",
-                        style = NexaTypography.identifier.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold),
+                        style = NexaTypography.identifier.copy(
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
                         color = NexaColors.TextPrimary
                     )
-                    NexaColdChainBadge(temperatureRange = String.format("%.1f°C (2°-6°C)", currentTemp))
+                    NexaColdChainBadge(
+                        temperatureRange = String.format(
+                            Locale.ROOT,
+                            "%.1f°C (2°-6°C)",
+                            currentTemp
+                        )
+                    )
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
                         text = "ICISA Distribuciones S.A.C.",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
                         color = NexaColors.TextPrimary
                     )
                     Text(
@@ -203,12 +234,21 @@ fun MockDriverRouteScreen(
                             .clip(RoundedCornerShape(8.dp))
                             .clickable { hasArrived = !hasArrived },
                         shape = RoundedCornerShape(8.dp),
-                        color = if (hasArrived) NexaColors.SuccessSurface else NexaColors.InfoSurface,
-                        border = BorderStroke(1.dp, if (hasArrived) NexaColors.SuccessBorder else NexaColors.InfoBorder)
+                        color = if (hasArrived) {
+                            NexaColors.SuccessSurface
+                        } else {
+                            NexaColors.InfoSurface
+                        },
+                        border = BorderStroke(
+                            1.dp,
+                            if (hasArrived) NexaColors.SuccessBorder else NexaColors.InfoBorder
+                        )
                     ) {
                         Text(
                             text = if (hasArrived) "✓ Llegada Confirmada" else "Registrar Llegada",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
                             color = if (hasArrived) NexaColors.Success else NexaColors.Info,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         )
@@ -223,7 +263,9 @@ fun MockDriverRouteScreen(
                     ) {
                         Text(
                             text = "📷 $photoCount fotos",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
                             color = NexaColors.TextSecondary,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         )
@@ -232,7 +274,11 @@ fun MockDriverRouteScreen(
 
                 NexaInteractiveToggle(
                     title = "Firma de Receptor Digital",
-                    subtitle = if (podSigned) "Firmado por: Juan Perez (Almacén)" else "Pendiente de captura",
+                    subtitle = if (podSigned) {
+                        "Firmado por: Juan Perez (Almacén)"
+                    } else {
+                        "Pendiente de captura"
+                    },
                     checked = podSigned,
                     onCheckedChange = { podSigned = it }
                 )
@@ -240,7 +286,13 @@ fun MockDriverRouteScreen(
                 HorizontalDivider(color = NexaColors.Border)
 
                 NexaPrimaryButton(
-                    label = if (hasArrived && podSigned) "Finalizar Entrega (POD Completo)" else "Completar Entrega en Sitio",
+                    label = if (hasArrived &&
+                        podSigned
+                    ) {
+                        "Finalizar Entrega (POD Completo)"
+                    } else {
+                        "Completar Entrega en Sitio"
+                    },
                     onClick = onConfirmDelivery,
                     enabled = true
                 )
@@ -261,7 +313,9 @@ fun MockDriverRouteScreen(
                     Text(
                         text = "Escanear Precinto de Seguridad",
                         color = NexaColors.TextPrimary,
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        )
                     )
                 }
             }
@@ -275,9 +329,9 @@ fun MockDriverRouteScreen(
  */
 @Composable
 fun MockWarehousePickingScreen(
+    modifier: Modifier = Modifier,
     onItemScanned: () -> Unit = {},
-    onDeclareDiscrepancy: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onDeclareDiscrepancy: () -> Unit = {}
 ) {
     var pickedUnits by remember { mutableIntStateOf(18) }
     var selectedZone by remember { mutableStateOf("Cámara Frío #2") }
@@ -300,12 +354,18 @@ fun MockWarehousePickingScreen(
             Column {
                 Text(
                     text = "ORDEN DE PICKING FEFO",
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp
+                    ),
                     color = NexaColors.TextSecondary
                 )
                 Text(
                     text = "PK-2026-0941",
-                    style = NexaTypography.identifier.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold),
+                    style = NexaTypography.identifier.copy(
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
                     color = NexaColors.TextPrimary
                 )
             }
@@ -352,7 +412,9 @@ fun MockWarehousePickingScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         text = "Salmón Salar Filete Congelado (Caja 10kg)",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
                         color = NexaColors.TextPrimary
                     )
                     Text(
@@ -362,7 +424,9 @@ fun MockWarehousePickingScreen(
                     )
                     Text(
                         text = "Vencimiento FEFO: 14/10/2026 (Prioridad Alta)",
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = FontWeight.SemiBold
+                        ),
                         color = NexaColors.Warning
                     )
                 }
@@ -378,7 +442,9 @@ fun MockWarehousePickingScreen(
                     Column {
                         Text(
                             text = "Unidades a Pickear",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
                             color = NexaColors.TextSecondary
                         )
                         Text(
@@ -400,7 +466,11 @@ fun MockWarehousePickingScreen(
                 // Discrepancy toggle
                 NexaInteractiveToggle(
                     title = "Declarar Discrepancia en Lote",
-                    subtitle = if (hasDiscrepancy) "Lote físico difiere o stock insuficiente" else "Lote físico verificado OK",
+                    subtitle = if (hasDiscrepancy) {
+                        "Lote físico difiere o stock insuficiente"
+                    } else {
+                        "Lote físico verificado OK"
+                    },
                     checked = hasDiscrepancy,
                     onCheckedChange = { hasDiscrepancy = it }
                 )
@@ -420,7 +490,9 @@ fun MockWarehousePickingScreen(
                         Text(
                             text = "Reportar Faltante en Rack (-${24 - pickedUnits} cajas)",
                             color = NexaColors.Danger,
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Bold
+                            )
                         )
                     }
                 }
@@ -435,9 +507,9 @@ fun MockWarehousePickingScreen(
  */
 @Composable
 fun MockScannerScreen(
+    modifier: Modifier = Modifier,
     onBarcodeDetected: (String) -> Unit = {},
-    onManualCodeSubmit: (String) -> Unit = {},
-    modifier: Modifier = Modifier
+    onManualCodeSubmit: (String) -> Unit = {}
 ) {
     var detectedSku by remember { mutableStateOf("ALM-LMO-982") }
     var detectedLot by remember { mutableStateOf("L-20260914-A") }
@@ -455,7 +527,10 @@ fun MockScannerScreen(
         Column {
             Text(
                 text = "ALMACÉN · RECONOCIMIENTO GS1-128",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp
+                ),
                 color = NexaColors.TextSecondary
             )
             Text(
@@ -478,16 +553,30 @@ fun MockScannerScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Visor CameraX Activo (60 FPS)", color = NexaColors.BrandCeleste, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                    Text(
+                        "Visor CameraX Activo (60 FPS)",
+                        color = NexaColors.BrandCeleste,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
                     Surface(
                         shape = NexaShapes.pill,
-                        color = if (isFlashOn) NexaColors.WarningSurface else NexaColors.Surface.copy(alpha = 0.2f),
+                        color = if (isFlashOn) {
+                            NexaColors.WarningSurface
+                        } else {
+                            NexaColors.Surface.copy(
+                                alpha = 0.2f
+                            )
+                        },
                         modifier = Modifier.clickable { isFlashOn = !isFlashOn }
                     ) {
                         Text(
                             text = if (isFlashOn) "Flash ON" else "Flash OFF",
                             color = if (isFlashOn) NexaColors.Warning else Color.White,
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
@@ -528,11 +617,29 @@ fun MockScannerScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("SKU $detectedSku", style = NexaTypography.identifier.copy(fontWeight = FontWeight.Bold), color = NexaColors.PrimaryStrong)
-                    NexaStatusPill("FEFO VALIDADO", NexaColors.SuccessSurface, NexaColors.Success, NexaColors.SuccessBorder)
+                    Text(
+                        "SKU $detectedSku",
+                        style = NexaTypography.identifier.copy(fontWeight = FontWeight.Bold),
+                        color = NexaColors.PrimaryStrong
+                    )
+                    NexaStatusPill(
+                        "FEFO VALIDADO",
+                        NexaColors.SuccessSurface,
+                        NexaColors.Success,
+                        NexaColors.SuccessBorder
+                    )
                 }
-                Text("Salmón Salar Congelado 4-5kg · Lote $detectedLot", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
-                Text("Temperatura registrada por sonda: 3.8°C (Rango 2°C – 6°C)", style = MaterialTheme.typography.bodySmall, color = NexaColors.TextSecondary)
+                Text(
+                    "Salmón Salar Congelado 4-5kg · Lote $detectedLot",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.SemiBold
+                    )
+                )
+                Text(
+                    "Temperatura registrada por sonda: 3.8°C (Rango 2°C – 6°C)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = NexaColors.TextSecondary
+                )
 
                 NexaPrimaryButton(
                     label = "Confirmar Reconocimiento GS1",
@@ -563,13 +670,21 @@ fun MockScannerScreen(
                     color = NexaColors.TextSecondary
                 )
                 Surface(
-                    modifier = Modifier.fillMaxWidth().height(48.dp).clip(NexaShapes.button).clickable { onManualCodeSubmit(manualCodeInput) },
+                    modifier = Modifier.fillMaxWidth().height(
+                        48.dp
+                    ).clip(NexaShapes.button).clickable {
+                        onManualCodeSubmit(manualCodeInput)
+                    },
                     color = NexaColors.Surface,
                     shape = NexaShapes.button,
                     border = BorderStroke(1.dp, NexaColors.Primary)
                 ) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Validar Código Manual (ADR-0018)", style = MaterialTheme.typography.labelLarge, color = NexaColors.Primary)
+                        Text(
+                            "Validar Código Manual (ADR-0018)",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = NexaColors.Primary
+                        )
                     }
                 }
             }
@@ -583,9 +698,9 @@ fun MockScannerScreen(
  */
 @Composable
 fun MockDispatchKanbanScreen(
+    modifier: Modifier = Modifier,
     onAssignDriver: () -> Unit = {},
-    onVerifyDispatch: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onVerifyDispatch: () -> Unit = {}
 ) {
     var selectedBay by remember { mutableStateOf("Muelle 04 (Frío)") }
     var sealVerified by remember { mutableStateOf(true) }
@@ -607,7 +722,10 @@ fun MockDispatchKanbanScreen(
             Column {
                 Text(
                     text = "DESPACHO · STAGING & MUELLE",
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp
+                    ),
                     color = NexaColors.TextSecondary
                 )
                 Text(
@@ -650,15 +768,24 @@ fun MockDispatchKanbanScreen(
                 ) {
                     Text(
                         text = selectedBay,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
                         color = NexaColors.TextPrimary
                     )
-                    NexaStatusPill("EN CARGA", NexaColors.WarningSurface, NexaColors.Warning, NexaColors.WarningBorder)
+                    NexaStatusPill(
+                        "EN CARGA",
+                        NexaColors.WarningSurface,
+                        NexaColors.Warning,
+                        NexaColors.WarningBorder
+                    )
                 }
 
                 Text(
                     text = "Vehículo Asignado: Furgón Isuzu FTR · Placa WKN-892",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.SemiBold
+                    ),
                     color = NexaColors.TextSecondary
                 )
                 Text(
@@ -674,7 +801,12 @@ fun MockDispatchKanbanScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Pallets Estibados:", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                    Text(
+                        "Pallets Estibados:",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
                     NexaQuantityStepper(
                         quantity = palletCount,
                         onQuantityChanged = { palletCount = it },
@@ -686,7 +818,11 @@ fun MockDispatchKanbanScreen(
 
                 NexaInteractiveToggle(
                     title = "Precinto de Seguridad Verificado",
-                    subtitle = if (sealVerified) "Precinto #NX-9921 registrado" else "Falta verificación física de precinto",
+                    subtitle = if (sealVerified) {
+                        "Precinto #NX-9921 registrado"
+                    } else {
+                        "Falta verificación física de precinto"
+                    },
                     checked = sealVerified,
                     onCheckedChange = { sealVerified = it }
                 )
@@ -702,7 +838,13 @@ fun MockDispatchKanbanScreen(
                     shape = NexaShapes.button,
                     border = BorderStroke(1.dp, NexaColors.BorderStrong)
                 ) {
-                    Text("Reasignar Vehículo / Chofer", color = NexaColors.TextPrimary, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                    Text(
+                        "Reasignar Vehículo / Chofer",
+                        color = NexaColors.TextPrimary,
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
                 }
             }
         }
@@ -715,9 +857,9 @@ fun MockDispatchKanbanScreen(
  */
 @Composable
 fun MockMachineryInspectionScreen(
+    modifier: Modifier = Modifier,
     onSubmitChecklist: () -> Unit = {},
-    onReportFailure: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onReportFailure: () -> Unit = {}
 ) {
     var brakesOk by remember { mutableStateOf(true) }
     var batteryOk by remember { mutableStateOf(true) }
@@ -737,7 +879,10 @@ fun MockMachineryInspectionScreen(
         Column {
             Text(
                 text = "SEGURIDAD INDUSTRIAL · ISO 3691",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp
+                ),
                 color = NexaColors.TextSecondary
             )
             Text(
@@ -766,25 +911,67 @@ fun MockMachineryInspectionScreen(
                 ) {
                     Text(
                         text = "Apilador Eléctrico Crown 1.6T",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
                         color = NexaColors.TextPrimary
                     )
                     NexaStatusPill(
                         text = if (allApproved) "OPERATIVO" else "BLOQUEADO",
-                        backgroundColor = if (allApproved) NexaColors.SuccessSurface else NexaColors.DangerSurface,
+                        backgroundColor = if (allApproved) {
+                            NexaColors.SuccessSurface
+                        } else {
+                            NexaColors.DangerSurface
+                        },
                         textColor = if (allApproved) NexaColors.Success else NexaColors.Danger,
-                        borderColor = if (allApproved) NexaColors.SuccessBorder else NexaColors.DangerBorder
+                        borderColor = if (allApproved) {
+                            NexaColors.SuccessBorder
+                        } else {
+                            NexaColors.DangerBorder
+                        }
                     )
                 }
-                Text("Código de Activo: EQ-APIL-042 · Serie: CRW-99812", style = NexaTypography.identifier.copy(fontSize = 12.sp), color = NexaColors.TextSecondary)
+                Text(
+                    "Código de Activo: EQ-APIL-042 · Serie: CRW-99812",
+                    style = NexaTypography.identifier.copy(fontSize = 12.sp),
+                    color = NexaColors.TextSecondary
+                )
 
                 HorizontalDivider(color = NexaColors.Border)
 
                 // Checklist Items
-                NexaInteractiveToggle("1. Frenos de Servicio y Emergencia", "Frenado progresivo sin desvío", brakesOk) { brakesOk = it }
-                NexaInteractiveToggle("2. Nivel de Carga de Batería (>80%)", "Voltaje y bornes limpios", batteryOk) { batteryOk = it }
-                NexaInteractiveToggle("3. Estado de Mástil y Uñas", "Sin fisuras ni deformación mecánica", forksOk) { forksOk = it }
-                NexaInteractiveToggle("4. Sistema Hidráulico sin Fugas", "Cilindro estanco y mangueras OK", hydraulicOk) { hydraulicOk = it }
+                NexaInteractiveToggle(
+                    "1. Frenos de Servicio y Emergencia",
+                    "Frenado progresivo sin desvío",
+                    brakesOk
+                ) {
+                    brakesOk =
+                        it
+                }
+                NexaInteractiveToggle(
+                    "2. Nivel de Carga de Batería (>80%)",
+                    "Voltaje y bornes limpios",
+                    batteryOk
+                ) {
+                    batteryOk =
+                        it
+                }
+                NexaInteractiveToggle(
+                    "3. Estado de Mástil y Uñas",
+                    "Sin fisuras ni deformación mecánica",
+                    forksOk
+                ) {
+                    forksOk =
+                        it
+                }
+                NexaInteractiveToggle(
+                    "4. Sistema Hidráulico sin Fugas",
+                    "Cilindro estanco y mangueras OK",
+                    hydraulicOk
+                ) {
+                    hydraulicOk =
+                        it
+                }
 
                 HorizontalDivider(color = NexaColors.Border)
 
@@ -800,7 +987,13 @@ fun MockMachineryInspectionScreen(
                         shape = NexaShapes.button,
                         border = BorderStroke(1.dp, NexaColors.DangerBorder)
                     ) {
-                        Text("Bloquear Activo & Notificar a Mantenimiento", color = NexaColors.Danger, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                        Text(
+                            "Bloquear Activo & Notificar a Mantenimiento",
+                            color = NexaColors.Danger,
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
                     }
                 }
             }
@@ -814,14 +1007,20 @@ fun MockMachineryInspectionScreen(
  */
 @Composable
 fun MockWholesaleCatalogScreen(
+    modifier: Modifier = Modifier,
     onAddToCart: () -> Unit = {},
-    onViewCart: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onViewCart: () -> Unit = {}
 ) {
     var quantityTier1 by remember { mutableIntStateOf(10) }
     var selectedCategory by remember { mutableStateOf("Congelados") }
 
-    val unitPrice = if (quantityTier1 >= 20) 28.50 else if (quantityTier1 >= 10) 32.00 else 35.00
+    val unitPrice = if (quantityTier1 >= 20) {
+        28.50
+    } else if (quantityTier1 >= 10) {
+        32.00
+    } else {
+        35.00
+    }
     val totalAmount = quantityTier1 * unitPrice
 
     Column(
@@ -835,7 +1034,10 @@ fun MockWholesaleCatalogScreen(
         Column {
             Text(
                 text = "PORTAL B2B MAYORISTA",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp
+                ),
                 color = NexaColors.TextSecondary
             )
             Text(
@@ -869,7 +1071,11 @@ fun MockWholesaleCatalogScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     NexaColdChainBadge("Cadena Frío: -18°C")
-                    Text("Stock: 340 Cajas", style = NexaTypography.identifier.copy(fontSize = 12.sp), color = NexaColors.Success)
+                    Text(
+                        "Stock: 340 Cajas",
+                        style = NexaTypography.identifier.copy(fontSize = 12.sp),
+                        color = NexaColors.Success
+                    )
                 }
 
                 Text(
@@ -886,11 +1092,41 @@ fun MockWholesaleCatalogScreen(
                         .padding(10.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text("Escala de Precios B2B:", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(
+                        "Escala de Precios B2B:",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                         Text("1 – 9 cajas: $35.00/u", style = MaterialTheme.typography.bodySmall)
-                        Text("10 – 19 cajas: $32.00/u", style = MaterialTheme.typography.bodySmall.copy(fontWeight = if (quantityTier1 in 10..19) FontWeight.Bold else FontWeight.Normal))
-                        Text("≥20 cajas: $28.50/u", style = MaterialTheme.typography.bodySmall.copy(fontWeight = if (quantityTier1 >= 20) FontWeight.Bold else FontWeight.Normal))
+                        Text(
+                            "10 – 19 cajas: $32.00/u",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = if (quantityTier1 in
+                                    10..19
+                                ) {
+                                    FontWeight.Bold
+                                } else {
+                                    FontWeight.Normal
+                                }
+                            )
+                        )
+                        Text(
+                            "≥20 cajas: $28.50/u",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = if (quantityTier1 >=
+                                    20
+                                ) {
+                                    FontWeight.Bold
+                                } else {
+                                    FontWeight.Normal
+                                }
+                            )
+                        )
                     }
                 }
 
@@ -900,8 +1136,17 @@ fun MockWholesaleCatalogScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("Cantidad Pedida", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
-                        Text(String.format("Precio aplicable: $%.2f", unitPrice), style = MaterialTheme.typography.bodySmall, color = NexaColors.PrimaryStrong)
+                        Text(
+                            "Cantidad Pedida",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                        Text(
+                            String.format(Locale.ROOT, "Precio aplicable: $%.2f", unitPrice),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = NexaColors.PrimaryStrong
+                        )
                     }
                     NexaQuantityStepper(
                         quantity = quantityTier1,
@@ -919,10 +1164,18 @@ fun MockWholesaleCatalogScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Total Estimado B2B:", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
                     Text(
-                        text = String.format("$%.2f USD", totalAmount),
-                        style = NexaTypography.identifier.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold),
+                        "Total Estimado B2B:",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                    Text(
+                        text = String.format(Locale.ROOT, "$%.2f USD", totalAmount),
+                        style = NexaTypography.identifier.copy(
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
                         color = NexaColors.PrimaryStrong
                     )
                 }
@@ -942,9 +1195,9 @@ fun MockWholesaleCatalogScreen(
  */
 @Composable
 fun MockBuyerReceiptScreen(
+    modifier: Modifier = Modifier,
     onConfirmReceipt: () -> Unit = {},
-    onReportDiscrepancy: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onReportDiscrepancy: () -> Unit = {}
 ) {
     var box1Ok by remember { mutableStateOf(true) }
     var box2Ok by remember { mutableStateOf(true) }
@@ -961,7 +1214,10 @@ fun MockBuyerReceiptScreen(
         Column {
             Text(
                 text = "RECEPCIÓN DE MERCADERÍA",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp
+                ),
                 color = NexaColors.TextSecondary
             )
             Text(
@@ -987,13 +1243,26 @@ fun MockBuyerReceiptScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Código OTP Handoff:", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                    Text(
+                        "Código OTP Handoff:",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
                     Surface(
                         color = NexaColors.InfoSurface,
                         shape = RoundedCornerShape(6.dp),
                         border = BorderStroke(1.dp, NexaColors.InfoBorder)
                     ) {
-                        Text("NX-8842", style = NexaTypography.identifier.copy(fontSize = 14.sp, fontWeight = FontWeight.Bold), color = NexaColors.Info, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                        Text(
+                            "NX-8842",
+                            style = NexaTypography.identifier.copy(
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = NexaColors.Info,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
                     }
                 }
 
@@ -1005,10 +1274,34 @@ fun MockBuyerReceiptScreen(
 
                 HorizontalDivider(color = NexaColors.Border)
 
-                Text("Checklist de Bultos Físicos:", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
-                NexaInteractiveToggle("Bulto #1 - Salmón Salar (24 Cajas)", "Precinto intacto · T° 3.4°C", box1Ok) { box1Ok = it }
-                NexaInteractiveToggle("Bulto #2 - Merluza Austral (12 Cajas)", "Precinto intacto · T° 3.6°C", box2Ok) { box2Ok = it }
-                NexaInteractiveToggle("Bulto #3 - Calamar Gigante (8 Cajas)", "Caja abierta / daño visible", box3Ok) { box3Ok = it }
+                Text(
+                    "Checklist de Bultos Físicos:",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                )
+                NexaInteractiveToggle(
+                    "Bulto #1 - Salmón Salar (24 Cajas)",
+                    "Precinto intacto · T° 3.4°C",
+                    box1Ok
+                ) {
+                    box1Ok =
+                        it
+                }
+                NexaInteractiveToggle(
+                    "Bulto #2 - Merluza Austral (12 Cajas)",
+                    "Precinto intacto · T° 3.6°C",
+                    box2Ok
+                ) {
+                    box2Ok =
+                        it
+                }
+                NexaInteractiveToggle(
+                    "Bulto #3 - Calamar Gigante (8 Cajas)",
+                    "Caja abierta / daño visible",
+                    box3Ok
+                ) {
+                    box3Ok =
+                        it
+                }
 
                 HorizontalDivider(color = NexaColors.Border)
 
@@ -1024,7 +1317,13 @@ fun MockBuyerReceiptScreen(
                         shape = NexaShapes.button,
                         border = BorderStroke(1.dp, NexaColors.WarningBorder)
                     ) {
-                        Text("Registrar Acta de Discrepancia / Merma", color = NexaColors.Warning, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                        Text(
+                            "Registrar Acta de Discrepancia / Merma",
+                            color = NexaColors.Warning,
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
                     }
                 }
             }
@@ -1038,9 +1337,9 @@ fun MockBuyerReceiptScreen(
  */
 @Composable
 fun MockOfflineSyncScreen(
+    modifier: Modifier = Modifier,
     onSyncAll: () -> Unit = {},
-    onRetryItem: (String) -> Unit = {},
-    modifier: Modifier = Modifier
+    onRetryItem: (String) -> Unit = {}
 ) {
     var isOfflineMode by remember { mutableStateOf(false) }
     var syncProgress by remember { mutableFloatStateOf(0.75f) }
@@ -1057,7 +1356,10 @@ fun MockOfflineSyncScreen(
         Column {
             Text(
                 text = "OFFLINE ENGINE · RESILIENCIA DE RED",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp
+                ),
                 color = NexaColors.TextSecondary
             )
             Text(
@@ -1072,7 +1374,10 @@ fun MockOfflineSyncScreen(
             modifier = Modifier.fillMaxWidth(),
             shape = NexaShapes.card,
             color = if (isOfflineMode) NexaColors.WarningSurface else NexaColors.Surface,
-            border = BorderStroke(1.dp, if (isOfflineMode) NexaColors.WarningBorder else NexaColors.Border)
+            border = BorderStroke(
+                1.dp,
+                if (isOfflineMode) NexaColors.WarningBorder else NexaColors.Border
+            )
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -1083,7 +1388,10 @@ fun MockOfflineSyncScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         Icon(
                             painter = painterResource(R.drawable.ic_sync),
                             contentDescription = null,
@@ -1091,15 +1399,29 @@ fun MockOfflineSyncScreen(
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
-                            text = if (isOfflineMode) "Modo Offline (Sin Conexión)" else "Conectado al Gateway Central",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                            text = if (isOfflineMode) {
+                                "Modo Offline (Sin Conexión)"
+                            } else {
+                                "Conectado al Gateway Central"
+                            },
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Bold
+                            )
                         )
                     }
                     NexaStatusPill(
                         text = if (isOfflineMode) "OFFLINE" else "ONLINE",
-                        backgroundColor = if (isOfflineMode) NexaColors.WarningSurface else NexaColors.SuccessSurface,
+                        backgroundColor = if (isOfflineMode) {
+                            NexaColors.WarningSurface
+                        } else {
+                            NexaColors.SuccessSurface
+                        },
                         textColor = if (isOfflineMode) NexaColors.Warning else NexaColors.Success,
-                        borderColor = if (isOfflineMode) NexaColors.WarningBorder else NexaColors.SuccessBorder
+                        borderColor = if (isOfflineMode) {
+                            NexaColors.WarningBorder
+                        } else {
+                            NexaColors.SuccessBorder
+                        }
                     )
                 }
 
@@ -1120,7 +1442,10 @@ fun MockOfflineSyncScreen(
 
         // Queue list
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Transacciones Pendientes en Dispositivo:", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+            Text(
+                "Transacciones Pendientes en Dispositivo:",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+            )
 
             SyncMutationCard(
                 mutationId = "MUT-0041",
@@ -1188,10 +1513,21 @@ private fun SyncMutationCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = description, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(text = mutationId, style = NexaTypography.identifier.copy(fontSize = 11.sp), color = NexaColors.TextMuted)
-                    Text(text = "· $timestamp", style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp), color = NexaColors.TextMuted)
+                    Text(
+                        text = mutationId,
+                        style = NexaTypography.identifier.copy(fontSize = 11.sp),
+                        color = NexaColors.TextMuted
+                    )
+                    Text(
+                        text = "· $timestamp",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = NexaColors.TextMuted
+                    )
                 }
             }
             if (isError && onRetry != null) {
@@ -1200,14 +1536,29 @@ private fun SyncMutationCard(
                     color = NexaColors.Danger,
                     shape = RoundedCornerShape(6.dp)
                 ) {
-                    Text("Reintentar", color = Color.White, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                    Text(
+                        "Reintentar",
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
                 }
             } else {
                 NexaStatusPill(
                     text = status,
-                    backgroundColor = if (isError) NexaColors.DangerSurface else NexaColors.SuccessSurface,
+                    backgroundColor = if (isError) {
+                        NexaColors.DangerSurface
+                    } else {
+                        NexaColors.SuccessSurface
+                    },
                     textColor = if (isError) NexaColors.Danger else NexaColors.Success,
-                    borderColor = if (isError) NexaColors.DangerBorder else NexaColors.SuccessBorder
+                    borderColor = if (isError) {
+                        NexaColors.DangerBorder
+                    } else {
+                        NexaColors.SuccessBorder
+                    }
                 )
             }
         }
@@ -1220,9 +1571,9 @@ private fun SyncMutationCard(
  */
 @Composable
 fun MockIncidentReportScreen(
+    modifier: Modifier = Modifier,
     onCapturePhoto: () -> Unit = {},
-    onSubmitReport: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onSubmitReport: () -> Unit = {}
 ) {
     var selectedCategory by remember { mutableStateOf("Cadena de Frío Rota") }
     var selectedSeverity by remember { mutableStateOf("Crítica") }
@@ -1240,7 +1591,10 @@ fun MockIncidentReportScreen(
         Column {
             Text(
                 text = "GESTIÓN DE INCIDENCIAS & CALIDAD",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp
+                ),
                 color = NexaColors.TextSecondary
             )
             Text(
@@ -1268,12 +1622,21 @@ fun MockIncidentReportScreen(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Text("Nivel de Severidad:", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
-                NexaSeveritySelector(selectedSeverity = selectedSeverity, onSeveritySelected = { selectedSeverity = it })
+                Text(
+                    "Nivel de Severidad:",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                )
+                NexaSeveritySelector(selectedSeverity = selectedSeverity, onSeveritySelected = {
+                    selectedSeverity =
+                        it
+                })
 
                 HorizontalDivider(color = NexaColors.Border)
 
-                Text("Evidencia Fotográfica Obligatoria:", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                Text(
+                    "Evidencia Fotográfica Obligatoria:",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1292,8 +1655,17 @@ fun MockIncidentReportScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
-                                Icon(painter = painterResource(R.drawable.ic_camera), contentDescription = null, tint = NexaColors.PrimaryStrong)
-                                Text("Foto #${index + 1}", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp))
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_camera),
+                                    contentDescription = null,
+                                    tint = NexaColors.PrimaryStrong
+                                )
+                                Text(
+                                    "Foto #${index + 1}",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 10.sp
+                                    )
+                                )
                             }
                         }
                     }
@@ -1315,15 +1687,30 @@ fun MockIncidentReportScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
-                            Text("+", style = MaterialTheme.typography.titleLarge.copy(color = NexaColors.PrimaryStrong))
-                            Text("Añadir", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, color = NexaColors.PrimaryStrong))
+                            Text(
+                                "+",
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    color = NexaColors.PrimaryStrong
+                                )
+                            )
+                            Text(
+                                "Añadir",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.sp,
+                                    color = NexaColors.PrimaryStrong
+                                )
+                            )
                         }
                     }
                 }
 
                 NexaInteractiveToggle(
                     title = "Nota de Audio de Evidencia (Voz)",
-                    subtitle = if (isVoiceRecorded) "Grabación adjunta (0:24 seg)" else "Presiona para grabar audio descriptivo",
+                    subtitle = if (isVoiceRecorded) {
+                        "Grabación adjunta (0:24 seg)"
+                    } else {
+                        "Presiona para grabar audio descriptivo"
+                    },
                     checked = isVoiceRecorded,
                     onCheckedChange = { isVoiceRecorded = it }
                 )
@@ -1345,9 +1732,9 @@ fun MockIncidentReportScreen(
  */
 @Composable
 fun MockCycleCountScreen(
+    modifier: Modifier = Modifier,
     onScanBarcode: () -> Unit = {},
-    onConfirmCount: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onConfirmCount: () -> Unit = {}
 ) {
     var blindMode by remember { mutableStateOf(true) }
     var countedQuantity by remember { mutableIntStateOf(45) }
@@ -1365,7 +1752,10 @@ fun MockCycleCountScreen(
         Column {
             Text(
                 text = "GESTIÓN DE INVENTARIOS & WMS",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp
+                ),
                 color = NexaColors.TextSecondary
             )
             Text(
@@ -1391,8 +1781,20 @@ fun MockCycleCountScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Pasillo B · Rack 04 · Nivel 2", style = NexaTypography.identifier.copy(fontWeight = FontWeight.Bold, fontSize = 14.sp), color = NexaColors.PrimaryStrong)
-                    NexaStatusPill("EN PROGRESO", NexaColors.InfoSurface, NexaColors.Info, NexaColors.InfoBorder)
+                    Text(
+                        "Pasillo B · Rack 04 · Nivel 2",
+                        style = NexaTypography.identifier.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        ),
+                        color = NexaColors.PrimaryStrong
+                    )
+                    NexaStatusPill(
+                        "EN PROGRESO",
+                        NexaColors.InfoSurface,
+                        NexaColors.Info,
+                        NexaColors.InfoBorder
+                    )
                 }
 
                 Text(
@@ -1400,11 +1802,19 @@ fun MockCycleCountScreen(
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = NexaColors.TextPrimary
                 )
-                Text("EAN: 7751234567890 · Lote Activo: L-2026-T82", style = NexaTypography.identifier.copy(fontSize = 12.sp), color = NexaColors.TextSecondary)
+                Text(
+                    "EAN: 7751234567890 · Lote Activo: L-2026-T82",
+                    style = NexaTypography.identifier.copy(fontSize = 12.sp),
+                    color = NexaColors.TextSecondary
+                )
 
                 NexaInteractiveToggle(
                     title = "Modo de Conteo Ciego (Blind Count)",
-                    subtitle = if (blindMode) "Stock teórico oculto para evitar sesgo" else "Stock teórico visible: 48 cajas",
+                    subtitle = if (blindMode) {
+                        "Stock teórico oculto para evitar sesgo"
+                    } else {
+                        "Stock teórico visible: 48 cajas"
+                    },
                     checked = blindMode,
                     onCheckedChange = { blindMode = it }
                 )
@@ -1417,9 +1827,26 @@ fun MockCycleCountScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("Unidades Físicas Contadas", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                        Text(
+                            "Unidades Físicas Contadas",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
                         if (!blindMode) {
-                            Text("Diferencia: $difference cajas", color = if (difference == 0) NexaColors.Success else NexaColors.Danger, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                            Text(
+                                "Diferencia: $difference cajas",
+                                color = if (difference ==
+                                    0
+                                ) {
+                                    NexaColors.Success
+                                } else {
+                                    NexaColors.Danger
+                                },
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
                         }
                     }
                     NexaQuantityStepper(
@@ -1442,7 +1869,13 @@ fun MockCycleCountScreen(
                     shape = NexaShapes.button,
                     border = BorderStroke(1.dp, NexaColors.BorderStrong)
                 ) {
-                    Text("Escanear Código de Siguiente Bulto", color = NexaColors.TextPrimary, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                    Text(
+                        "Escanear Código de Siguiente Bulto",
+                        color = NexaColors.TextPrimary,
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
                 }
             }
         }
@@ -1455,9 +1888,9 @@ fun MockCycleCountScreen(
  */
 @Composable
 fun MockCashOnDeliveryScreen(
+    modifier: Modifier = Modifier,
     onCollectPayment: () -> Unit = {},
-    onPrintReceipt: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onPrintReceipt: () -> Unit = {}
 ) {
     var selectedMethod by remember { mutableStateOf("Efectivo") }
     var cashReceived by remember { mutableFloatStateOf(2000.0f) }
@@ -1475,7 +1908,10 @@ fun MockCashOnDeliveryScreen(
         Column {
             Text(
                 text = "FINANZAS · COBRO CONTRA ENTREGA",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp
+                ),
                 color = NexaColors.TextSecondary
             )
             Text(
@@ -1507,14 +1943,26 @@ fun MockCashOnDeliveryScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Total a Cobrar:", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
                     Text(
-                        text = String.format("$%.2f USD", totalToCollect),
-                        style = NexaTypography.identifier.copy(fontSize = 20.sp, fontWeight = FontWeight.Bold),
+                        "Total a Cobrar:",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                    Text(
+                        text = String.format(Locale.ROOT, "$%.2f USD", totalToCollect),
+                        style = NexaTypography.identifier.copy(
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
                         color = NexaColors.PrimaryStrong
                     )
                 }
-                Text("Cliente: Supermercados Wong · RUC 20100128491", style = MaterialTheme.typography.bodySmall, color = NexaColors.TextSecondary)
+                Text(
+                    "Cliente: Supermercados Wong · RUC 20100128491",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = NexaColors.TextSecondary
+                )
 
                 HorizontalDivider(color = NexaColors.Border)
 
@@ -1525,21 +1973,40 @@ fun MockCashOnDeliveryScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("Monto Recibido:", style = MaterialTheme.typography.bodyMedium)
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                             Surface(
-                                modifier = Modifier.size(32.dp).clip(CircleShape).clickable { cashReceived = (cashReceived - 100.0f).coerceAtLeast(totalToCollect) },
+                                modifier = Modifier.size(32.dp).clip(CircleShape).clickable {
+                                    cashReceived =
+                                        (cashReceived - 100.0f).coerceAtLeast(totalToCollect)
+                                },
                                 shape = CircleShape,
                                 color = NexaColors.SurfaceInset
                             ) {
-                                Box(contentAlignment = Alignment.Center) { Text("−", fontWeight = FontWeight.Bold) }
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text("−", fontWeight = FontWeight.Bold)
+                                }
                             }
-                            Text(String.format("$%.2f", cashReceived), style = NexaTypography.identifier.copy(fontWeight = FontWeight.Bold, fontSize = 15.sp))
+                            Text(
+                                String.format(Locale.ROOT, "$%.2f", cashReceived),
+                                style = NexaTypography.identifier.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                )
+                            )
                             Surface(
-                                modifier = Modifier.size(32.dp).clip(CircleShape).clickable { cashReceived += 100.0f },
+                                modifier = Modifier.size(32.dp).clip(CircleShape).clickable {
+                                    cashReceived +=
+                                        100.0f
+                                },
                                 shape = CircleShape,
                                 color = NexaColors.PrimaryStrong
                             ) {
-                                Box(contentAlignment = Alignment.Center) { Text("+", color = Color.White, fontWeight = FontWeight.Bold) }
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text("+", color = Color.White, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
@@ -1556,8 +2023,21 @@ fun MockCashOnDeliveryScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Vuelto a Entregar al Cliente:", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = NexaColors.Success)
-                            Text(String.format("$%.2f USD", changeAmount), style = NexaTypography.identifier.copy(fontWeight = FontWeight.Bold, fontSize = 16.sp), color = NexaColors.Success)
+                            Text(
+                                "Vuelto a Entregar al Cliente:",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                color = NexaColors.Success
+                            )
+                            Text(
+                                String.format(Locale.ROOT, "$%.2f USD", changeAmount),
+                                style = NexaTypography.identifier.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                ),
+                                color = NexaColors.Success
+                            )
                         }
                     }
                 } else {
@@ -1567,9 +2047,21 @@ fun MockCashOnDeliveryScreen(
                         color = NexaColors.SurfaceInset,
                         border = BorderStroke(1.dp, NexaColors.Border)
                     ) {
-                        Column(modifier = Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Código QR Dinámico B2B Generado", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
-                            Text("Monto exacto: $1,840.00 USD · Válido por 10 min", style = MaterialTheme.typography.bodySmall, color = NexaColors.TextSecondary)
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                "Código QR Dinámico B2B Generado",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+                            Text(
+                                "Monto exacto: $1,840.00 USD · Válido por 10 min",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = NexaColors.TextSecondary
+                            )
                         }
                     }
                 }
@@ -1587,7 +2079,13 @@ fun MockCashOnDeliveryScreen(
                     shape = NexaShapes.button,
                     border = BorderStroke(1.dp, NexaColors.BorderStrong)
                 ) {
-                    Text("Imprimir Recibo Térmico Bluetooth", color = NexaColors.TextPrimary, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                    Text(
+                        "Imprimir Recibo Térmico Bluetooth",
+                        color = NexaColors.TextPrimary,
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
                 }
             }
         }
@@ -1600,9 +2098,9 @@ fun MockCashOnDeliveryScreen(
  */
 @Composable
 fun MockReturnsRmaScreen(
+    modifier: Modifier = Modifier,
     onScanRma: () -> Unit = {},
-    onConfirmReturn: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onConfirmReturn: () -> Unit = {}
 ) {
     var selectedReason by remember { mutableStateOf("Rechazo por Calidad") }
     var sealsIntact by remember { mutableStateOf(true) }
@@ -1620,7 +2118,10 @@ fun MockReturnsRmaScreen(
         Column {
             Text(
                 text = "LOGÍSTICA INVERSA & CALIDAD",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp
+                ),
                 color = NexaColors.TextSecondary
             )
             Text(
@@ -1652,11 +2153,26 @@ fun MockReturnsRmaScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("RMA-2026-0914", style = NexaTypography.identifier.copy(fontWeight = FontWeight.Bold, fontSize = 16.sp), color = NexaColors.PrimaryStrong)
-                    NexaStatusPill("EN EVALUACIÓN", NexaColors.WarningSurface, NexaColors.Warning, NexaColors.WarningBorder)
+                    Text(
+                        "RMA-2026-0914",
+                        style = NexaTypography.identifier.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        ),
+                        color = NexaColors.PrimaryStrong
+                    )
+                    NexaStatusPill(
+                        "EN EVALUACIÓN",
+                        NexaColors.WarningSurface,
+                        NexaColors.Warning,
+                        NexaColors.WarningBorder
+                    )
                 }
 
-                Text("Producto: Salmón Salar Filete · Lote: L-20260914-A", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                Text(
+                    "Producto: Salmón Salar Filete · Lote: L-20260914-A",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                )
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1675,9 +2191,26 @@ fun MockReturnsRmaScreen(
 
                 HorizontalDivider(color = NexaColors.Border)
 
-                Text("Inspección de Condición al Retorno:", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
-                NexaInteractiveToggle("1. Sellos y Precintos de Fábrica Intactos", "Sin alteración ni empaque roto", sealsIntact) { sealsIntact = it }
-                NexaInteractiveToggle("2. Cadena de Frío Conservada (<4°C)", "Termómetro de sonda: 3.2°C OK", tempCompliant) { tempCompliant = it }
+                Text(
+                    "Inspección de Condición al Retorno:",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                )
+                NexaInteractiveToggle(
+                    "1. Sellos y Precintos de Fábrica Intactos",
+                    "Sin alteración ni empaque roto",
+                    sealsIntact
+                ) {
+                    sealsIntact =
+                        it
+                }
+                NexaInteractiveToggle(
+                    "2. Cadena de Frío Conservada (<4°C)",
+                    "Termómetro de sonda: 3.2°C OK",
+                    tempCompliant
+                ) {
+                    tempCompliant =
+                        it
+                }
 
                 HorizontalDivider(color = NexaColors.Border)
 
@@ -1692,7 +2225,13 @@ fun MockReturnsRmaScreen(
                     shape = NexaShapes.button,
                     border = BorderStroke(1.dp, NexaColors.BorderStrong)
                 ) {
-                    Text("Escanear Código de Orden Original", color = NexaColors.TextPrimary, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                    Text(
+                        "Escanear Código de Orden Original",
+                        color = NexaColors.TextPrimary,
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
                 }
             }
         }
@@ -1705,9 +2244,9 @@ fun MockReturnsRmaScreen(
  */
 @Composable
 fun MockAuthWorkspaceScreen(
+    modifier: Modifier = Modifier,
     onBiometricLogin: () -> Unit = {},
-    onSelectWorkspace: (String) -> Unit = {},
-    modifier: Modifier = Modifier
+    onSelectWorkspace: (String) -> Unit = {}
 ) {
     var selectedFacility by remember { mutableStateOf("Planta Frío Callao") }
     var biometricVerified by remember { mutableStateOf(false) }
@@ -1723,7 +2262,10 @@ fun MockAuthWorkspaceScreen(
         Column {
             Text(
                 text = "ACCESO & GESTIÓN DE TURNOS",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp
+                ),
                 color = NexaColors.TextSecondary
             )
             Text(
@@ -1752,7 +2294,10 @@ fun MockAuthWorkspaceScreen(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Text("Seleccionar Centro Logístico / Almacén:", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                Text(
+                    "Seleccionar Centro Logístico / Almacén:",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                )
                 NexaFilterChips(
                     options = listOf("Planta Frío Callao", "Hub Lurín", "Cross-dock Huachipa"),
                     selectedOption = selectedFacility,
@@ -1764,7 +2309,10 @@ fun MockAuthWorkspaceScreen(
 
                 HorizontalDivider(color = NexaColors.Border)
 
-                Text("Autenticación Segura en Dispositivo:", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                Text(
+                    "Autenticación Segura en Dispositivo:",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                )
 
                 Surface(
                     modifier = Modifier
@@ -1775,8 +2323,15 @@ fun MockAuthWorkspaceScreen(
                             onBiometricLogin()
                         },
                     shape = RoundedCornerShape(12.dp),
-                    color = if (biometricVerified) NexaColors.SuccessSurface else NexaColors.InfoSurface,
-                    border = BorderStroke(1.dp, if (biometricVerified) NexaColors.SuccessBorder else NexaColors.InfoBorder)
+                    color = if (biometricVerified) {
+                        NexaColors.SuccessSurface
+                    } else {
+                        NexaColors.InfoSurface
+                    },
+                    border = BorderStroke(
+                        1.dp,
+                        if (biometricVerified) NexaColors.SuccessBorder else NexaColors.InfoBorder
+                    )
                 ) {
                     Row(
                         modifier = Modifier.padding(14.dp),
@@ -1791,12 +2346,26 @@ fun MockAuthWorkspaceScreen(
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = if (biometricVerified) "Biometría Verificada con Éxito" else "Validar Huella Dactilar o FaceID",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                color = if (biometricVerified) NexaColors.Success else NexaColors.TextPrimary
+                                text = if (biometricVerified) {
+                                    "Biometría Verificada con Éxito"
+                                } else {
+                                    "Validar Huella Dactilar o FaceID"
+                                },
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                color = if (biometricVerified) {
+                                    NexaColors.Success
+                                } else {
+                                    NexaColors.TextPrimary
+                                }
                             )
                             Text(
-                                text = if (biometricVerified) "Token operativo activo por 8 horas" else "Toca aquí para simular sensor biométrico",
+                                text = if (biometricVerified) {
+                                    "Token operativo activo por 8 horas"
+                                } else {
+                                    "Toca aquí para simular sensor biométrico"
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = NexaColors.TextSecondary
                             )
