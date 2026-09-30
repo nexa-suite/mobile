@@ -19,7 +19,6 @@ import com.nexa.mobile.operations.feature.warehouse.ReceivingSubmitResult
 import com.nexa.mobile.operations.feature.warehouse.ReceivingViewModel
 import com.nexa.mobile.operations.feature.warehouse.ReceivingWarehouseChoice
 import com.nexa.mobile.operations.feature.warehouse.ReceivingZoneChoice
-import com.nexa.mobile.operations.feature.warehouse.UnavailableReceivingMetadataStore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -253,8 +252,4 @@ internal object ReceivingGatewayModule {
     fun receivingGateway(
         protectedCalls: com.nexa.mobile.operations.core.network.ProtectedCallExecutor
     ) = NexaReceivingGateway(protectedCalls)
-
-    @Provides
-    @Singleton
-    fun receivingMetadataStore(): ReceivingMetadataStore = UnavailableReceivingMetadataStore
 }

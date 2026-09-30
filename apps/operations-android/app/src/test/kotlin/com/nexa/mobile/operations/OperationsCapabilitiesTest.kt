@@ -42,6 +42,70 @@ class OperationsCapabilitiesTest {
         authorityEpoch = 3
     )
 
+    @Test fun receivingPermissionIsIndependentOfCatalogAndRequiresExactScope() {
+        val verified = VerifiedContextAuthority(
+            "user",
+            "tenant",
+            "workspace",
+            "membership",
+            setOf("inventory.receive", "warehouse.read")
+        )
+        val receivingAccess = access.copy(
+            activeContext = access.activeContext!!.copy(
+                permissionHint = PermissionHint.Unavailable,
+                verifiedAuthority = verified
+            )
+        )
+        val receivingWarehouse = warehouse.copy(
+            route = WarehouseRoute.Receiving,
+            activeContext = warehouse.activeContext!!.copy(
+                verifiedIdentity = VerifiedOperationsIdentity(
+                    verified.userId,
+                    verified.tenantId,
+                    verified.workspaceId,
+                    verified.membershipId,
+                    verified.permissions
+                )
+            )
+        )
+        assertTrue(
+            OperationsCapabilities.permitsEntry(
+                WarehouseRoute.Receiving,
+                SessionState.Active,
+                receivingAccess,
+                receivingWarehouse
+            )
+        )
+        assertFalse(
+            OperationsCapabilities.permitsEntry(
+                WarehouseRoute.ProductSearch,
+                SessionState.Active,
+                receivingAccess,
+                receivingWarehouse
+            )
+        )
+        assertFalse(
+            OperationsCapabilities.permitsEntry(
+                WarehouseRoute.Receiving,
+                SessionState.Active,
+                receivingAccess.copy(
+                    activeContext = receivingAccess.activeContext!!.copy(
+                        verifiedAuthority = verified.copy(membershipId = "other")
+                    )
+                ),
+                receivingWarehouse
+            )
+        )
+        assertEquals(
+            listOf(WorkEntryCapability.Receiving),
+            OperationsCapabilities.workEntryCapabilities(
+                SessionState.Active,
+                receivingAccess,
+                receivingWarehouse
+            )
+        )
+    }
+
     @Test fun confirmedTaskOpensInCurrentContext() {
         assertTrue(
             OperationsCapabilities.permitsEntry(
@@ -66,6 +130,7 @@ class OperationsCapabilitiesTest {
             listOf(
                 "operations.warehouse.catalog-search",
                 "operations.warehouse.confirmed-sku",
+                "operations.warehouse.receiving",
                 "operations.warehouse.barcode-scanner"
             ),
             OperationsCapabilities.registered.map { it.routeIdentity.stableId }

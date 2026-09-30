@@ -2,10 +2,10 @@ package com.nexa.mobile.operations.feature.warehouse
 
 import androidx.compose.runtime.Immutable
 
-enum class WarehouseRoute { WorkEntry, ProductSearch, ConfirmedSku, Scanner }
+enum class WarehouseRoute { WorkEntry, ProductSearch, ConfirmedSku, Scanner, Receiving }
 
 /** A work-entry item must have a registered destination and a real action. */
-enum class WorkEntryCapability { CatalogIdentification, BarcodeIdentification }
+enum class WorkEntryCapability { CatalogIdentification, BarcodeIdentification, Receiving }
 
 enum class WorkEntryStatus {
     TaskAvailable,

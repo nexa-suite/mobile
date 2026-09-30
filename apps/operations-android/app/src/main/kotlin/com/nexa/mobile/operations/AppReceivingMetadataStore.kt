@@ -124,7 +124,7 @@ internal object AppReceivingMetadataBindings {
         AppReceivingMetadataStore(AndroidReceivingMetadataStore(context))
 }
 
-private fun ReceivingScopeIdentity.toLocal() =
+private fun ReceivingScopeIdentity.toLocal(): ReceivingMetadataScope =
     ReceivingMetadataScope(userId, tenantId, workspaceId, membershipId)
 
 private fun LocalMetadataWrite.toFeatureResult(): ReceivingMetadataWrite = when (this) {
@@ -135,26 +135,27 @@ private fun LocalMetadataWrite.toFeatureResult(): ReceivingMetadataWrite = when 
     LocalMetadataWrite.Unavailable -> ReceivingMetadataWrite.Unavailable
 }
 
-private fun ReceivingIntentMetadata.toLocalIntent() = ReceivingIntentMetadataRecord(
-    scope = scope.toLocal(),
-    idempotencyKey = idempotencyKey,
-    payload = ReceivingIntentPayload(
-        warehouseId = request.warehouseId,
-        zoneId = request.zoneId,
-        catalogItemId = request.catalogItemId,
-        skuId = request.skuId,
-        batchNumber = request.batchNumber,
-        expirationDate = request.expirationDate.toString(),
-        quantity = request.quantity.toPlainString(),
-        unit = request.unit,
-        temperatureReading = request.temperatureReading?.toPlainString(),
-        notes = request.notes
-    ),
-    status = when (status) {
-        ReceivingIntentMetadataStatus.Pending -> ReceivingIntentStatus.Pending
-        ReceivingIntentMetadataStatus.UnknownOutcome -> ReceivingIntentStatus.UnknownOutcome
-    }
-)
+private fun ReceivingIntentMetadata.toLocalIntent(): ReceivingIntentMetadataRecord =
+    ReceivingIntentMetadataRecord(
+        scope = scope.toLocal(),
+        idempotencyKey = idempotencyKey,
+        payload = ReceivingIntentPayload(
+            warehouseId = request.warehouseId,
+            zoneId = request.zoneId,
+            catalogItemId = request.catalogItemId,
+            skuId = request.skuId,
+            batchNumber = request.batchNumber,
+            expirationDate = request.expirationDate.toString(),
+            quantity = request.quantity.toPlainString(),
+            unit = request.unit,
+            temperatureReading = request.temperatureReading?.toPlainString(),
+            notes = request.notes
+        ),
+        status = when (status) {
+            ReceivingIntentMetadataStatus.Pending -> ReceivingIntentStatus.Pending
+            ReceivingIntentMetadataStatus.UnknownOutcome -> ReceivingIntentStatus.UnknownOutcome
+        }
+    )
 
 private fun ReceivingIntentMetadataRecord.toFeatureIntentOrNull(): ReceivingIntentMetadata? = try {
     ReceivingIntentMetadata(

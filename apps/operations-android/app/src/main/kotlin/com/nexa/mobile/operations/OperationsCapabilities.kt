@@ -14,6 +14,7 @@ import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
 internal enum class OperationsRouteIdentity(val stableId: String) {
     CatalogSearch("operations.warehouse.catalog-search"),
     ConfirmedSku("operations.warehouse.confirmed-sku"),
+    Receiving("operations.warehouse.receiving"),
     BarcodeScanner("operations.warehouse.barcode-scanner")
 }
 
@@ -22,7 +23,8 @@ internal enum class OperationsFeatureOwner { Warehouse }
 internal enum class CapabilityGuardBehavior {
     SearchInCurrentAuthorityEpoch,
     ConfirmedSkuFromSearchInCurrentAuthorityEpoch,
-    ScannerInCurrentAuthorityEpoch
+    ScannerInCurrentAuthorityEpoch,
+    ReceivingInCurrentAuthorityEpoch
 }
 
 internal enum class DeepRouteInvalidationBehavior { ReturnToEntry }
@@ -63,6 +65,17 @@ internal object OperationsCapabilities {
             featureOwner = OperationsFeatureOwner.Warehouse,
             guardBehavior =
                 CapabilityGuardBehavior.ConfirmedSkuFromSearchInCurrentAuthorityEpoch,
+            deepRouteInvalidationBehavior = DeepRouteInvalidationBehavior.ReturnToEntry
+        ),
+        OperationsCapability(
+            routeIdentity = OperationsRouteIdentity.Receiving,
+            destination = WarehouseRoute.Receiving,
+            entryDestination = WarehouseRoute.WorkEntry,
+            requiredProductCapability = WorkEntryCapability.Receiving,
+            requiredContextPermissionHint = PermissionHint.Available,
+            requiredTaskVisibilityHint = TaskVisibilityHint.Available,
+            featureOwner = OperationsFeatureOwner.Warehouse,
+            guardBehavior = CapabilityGuardBehavior.ReceivingInCurrentAuthorityEpoch,
             deepRouteInvalidationBehavior = DeepRouteInvalidationBehavior.ReturnToEntry
         ),
         OperationsCapability(
@@ -109,6 +122,8 @@ internal object OperationsCapabilities {
         val capability = capabilityFor(destination) ?: return false
         if (!hasCurrentAuthority(session, access, warehouse, capability)) return false
         return when (capability.guardBehavior) {
+            CapabilityGuardBehavior.ReceivingInCurrentAuthorityEpoch -> true
+
             CapabilityGuardBehavior.SearchInCurrentAuthorityEpoch ->
                 warehouse.search?.authorityEpoch == access.authorityEpoch
 
@@ -153,7 +168,11 @@ internal object OperationsCapabilities {
         val context = access.activeContext ?: return false
         val warehouseContext = warehouse.activeContext ?: return false
         if (!context.isCurrent ||
-            context.permissionHint != capability.requiredContextPermissionHint
+            (
+                capability.guardBehavior !=
+                    CapabilityGuardBehavior.ReceivingInCurrentAuthorityEpoch &&
+                    context.permissionHint != capability.requiredContextPermissionHint
+                )
         ) {
             return false
         }
@@ -169,9 +188,17 @@ internal object OperationsCapabilities {
         ) {
             return false
         }
-        if (capability.guardBehavior == CapabilityGuardBehavior.ScannerInCurrentAuthorityEpoch) {
+        if (capability.guardBehavior == CapabilityGuardBehavior.ScannerInCurrentAuthorityEpoch ||
+            capability.guardBehavior == CapabilityGuardBehavior.ReceivingInCurrentAuthorityEpoch
+        ) {
             val authority = context.verifiedAuthority ?: return false
             val scannerIdentity = warehouseContext.verifiedIdentity ?: return false
+            if (capability.guardBehavior ==
+                CapabilityGuardBehavior.ReceivingInCurrentAuthorityEpoch &&
+                authority.permissions.none { it == "inventory.receive" || it == "warehouse:write" }
+            ) {
+                return false
+            }
             if (scannerIdentity.userId != authority.userId ||
                 scannerIdentity.tenantId != authority.tenantId ||
                 scannerIdentity.workspaceId != authority.workspaceId ||

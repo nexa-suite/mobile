@@ -44,6 +44,7 @@ internal enum class ProductDestination {
     WorkEntry,
     ProductSearch,
     ConfirmedSku,
+    Receiving,
     Scanner
 }
 
@@ -84,13 +85,12 @@ internal fun RootNavigation(
     onScannerPermissionRequest: () -> Unit = {},
     onScannerOpenSettings: () -> Unit = {},
     onScannerRetry: () -> Unit = {},
-    onScannerManualSearch: () -> Unit = {}
+    onScannerManualSearch: () -> Unit = {},
+    onReceiveStock: () -> Unit = {},
+    receivingContent: @Composable () -> Unit = {}
 ) {
     val isSessionActive = state == SessionState.Active
     val currentContext = accessState.activeContext
-    val currentContextPermissionAvailable = currentContext?.let {
-        it.isCurrent && it.permissionHint == PermissionHint.Available
-    } == true
     val warehouseContextMatches =
         currentContext != null &&
             warehouseState.activeContext?.authorityEpoch == accessState.authorityEpoch
@@ -113,11 +113,12 @@ internal fun RootNavigation(
             state == SessionState.Active &&
                 accessState.stage == AccessStage.WorkAuthorized &&
                 warehouseState.authorityEpoch == accessState.authorityEpoch &&
-                (
-                    !currentContextPermissionAvailable ||
-                        warehouseState.permissionHint != TaskVisibilityHint.Available ||
-                        warehouseState.workEntryStatus != WorkEntryStatus.TaskAvailable
-                    )
+                !OperationsCapabilities.permitsEntry(
+                    warehouseState.route,
+                    state,
+                    accessState,
+                    warehouseState
+                )
         if (permissionLostAtCurrentEpoch && warehouseState.route != WarehouseRoute.WorkEntry) {
             repeat(OperationsCapabilities.deepRouteInvalidationBackCount(warehouseState.route)) {
                 onWarehouseBackState.value()
@@ -161,6 +162,18 @@ internal fun RootNavigation(
                 ProductDestination.WorkEntry
             }
 
+            WarehouseRoute.Receiving -> if (OperationsCapabilities.permitsEntry(
+                    WarehouseRoute.Receiving,
+                    state,
+                    accessState,
+                    warehouseState
+                )
+            ) {
+                ProductDestination.Receiving
+            } else {
+                ProductDestination.WorkEntry
+            }
+
             WarehouseRoute.Scanner -> if (scannerAllowed) {
                 ProductDestination.Scanner
             } else {
@@ -192,6 +205,11 @@ internal fun RootNavigation(
                     ProductDestination.WorkEntry,
                     ProductDestination.ProductSearch,
                     ProductDestination.ConfirmedSku
+                )
+
+                ProductDestination.Receiving -> mutableStateListOf<Any>(
+                    ProductDestination.WorkEntry,
+                    ProductDestination.Receiving
                 )
 
                 ProductDestination.Scanner -> mutableStateListOf<Any>(
@@ -245,29 +263,20 @@ internal fun RootNavigation(
                         WarehouseContentNotice(accessState.notice) {
                             OperationsWorkEntryScreen(
                                 state = if (protectedContentAllowed) {
-                                    warehouseState.copy(
-                                        workEntryStatus = when (currentContext.permissionHint) {
-                                            PermissionHint.Available -> when (
-                                                warehouseState.permissionHint
-                                            ) {
-                                                TaskVisibilityHint.Available ->
-                                                    warehouseState.workEntryStatus
-
-                                                TaskVisibilityHint.Unavailable ->
-                                                    WorkEntryStatus.PermissionUnavailable
-
-                                                TaskVisibilityHint.Unknown ->
-                                                    WorkEntryStatus.PermissionUnknown
-                                            }
-
-                                            PermissionHint.Unavailable ->
-                                                WorkEntryStatus.PermissionUnavailable
-
-                                            else -> WorkEntryStatus.PermissionUnknown
-                                        }
-                                    )
+                                    warehouseState
                                 } else {
                                     warehouseState.copy(activeContext = null)
+                                },
+                                onReceiveStock = {
+                                    if (OperationsCapabilities.permitsEntry(
+                                            WarehouseRoute.Receiving,
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        )
+                                    ) {
+                                        onReceiveStock()
+                                    }
                                 },
                                 onChangeContext = onChangeContext,
                                 onIdentifyProduct = {
@@ -389,6 +398,8 @@ internal fun RootNavigation(
                         }
                     }
 
+                    ProductDestination.Receiving -> receivingContent()
+
                     ProductDestination.Scanner -> {
                         if (scannerAllowed) {
                             ProductScannerScreen(
@@ -422,6 +433,7 @@ internal fun RootNavigation(
                 when (destination) {
                     ProductDestination.ProductSearch,
                     ProductDestination.ConfirmedSku,
+                    ProductDestination.Receiving,
                     ProductDestination.Scanner -> onWarehouseBack()
 
                     ProductDestination.ContextChooser -> {
@@ -444,6 +456,7 @@ internal fun RootNavigation(
                     ProductDestination.WorkEntry,
                     ProductDestination.ProductSearch,
                     ProductDestination.ConfirmedSku,
+                    ProductDestination.Receiving,
                     ProductDestination.Scanner -> NavEntry(entryKey) {
                         if (entryKey == destination) currentEntryRenderer.value(entryKey)
                     }

@@ -28,7 +28,12 @@ import com.nexa.mobile.operations.feature.access.AccessViewModel
 import com.nexa.mobile.operations.feature.access.PermissionHint
 import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
 import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
+import com.nexa.mobile.operations.feature.warehouse.ConfirmedReceivingProduct
 import com.nexa.mobile.operations.feature.warehouse.ProductScannerViewModel
+import com.nexa.mobile.operations.feature.warehouse.ReceivingAuthority
+import com.nexa.mobile.operations.feature.warehouse.ReceivingProductReference
+import com.nexa.mobile.operations.feature.warehouse.ReceivingScreen
+import com.nexa.mobile.operations.feature.warehouse.ReceivingViewModel
 import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
 import com.nexa.mobile.operations.feature.warehouse.VerifiedOperationsIdentity
 import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute
@@ -39,6 +44,12 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @Inject internal lateinit var receivingBindings: ReceivingGatewayBindings
+    private val receivingViewModel: ReceivingViewModel by viewModels {
+        receivingBindings.viewModelFactory()
+    }
+    private var choosingReceivingProduct by mutableStateOf(false)
+
     @Inject internal lateinit var operationsGateway: OperationsAccessGateway
 
     @Inject internal lateinit var scannerOperationsGateway: ScannerOperationsGateway
@@ -115,6 +126,7 @@ class MainActivity : ComponentActivity() {
                 val accessState = accessViewModel.state.collectAsStateWithLifecycle().value
                 val warehouseState = warehouseViewModel.state.collectAsStateWithLifecycle().value
                 val scannerState = scannerViewModel.state.collectAsStateWithLifecycle().value
+                val receivingState = receivingViewModel.state.collectAsStateWithLifecycle().value
                 val scannerReturnContinuationPending =
                     pendingScannerPermissionReturn != null
                 val verifiedContext = operationsGateway.currentContext
@@ -278,12 +290,49 @@ class MainActivity : ComponentActivity() {
                             context = context.toActiveOperationsContext(
                                 accessState.authorityEpoch
                             ),
-                            permissionHint = when (context.permissionHint) {
-                                PermissionHint.Available -> TaskVisibilityHint.Available
-                                PermissionHint.Unavailable -> TaskVisibilityHint.Unavailable
-                                PermissionHint.Unknown -> TaskVisibilityHint.Unknown
-                            }
+                            permissionHint = context.operationsVisibilityHint()
                         )
+                    }
+                }
+
+                androidx.compose.runtime.LaunchedEffect(
+                    state,
+                    accessState.authorityEpoch,
+                    accessState.activeContext
+                ) {
+                    val authority = accessState.activeContext?.verifiedAuthority
+                    if (state != SessionState.Active ||
+                        accessState.stage != AccessStage.WorkAuthorized ||
+                        authority == null || authority.permissions.none {
+                            it == "inventory.receive" || it == "warehouse:write"
+                        }
+                    ) {
+                        choosingReceivingProduct = false
+                        receivingViewModel.invalidate()
+                    }
+                }
+                androidx.compose.runtime.LaunchedEffect(
+                    warehouseState.confirmedSku,
+                    choosingReceivingProduct
+                ) {
+                    val product = warehouseState.confirmedSku
+                    if (choosingReceivingProduct && product != null &&
+                        product.authorityEpoch == accessState.authorityEpoch
+                    ) {
+                        receivingViewModel.selectProduct(
+                            ConfirmedReceivingProduct(
+                                ReceivingProductReference(
+                                    product.candidateKey,
+                                    null,
+                                    product.productDisplayName,
+                                    product.sku,
+                                    product.unit.orEmpty()
+                                ),
+                                product.authorityEpoch
+                            )
+                        )
+                        choosingReceivingProduct = false
+                        warehouseViewModel.openReceiving()
                     }
                 }
 
@@ -292,6 +341,45 @@ class MainActivity : ComponentActivity() {
                     accessState = accessState,
                     warehouseState = warehouseState,
                     scannerState = scannerState,
+                    onReceiveStock = {
+                        accessState.activeContext?.verifiedAuthority?.let { authority ->
+                            receivingViewModel.activate(
+                                ReceivingAuthority(
+                                    authority.userId,
+                                    authority.tenantId,
+                                    authority.workspaceId,
+                                    authority.membershipId,
+                                    authority.permissions,
+                                    accessState.authorityEpoch
+                                )
+                            )
+                            warehouseViewModel.openReceiving()
+                        }
+                    },
+                    receivingContent = {
+                        ReceivingScreen(
+                            state = receivingState,
+                            onBack = warehouseViewModel::back,
+                            onChooseProduct = {
+                                choosingReceivingProduct = true
+                                warehouseViewModel.openProductSearch()
+                            },
+                            onSelectWarehouse = receivingViewModel::selectWarehouse,
+                            onSelectZone = receivingViewModel::selectZone,
+                            onBatchNumberChanged = receivingViewModel::batchNumberChanged,
+                            onExpirationDateChanged = receivingViewModel::expirationDateChanged,
+                            onQuantityChanged = receivingViewModel::quantityChanged,
+                            onUnitChanged = receivingViewModel::unitChanged,
+                            onTemperatureReadingChanged =
+                                receivingViewModel::temperatureReadingChanged,
+                            onReloadWarehouses = receivingViewModel::reloadWarehouses,
+                            onReloadZones = receivingViewModel::reloadZones,
+                            onSubmit = receivingViewModel::submit,
+                            onRetryUnknownOutcome = receivingViewModel::retryUnknownOutcome,
+                            onRetryIntentCleanup = receivingViewModel::retryIntentCleanup,
+                            onStartAnotherReceipt = receivingViewModel::startAnotherReceipt
+                        )
+                    },
                     scannerCameraPreview = { modifier ->
                         ScannerCameraPreview(
                             scanner = cameraScanner,
@@ -312,6 +400,8 @@ class MainActivity : ComponentActivity() {
                     },
                     onLogout = {
                         pendingScannerPermissionReturn = null
+                        choosingReceivingProduct = false
+                        receivingViewModel.invalidate()
                         logoutRequested = true
                         accessViewModel.sessionInvalidated()
                         warehouseViewModel.sessionInvalidated()
@@ -322,6 +412,8 @@ class MainActivity : ComponentActivity() {
                     onContextBack = accessViewModel::backFromContextChooser,
                     onChangeContext = {
                         pendingScannerPermissionReturn = null
+                        choosingReceivingProduct = false
+                        receivingViewModel.invalidate()
                         if (warehouseState.route == WarehouseRoute.Scanner) {
                             scannerViewModel.routeClosed()
                         }
@@ -396,6 +488,8 @@ class MainActivity : ComponentActivity() {
         checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
     private fun invalidateProtectedContentForForegroundReturn() {
+        choosingReceivingProduct = false
+        receivingViewModel.invalidate()
         accessViewModel.sessionInvalidated()
         warehouseViewModel.sessionInvalidated()
         scannerViewModel.sessionInvalidated()
@@ -443,3 +537,17 @@ private fun AccessUiState.shouldResolveCurrentContext(logoutRequested: Boolean):
             stage == AccessStage.IdentityRequired ||
                 (stage == AccessStage.WorkAuthorized && activeContext == null)
             )
+
+private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHint =
+    if (verifiedAuthority?.permissions?.any {
+            it == "inventory.receive" || it == "warehouse:write"
+        } == true
+    ) {
+        TaskVisibilityHint.Available
+    } else {
+        when (permissionHint) {
+            PermissionHint.Available -> TaskVisibilityHint.Available
+            PermissionHint.Unavailable -> TaskVisibilityHint.Unavailable
+            PermissionHint.Unknown -> TaskVisibilityHint.Unknown
+        }
+    }

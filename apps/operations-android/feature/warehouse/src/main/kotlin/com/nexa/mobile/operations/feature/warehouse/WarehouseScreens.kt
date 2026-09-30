@@ -53,6 +53,7 @@ fun OperationsWorkEntryScreen(
     onChangeContext: () -> Unit,
     onIdentifyProduct: () -> Unit,
     onScanProductCode: () -> Unit = {},
+    onReceiveStock: () -> Unit = {},
     capabilities: List<WorkEntryCapability> = listOf(WorkEntryCapability.CatalogIdentification)
 ) {
     Column(
@@ -90,6 +91,12 @@ fun OperationsWorkEntryScreen(
                                     R.string.warehouse_identify_product_support
                                 ),
                                 onClick = onIdentifyProduct
+                            )
+
+                            WorkEntryCapability.Receiving -> NexaTaskRow(
+                                title = stringResource(R.string.receiving_title),
+                                description = stringResource(R.string.receiving_choose_product),
+                                onClick = onReceiveStock
                             )
 
                             WorkEntryCapability.BarcodeIdentification -> NexaTaskRow(

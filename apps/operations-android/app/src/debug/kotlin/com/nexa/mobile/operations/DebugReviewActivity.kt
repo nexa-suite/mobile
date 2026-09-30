@@ -242,7 +242,7 @@ private fun DebugReviewExperience(initialScenario: ReviewScenario, cleanCapture:
                         )
                     }
 
-                    WarehouseRoute.Scanner -> Unit
+                    WarehouseRoute.Receiving, WarehouseRoute.Scanner -> Unit
                 }
             }
         }
