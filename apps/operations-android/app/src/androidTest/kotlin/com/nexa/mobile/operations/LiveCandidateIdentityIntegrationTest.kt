@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -23,6 +24,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.nexa.mobile.operations.feature.access.AccessViewModel
 import com.nexa.mobile.operations.feature.access.R as AccessResources
 import com.nexa.mobile.operations.feature.warehouse.WarehouseViewModel
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
@@ -165,5 +167,27 @@ class LiveCandidateIdentityIntegrationTest {
         composeRule.onNodeWithText(expectedSku, substring = true).assertIsDisplayed()
         composeRule.onNodeWithText("No se realizó ninguna operación de inventario.")
             .performScrollTo().assertIsDisplayed()
+
+        val accessModel = ViewModelProvider(composeRule.activity)[AccessViewModel::class.java]
+        val warehouseModel = ViewModelProvider(composeRule.activity)[WarehouseViewModel::class.java]
+        val priorEpoch = accessModel.state.value.authorityEpoch
+        composeRule.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+        composeRule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        composeRule.waitUntil(timeoutMillis = 15_000) {
+            accessModel.state.value.authorityEpoch > priorEpoch &&
+                composeRule.onAllNodes(hasText("Identificar producto"))
+                    .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("Identificación confirmada").assertDoesNotExist()
+        composeRule.runOnIdle {
+            assertNull(
+                "Foreground return must discard prior confirmed identity",
+                warehouseModel.state.value.confirmedSku
+            )
+            assertTrue(
+                "Foreground return must use fresh authority",
+                accessModel.state.value.authorityEpoch > priorEpoch
+            )
+        }
     }
 }
