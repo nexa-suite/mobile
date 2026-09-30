@@ -105,6 +105,31 @@ tasks.register("verifyAndroidArchitecture") {
                                 "\"/api/v1/inventory/inbound-receipts\"",
                                 "\"<inbound-receipt-route>\""
                             )
+                    } else if (source.name == "NexaPickingGateway.kt") {
+                        check(it.contains("FULFILLMENTS_PATH = \"/api/v1/fulfillments\"")) {
+                            "Picking transport must use the canonical fulfillment route"
+                        }
+                        check(
+                            listOf("PUT", "PATCH", "DELETE").none { method ->
+                                it.contains("ProtectedMethod.$method")
+                            }
+                        ) { "Picking transport must not add unrelated mutations" }
+                        check(
+                            listOf("physical-allocation", "picking-starts", "picking-confirmations")
+                                .all(it::contains)
+                        ) { "Picking routes must remain canonical" }
+                        it.replace("/api/v1/fulfillments", "<protected-picking-route>")
+                    } else if (source.name == "NexaDispositionGateway.kt") {
+                        check(it.contains("INVENTORY_LOTS_PATH = \"/api/v1/inventory/lots\"")) {
+                            "Disposition must use current lot reads and typed dispositions"
+                        }
+                        check(it.contains("/dispositions")) {
+                            "Disposition transport must use the canonical typed mutation"
+                        }
+                        check(listOf("PUT", "PATCH", "DELETE").none { method ->
+                            it.contains("ProtectedMethod.$method")
+                        }) { "Disposition must not add unrelated mutations" }
+                        it.replace("/api/v1/inventory/lots", "<protected-lot-disposition-route>")
                     } else if (source.name == "NexaStockConditionGateway.kt") {
                         check(
                             it.contains("LOTS_PATH = \"/api/v1/inventory/lots\"") &&

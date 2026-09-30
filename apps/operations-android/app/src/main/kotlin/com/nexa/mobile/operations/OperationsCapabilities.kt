@@ -15,6 +15,7 @@ internal enum class OperationsRouteIdentity(val stableId: String) {
     CatalogSearch("operations.warehouse.catalog-search"),
     ConfirmedSku("operations.warehouse.confirmed-sku"),
     Receiving("operations.warehouse.receiving"),
+    Picking("operations.warehouse.picking"),
     StockCondition("operations.warehouse.stock-condition"),
     BarcodeScanner("operations.warehouse.barcode-scanner")
 }
@@ -26,7 +27,8 @@ internal enum class CapabilityGuardBehavior {
     ConfirmedSkuFromSearchInCurrentAuthorityEpoch,
     ScannerInCurrentAuthorityEpoch,
     ReceivingInCurrentAuthorityEpoch,
-    StockConditionInCurrentAuthorityEpoch
+    StockConditionInCurrentAuthorityEpoch,
+    PickingInCurrentAuthorityEpoch
 }
 
 internal enum class DeepRouteInvalidationBehavior { ReturnToEntry }
@@ -67,6 +69,17 @@ internal object OperationsCapabilities {
             featureOwner = OperationsFeatureOwner.Warehouse,
             guardBehavior =
                 CapabilityGuardBehavior.ConfirmedSkuFromSearchInCurrentAuthorityEpoch,
+            deepRouteInvalidationBehavior = DeepRouteInvalidationBehavior.ReturnToEntry
+        ),
+        OperationsCapability(
+            routeIdentity = OperationsRouteIdentity.Picking,
+            destination = WarehouseRoute.Picking,
+            entryDestination = WarehouseRoute.WorkEntry,
+            requiredProductCapability = WorkEntryCapability.Picking,
+            requiredContextPermissionHint = PermissionHint.Available,
+            requiredTaskVisibilityHint = TaskVisibilityHint.Available,
+            featureOwner = OperationsFeatureOwner.Warehouse,
+            guardBehavior = CapabilityGuardBehavior.PickingInCurrentAuthorityEpoch,
             deepRouteInvalidationBehavior = DeepRouteInvalidationBehavior.ReturnToEntry
         ),
         OperationsCapability(
@@ -136,7 +149,8 @@ internal object OperationsCapabilities {
         if (!hasCurrentAuthority(session, access, warehouse, capability)) return false
         return when (capability.guardBehavior) {
             CapabilityGuardBehavior.ReceivingInCurrentAuthorityEpoch,
-            CapabilityGuardBehavior.StockConditionInCurrentAuthorityEpoch -> true
+            CapabilityGuardBehavior.StockConditionInCurrentAuthorityEpoch,
+            CapabilityGuardBehavior.PickingInCurrentAuthorityEpoch -> true
 
             CapabilityGuardBehavior.SearchInCurrentAuthorityEpoch ->
                 warehouse.search?.authorityEpoch == access.authorityEpoch
@@ -187,6 +201,8 @@ internal object OperationsCapabilities {
                     CapabilityGuardBehavior.ReceivingInCurrentAuthorityEpoch &&
                     capability.guardBehavior !=
                     CapabilityGuardBehavior.StockConditionInCurrentAuthorityEpoch &&
+                    capability.guardBehavior !=
+                    CapabilityGuardBehavior.PickingInCurrentAuthorityEpoch &&
                     context.permissionHint != capability.requiredContextPermissionHint
                 )
         ) {
@@ -207,10 +223,16 @@ internal object OperationsCapabilities {
         if (capability.guardBehavior == CapabilityGuardBehavior.ScannerInCurrentAuthorityEpoch ||
             capability.guardBehavior == CapabilityGuardBehavior.ReceivingInCurrentAuthorityEpoch ||
             capability.guardBehavior ==
-            CapabilityGuardBehavior.StockConditionInCurrentAuthorityEpoch
+            CapabilityGuardBehavior.StockConditionInCurrentAuthorityEpoch ||
+            capability.guardBehavior == CapabilityGuardBehavior.PickingInCurrentAuthorityEpoch
         ) {
             val authority = context.verifiedAuthority ?: return false
             val scannerIdentity = warehouseContext.verifiedIdentity ?: return false
+            if (capability.guardBehavior == CapabilityGuardBehavior.PickingInCurrentAuthorityEpoch &&
+                authority.permissions.none { it == "fulfillment.read" || it == "fulfillment:read" }
+            ) {
+                return false
+            }
             if (capability.guardBehavior ==
                 CapabilityGuardBehavior.ReceivingInCurrentAuthorityEpoch &&
                 authority.permissions.none { it == "inventory.receive" || it == "warehouse:write" }

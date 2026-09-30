@@ -244,7 +244,7 @@ private fun DebugReviewExperience(initialScenario: ReviewScenario, cleanCapture:
 
                     WarehouseRoute.Receiving,
                     WarehouseRoute.Scanner,
-                    WarehouseRoute.StockCondition -> Unit
+                    WarehouseRoute.StockCondition, WarehouseRoute.Picking -> Unit
                 }
             }
         }

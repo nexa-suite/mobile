@@ -29,6 +29,13 @@ import com.nexa.mobile.operations.feature.access.PermissionHint
 import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
 import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
 import com.nexa.mobile.operations.feature.warehouse.ConfirmedReceivingProduct
+import com.nexa.mobile.operations.feature.warehouse.DispositionAuthority
+import com.nexa.mobile.operations.feature.warehouse.DispositionScreen
+import com.nexa.mobile.operations.feature.warehouse.DispositionViewModel
+import com.nexa.mobile.operations.feature.warehouse.PickingAuthority
+import com.nexa.mobile.operations.feature.warehouse.PickingEntryScreen
+import com.nexa.mobile.operations.feature.warehouse.PickingScreen
+import com.nexa.mobile.operations.feature.warehouse.PickingViewModel
 import com.nexa.mobile.operations.feature.warehouse.ProductScannerViewModel
 import com.nexa.mobile.operations.feature.warehouse.ReceivingAuthority
 import com.nexa.mobile.operations.feature.warehouse.ReceivingProductReference
@@ -55,6 +62,16 @@ class MainActivity : ComponentActivity() {
     private val stockConditionViewModel: StockConditionViewModel by viewModels {
         stockConditionFactory
     }
+
+    @Inject internal lateinit var pickingBindings: PickingGatewayBindings
+    private val pickingViewModel: PickingViewModel by viewModels {
+        pickingBindings.viewModelFactory()
+    }
+    @Inject internal lateinit var dispositionFactory: DispositionViewModelFactory
+    private val dispositionViewModel: DispositionViewModel by viewModels { dispositionFactory }
+    private var connectedRoute by mutableStateOf<ConnectedOperationRoute?>(null)
+    private var pickingReference by mutableStateOf("")
+    private var pickingOpened by mutableStateOf(false)
     private var choosingReceivingProduct by mutableStateOf(false)
 
     @Inject internal lateinit var operationsGateway: OperationsAccessGateway
@@ -133,6 +150,8 @@ class MainActivity : ComponentActivity() {
                 val accessState = accessViewModel.state.collectAsStateWithLifecycle().value
                 val warehouseState = warehouseViewModel.state.collectAsStateWithLifecycle().value
                 val scannerState = scannerViewModel.state.collectAsStateWithLifecycle().value
+                val dispositionState by dispositionViewModel.state.collectAsStateWithLifecycle()
+                val pickingState by pickingViewModel.state.collectAsStateWithLifecycle()
                 val stockConditionState =
                     stockConditionViewModel.state.collectAsStateWithLifecycle().value
                 val receivingState = receivingViewModel.state.collectAsStateWithLifecycle().value
@@ -318,7 +337,6 @@ class MainActivity : ComponentActivity() {
                     ) {
                         choosingReceivingProduct = false
                         receivingViewModel.invalidate()
-                        stockConditionViewModel.invalidateContext()
                     }
                 }
                 androidx.compose.runtime.LaunchedEffect(
@@ -362,11 +380,125 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                androidx.compose.runtime.LaunchedEffect(
+                    state,
+                    accessState.authorityEpoch,
+                    accessState.activeContext
+                ) {
+                    val authority = accessState.activeContext?.verifiedAuthority
+                    if (state != SessionState.Active ||
+                        accessState.stage != AccessStage.WorkAuthorized || authority == null ||
+                        authority.permissions.none {
+                            it == "fulfillment.read" ||
+                                it == "fulfillment:read"
+                        } ||
+                        (pickingOpened && pickingState.authorityEpoch != accessState.authorityEpoch)
+                    ) {
+                        pickingViewModel.invalidate()
+                        pickingReference = ""
+                        pickingOpened = false
+                    }
+                }
+                androidx.compose.runtime.LaunchedEffect(
+                    state, accessState.authorityEpoch, accessState.activeContext,
+                    warehouseState.authorityEpoch, warehouseState.activeContext
+                ) {
+                    connectedRoute?.let { route ->
+                        if (!ConnectedOperationsNavigation.permits(
+                                route, CONNECTED_OPERATIONS, state, accessState, warehouseState
+                            )
+                        ) closeConnectedOperation()
+                    }
+                }
                 RootNavigation(
                     state = state,
                     accessState = accessState,
                     warehouseState = warehouseState,
                     scannerState = scannerState,
+                    connectedOperationRoute = connectedRoute,
+                    connectedOperationEntries = CONNECTED_OPERATIONS,
+                    onConnectedOperationBack = ::closeConnectedOperation,
+                    onOpenConnectedOperation = { entry ->
+                        ConnectedOperationsNavigation.open(entry, state, accessState, warehouseState)
+                            ?.let { route ->
+                                closeConnectedOperation()
+                                connectedRoute = route
+                                val authority = route.authority
+                                when (entry.key) {
+                                    "warehouse.disposition" -> dispositionViewModel.activate(
+                                        DispositionAuthority(
+                                            authority.userId, authority.tenantId, authority.workspaceId,
+                                            authority.membershipId, authority.permissions, route.authorityEpoch
+                                        )
+                                    )
+                                }
+                            }
+                    },
+                    connectedOperationContent = {
+                        when (connectedRoute?.entryKey) {
+                            "warehouse.disposition" -> DispositionScreen(
+                                state = dispositionState,
+                                onBack = ::closeConnectedOperation,
+                                onLotIdChanged = dispositionViewModel::lotIdChanged,
+                                onLoadLot = dispositionViewModel::loadLot,
+                                onDispositionSelected = dispositionViewModel::selectDisposition,
+                                onReasonChanged = dispositionViewModel::reasonChanged,
+                                onSaveLocalNote = dispositionViewModel::saveLocalNote,
+                                onSubmit = dispositionViewModel::submit,
+                                onReplayUnknownOutcome = dispositionViewModel::replayUnknownOutcome,
+                                onStartNewDecision = dispositionViewModel::startNewDecision,
+                                onRouteClosed = dispositionViewModel::deactivate
+                            )
+                        }
+                    },
+                    onPickStock = {
+                        pickingReference = ""
+                        pickingOpened = false
+                        pickingViewModel.invalidate()
+                        warehouseViewModel.openPicking()
+                    },
+                    pickingContent = {
+                        if (!pickingOpened) {
+                            PickingEntryScreen(
+                                reference = pickingReference,
+                                onReferenceChanged = { pickingReference = it },
+                                onBack = warehouseViewModel::back,
+                                onOpen = {
+                                    val authority = accessState.activeContext?.verifiedAuthority
+                                    if (authority != null && pickingReference.isNotBlank()) {
+                                        pickingViewModel.activate(
+                                            PickingAuthority(
+                                                authority.userId,
+                                                authority.tenantId,
+                                                authority.workspaceId,
+                                                authority.membershipId,
+                                                authority.permissions,
+                                                accessState.authorityEpoch
+                                            ),
+                                            pickingReference.trim()
+                                        )
+                                        pickingOpened = true
+                                    }
+                                }
+                            )
+                        } else {
+                            PickingScreen(
+                                state = pickingState,
+                                onBack = {
+                                    pickingOpened = false
+                                    pickingViewModel.invalidate()
+                                },
+                                onReload = pickingViewModel::reload,
+                                onSelectOffer = pickingViewModel::selectOffer,
+                                onLotIdentifierChanged = pickingViewModel::lotIdentifierChanged,
+                                onQuantityChanged = pickingViewModel::quantityChanged,
+                                onStartPicking = pickingViewModel::startPicking,
+                                onConfirmPick = pickingViewModel::confirmPick,
+                                onRetryUnknownOutcome = pickingViewModel::retryUnknownOutcome,
+                                onRetryIntentCleanup = pickingViewModel::retryIntentCleanup
+                            )
+                        }
+                    },
                     onViewStock = {
                         warehouseState.activeContext?.let { context ->
                             stockConditionViewModel.activate(context)
@@ -440,10 +572,14 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onLogout = {
+                        closeConnectedOperation()
                         pendingScannerPermissionReturn = null
                         choosingReceivingProduct = false
                         receivingViewModel.invalidate()
                         stockConditionViewModel.invalidateContext()
+                        pickingViewModel.invalidate()
+                        pickingReference = ""
+                        pickingOpened = false
                         logoutRequested = true
                         accessViewModel.sessionInvalidated()
                         warehouseViewModel.sessionInvalidated()
@@ -453,10 +589,14 @@ class MainActivity : ComponentActivity() {
                     onSelectContext = accessViewModel::selectContext,
                     onContextBack = accessViewModel::backFromContextChooser,
                     onChangeContext = {
+                        closeConnectedOperation()
                         pendingScannerPermissionReturn = null
                         choosingReceivingProduct = false
                         receivingViewModel.invalidate()
                         stockConditionViewModel.invalidateContext()
+                        pickingViewModel.invalidate()
+                        pickingReference = ""
+                        pickingOpened = false
                         if (warehouseState.route == WarehouseRoute.Scanner) {
                             scannerViewModel.routeClosed()
                         }
@@ -530,10 +670,19 @@ class MainActivity : ComponentActivity() {
     private fun cameraPermissionGranted(): Boolean =
         checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
+    private fun closeConnectedOperation() {
+        connectedRoute = null
+        dispositionViewModel.deactivate()
+    }
+
     private fun invalidateProtectedContentForForegroundReturn() {
+        closeConnectedOperation()
         choosingReceivingProduct = false
         receivingViewModel.invalidate()
         stockConditionViewModel.invalidateContext()
+        pickingViewModel.invalidate()
+        pickingReference = ""
+        pickingOpened = false
         accessViewModel.sessionInvalidated()
         warehouseViewModel.sessionInvalidated()
         scannerViewModel.sessionInvalidated()
@@ -590,8 +739,10 @@ private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHi
                     "warehouse:write",
                     "warehouse.read",
                     "inventory.read",
-                    "warehouse:read"
-                )
+                    "warehouse:read",
+                    "fulfillment.read",
+                    "fulfillment:read"
+                ) || CONNECTED_OPERATIONS.any { entry -> it in entry.readPermissions }
         } == true
     ) {
         TaskVisibilityHint.Available
@@ -602,3 +753,11 @@ private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHi
             PermissionHint.Unknown -> TaskVisibilityHint.Unknown
         }
     }
+
+
+private val CONNECTED_OPERATIONS = listOf(
+    ConnectedOperationEntry(
+        "warehouse.disposition", "Disposición de existencias",
+        setOf("warehouse.read", "inventory.read", "warehouse:read")
+    )
+)

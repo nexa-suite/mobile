@@ -8,7 +8,8 @@ enum class WarehouseRoute {
     ConfirmedSku,
     Scanner,
     Receiving,
-    StockCondition
+    StockCondition,
+    Picking
 }
 
 /** A work-entry item must have a registered destination and a real action. */
@@ -16,7 +17,8 @@ enum class WorkEntryCapability {
     CatalogIdentification,
     BarcodeIdentification,
     Receiving,
-    StockCondition
+    StockCondition,
+    Picking
 }
 
 enum class WorkEntryStatus {

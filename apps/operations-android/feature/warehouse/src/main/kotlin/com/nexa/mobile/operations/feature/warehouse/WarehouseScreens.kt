@@ -54,8 +54,10 @@ fun OperationsWorkEntryScreen(
     onIdentifyProduct: () -> Unit,
     onScanProductCode: () -> Unit = {},
     onReceiveStock: () -> Unit = {},
+    onPickStock: () -> Unit = {},
     onViewStock: () -> Unit = {},
-    capabilities: List<WorkEntryCapability> = listOf(WorkEntryCapability.CatalogIdentification)
+    capabilities: List<WorkEntryCapability> = listOf(WorkEntryCapability.CatalogIdentification),
+    additionalWorkContent: @Composable () -> Unit = {}
 ) {
     Column(
         modifier = modifier
@@ -77,6 +79,9 @@ fun OperationsWorkEntryScreen(
                     onClick = onChangeContext
                 )
             }
+            if (state.activeContext != null && state.workEntryStatus == WorkEntryStatus.TaskAvailable) {
+                additionalWorkContent()
+            }
             when (state.workEntryStatus) {
                 WorkEntryStatus.TaskAvailable -> if (capabilities.isNotEmpty()) {
                     Text(
@@ -92,6 +97,12 @@ fun OperationsWorkEntryScreen(
                                     R.string.warehouse_identify_product_support
                                 ),
                                 onClick = onIdentifyProduct
+                            )
+
+                            WorkEntryCapability.Picking -> NexaTaskRow(
+                                title = stringResource(R.string.picking_title),
+                                description = stringResource(R.string.picking_entry_support),
+                                onClick = onPickStock
                             )
 
                             WorkEntryCapability.StockCondition -> NexaTaskRow(

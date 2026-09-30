@@ -46,6 +46,8 @@ internal enum class ProductDestination {
     ConfirmedSku,
     Receiving,
     StockCondition,
+    Picking,
+    ConnectedOperation,
     Scanner
 }
 
@@ -90,7 +92,15 @@ internal fun RootNavigation(
     onReceiveStock: () -> Unit = {},
     receivingContent: @Composable () -> Unit = {},
     onViewStock: () -> Unit = {},
-    stockConditionContent: @Composable () -> Unit = {}
+    stockConditionContent: @Composable () -> Unit = {},
+    onPickStock: () -> Unit = {},
+    pickingContent: @Composable () -> Unit = {},
+    connectedOperationRoute: ConnectedOperationRoute? = null,
+    connectedOperationEntries: List<ConnectedOperationEntry> = emptyList(),
+    onOpenConnectedOperation: (ConnectedOperationEntry) -> Unit = {},
+    connectedOperationContent: @Composable () -> Unit = {},
+    additionalWorkContent: @Composable () -> Unit = {},
+    onConnectedOperationBack: () -> Unit = {}
 ) {
     val isSessionActive = state == SessionState.Active
     val currentContext = accessState.activeContext
@@ -110,7 +120,8 @@ internal fun RootNavigation(
         warehouseState.permissionHint,
         warehouseState.workEntryStatus,
         warehouseState.route,
-        warehouseState.authorityEpoch
+        warehouseState.authorityEpoch,
+        connectedOperationRoute?.entryKey
     ) {
         val permissionLostAtCurrentEpoch =
             state == SessionState.Active &&
@@ -150,6 +161,10 @@ internal fun RootNavigation(
     )
 
     val destination = when {
+        protectedContentAllowed && connectedOperationRoute != null &&
+            ConnectedOperationsNavigation.permits(
+                connectedOperationRoute, connectedOperationEntries, state, accessState, warehouseState
+            ) -> ProductDestination.ConnectedOperation
         protectedContentAllowed -> when (warehouseState.route) {
             WarehouseRoute.WorkEntry -> ProductDestination.WorkEntry
 
@@ -161,6 +176,18 @@ internal fun RootNavigation(
 
             WarehouseRoute.ConfirmedSku -> if (skuAllowed) {
                 ProductDestination.ConfirmedSku
+            } else {
+                ProductDestination.WorkEntry
+            }
+
+            WarehouseRoute.Picking -> if (OperationsCapabilities.permitsEntry(
+                    WarehouseRoute.Picking,
+                    state,
+                    accessState,
+                    warehouseState
+                )
+            ) {
+                ProductDestination.Picking
             } else {
                 ProductDestination.WorkEntry
             }
@@ -207,7 +234,8 @@ internal fun RootNavigation(
         state.rootDestination(),
         destination,
         accessState.authorityEpoch,
-        warehouseState.authorityEpoch
+        warehouseState.authorityEpoch,
+        connectedOperationRoute?.entryKey
     ) {
         val backStack = remember(destination, accessState.chooser?.phase) {
             when (destination) {
@@ -220,6 +248,15 @@ internal fun RootNavigation(
                     ProductDestination.WorkEntry,
                     ProductDestination.ProductSearch,
                     ProductDestination.ConfirmedSku
+                )
+
+                ProductDestination.ConnectedOperation -> mutableStateListOf<Any>(
+                    ProductDestination.WorkEntry, ProductDestination.ConnectedOperation
+                )
+
+                ProductDestination.Picking -> mutableStateListOf<Any>(
+                    ProductDestination.WorkEntry,
+                    ProductDestination.Picking
                 )
 
                 ProductDestination.StockCondition -> mutableStateListOf<Any>(
@@ -286,6 +323,26 @@ internal fun RootNavigation(
                                     warehouseState
                                 } else {
                                     warehouseState.copy(activeContext = null)
+                                },
+                                additionalWorkContent = {
+                                    ConnectedOperationsEntries(
+                                        entries = ConnectedOperationsNavigation.visibleEntries(
+                                            connectedOperationEntries, state, accessState, warehouseState
+                                        ),
+                                        onOpen = onOpenConnectedOperation
+                                    )
+                                    additionalWorkContent()
+                                },
+                                onPickStock = {
+                                    if (OperationsCapabilities.permitsEntry(
+                                            WarehouseRoute.Picking,
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        )
+                                    ) {
+                                        onPickStock()
+                                    }
                                 },
                                 onViewStock = {
                                     if (OperationsCapabilities.permitsEntry(
@@ -433,6 +490,10 @@ internal fun RootNavigation(
 
                     ProductDestination.StockCondition -> stockConditionContent()
 
+                    ProductDestination.Picking -> pickingContent()
+
+                    ProductDestination.ConnectedOperation -> connectedOperationContent()
+
                     ProductDestination.Scanner -> {
                         if (scannerAllowed) {
                             ProductScannerScreen(
@@ -464,10 +525,13 @@ internal fun RootNavigation(
             backStack = backStack,
             onBack = {
                 when (destination) {
+                    ProductDestination.ConnectedOperation -> onConnectedOperationBack()
+
                     ProductDestination.ProductSearch,
                     ProductDestination.ConfirmedSku,
                     ProductDestination.Receiving,
                     ProductDestination.StockCondition,
+                    ProductDestination.Picking,
                     ProductDestination.Scanner -> onWarehouseBack()
 
                     ProductDestination.ContextChooser -> {
@@ -492,6 +556,7 @@ internal fun RootNavigation(
                     ProductDestination.ConfirmedSku,
                     ProductDestination.Receiving,
                     ProductDestination.StockCondition,
+                    ProductDestination.Picking,
                     ProductDestination.Scanner -> NavEntry(entryKey) {
                         if (entryKey == destination) currentEntryRenderer.value(entryKey)
                     }

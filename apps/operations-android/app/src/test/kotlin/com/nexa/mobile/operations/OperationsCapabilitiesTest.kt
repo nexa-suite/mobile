@@ -175,6 +175,75 @@ class OperationsCapabilitiesTest {
         )
     }
 
+    @Test fun pickingReadRequiresCurrentIdentityAndOwnPermissionWithoutCatalog() {
+        val verified =
+            VerifiedContextAuthority(
+                "user",
+                "tenant",
+                "workspace",
+                "membership",
+                setOf("fulfillment.read")
+            )
+        val stockAccess = access.copy(
+            activeContext = access.activeContext!!.copy(
+                permissionHint = PermissionHint.Unavailable,
+                verifiedAuthority = verified
+            )
+        )
+        val stockWarehouse = warehouse.copy(
+            route = WarehouseRoute.Picking,
+            activeContext = warehouse.activeContext!!.copy(
+                verifiedIdentity = VerifiedOperationsIdentity(
+                    verified.userId,
+                    verified.tenantId,
+                    verified.workspaceId,
+                    verified.membershipId,
+                    verified.permissions
+                )
+            )
+        )
+        assertTrue(
+            OperationsCapabilities.permitsEntry(
+                WarehouseRoute.Picking,
+                SessionState.Active,
+                stockAccess,
+                stockWarehouse
+            )
+        )
+        assertFalse(
+            OperationsCapabilities.permitsEntry(
+                WarehouseRoute.Picking,
+                SessionState.Active,
+                stockAccess.copy(authorityEpoch = 4),
+                stockWarehouse
+            )
+        )
+        assertFalse(
+            OperationsCapabilities.permitsEntry(
+                WarehouseRoute.Picking,
+                SessionState.Active,
+                stockAccess.copy(
+                    activeContext = stockAccess.activeContext!!.copy(
+                        verifiedAuthority = verified.copy(membershipId = "other")
+                    )
+                ),
+                stockWarehouse
+            )
+        )
+        assertFalse(
+            OperationsCapabilities.permitsEntry(
+                WarehouseRoute.Picking,
+                SessionState.Active,
+                stockAccess.copy(
+                    activeContext = stockAccess.activeContext!!.copy(
+                        verifiedAuthority = verified.copy(permissions = setOf("catalog.read"))
+                    )
+                ),
+                stockWarehouse
+            )
+        )
+    }
+
     @Test fun confirmedTaskOpensInCurrentContext() {
         assertTrue(
             OperationsCapabilities.permitsEntry(
@@ -199,6 +268,7 @@ class OperationsCapabilitiesTest {
             listOf(
                 "operations.warehouse.catalog-search",
                 "operations.warehouse.confirmed-sku",
+                "operations.warehouse.picking",
                 "operations.warehouse.stock-condition",
                 "operations.warehouse.receiving",
                 "operations.warehouse.barcode-scanner"

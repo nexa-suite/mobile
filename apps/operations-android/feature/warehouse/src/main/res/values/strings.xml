@@ -1,5 +1,5 @@
 <resources>
-    <string name="warehouse_operations_title">Operations</string>
+    <string name="warehouse_operations_title">Nexa Operations</string>
     <string name="warehouse_work_available">Trabajo disponible</string>
     <string name="warehouse_no_task_title">No hay tareas disponibles</string>
     <string name="warehouse_no_task_body">No hay una tarea de Operations permitida en este contexto.</string>
@@ -305,4 +305,7 @@
     <string name="disposition_error_permission">El contexto actual no muestra permiso para esta disposición.</string>
     <string name="disposition_error_metadata">No se pudo guardar el estado local seguro. No se envió ninguna disposición.</string>
     <string name="disposition_error_review">Actualiza y revisa el lote antes de tomar otra decisión.</string>
+    <string name="picking_entry_support">Consulta la preparación vigente usando su referencia. El servidor confirma asignación física y permisos antes de trabajar.</string>
+    <string name="picking_reference">Referencia de preparación</string>
+    <string name="picking_open">Consultar preparación</string>
 </resources>
