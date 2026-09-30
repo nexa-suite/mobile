@@ -7,13 +7,12 @@ Run Gradle commands from `apps/operations-android` with JDK 17. Install Android 
 ```sh
 cd apps/operations-android
 ./gradlew verifyAndroidArchitecture ktlintCheck lintDebug \
-  :core:auth:testDebugUnitTest :core:network:testDebugUnitTest \
-  :feature:access:testDebugUnitTest :feature:warehouse:testDebugUnitTest \
-  :app:testDebugUnitTest \
+  testDebugUnitTest \
   :app:assembleDebug --dependency-verification strict
 ```
 
-The JUnit XML files are in each module's `build/test-results/testDebugUnitTest`. Lint reports are under each module's `build/reports/lint-results-debug.html`. A zero exit status is necessary, but inspect the XML test and failure counts before recording a result.
+The JVM task covers every configured Android module, including new device/local
+foundations and feature modules. The JUnit XML files are in each module's `build/test-results/testDebugUnitTest`. Lint reports are under each module's `build/reports/lint-results-debug.html`. A zero exit status is necessary, but inspect the XML test and failure counts before recording a result.
 
 ## Emulator gates
 
@@ -22,10 +21,13 @@ Run one booted emulator at a time and confirm its API level before each connecte
 ```sh
 adb devices -l
 adb shell getprop ro.build.version.sdk
-./gradlew :core:auth:connectedDebugAndroidTest :app:connectedDebugAndroidTest \
+./gradlew connectedDebugAndroidTest \
   -Pandroid.testInstrumentationRunnerArguments.notClass=com.nexa.mobile.operations.LiveCandidateIdentityIntegrationTest \
   --dependency-verification strict
 ```
+
+The unqualified connected task includes instrumentation from every configured
+Android module. Modules without instrumentation sources contribute no tests.
 
 Use an API 37.0 image for feature verification and an API 29 image for promotion verification. On Apple Silicon the local image ABI is `arm64-v8a`; the Linux CI job uses `x86_64`. Install the matching `google_apis` system image for the host architecture. Check the generated XML in each module's `build/outputs/androidTest-results/connected/debug` directory after each run. Gradle can replace results from an earlier emulator run, so retain the API level, command, timestamp, and test counts in the execution record.
 
