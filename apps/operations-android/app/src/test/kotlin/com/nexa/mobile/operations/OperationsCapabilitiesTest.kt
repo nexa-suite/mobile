@@ -4,11 +4,14 @@ import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.feature.access.AccessStage
 import com.nexa.mobile.operations.feature.access.AccessUiState
 import com.nexa.mobile.operations.feature.access.PermissionHint
+import com.nexa.mobile.operations.feature.access.VerifiedContextAuthority
 import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
 import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
 import com.nexa.mobile.operations.feature.warehouse.ConfirmedSkuUiState
+import com.nexa.mobile.operations.feature.warehouse.ProductScannerUiState
 import com.nexa.mobile.operations.feature.warehouse.ProductSearchUiState
 import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
+import com.nexa.mobile.operations.feature.warehouse.VerifiedOperationsIdentity
 import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute
 import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
 import com.nexa.mobile.operations.feature.warehouse.WorkEntryCapability
@@ -62,7 +65,8 @@ class OperationsCapabilitiesTest {
         assertEquals(
             listOf(
                 "operations.warehouse.catalog-search",
-                "operations.warehouse.confirmed-sku"
+                "operations.warehouse.confirmed-sku",
+                "operations.warehouse.barcode-scanner"
             ),
             OperationsCapabilities.registered.map { it.routeIdentity.stableId }
         )
@@ -72,8 +76,7 @@ class OperationsCapabilitiesTest {
         )
         assertTrue(
             OperationsCapabilities.registered.all {
-                it.requiredProductCapability == WorkEntryCapability.CatalogIdentification &&
-                    it.requiredContextPermissionHint == PermissionHint.Available &&
+                it.requiredContextPermissionHint == PermissionHint.Available &&
                     it.requiredTaskVisibilityHint == TaskVisibilityHint.Available &&
                     it.featureOwner == OperationsFeatureOwner.Warehouse &&
                     it.deepRouteInvalidationBehavior ==
@@ -93,6 +96,12 @@ class OperationsCapabilitiesTest {
             }.guardBehavior
         )
         assertEquals(
+            CapabilityGuardBehavior.ScannerInCurrentAuthorityEpoch,
+            OperationsCapabilities.registered.single {
+                it.destination == WarehouseRoute.Scanner
+            }.guardBehavior
+        )
+        assertEquals(
             1,
             OperationsCapabilities.deepRouteInvalidationBackCount(
                 WarehouseRoute.ProductSearch
@@ -105,6 +114,10 @@ class OperationsCapabilitiesTest {
         assertEquals(
             0,
             OperationsCapabilities.deepRouteInvalidationBackCount(WarehouseRoute.WorkEntry)
+        )
+        assertEquals(
+            1,
+            OperationsCapabilities.deepRouteInvalidationBackCount(WarehouseRoute.Scanner)
         )
     }
 
@@ -243,6 +256,63 @@ class OperationsCapabilitiesTest {
                     route = WarehouseRoute.ConfirmedSku,
                     confirmedSku = confirmed.copy(authorityEpoch = 2)
                 )
+            )
+        )
+    }
+
+    @Test fun scannerRouteRequiresFreshExactVerifiedIdentityAndScannerEpoch() {
+        val verified = VerifiedContextAuthority(
+            userId = "user-1",
+            tenantId = "tenant-1",
+            workspaceId = "workspace-1",
+            membershipId = "member-1",
+            permissions = setOf("catalog.read")
+        )
+        val verifiedAccess = access.copy(
+            activeContext = access.activeContext?.copy(verifiedAuthority = verified)
+        )
+        val verifiedWarehouse = warehouse.copy(
+            route = WarehouseRoute.Scanner,
+            activeContext = warehouse.activeContext?.copy(
+                verifiedIdentity = VerifiedOperationsIdentity(
+                    userId = verified.userId,
+                    tenantId = verified.tenantId,
+                    workspaceId = verified.workspaceId,
+                    membershipId = verified.membershipId,
+                    permissions = verified.permissions
+                )
+            )
+        )
+        assertTrue(
+            OperationsCapabilities.permits(
+                WarehouseRoute.Scanner,
+                SessionState.Active,
+                verifiedAccess,
+                verifiedWarehouse,
+                ProductScannerUiState.PermissionNotRequested(3)
+            )
+        )
+        val verifiedIdentity = requireNotNull(verifiedWarehouse.activeContext?.verifiedIdentity)
+        assertFalse(
+            OperationsCapabilities.permits(
+                WarehouseRoute.Scanner,
+                SessionState.Active,
+                verifiedAccess,
+                verifiedWarehouse.copy(
+                    activeContext = verifiedWarehouse.activeContext?.copy(
+                        verifiedIdentity = verifiedIdentity.copy(membershipId = "other-member")
+                    )
+                ),
+                ProductScannerUiState.PermissionNotRequested(3)
+            )
+        )
+        assertFalse(
+            OperationsCapabilities.permits(
+                WarehouseRoute.Scanner,
+                SessionState.Active,
+                verifiedAccess,
+                verifiedWarehouse,
+                ProductScannerUiState.PermissionNotRequested(2)
             )
         )
     }

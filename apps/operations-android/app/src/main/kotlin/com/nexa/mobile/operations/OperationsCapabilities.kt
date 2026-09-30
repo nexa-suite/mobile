@@ -4,6 +4,7 @@ import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.feature.access.AccessStage
 import com.nexa.mobile.operations.feature.access.AccessUiState
 import com.nexa.mobile.operations.feature.access.PermissionHint
+import com.nexa.mobile.operations.feature.warehouse.ProductScannerUiState
 import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
 import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute
 import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
@@ -12,14 +13,16 @@ import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
 
 internal enum class OperationsRouteIdentity(val stableId: String) {
     CatalogSearch("operations.warehouse.catalog-search"),
-    ConfirmedSku("operations.warehouse.confirmed-sku")
+    ConfirmedSku("operations.warehouse.confirmed-sku"),
+    BarcodeScanner("operations.warehouse.barcode-scanner")
 }
 
 internal enum class OperationsFeatureOwner { Warehouse }
 
 internal enum class CapabilityGuardBehavior {
     SearchInCurrentAuthorityEpoch,
-    ConfirmedSkuFromSearchInCurrentAuthorityEpoch
+    ConfirmedSkuFromSearchInCurrentAuthorityEpoch,
+    ScannerInCurrentAuthorityEpoch
 }
 
 internal enum class DeepRouteInvalidationBehavior { ReturnToEntry }
@@ -61,6 +64,17 @@ internal object OperationsCapabilities {
             guardBehavior =
                 CapabilityGuardBehavior.ConfirmedSkuFromSearchInCurrentAuthorityEpoch,
             deepRouteInvalidationBehavior = DeepRouteInvalidationBehavior.ReturnToEntry
+        ),
+        OperationsCapability(
+            routeIdentity = OperationsRouteIdentity.BarcodeScanner,
+            destination = WarehouseRoute.Scanner,
+            entryDestination = WarehouseRoute.WorkEntry,
+            requiredProductCapability = WorkEntryCapability.BarcodeIdentification,
+            requiredContextPermissionHint = PermissionHint.Available,
+            requiredTaskVisibilityHint = TaskVisibilityHint.Available,
+            featureOwner = OperationsFeatureOwner.Warehouse,
+            guardBehavior = CapabilityGuardBehavior.ScannerInCurrentAuthorityEpoch,
+            deepRouteInvalidationBehavior = DeepRouteInvalidationBehavior.ReturnToEntry
         )
     )
 
@@ -89,7 +103,8 @@ internal object OperationsCapabilities {
         destination: WarehouseRoute,
         session: SessionState,
         access: AccessUiState,
-        warehouse: WarehouseUiState
+        warehouse: WarehouseUiState,
+        scanner: ProductScannerUiState = ProductScannerUiState.PermissionNotRequested(0)
     ): Boolean {
         val capability = capabilityFor(destination) ?: return false
         if (!hasCurrentAuthority(session, access, warehouse, capability)) return false
@@ -100,6 +115,9 @@ internal object OperationsCapabilities {
             CapabilityGuardBehavior.ConfirmedSkuFromSearchInCurrentAuthorityEpoch ->
                 warehouse.confirmedSku?.authorityEpoch == access.authorityEpoch &&
                     warehouse.search?.authorityEpoch == access.authorityEpoch
+
+            CapabilityGuardBehavior.ScannerInCurrentAuthorityEpoch ->
+                scanner.authorityEpoch == access.authorityEpoch
         }
     }
 
@@ -150,6 +168,18 @@ internal object OperationsCapabilities {
             warehouseContext.workspaceName != context.workspaceName
         ) {
             return false
+        }
+        if (capability.guardBehavior == CapabilityGuardBehavior.ScannerInCurrentAuthorityEpoch) {
+            val authority = context.verifiedAuthority ?: return false
+            val scannerIdentity = warehouseContext.verifiedIdentity ?: return false
+            if (scannerIdentity.userId != authority.userId ||
+                scannerIdentity.tenantId != authority.tenantId ||
+                scannerIdentity.workspaceId != authority.workspaceId ||
+                scannerIdentity.membershipId != authority.membershipId ||
+                scannerIdentity.permissions != authority.permissions
+            ) {
+                return false
+            }
         }
         return true
     }

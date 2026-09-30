@@ -17,6 +17,24 @@ class WarehouseViewModelTest {
     @get:Rule val mainDispatcher = MainDispatcherRule()
 
     @Test
+    fun scannerRouteReturnsToWorkEntryAndManualSearchRemainsAvailable() {
+        val gateway = FakeWarehouseGateway()
+        val viewModel = WarehouseViewModel(gateway)
+        viewModel.enterOperations(context(1), TaskVisibilityHint.Available)
+
+        viewModel.openScanner()
+
+        assertEquals(WarehouseRoute.Scanner, viewModel.state.value.route)
+        assertNull(viewModel.state.value.search)
+        viewModel.back()
+        assertEquals(WarehouseRoute.WorkEntry, viewModel.state.value.route)
+        viewModel.openProductSearch()
+        assertEquals(WarehouseRoute.ProductSearch, viewModel.state.value.route)
+        assertEquals(0, gateway.searchCalls)
+        assertEquals(0, gateway.confirmationCalls)
+    }
+
+    @Test
     fun searchIsExplicitAndOneCandidateStillNeedsConfirmation() = runTest {
         val gateway = FakeWarehouseGateway().apply {
             searchResult = ProductSearchResult.Page(listOf(candidate), null)

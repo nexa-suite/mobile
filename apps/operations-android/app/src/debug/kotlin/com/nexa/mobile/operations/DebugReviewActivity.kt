@@ -241,6 +241,8 @@ private fun DebugReviewExperience(initialScenario: ReviewScenario, cleanCapture:
                             onBack = { scenario = ReviewScenario.MultipleCandidates }
                         )
                     }
+
+                    WarehouseRoute.Scanner -> Unit
                 }
             }
         }

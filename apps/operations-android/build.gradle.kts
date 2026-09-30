@@ -16,6 +16,12 @@ tasks.named("ktlintCheck") {
     dependsOn(configuredAndroidModules.map { "${it.path}:ktlintCheck" })
 }
 
+tasks.register("testDebugUnitTest") {
+    group = "verification"
+    description = "Runs JVM unit tests for every configured Operations Android module."
+    dependsOn(configuredAndroidModules.map { "${it.path}:testDebugUnitTest" })
+}
+
 tasks.named("ktlintFormat") {
     dependsOn(configuredAndroidModules.map { "${it.path}:ktlintFormat" })
 }
@@ -69,12 +75,26 @@ tasks.register("verifyAndroidArchitecture") {
                             }
                         ) { "Catalog identification adapter must use protected reads only" }
                         it.replace("\"/api/v1/catalog-items\"", "\"<catalog-read-route>\"")
+                    } else if (source.name == "NexaSkuIdentifierGateway.kt") {
+                        check(it.contains("SKU_RESOLUTION_PATH = \"/api/v1/skus/resolve\"")) {
+                            "SKU resolver route must remain the exact approved endpoint"
+                        }
+                        check(it.contains("ProtectedMethod.GET")) {
+                            "SKU resolver must remain a protected read"
+                        }
+                        check(
+                            listOf("POST", "PUT", "PATCH", "DELETE").none { method ->
+                                it.contains("ProtectedMethod.$method")
+                            }
+                        ) { "SKU resolver adapter must not add Product mutations" }
+                        it.replace("/api/v1/skus/resolve", "<sku-identifier-read-route>")
                     } else {
                         it
                     }
                 }
                 listOf(
                     "/catalog",
+                    "/skus",
                     "/inventory",
                     "/warehouse",
                     "/dispatch",
@@ -95,7 +115,8 @@ tasks.register("verifyAndroidArchitecture") {
             ":app",
             ":core:auth",
             ":core:network",
-            ":core:designsystem"
+            ":core:designsystem",
+            ":core:device"
         )
         val requiredFeatureModules = setOf(":feature:access", ":feature:warehouse")
         val allowedFeatureModules = setOf(
@@ -164,6 +185,26 @@ tasks.register("verifyAndroidArchitecture") {
                 source.readText().contains("com.nexa.mobile.operations.feature.")
             }
         ) { ":core:designsystem contains Product workflow state" }
+
+        val deviceBuild = file("core/device/build.gradle.kts").readText()
+        val deviceSources = file("core/device/src/main").walkTopDown().filter {
+            it.extension == "kt"
+        }.toList()
+        check(
+            listOf("project(\":core:auth\")", "project(\":core:network\")", "project(\":feature:")
+                .none(deviceBuild::contains)
+        ) { ":core:device must remain independent of session, transport, and Product features" }
+        check(
+            deviceSources.none { source ->
+                source.readText().contains("com.nexa.mobile.operations.core.network") ||
+                    source.readText().contains("com.nexa.mobile.operations.feature.")
+            }
+        ) { ":core:device contains transport or Product feature state" }
+
+        val warehouseBuild = file("feature/warehouse/build.gradle.kts").readText()
+        check(warehouseBuild.contains("project(\":core:device\")")) {
+            ":feature:warehouse must consume the typed scanner boundary"
+        }
 
         val appSources = file("app/src/main").walkTopDown().filter { it.extension == "kt" }.toList()
         check(
