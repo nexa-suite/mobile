@@ -20,6 +20,8 @@ import com.nexa.mobile.operations.feature.access.ContextChooserScreen
 import com.nexa.mobile.operations.feature.access.PermissionHint
 import com.nexa.mobile.operations.feature.warehouse.ConfirmedSkuScreen
 import com.nexa.mobile.operations.feature.warehouse.OperationsWorkEntryScreen
+import com.nexa.mobile.operations.feature.warehouse.ProductScannerScreen
+import com.nexa.mobile.operations.feature.warehouse.ProductScannerUiState
 import com.nexa.mobile.operations.feature.warehouse.ProductSearchScreen
 import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
 import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute
@@ -41,7 +43,8 @@ internal enum class ProductDestination {
     ContextChooser,
     WorkEntry,
     ProductSearch,
-    ConfirmedSku
+    ConfirmedSku,
+    Scanner
 }
 
 internal fun SessionState.rootDestination(): RootDestination = when (this) {
@@ -70,11 +73,18 @@ internal fun RootNavigation(
     onContextBack: () -> Unit = {},
     onChangeContext: () -> Unit = {},
     onIdentifyProduct: () -> Unit = {},
+    onScanProductCode: () -> Unit = {},
     onWarehouseBack: () -> Unit = {},
     onSearch: () -> Unit = {},
     onLoadMore: () -> Unit = {},
     onQueryChanged: (String) -> Unit = {},
-    onSelectCandidate: (String) -> Unit = {}
+    onSelectCandidate: (String) -> Unit = {},
+    scannerState: ProductScannerUiState = ProductScannerUiState.PermissionNotRequested(0),
+    scannerCameraPreview: @Composable (Modifier) -> Unit = {},
+    onScannerPermissionRequest: () -> Unit = {},
+    onScannerOpenSettings: () -> Unit = {},
+    onScannerRetry: () -> Unit = {},
+    onScannerManualSearch: () -> Unit = {}
 ) {
     val isSessionActive = state == SessionState.Active
     val currentContext = accessState.activeContext
@@ -127,6 +137,13 @@ internal fun RootNavigation(
         accessState,
         warehouseState
     )
+    val scannerAllowed = OperationsCapabilities.permits(
+        WarehouseRoute.Scanner,
+        state,
+        accessState,
+        warehouseState,
+        scannerState
+    )
 
     val destination = when {
         protectedContentAllowed -> when (warehouseState.route) {
@@ -140,6 +157,12 @@ internal fun RootNavigation(
 
             WarehouseRoute.ConfirmedSku -> if (skuAllowed) {
                 ProductDestination.ConfirmedSku
+            } else {
+                ProductDestination.WorkEntry
+            }
+
+            WarehouseRoute.Scanner -> if (scannerAllowed) {
+                ProductDestination.Scanner
             } else {
                 ProductDestination.WorkEntry
             }
@@ -169,6 +192,11 @@ internal fun RootNavigation(
                     ProductDestination.WorkEntry,
                     ProductDestination.ProductSearch,
                     ProductDestination.ConfirmedSku
+                )
+
+                ProductDestination.Scanner -> mutableStateListOf<Any>(
+                    ProductDestination.WorkEntry,
+                    ProductDestination.Scanner
                 )
 
                 ProductDestination.ContextChooser -> if (
@@ -251,6 +279,17 @@ internal fun RootNavigation(
                                         )
                                     ) {
                                         onIdentifyProduct()
+                                    }
+                                },
+                                onScanProductCode = {
+                                    if (OperationsCapabilities.permitsEntry(
+                                            WarehouseRoute.Scanner,
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        )
+                                    ) {
+                                        onScanProductCode()
                                     }
                                 },
                                 capabilities = OperationsCapabilities.workEntryCapabilities(
@@ -350,6 +389,29 @@ internal fun RootNavigation(
                         }
                     }
 
+                    ProductDestination.Scanner -> {
+                        if (scannerAllowed) {
+                            ProductScannerScreen(
+                                state = scannerState,
+                                activeContext = warehouseState.activeContext,
+                                cameraPreview = scannerCameraPreview,
+                                onBack = onWarehouseBack,
+                                onChangeContext = onChangeContext,
+                                onRequestPermission = onScannerPermissionRequest,
+                                onOpenSettings = onScannerOpenSettings,
+                                onRetryScan = onScannerRetry,
+                                onManualSearch = onScannerManualSearch
+                            )
+                        } else {
+                            OperationsWorkEntryScreen(
+                                state = warehouseState,
+                                onChangeContext = onChangeContext,
+                                onIdentifyProduct = onIdentifyProduct,
+                                onScanProductCode = onScanProductCode
+                            )
+                        }
+                    }
+
                     else -> error("Unknown Product destination")
                 }
             }
@@ -359,7 +421,8 @@ internal fun RootNavigation(
             onBack = {
                 when (destination) {
                     ProductDestination.ProductSearch,
-                    ProductDestination.ConfirmedSku -> onWarehouseBack()
+                    ProductDestination.ConfirmedSku,
+                    ProductDestination.Scanner -> onWarehouseBack()
 
                     ProductDestination.ContextChooser -> {
                         val chooser = accessState.chooser
@@ -380,7 +443,8 @@ internal fun RootNavigation(
                     ProductDestination.ContextChooser,
                     ProductDestination.WorkEntry,
                     ProductDestination.ProductSearch,
-                    ProductDestination.ConfirmedSku -> NavEntry(entryKey) {
+                    ProductDestination.ConfirmedSku,
+                    ProductDestination.Scanner -> NavEntry(entryKey) {
                         if (entryKey == destination) currentEntryRenderer.value(entryKey)
                     }
 

@@ -93,6 +93,7 @@ tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn(valida
 dependencies {
     implementation(project(":core:auth"))
     implementation(project(":core:network"))
+    implementation(project(":core:device"))
     implementation(project(":core:designsystem"))
     implementation(project(":feature:access"))
     implementation(project(":feature:warehouse"))
@@ -100,6 +101,7 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
     implementation(libs.activity.compose)
+    implementation(libs.camera.view)
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.viewmodel.ktx)

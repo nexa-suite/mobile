@@ -2,10 +2,10 @@ package com.nexa.mobile.operations.feature.warehouse
 
 import androidx.compose.runtime.Immutable
 
-enum class WarehouseRoute { WorkEntry, ProductSearch, ConfirmedSku }
+enum class WarehouseRoute { WorkEntry, ProductSearch, ConfirmedSku, Scanner }
 
 /** A work-entry item must have a registered destination and a real action. */
-enum class WorkEntryCapability { CatalogIdentification }
+enum class WorkEntryCapability { CatalogIdentification, BarcodeIdentification }
 
 enum class WorkEntryStatus {
     TaskAvailable,
@@ -39,10 +39,22 @@ enum class ProductSearchStatus {
 }
 
 @Immutable
+data class VerifiedOperationsIdentity(
+    val userId: String,
+    val tenantId: String,
+    val workspaceId: String,
+    val membershipId: String,
+    val permissions: Set<String>
+) {
+    override fun toString(): String = "VerifiedOperationsIdentity(REDACTED)"
+}
+
+@Immutable
 data class ActiveOperationsContext(
     val companyName: String,
     val workspaceName: String,
-    val authorityEpoch: Long
+    val authorityEpoch: Long,
+    val verifiedIdentity: VerifiedOperationsIdentity? = null
 )
 
 @Immutable

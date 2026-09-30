@@ -1,19 +1,23 @@
 package com.nexa.mobile.operations.feature.warehouse
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -23,7 +27,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.core.designsystem.NexaActiveContextBar
@@ -46,6 +52,7 @@ fun OperationsWorkEntryScreen(
     modifier: Modifier = Modifier,
     onChangeContext: () -> Unit,
     onIdentifyProduct: () -> Unit,
+    onScanProductCode: () -> Unit = {},
     capabilities: List<WorkEntryCapability> = listOf(WorkEntryCapability.CatalogIdentification)
 ) {
     Column(
@@ -83,6 +90,14 @@ fun OperationsWorkEntryScreen(
                                     R.string.warehouse_identify_product_support
                                 ),
                                 onClick = onIdentifyProduct
+                            )
+
+                            WorkEntryCapability.BarcodeIdentification -> NexaTaskRow(
+                                title = stringResource(R.string.warehouse_scan_product_code),
+                                description = stringResource(
+                                    R.string.warehouse_scan_product_code_support
+                                ),
+                                onClick = onScanProductCode
                             )
                         }
                     }
@@ -197,6 +212,265 @@ fun ConfirmedSkuScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             ConfirmedSkuHierarchy(state = state)
+        }
+    }
+}
+
+@Composable
+fun ProductScannerScreen(
+    state: ProductScannerUiState,
+    activeContext: ActiveOperationsContext?,
+    modifier: Modifier = Modifier,
+    cameraPreview: @Composable (Modifier) -> Unit,
+    onBack: () -> Unit,
+    onChangeContext: () -> Unit,
+    onRequestPermission: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onRetryScan: () -> Unit,
+    onManualSearch: () -> Unit
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(NexaColors.Canvas)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .verticalScroll(rememberScrollState())
+    ) {
+        NexaTopAppBar(
+            title = stringResource(R.string.warehouse_scanner_title),
+            onBack = onBack
+        )
+        activeContext?.let { context ->
+            NexaActiveContextBar(
+                companyName = context.companyName,
+                workspaceName = context.workspaceName,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
+                enabled = true,
+                onClick = onChangeContext
+            )
+        }
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            when (state) {
+                is ProductScannerUiState.PermissionNotRequested,
+                is ProductScannerUiState.PermissionRequestPending -> {
+                    NexaStatePanel(
+                        title = stringResource(R.string.warehouse_scanner_permission_title),
+                        description = stringResource(R.string.warehouse_scanner_permission_body)
+                    )
+                    if (state is ProductScannerUiState.PermissionNotRequested) {
+                        NexaPrimaryButton(
+                            label = stringResource(R.string.warehouse_scanner_permission_action),
+                            onClick = onRequestPermission
+                        )
+                    }
+                }
+
+                is ProductScannerUiState.PermissionDenied -> {
+                    NexaStatePanel(
+                        title = stringResource(R.string.warehouse_scanner_permission_denied_title),
+                        description = stringResource(
+                            R.string.warehouse_scanner_permission_denied_body
+                        )
+                    )
+                    NexaPrimaryButton(
+                        label = stringResource(R.string.warehouse_scanner_permission_action),
+                        onClick = onRequestPermission
+                    )
+                }
+
+                is ProductScannerUiState.PermissionPermanentlyDenied -> {
+                    NexaStatePanel(
+                        title = stringResource(R.string.warehouse_scanner_permission_denied_title),
+                        description = stringResource(
+                            R.string.warehouse_scanner_permission_denied_body
+                        )
+                    )
+                    NexaPrimaryButton(
+                        label = stringResource(R.string.warehouse_scanner_settings_action),
+                        onClick = onOpenSettings
+                    )
+                }
+
+                is ProductScannerUiState.CameraStarting,
+                is ProductScannerUiState.Capturing,
+                is ProductScannerUiState.CameraUnavailable -> {
+                    if (state is ProductScannerUiState.CameraUnavailable) {
+                        NexaStatePanel(
+                            title = stringResource(
+                                R.string.warehouse_scanner_camera_unavailable_title
+                            ),
+                            description = stringResource(
+                                R.string.warehouse_scanner_camera_unavailable_body
+                            )
+                        )
+                        NexaPrimaryButton(
+                            label = stringResource(R.string.warehouse_scanner_start_action),
+                            onClick = onRetryScan
+                        )
+                    } else {
+                        Text(
+                            stringResource(
+                                if (state is ProductScannerUiState.CameraStarting) {
+                                    R.string.warehouse_scanner_starting_title
+                                } else {
+                                    R.string.warehouse_scanner_capturing_title
+                                }
+                            ),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = NexaColors.TextPrimary
+                        )
+                        Text(
+                            stringResource(R.string.warehouse_scanner_instructions),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = NexaColors.TextSecondary
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 260.dp, max = 420.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(NexaColors.Surface)
+                        ) {
+                            cameraPreview(Modifier.fillMaxSize())
+                        }
+                    }
+                }
+
+                is ProductScannerUiState.Resolving -> {
+                    CircularProgressIndicator(color = NexaColors.PrimaryStrong)
+                    NexaStatePanel(
+                        title = stringResource(R.string.warehouse_scanner_resolving_title),
+                        description = stringResource(R.string.warehouse_scanner_resolving_body)
+                    )
+                }
+
+                is ProductScannerUiState.Unverified -> {
+                    val title = when (state.reason) {
+                        ScannerUnverifiedReason.UnknownCode ->
+                            R.string.warehouse_scanner_unknown_title
+
+                        ScannerUnverifiedReason.AmbiguousCode ->
+                            R.string.warehouse_scanner_ambiguous_title
+
+                        ScannerUnverifiedReason.InvalidCode ->
+                            R.string.warehouse_scanner_invalid_title
+
+                        ScannerUnverifiedReason.PermissionDenied ->
+                            R.string.warehouse_scanner_permission_error_title
+
+                        ScannerUnverifiedReason.NetworkUnavailable ->
+                            R.string.warehouse_scanner_network_title
+
+                        ScannerUnverifiedReason.ServiceUnavailable ->
+                            R.string.warehouse_scanner_service_title
+                    }
+                    NexaStatePanel(
+                        title = stringResource(title),
+                        description = stringResource(R.string.warehouse_scanner_unverified_body)
+                    )
+                    state.candidateCount?.let { count ->
+                        Text(
+                            pluralStringResource(
+                                R.plurals.warehouse_scanner_ambiguous_count,
+                                count,
+                                count
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = NexaColors.TextSecondary
+                        )
+                    }
+                    NexaPrimaryButton(
+                        label = stringResource(R.string.warehouse_scanner_start_action),
+                        onClick = onRetryScan
+                    )
+                }
+
+                is ProductScannerUiState.Confirmed -> {
+                    Text(
+                        stringResource(R.string.warehouse_scanner_confirmed_title),
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = NexaColors.TextPrimary
+                    )
+                    ScannerValue(
+                        stringResource(R.string.warehouse_scanner_identifier_type),
+                        stringResource(
+                            when (state.sku.identifierType) {
+                                ScannerIdentifierType.SkuCode ->
+                                    R.string.warehouse_scanner_identifier_sku
+
+                                ScannerIdentifierType.Gtin ->
+                                    R.string.warehouse_scanner_identifier_gtin
+
+                                ScannerIdentifierType.SkuCodeAndGtin ->
+                                    R.string.warehouse_scanner_identifier_both
+                            }
+                        )
+                    )
+                    ScannerValue(
+                        stringResource(R.string.warehouse_scanner_sku_code),
+                        state.sku.skuCode
+                    )
+                    state.sku.gtin?.let {
+                        ScannerValue(stringResource(R.string.warehouse_scanner_gtin), it)
+                    }
+                    ScannerValue(
+                        stringResource(R.string.warehouse_scanner_presentation),
+                        state.sku.presentation
+                    )
+                    state.sku.unitOfMeasure?.let {
+                        ScannerValue(stringResource(R.string.warehouse_scanner_unit), it)
+                    }
+                    ScannerValue(
+                        stringResource(R.string.warehouse_scanner_status),
+                        state.sku.status
+                    )
+                    Text(
+                        stringResource(R.string.warehouse_scanner_no_inventory_change),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = NexaColors.TextSecondary
+                    )
+                    NexaPrimaryButton(
+                        label = stringResource(R.string.warehouse_scanner_start_action),
+                        onClick = onRetryScan
+                    )
+                }
+
+                is ProductScannerUiState.ContextInvalidated -> NexaStatePanel(
+                    title = stringResource(R.string.warehouse_context_invalid_title),
+                    description = stringResource(R.string.warehouse_context_error)
+                )
+
+                is ProductScannerUiState.SessionInvalidated -> NexaStatePanel(
+                    title = stringResource(R.string.warehouse_session_invalid_title),
+                    description = stringResource(R.string.warehouse_session_error)
+                )
+            }
+            NexaPrimaryButton(
+                label = stringResource(R.string.warehouse_scanner_manual_action),
+                onClick = onManualSearch
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScannerValue(label: String, value: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = NexaColors.Surface,
+        border = BorderStroke(1.dp, NexaColors.Border)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                color = NexaColors.TextSecondary
+            )
+            Text(value, style = MaterialTheme.typography.bodyLarge, color = NexaColors.TextPrimary)
         }
     }
 }

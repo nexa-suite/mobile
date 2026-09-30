@@ -20,6 +20,7 @@ include(
     ":core:auth",
     ":core:network",
     ":core:designsystem",
+    ":core:device",
     ":feature:access",
     ":feature:warehouse"
 )

@@ -60,6 +60,21 @@ class WarehouseViewModel(
         )
     }
 
+    fun openScanner() {
+        val current = mutableState.value
+        if (current.workEntryStatus != WorkEntryStatus.TaskAvailable ||
+            current.activeContext == null
+        ) {
+            return
+        }
+        requestGeneration++
+        mutableState.value = current.copy(
+            route = WarehouseRoute.Scanner,
+            search = null,
+            confirmedSku = null
+        )
+    }
+
     fun queryChanged(value: String) {
         val current = mutableState.value
         if (current.route != WarehouseRoute.ProductSearch) return
@@ -247,6 +262,15 @@ class WarehouseViewModel(
             }
 
             WarehouseRoute.ProductSearch -> {
+                requestGeneration++
+                mutableState.value = current.copy(
+                    route = WarehouseRoute.WorkEntry,
+                    search = null,
+                    confirmedSku = null
+                )
+            }
+
+            WarehouseRoute.Scanner -> {
                 requestGeneration++
                 mutableState.value = current.copy(
                     route = WarehouseRoute.WorkEntry,
