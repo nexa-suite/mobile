@@ -36,6 +36,15 @@ class MainActivity : ComponentActivity() {
         WarehouseViewModelFactory(operationsGateway)
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (viewModel.state.value == SessionState.Active) {
+            accessViewModel.sessionInvalidated()
+            warehouseViewModel.sessionInvalidated()
+        }
+        viewModel.verifyForegroundReturn()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
