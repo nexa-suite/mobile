@@ -29,6 +29,10 @@ import com.nexa.mobile.operations.feature.access.PermissionHint
 import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
 import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
 import com.nexa.mobile.operations.feature.warehouse.ConfirmedReceivingProduct
+import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityContext
+import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityIdentity
+import com.nexa.mobile.operations.feature.dispatch.DispatchReadinessScreen
+import com.nexa.mobile.operations.feature.dispatch.DispatchReadinessViewModel
 import com.nexa.mobile.operations.feature.warehouse.DispositionAuthority
 import com.nexa.mobile.operations.feature.warehouse.DispositionMetadataStatus
 import com.nexa.mobile.operations.feature.warehouse.DispositionScreen
@@ -70,6 +74,8 @@ class MainActivity : ComponentActivity() {
     }
     @Inject internal lateinit var dispositionFactory: DispositionViewModelFactory
     private val dispositionViewModel: DispositionViewModel by viewModels { dispositionFactory }
+    @Inject internal lateinit var dispatchReadinessFactory: DispatchReadinessViewModelFactory
+    private val dispatchReadinessViewModel: DispatchReadinessViewModel by viewModels { dispatchReadinessFactory }
     private var pendingDispositionLot by mutableStateOf<String?>(null)
     private var connectedRoute by mutableStateOf<ConnectedOperationRoute?>(null)
     private var pickingReference by mutableStateOf("")
@@ -152,6 +158,7 @@ class MainActivity : ComponentActivity() {
                 val accessState = accessViewModel.state.collectAsStateWithLifecycle().value
                 val warehouseState = warehouseViewModel.state.collectAsStateWithLifecycle().value
                 val scannerState = scannerViewModel.state.collectAsStateWithLifecycle().value
+                val dispatchReadinessState by dispatchReadinessViewModel.state.collectAsStateWithLifecycle()
                 val dispositionState by dispositionViewModel.state.collectAsStateWithLifecycle()
                 val pickingState by pickingViewModel.state.collectAsStateWithLifecycle()
                 val stockConditionState =
@@ -441,6 +448,15 @@ class MainActivity : ComponentActivity() {
                                 connectedRoute = route
                                 val authority = route.authority
                                 when (entry.key) {
+                                    "dispatch.readiness" -> dispatchReadinessViewModel.activate(
+                                        DispatchAuthorityContext(
+                                            route.authorityEpoch,
+                                            DispatchAuthorityIdentity(
+                                                authority.userId, authority.tenantId, authority.workspaceId,
+                                                authority.membershipId, authority.permissions
+                                            )
+                                        )
+                                    )
                                     "warehouse.disposition" -> dispositionViewModel.activate(
                                         DispositionAuthority(
                                             authority.userId, authority.tenantId, authority.workspaceId,
@@ -452,6 +468,14 @@ class MainActivity : ComponentActivity() {
                     },
                     connectedOperationContent = {
                         when (connectedRoute?.entryKey) {
+                            "dispatch.readiness" -> DispatchReadinessScreen(
+                                state = dispatchReadinessState,
+                                onBack = ::closeConnectedOperation,
+                                onRefresh = dispatchReadinessViewModel::refresh,
+                                onSelectFulfillment = dispatchReadinessViewModel::selectFulfillment,
+                                onClearSelection = dispatchReadinessViewModel::clearSelection,
+                                onRouteClosed = dispatchReadinessViewModel::deactivate
+                            )
                             "warehouse.disposition" -> DispositionScreen(
                                 state = dispositionState,
                                 onBack = ::closeConnectedOperation,
@@ -713,6 +737,7 @@ class MainActivity : ComponentActivity() {
         pendingDispositionLot = null
         connectedRoute = null
         dispositionViewModel.deactivate()
+        dispatchReadinessViewModel.deactivate()
     }
 
     private fun invalidateProtectedContentForForegroundReturn() {
@@ -796,6 +821,7 @@ private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHi
 
 
 private val CONNECTED_OPERATIONS = listOf(
+    ConnectedOperationEntry("dispatch.readiness", "Preparación de despacho", setOf("dispatch.read")),
     ConnectedOperationEntry(
         "warehouse.disposition", "Disposición de existencias",
         setOf("warehouse.read", "inventory.read", "warehouse:read")
