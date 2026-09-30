@@ -25,8 +25,10 @@ import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
 import com.nexa.mobile.operations.feature.warehouse.ProductCandidate
 import com.nexa.mobile.operations.feature.warehouse.ProductSearchStatus
 import com.nexa.mobile.operations.feature.warehouse.ProductSearchUiState
+import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
 import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute
 import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
+import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -143,6 +145,8 @@ class RootNavigationStateTest {
         val warehouseState = mutableStateOf(
             WarehouseUiState(
                 route = WarehouseRoute.ProductSearch,
+                workEntryStatus = WorkEntryStatus.TaskAvailable,
+                permissionHint = TaskVisibilityHint.Available,
                 activeContext = activeContext,
                 search = ProductSearchUiState(
                     query = "",
