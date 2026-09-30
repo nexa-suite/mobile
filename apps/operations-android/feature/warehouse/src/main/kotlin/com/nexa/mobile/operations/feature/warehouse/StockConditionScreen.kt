@@ -40,7 +40,8 @@ fun StockConditionScreen(
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onSelectLot: (String) -> Unit,
-    onRouteClosed: () -> Unit
+    onRouteClosed: () -> Unit,
+    onDisposition: ((String) -> Unit)? = null
 ) {
     val closeAction = rememberUpdatedState(onRouteClosed)
     DisposableEffect(Unit) {
@@ -110,6 +111,16 @@ fun StockConditionScreen(
             }
             if (state.selectedLotId != null) {
                 item { SelectedLotPanel(state) }
+                val confirmedLot = state.selectedLot
+                if (confirmedLot != null && state.detailStatus == StockConditionDetailStatus.Current &&
+                    onDisposition != null
+                ) {
+                    item {
+                        OutlinedButton(onClick = { onDisposition(confirmedLot.id) }) {
+                            Text(stringResource(R.string.stock_condition_record_disposition))
+                        }
+                    }
+                }
             }
         }
     }

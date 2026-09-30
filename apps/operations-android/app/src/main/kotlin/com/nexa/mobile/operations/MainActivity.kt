@@ -30,6 +30,7 @@ import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
 import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
 import com.nexa.mobile.operations.feature.warehouse.ConfirmedReceivingProduct
 import com.nexa.mobile.operations.feature.warehouse.DispositionAuthority
+import com.nexa.mobile.operations.feature.warehouse.DispositionMetadataStatus
 import com.nexa.mobile.operations.feature.warehouse.DispositionScreen
 import com.nexa.mobile.operations.feature.warehouse.DispositionViewModel
 import com.nexa.mobile.operations.feature.warehouse.PickingAuthority
@@ -69,6 +70,7 @@ class MainActivity : ComponentActivity() {
     }
     @Inject internal lateinit var dispositionFactory: DispositionViewModelFactory
     private val dispositionViewModel: DispositionViewModel by viewModels { dispositionFactory }
+    private var pendingDispositionLot by mutableStateOf<String?>(null)
     private var connectedRoute by mutableStateOf<ConnectedOperationRoute?>(null)
     private var pickingReference by mutableStateOf("")
     private var pickingOpened by mutableStateOf(false)
@@ -410,6 +412,20 @@ class MainActivity : ComponentActivity() {
                         ) closeConnectedOperation()
                     }
                 }
+                androidx.compose.runtime.LaunchedEffect(
+                    connectedRoute, dispositionState.metadata, pendingDispositionLot
+                ) {
+                    val selectedLot = pendingDispositionLot
+                    if (selectedLot != null && connectedRoute?.entryKey == "warehouse.disposition" &&
+                        dispositionState.metadata == DispositionMetadataStatus.Available
+                    ) {
+                        pendingDispositionLot = null
+                        if (dispositionState.intent == null) {
+                            dispositionViewModel.lotIdChanged(selectedLot)
+                            dispositionViewModel.loadLot()
+                        }
+                    }
+                }
                 RootNavigation(
                     state = state,
                     accessState = accessState,
@@ -511,7 +527,27 @@ class MainActivity : ComponentActivity() {
                             onBack = warehouseViewModel::back,
                             onRefresh = stockConditionViewModel::refresh,
                             onSelectLot = stockConditionViewModel::selectLot,
-                            onRouteClosed = stockConditionViewModel::invalidateContext
+                            onRouteClosed = stockConditionViewModel::invalidateContext,
+                            onDisposition = if (accessState.activeContext?.verifiedAuthority?.permissions
+                                    ?.any { it == "inventory.release" || it == "inventory.waste" } == true
+                            ) {
+                                { lotId ->
+                                    val entry = CONNECTED_OPERATIONS.single { it.key == "warehouse.disposition" }
+                                    ConnectedOperationsNavigation.open(entry, state, accessState, warehouseState)
+                                        ?.let { route ->
+                                            closeConnectedOperation()
+                                            val authority = route.authority
+                                            connectedRoute = route
+                                            pendingDispositionLot = lotId
+                                            dispositionViewModel.activate(
+                                                DispositionAuthority(
+                                                    authority.userId, authority.tenantId, authority.workspaceId,
+                                                    authority.membershipId, authority.permissions, route.authorityEpoch
+                                                )
+                                            )
+                                        }
+                                }
+                            } else null
                         )
                     },
                     onReceiveStock = {
@@ -671,6 +707,10 @@ class MainActivity : ComponentActivity() {
         checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
     private fun closeConnectedOperation() {
+        if (connectedRoute != null && warehouseViewModel.state.value.route != WarehouseRoute.WorkEntry) {
+            warehouseViewModel.back()
+        }
+        pendingDispositionLot = null
         connectedRoute = null
         dispositionViewModel.deactivate()
     }

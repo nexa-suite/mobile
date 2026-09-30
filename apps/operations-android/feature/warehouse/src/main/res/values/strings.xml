@@ -308,4 +308,5 @@
     <string name="picking_entry_support">Consulta la preparación vigente usando su referencia. El servidor confirma asignación física y permisos antes de trabajar.</string>
     <string name="picking_reference">Referencia de preparación</string>
     <string name="picking_open">Consultar preparación</string>
+    <string name="stock_condition_record_disposition">Registrar disposición</string>
 </resources>
