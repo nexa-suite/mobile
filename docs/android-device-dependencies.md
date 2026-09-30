@@ -26,3 +26,13 @@ Metadata generation was an admission step followed by independent source
 verification. Subsequent builds retain `--dependency-verification strict`.
 Dependency resolution evidence is separate from compilation, device behavior,
 physical-camera evidence and Product Acceptance.
+
+## Clean CI POM resolution
+
+The first scanner CI run failed strict verification on Maven Central's
+`com.google.guava:guava-parent:33.3.1-android` POM. Local cached module
+resolution had not admitted this parent. The corresponding Guava POM and
+parent POM were downloaded directly from official Maven Central over HTTPS;
+both matched the published SHA-1 and received explicit SHA-256 entries.
+This adds two POM records without changing dependency versions or verification
+configuration. Clean CI verification remains required on the corrected SHA.
