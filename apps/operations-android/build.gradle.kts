@@ -105,6 +105,20 @@ tasks.register("verifyAndroidArchitecture") {
                                 "\"/api/v1/inventory/inbound-receipts\"",
                                 "\"<inbound-receipt-route>\""
                             )
+                    } else if (source.name == "NexaStockConditionGateway.kt") {
+                        check(
+                            it.contains("LOTS_PATH = \"/api/v1/inventory/lots\"") &&
+                                it.contains("WAREHOUSES_PATH = \"/api/v1/warehouses\"") &&
+                                it.contains("\"\$WAREHOUSES_PATH/\$warehouseId/inventory-availability\"")
+                        ) { "Stock transport must use authorized lot and Warehouse availability routes" }
+                        check(
+                            listOf("POST", "PUT", "PATCH", "DELETE").none { method ->
+                                it.contains("ProtectedMethod.$method")
+                            }
+                        ) { "Stock condition adapter must remain read-only" }
+                        it.replace("/api/v1/inventory/lots", "<authorized-lot-read-route>")
+                            .replace("/api/v1/warehouses", "<authorized-warehouse-read-route>")
+                            .replace("/inventory-availability", "<warehouse-availability-read-route>")
                     } else {
                         it
                     }
