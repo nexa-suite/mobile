@@ -45,7 +45,8 @@ fun OperationsWorkEntryScreen(
     state: WarehouseUiState,
     modifier: Modifier = Modifier,
     onChangeContext: () -> Unit,
-    onIdentifyProduct: () -> Unit
+    onIdentifyProduct: () -> Unit,
+    capabilities: List<WorkEntryCapability> = listOf(WorkEntryCapability.CatalogIdentification)
 ) {
     Column(
         modifier = modifier
@@ -68,16 +69,27 @@ fun OperationsWorkEntryScreen(
                 )
             }
             when (state.workEntryStatus) {
-                WorkEntryStatus.TaskAvailable -> {
+                WorkEntryStatus.TaskAvailable -> if (capabilities.isNotEmpty()) {
                     Text(
                         stringResource(R.string.warehouse_work_available),
                         style = MaterialTheme.typography.titleMedium,
                         color = NexaColors.TextPrimary
                     )
-                    NexaTaskRow(
-                        title = stringResource(R.string.warehouse_identify_product),
-                        description = stringResource(R.string.warehouse_identify_product_support),
-                        onClick = onIdentifyProduct
+                    capabilities.forEach { capability ->
+                        when (capability) {
+                            WorkEntryCapability.CatalogIdentification -> NexaTaskRow(
+                                title = stringResource(R.string.warehouse_identify_product),
+                                description = stringResource(
+                                    R.string.warehouse_identify_product_support
+                                ),
+                                onClick = onIdentifyProduct
+                            )
+                        }
+                    }
+                } else {
+                    NexaStatePanel(
+                        title = stringResource(R.string.warehouse_no_task_title),
+                        description = stringResource(R.string.warehouse_no_task_body)
                     )
                 }
 

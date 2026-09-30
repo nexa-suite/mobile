@@ -1,6 +1,7 @@
 package com.nexa.mobile.operations
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
@@ -16,11 +17,14 @@ import com.nexa.mobile.operations.feature.access.AccessUiState
 import com.nexa.mobile.operations.feature.access.ContextChooserMode
 import com.nexa.mobile.operations.feature.access.ContextChooserPhase
 import com.nexa.mobile.operations.feature.access.ContextChooserScreen
+import com.nexa.mobile.operations.feature.access.PermissionHint
 import com.nexa.mobile.operations.feature.warehouse.ConfirmedSkuScreen
 import com.nexa.mobile.operations.feature.warehouse.OperationsWorkEntryScreen
 import com.nexa.mobile.operations.feature.warehouse.ProductSearchScreen
+import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
 import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute
 import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
+import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
 
 internal enum class RootDestination {
     Bootstrapping,
@@ -74,22 +78,67 @@ internal fun RootNavigation(
 ) {
     val isSessionActive = state == SessionState.Active
     val currentContext = accessState.activeContext
+    val currentContextPermissionAvailable = currentContext?.let {
+        it.isCurrent && it.permissionHint == PermissionHint.Available
+    } == true
     val warehouseContextMatches =
         currentContext != null &&
             warehouseState.activeContext?.authorityEpoch == accessState.authorityEpoch
     val protectedContentAllowed =
         isSessionActive && accessState.stage == AccessStage.WorkAuthorized &&
-            currentContext != null && warehouseContextMatches
+            currentContext?.isCurrent == true && warehouseContextMatches
+
+    val onWarehouseBackState = rememberUpdatedState(onWarehouseBack)
+    LaunchedEffect(
+        state,
+        accessState.stage,
+        accessState.authorityEpoch,
+        currentContext,
+        warehouseState.permissionHint,
+        warehouseState.workEntryStatus,
+        warehouseState.route,
+        warehouseState.authorityEpoch
+    ) {
+        val permissionLostAtCurrentEpoch =
+            state == SessionState.Active &&
+                accessState.stage == AccessStage.WorkAuthorized &&
+                warehouseState.authorityEpoch == accessState.authorityEpoch &&
+                (
+                    !currentContextPermissionAvailable ||
+                        warehouseState.permissionHint != TaskVisibilityHint.Available ||
+                        warehouseState.workEntryStatus != WorkEntryStatus.TaskAvailable
+                    )
+        if (permissionLostAtCurrentEpoch && warehouseState.route != WarehouseRoute.WorkEntry) {
+            repeat(OperationsCapabilities.deepRouteInvalidationBackCount(warehouseState.route)) {
+                onWarehouseBackState.value()
+            }
+        }
+    }
+
+    val searchAllowed = OperationsCapabilities.permits(
+        WarehouseRoute.ProductSearch,
+        state,
+        accessState,
+        warehouseState
+    )
+    val skuAllowed = OperationsCapabilities.permits(
+        WarehouseRoute.ConfirmedSku,
+        state,
+        accessState,
+        warehouseState
+    )
 
     val destination = when {
         protectedContentAllowed -> when (warehouseState.route) {
             WarehouseRoute.WorkEntry -> ProductDestination.WorkEntry
 
-            WarehouseRoute.ProductSearch -> ProductDestination.ProductSearch
+            WarehouseRoute.ProductSearch -> if (searchAllowed) {
+                ProductDestination.ProductSearch
+            } else {
+                ProductDestination.WorkEntry
+            }
 
-            WarehouseRoute.ConfirmedSku -> if (
-                warehouseState.confirmedSku?.authorityEpoch == accessState.authorityEpoch
-            ) {
+            WarehouseRoute.ConfirmedSku -> if (skuAllowed) {
                 ProductDestination.ConfirmedSku
             } else {
                 ProductDestination.WorkEntry
@@ -167,9 +216,48 @@ internal fun RootNavigation(
                     ProductDestination.WorkEntry -> {
                         WarehouseContentNotice(accessState.notice) {
                             OperationsWorkEntryScreen(
-                                state = warehouseState,
+                                state = if (protectedContentAllowed) {
+                                    warehouseState.copy(
+                                        workEntryStatus = when (currentContext.permissionHint) {
+                                            PermissionHint.Available -> when (
+                                                warehouseState.permissionHint
+                                            ) {
+                                                TaskVisibilityHint.Available ->
+                                                    warehouseState.workEntryStatus
+
+                                                TaskVisibilityHint.Unavailable ->
+                                                    WorkEntryStatus.PermissionUnavailable
+
+                                                TaskVisibilityHint.Unknown ->
+                                                    WorkEntryStatus.PermissionUnknown
+                                            }
+
+                                            PermissionHint.Unavailable ->
+                                                WorkEntryStatus.PermissionUnavailable
+
+                                            else -> WorkEntryStatus.PermissionUnknown
+                                        }
+                                    )
+                                } else {
+                                    warehouseState.copy(activeContext = null)
+                                },
                                 onChangeContext = onChangeContext,
-                                onIdentifyProduct = onIdentifyProduct,
+                                onIdentifyProduct = {
+                                    if (OperationsCapabilities.permitsEntry(
+                                            WarehouseRoute.ProductSearch,
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        )
+                                    ) {
+                                        onIdentifyProduct()
+                                    }
+                                },
+                                capabilities = OperationsCapabilities.workEntryCapabilities(
+                                    state,
+                                    accessState,
+                                    warehouseState
+                                ),
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -177,17 +265,57 @@ internal fun RootNavigation(
 
                     ProductDestination.ProductSearch -> {
                         val search = warehouseState.search
-                        if (search != null && protectedContentAllowed) {
+                        if (search != null && searchAllowed) {
                             WarehouseContentNotice(accessState.notice) {
                                 ProductSearchScreen(
                                     state = search,
                                     activeContext = warehouseState.activeContext,
                                     onChangeContext = onChangeContext,
                                     onBack = onWarehouseBack,
-                                    onQueryChanged = onQueryChanged,
-                                    onSearch = onSearch,
-                                    onLoadMore = onLoadMore,
-                                    onSelectCandidate = onSelectCandidate,
+                                    onQueryChanged = { query ->
+                                        if (OperationsCapabilities.permits(
+                                                WarehouseRoute.ProductSearch,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            onQueryChanged(query)
+                                        }
+                                    },
+                                    onSearch = {
+                                        if (OperationsCapabilities.permits(
+                                                WarehouseRoute.ProductSearch,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            onSearch()
+                                        }
+                                    },
+                                    onLoadMore = {
+                                        if (OperationsCapabilities.permits(
+                                                WarehouseRoute.ProductSearch,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            onLoadMore()
+                                        }
+                                    },
+                                    onSelectCandidate = { key ->
+                                        if (OperationsCapabilities.permits(
+                                                WarehouseRoute.ProductSearch,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            onSelectCandidate(key)
+                                        }
+                                    },
                                     modifier = Modifier.weight(1f)
                                 )
                             }
@@ -204,7 +332,7 @@ internal fun RootNavigation(
 
                     ProductDestination.ConfirmedSku -> {
                         val confirmed = warehouseState.confirmedSku
-                        if (confirmed != null && protectedContentAllowed) {
+                        if (confirmed != null && skuAllowed) {
                             WarehouseContentNotice(accessState.notice) {
                                 ConfirmedSkuScreen(
                                     state = confirmed,
@@ -253,7 +381,7 @@ internal fun RootNavigation(
                     ProductDestination.WorkEntry,
                     ProductDestination.ProductSearch,
                     ProductDestination.ConfirmedSku -> NavEntry(entryKey) {
-                        currentEntryRenderer.value(entryKey)
+                        if (entryKey == destination) currentEntryRenderer.value(entryKey)
                     }
 
                     else -> error("Unknown Product destination")
