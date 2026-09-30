@@ -94,6 +94,7 @@ tasks.register("verifyAndroidArchitecture") {
         val foundationModules = setOf(
             ":app",
             ":core:auth",
+            ":core:local",
             ":core:network",
             ":core:designsystem"
         )
@@ -111,6 +112,39 @@ tasks.register("verifyAndroidArchitecture") {
             "Operations Android modules must use the foundations and Blueprint feature areas"
         }
 
+        val localBuild = file("core/local/build.gradle.kts").readText()
+        val localSources = file("core/local/src/main").walkTopDown().filter {
+            it.extension == "kt"
+        }.toList()
+        check(
+            listOf(
+                "project(\":core:auth\")",
+                "project(\":core:network\")",
+                "project(\":feature:",
+                "room",
+                "datastore",
+                "work-runtime",
+                "retrofit",
+                "okhttp"
+            ).none { localBuild.contains(it, ignoreCase = true) }
+        ) {
+            ":core:local must remain a scoped metadata foundation without transport or sync dependencies"
+        }
+        check(
+            localSources.none { source ->
+                val body = source.readText()
+                listOf(
+                    "com.nexa.mobile.operations.core.auth",
+                    "com.nexa.mobile.operations.core.network",
+                    "com.nexa.mobile.operations.feature.",
+                    "ConfirmedReceivingProduct",
+                    "ReceivedLotFacts",
+                    "androidx.work.",
+                    "androidx.room."
+                ).any(body::contains)
+            }
+        ) { ":core:local must store plain scoped metadata, not authority or server facts" }
+
         val featureModules = includedModules
             .filter { it.startsWith(":feature:") }
             .map { it.removePrefix(":").replace(':', '/') }
@@ -122,6 +156,7 @@ tasks.register("verifyAndroidArchitecture") {
             val buildText = buildFile.readText()
             check(
                 !buildText.contains("project(\":core:auth\")") &&
+                    !buildText.contains("project(\":core:local\")") &&
                     !buildText.contains("project(\":core:network\")") &&
                     !buildText.contains("project(\":feature:")
             ) { "$module must remain independent of auth, transport, and other Product features" }
@@ -149,8 +184,9 @@ tasks.register("verifyAndroidArchitecture") {
         val appBuild = file("app/build.gradle.kts").readText()
         check(
             appBuild.contains("project(\":feature:access\")") &&
-                appBuild.contains("project(\":feature:warehouse\")")
-        ) { ":app must compose the existing access and warehouse feature areas" }
+                appBuild.contains("project(\":feature:warehouse\")") &&
+                appBuild.contains("project(\":core:local\")")
+        ) { ":app must compose access, warehouse, and scoped local metadata foundations" }
 
         val designBuild = file("core/designsystem/build.gradle.kts").readText()
         val designSources = file("core/designsystem/src/main").walkTopDown().filter {

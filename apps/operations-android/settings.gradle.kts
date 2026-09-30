@@ -18,6 +18,7 @@ rootProject.name = "nexa-operations-android"
 include(
     ":app",
     ":core:auth",
+    ":core:local",
     ":core:network",
     ":core:designsystem",
     ":feature:access",
