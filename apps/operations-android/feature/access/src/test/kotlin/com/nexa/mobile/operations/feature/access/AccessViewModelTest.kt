@@ -131,6 +131,44 @@ class AccessViewModelTest {
     }
 
     @Test
+    fun lateSelectionCannotRestoreAuthorityAfterInvalidation() = runTest {
+        val deferred = CompletableDeferred<ContextSelectionResult>()
+        val gateway = FakeAccessGateway().apply {
+            contextsResult = ContextListResult.Available(listOf(contextA, contextB))
+            selectionDeferred = deferred
+        }
+        val viewModel = AccessViewModel(gateway)
+        viewModel.openInitialContextChooser()
+        advanceUntilIdle()
+        viewModel.selectContext(contextB.key)
+        runCurrent()
+        viewModel.contextInvalidated()
+        deferred.complete(ContextSelectionResult.Confirmed(contextB))
+        advanceUntilIdle()
+
+        assertEquals(AccessStage.IdentityRequired, viewModel.state.value.stage)
+        assertNull(viewModel.state.value.activeContext)
+        assertEquals(AccessNotice.UnknownContextOutcome, viewModel.state.value.notice)
+    }
+
+    @Test
+    fun unknownSelectionOutcomeRemainsDistinctAndFailClosed() = runTest {
+        val gateway = FakeAccessGateway().apply {
+            contextsResult = ContextListResult.Available(listOf(contextA))
+            selectionResult = ContextSelectionResult.UnknownOutcome
+        }
+        val viewModel = AccessViewModel(gateway)
+        viewModel.openInitialContextChooser()
+        advanceUntilIdle()
+        viewModel.selectContext(contextA.key)
+        advanceUntilIdle()
+
+        assertEquals(AccessStage.IdentityRequired, viewModel.state.value.stage)
+        assertNull(viewModel.state.value.activeContext)
+        assertEquals(AccessNotice.UnknownContextOutcome, viewModel.state.value.notice)
+    }
+
+    @Test
     fun revalidatedPermissionChangeReplacesAuthorityWithoutTrustingOldHint() = runTest {
         val gateway = FakeAccessGateway().apply {
             currentContextResult = CurrentSessionContextResult.Available(contextA)
@@ -153,6 +191,37 @@ class AccessViewModelTest {
         assertEquals(AccessStage.IdentityRequired, viewModel.state.value.stage)
     }
 
+    @Test
+    fun revalidatedScopeAndPermissionsFenceOldWorkEvenWhenNamesAndHintMatch() = runTest {
+        val authorityA = VerifiedContextAuthority(
+            userId = "user",
+            tenantId = "tenant-a",
+            workspaceId = "workspace-a",
+            membershipId = contextA.key,
+            permissions = setOf("catalog.read", "work.a")
+        )
+        val gateway = FakeAccessGateway().apply {
+            currentContextResult = CurrentSessionContextResult.Available(
+                contextA.copy(verifiedAuthority = authorityA)
+            )
+        }
+        val viewModel = AccessViewModel(gateway)
+        viewModel.resolveCurrentSessionContext()
+        advanceUntilIdle()
+
+        val changedPermissions = authorityA.copy(permissions = setOf("catalog.read", "work.b"))
+        viewModel.sessionContextRevalidated(
+            contextA.copy(verifiedAuthority = changedPermissions)
+        )
+        assertEquals(2L, viewModel.state.value.authorityEpoch)
+        assertEquals(changedPermissions, viewModel.state.value.activeContext?.verifiedAuthority)
+
+        val changedScope = changedPermissions.copy(workspaceId = "workspace-b")
+        viewModel.sessionContextRevalidated(contextA.copy(verifiedAuthority = changedScope))
+        assertEquals(3L, viewModel.state.value.authorityEpoch)
+        assertEquals(changedScope, viewModel.state.value.activeContext?.verifiedAuthority)
+    }
+
     private class FakeAccessGateway : AccessGateway {
         var signInResult: SignInResult = SignInResult.SelectionRequired
         var currentContextResult: CurrentSessionContextResult =
@@ -160,6 +229,7 @@ class AccessViewModelTest {
         var contextsResult: ContextListResult = ContextListResult.Available(emptyList())
         var selectionResult: ContextSelectionResult = ContextSelectionResult.Confirmed(contextA)
         var contextsDeferred: CompletableDeferred<ContextListResult>? = null
+        var selectionDeferred: CompletableDeferred<ContextSelectionResult>? = null
         var contextListCalls = 0
         var identifier: String? = null
         var password: String? = null
@@ -183,7 +253,7 @@ class AccessViewModelTest {
             context: WorkforceContextSummary
         ): ContextSelectionResult {
             selectionCalls += context
-            return selectionResult
+            return selectionDeferred?.await() ?: selectionResult
         }
     }
 
