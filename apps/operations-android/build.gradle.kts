@@ -88,6 +88,23 @@ tasks.register("verifyAndroidArchitecture") {
                             }
                         ) { "SKU resolver adapter must not add Product mutations" }
                         it.replace("/api/v1/skus/resolve", "<sku-identifier-read-route>")
+                    } else if (source.name == "NexaReceivingGateway.kt") {
+                        check(
+                            it.contains("WAREHOUSES_PATH = \"/api/v1/warehouses\"") &&
+                                it.contains(
+                                    "INBOUND_RECEIPTS_PATH = \"/api/v1/inventory/inbound-receipts\""
+                                )
+                        ) { "Receiving transport routes must remain the canonical endpoints" }
+                        check(
+                            listOf("PUT", "PATCH", "DELETE").none { method ->
+                                it.contains("ProtectedMethod.$method")
+                            }
+                        ) { "Receiving adapter must not add unrelated Product mutations" }
+                        it.replace("\"/api/v1/warehouses\"", "\"<warehouse-lookup-route>\"")
+                            .replace(
+                                "\"/api/v1/inventory/inbound-receipts\"",
+                                "\"<inbound-receipt-route>\""
+                            )
                     } else {
                         it
                     }
