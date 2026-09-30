@@ -21,6 +21,7 @@ import com.nexa.mobile.operations.feature.access.ContextSelectionResult
 import com.nexa.mobile.operations.feature.access.CurrentSessionContextResult
 import com.nexa.mobile.operations.feature.access.PermissionHint
 import com.nexa.mobile.operations.feature.access.SignInResult
+import com.nexa.mobile.operations.feature.access.VerifiedContextAuthority
 import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
 import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
 import com.nexa.mobile.operations.feature.warehouse.CandidateConfirmationResult
@@ -249,11 +250,6 @@ internal class OperationsAccessGateway @Inject constructor(
         }
     }
 
-    private fun contextIsCurrent(expected: VerifiedSession, current: VerifiedSession): Boolean =
-        current.hasAuthorizedContext && current.userId == expected.userId &&
-            current.tenantId == expected.tenantId && current.workspaceId == expected.workspaceId &&
-            current.membershipId == expected.membershipId
-
     private suspend fun establishContext(
         issued: com.nexa.mobile.operations.core.auth.session.IssuedNativeSession,
         expected: NativeAuthenticationSession,
@@ -281,25 +277,41 @@ internal class OperationsAccessGateway @Inject constructor(
         hasAuthorizedContext && userId == expected.userId && tenantId == expected.tenantId &&
             workspaceId == expected.workspaceId && membershipId == expected.membershipId
 
-    private fun VerifiedSession.toWorkforceContext(): WorkforceContextSummary? {
-        if (!hasAuthorizedContext) return null
-        val membership = membershipId?.takeIf(String::isNotBlank) ?: return null
-        val tenant = tenantName?.takeIf(String::isNotBlank) ?: return null
-        val workspace = workspaceName?.takeIf(String::isNotBlank) ?: return null
-        val permissionHint = catalogReadHint(permissions)
-        return WorkforceContextSummary(
-            key = membership,
-            companyName = tenant,
-            workspaceName = workspace,
-            permissionHint = permissionHint
-        )
-    }
-
     private fun NativeAccessContext.toWorkforceContext() = WorkforceContextSummary(
         key = membershipId,
         companyName = tenantName,
         workspaceName = workspaceName,
         permissionHint = PermissionHint.Unknown
+    )
+}
+
+internal fun contextIsCurrent(expected: VerifiedSession, current: VerifiedSession): Boolean =
+    current.hasAuthorizedContext && current.userId == expected.userId &&
+        current.tenantId == expected.tenantId && current.workspaceId == expected.workspaceId &&
+        current.membershipId == expected.membershipId &&
+        current.permissions == expected.permissions
+
+internal fun VerifiedSession.toWorkforceContext(): WorkforceContextSummary? {
+    if (!hasAuthorizedContext) return null
+    val membership = membershipId?.takeIf(String::isNotBlank) ?: return null
+    val user = userId?.takeIf(String::isNotBlank) ?: return null
+    val tenantId = tenantId?.takeIf(String::isNotBlank) ?: return null
+    val workspaceId = workspaceId?.takeIf(String::isNotBlank) ?: return null
+    val tenant = tenantName?.takeIf(String::isNotBlank) ?: return null
+    val workspace = workspaceName?.takeIf(String::isNotBlank) ?: return null
+    val permissionHint = catalogReadHint(permissions)
+    return WorkforceContextSummary(
+        key = membership,
+        companyName = tenant,
+        workspaceName = workspace,
+        permissionHint = permissionHint,
+        verifiedAuthority = VerifiedContextAuthority(
+            userId = user,
+            tenantId = tenantId,
+            workspaceId = workspaceId,
+            membershipId = membership,
+            permissions = permissions.toSet()
+        )
     )
 }
 
