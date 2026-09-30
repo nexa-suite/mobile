@@ -263,6 +263,27 @@ class WarehouseViewModel(
         enterOperations(context, permissionHint)
     }
 
+    fun permissionHintChanged(permissionHint: TaskVisibilityHint) {
+        val current = mutableState.value
+        if (permissionHint == TaskVisibilityHint.Available &&
+            current.permissionHint == TaskVisibilityHint.Available
+        ) {
+            return
+        }
+        requestGeneration++
+        mutableState.value = current.copy(
+            route = WarehouseRoute.WorkEntry,
+            workEntryStatus = when (permissionHint) {
+                TaskVisibilityHint.Available -> WorkEntryStatus.TaskAvailable
+                TaskVisibilityHint.Unavailable -> WorkEntryStatus.PermissionUnavailable
+                TaskVisibilityHint.Unknown -> WorkEntryStatus.PermissionUnknown
+            },
+            permissionHint = permissionHint,
+            search = null,
+            confirmedSku = null
+        )
+    }
+
     fun contextInvalidated() {
         requestGeneration++
         val previous = mutableState.value
@@ -393,16 +414,7 @@ class WarehouseViewModel(
     }
 
     private fun permissionDenied() {
-        requestGeneration++
-        mutableState.update {
-            it.copy(
-                route = WarehouseRoute.WorkEntry,
-                workEntryStatus = WorkEntryStatus.PermissionUnavailable,
-                permissionHint = TaskVisibilityHint.Unavailable,
-                search = null,
-                confirmedSku = null
-            )
-        }
+        permissionHintChanged(TaskVisibilityHint.Unavailable)
     }
 
     private fun updateSearchFailure(status: ProductSearchStatus, generation: Long) {
