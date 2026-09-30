@@ -6,6 +6,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 class SessionCoordinator(
@@ -30,7 +32,9 @@ class SessionCoordinator(
     private var generation = 0L
     private var access: AccessTokenLease? = null
     private var pendingSessionAccess: String? = null
+    private var pendingReturnGeneration: Long? = null
     private var refreshFlight: RefreshFlight? = null
+    private var returnFlight: Deferred<Boolean>? = null
 
     override suspend fun currentAccess(): AccessTokenLease? = mutex.withLock {
         access.takeIf { mutableState.value == SessionState.Active }
@@ -44,8 +48,10 @@ class SessionCoordinator(
         mutex.withLock {
             if (epoch != observed.epoch || access?.generation != observed.generation) return
             epoch++
+            returnFlight = null
             access = null
             pendingSessionAccess = null
+            pendingReturnGeneration = null
             refreshFlight = null
             mutableVerifiedSession.value = null
             try {
@@ -87,8 +93,10 @@ class SessionCoordinator(
     suspend fun signIn(input: NativeSignIn): Boolean {
         val expectedEpoch = mutex.withLock {
             epoch++
+            returnFlight = null
             access = null
             pendingSessionAccess = null
+            pendingReturnGeneration = null
             mutableVerifiedSession.value = null
             mutableState.value = SessionState.Restoring()
             try {
@@ -115,8 +123,10 @@ class SessionCoordinator(
     suspend fun establish(issued: IssuedNativeSession): Boolean {
         val expectedEpoch = mutex.withLock {
             epoch++
+            returnFlight = null
             access = null
             pendingSessionAccess = null
+            pendingReturnGeneration = null
             refreshFlight = null
             mutableVerifiedSession.value = null
             mutableState.value = SessionState.Restoring()
@@ -157,9 +167,40 @@ class SessionCoordinator(
     suspend fun retrySessionValidation(): Boolean {
         val pair = mutex.withLock {
             if (mutableState.value !is SessionState.Restoring) return false
-            (pendingSessionAccess ?: return false) to epoch
+            Triple(pendingSessionAccess ?: return false, epoch, pendingReturnGeneration)
         }
-        return verifyPendingSession(pair.second, pair.first) != null
+        return verifyPendingSession(pair.second, pair.first, pair.third) != null
+    }
+
+    /** Hide protected work before checking the current session on foreground return. */
+    suspend fun verifyForegroundReturn(): Boolean {
+        val flight = mutex.withLock {
+            returnFlight?.let { return@withLock it }
+            val current = access?.takeIf { mutableState.value == SessionState.Active }
+                ?: return false
+            epoch++
+            access = null
+            mutableVerifiedSession.value = null
+            pendingSessionAccess = current.value
+            pendingReturnGeneration = current.generation
+            mutableState.value = SessionState.Restoring()
+            val expectedEpoch = epoch
+            applicationScope.async(start = CoroutineStart.LAZY) {
+                try {
+                    verifyPendingSession(expectedEpoch, current.value, current.generation) != null
+                } finally {
+                    withContext(NonCancellable) {
+                        mutex.withLock {
+                            if (epoch == expectedEpoch) returnFlight = null
+                        }
+                    }
+                }
+            }.also {
+                returnFlight = it
+                it.start()
+            }
+        }
+        return flight.await()
     }
 
     /** Context replacement invalidates all late work from the previous epoch. */
@@ -189,8 +230,10 @@ class SessionCoordinator(
 
     private suspend fun clearLocal(target: SessionState): Boolean = mutex.withLock {
         epoch++
+        returnFlight = null
         access = null
         pendingSessionAccess = null
+        pendingReturnGeneration = null
         refreshFlight = null
         mutableVerifiedSession.value = null
         return try {
@@ -282,14 +325,22 @@ class SessionCoordinator(
 
     private suspend fun verifyPendingSession(
         expectedEpoch: Long,
-        token: String
+        token: String,
+        refreshOnRejectionGeneration: Long? = null
     ): AccessTokenLease? {
         val verified = try {
             remote.currentSession(token)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: AuthGatewayFailure.NetworkUnavailable) {
+            mutex.withLock { if (epoch == expectedEpoch) returnFlight = null }
             setStateIfCurrent(expectedEpoch, SessionState.Restoring(canRetryConnection = true))
+            return null
+        } catch (_: AuthGatewayFailure.DefinitiveRejection) {
+            if (refreshOnRejectionGeneration != null && isCurrent(expectedEpoch)) {
+                return beginRefresh(expectedEpoch, refreshOnRejectionGeneration).await()
+            }
+            failReauthentication(expectedEpoch)
             return null
         } catch (_: Exception) {
             failReauthentication(expectedEpoch)
@@ -297,6 +348,7 @@ class SessionCoordinator(
         }
         return mutex.withLock {
             if (epoch != expectedEpoch || pendingSessionAccess != token) return null
+            returnFlight = null
             if (!verified.hasAuthorizedContext) {
                 mutableVerifiedSession.value = verified
                 mutableState.value = SessionState.ContextRequired
@@ -307,6 +359,7 @@ class SessionCoordinator(
             AccessTokenLease(token, generation, epoch).also {
                 access = it
                 pendingSessionAccess = null
+                pendingReturnGeneration = null
                 mutableState.value = SessionState.Active
             }
         }
@@ -316,8 +369,10 @@ class SessionCoordinator(
         mutex.withLock {
             if (epoch != expectedEpoch) return
             epoch++
+            returnFlight = null
             access = null
             pendingSessionAccess = null
+            pendingReturnGeneration = null
             refreshFlight = null
             mutableVerifiedSession.value = null
             try {
