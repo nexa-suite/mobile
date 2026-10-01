@@ -29,6 +29,8 @@ import com.nexa.mobile.operations.feature.access.PermissionHint
 import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
 import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
 import com.nexa.mobile.operations.feature.warehouse.ConfirmedReceivingProduct
+import com.nexa.mobile.operations.commercial.CustomerProgressScreen
+import com.nexa.mobile.operations.commercial.CustomerProgressViewModel
 import com.nexa.mobile.operations.commercial.CommercialAuthority
 import com.nexa.mobile.operations.commercial.CustomerSearchScreen
 import com.nexa.mobile.operations.commercial.CustomerSearchViewModel
@@ -80,6 +82,8 @@ class MainActivity : ComponentActivity() {
     }
     @Inject internal lateinit var dispositionFactory: DispositionViewModelFactory
     private val dispositionViewModel: DispositionViewModel by viewModels { dispositionFactory }
+    @Inject internal lateinit var customerProgressFactory: CustomerProgressViewModelFactory
+    private val customerProgressViewModel: CustomerProgressViewModel by viewModels { customerProgressFactory }
     @Inject internal lateinit var customerSearchFactory: CustomerSearchViewModelFactory
     private val customerSearchViewModel: CustomerSearchViewModel by viewModels { customerSearchFactory }
     @Inject internal lateinit var temperatureEvidenceBindings: TemperatureEvidenceGatewayBindings
@@ -170,6 +174,7 @@ class MainActivity : ComponentActivity() {
                 val accessState = accessViewModel.state.collectAsStateWithLifecycle().value
                 val warehouseState = warehouseViewModel.state.collectAsStateWithLifecycle().value
                 val scannerState = scannerViewModel.state.collectAsStateWithLifecycle().value
+                val customerProgressState by customerProgressViewModel.state.collectAsStateWithLifecycle()
                 val customerSearchState by customerSearchViewModel.state.collectAsStateWithLifecycle()
                 val temperatureEvidenceState by temperatureEvidenceViewModel.state.collectAsStateWithLifecycle()
                 val dispatchReadinessState by dispatchReadinessViewModel.state.collectAsStateWithLifecycle()
@@ -462,6 +467,12 @@ class MainActivity : ComponentActivity() {
                                 connectedRoute = route
                                 val authority = route.authority
                                 when (entry.key) {
+                                    "commercial.progress" -> customerProgressViewModel.activate(
+                                        CommercialAuthority(
+                                            authority.userId, authority.tenantId, authority.workspaceId,
+                                            authority.membershipId, authority.permissions, route.authorityEpoch
+                                        )
+                                    )
                                     "commercial.customers" -> customerSearchViewModel.activate(
                                         CommercialAuthority(
                                             authority.userId, authority.tenantId, authority.workspaceId,
@@ -494,6 +505,16 @@ class MainActivity : ComponentActivity() {
                     },
                     connectedOperationContent = {
                         when (connectedRoute?.entryKey) {
+                            "commercial.progress" -> CustomerProgressScreen(
+                                state = customerProgressState,
+                                onBack = ::closeConnectedOperation,
+                                onCustomerIdChanged = customerProgressViewModel::customerIdChanged,
+                                onCurrencyChanged = customerProgressViewModel::currencyChanged,
+                                onRefresh = customerProgressViewModel::refresh,
+                                onPreviousPage = customerProgressViewModel::previousPage,
+                                onNextPage = customerProgressViewModel::nextPage,
+                                onRouteClosed = customerProgressViewModel::deactivate
+                            )
                             "commercial.customers" -> CustomerSearchScreen(
                                 state = customerSearchState,
                                 onBack = ::closeConnectedOperation,
@@ -502,7 +523,24 @@ class MainActivity : ComponentActivity() {
                                 onSelectCustomer = customerSearchViewModel::selectCustomer,
                                 onPreviousPage = customerSearchViewModel::previousPage,
                                 onNextPage = customerSearchViewModel::nextPage,
-                                onRouteClosed = customerSearchViewModel::deactivate
+                                onRouteClosed = customerSearchViewModel::deactivate,
+                                onReviewProgress = { customerId ->
+                                    val entry = CONNECTED_OPERATIONS.single { it.key == "commercial.progress" }
+                                    ConnectedOperationsNavigation.open(entry, state, accessState, warehouseState)
+                                        ?.let { route ->
+                                            closeConnectedOperation()
+                                            connectedRoute = route
+                                            val authority = route.authority
+                                            customerProgressViewModel.activate(
+                                                CommercialAuthority(
+                                                    authority.userId, authority.tenantId, authority.workspaceId,
+                                                    authority.membershipId, authority.permissions, route.authorityEpoch
+                                                )
+                                            )
+                                            customerProgressViewModel.customerIdChanged(customerId)
+                                            customerProgressViewModel.refresh()
+                                        }
+                                }
                             )
                             "warehouse.temperature" -> TemperatureEvidenceScreen(
                                 state = temperatureEvidenceState,
@@ -792,6 +830,7 @@ class MainActivity : ComponentActivity() {
         dispatchReadinessViewModel.deactivate()
         temperatureEvidenceViewModel.deactivate()
         customerSearchViewModel.deactivate()
+        customerProgressViewModel.deactivate()
     }
 
     private fun invalidateProtectedContentForForegroundReturn() {
@@ -875,6 +914,7 @@ private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHi
 
 
 private val CONNECTED_OPERATIONS = listOf(
+    ConnectedOperationEntry("commercial.progress", "Compromisos y crédito", setOf("client.read", "sales:read")),
     ConnectedOperationEntry("commercial.customers", "Clientes y compradores", setOf("client.read", "sales:read")),
     ConnectedOperationEntry("warehouse.temperature", "Registrar temperatura", setOf("inventory.receive")),
     ConnectedOperationEntry("dispatch.readiness", "Preparación de despacho", setOf("dispatch.read")),
