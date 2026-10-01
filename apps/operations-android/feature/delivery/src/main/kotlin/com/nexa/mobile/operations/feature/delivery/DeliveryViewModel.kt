@@ -2,6 +2,8 @@ package com.nexa.mobile.operations.feature.delivery
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import java.math.BigDecimal
+import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +35,18 @@ enum class DriverDeliveryCommandStatus {
     StaleVersion
 }
 
+enum class DriverOutcomeCommandStatus {
+    Idle,
+    CheckingCurrent,
+    PersistingIntent,
+    Pending,
+    UnknownOutcome,
+    PersistenceUnavailable,
+    Recorded,
+    Rejected,
+    StaleVersion
+}
+
 data class DriverDeliveryUiState(
     val authorityEpoch: Long = 0,
     val canRead: Boolean = false,
@@ -43,7 +57,11 @@ data class DriverDeliveryUiState(
     val detailStatus: DriverDeliveryLoadStatus = DriverDeliveryLoadStatus.NotRequested,
     val commandStatus: DriverDeliveryCommandStatus = DriverDeliveryCommandStatus.Idle,
     val hasRecoverableStart: Boolean = false,
-    val rejectionCode: String? = null
+    val rejectionCode: String? = null,
+    val outcomeCommandStatus: DriverOutcomeCommandStatus = DriverOutcomeCommandStatus.Idle,
+    val hasRecoverableOutcome: Boolean = false,
+    val outcomeSummary: DriverOutcomeSummary? = null,
+    val outcomeRejectionCode: String? = null
 ) {
     /** Destination leaves Nexa only after current assigned detail confirms an active attempt. */
     val authorizedDirectionsDestination: String?
@@ -64,6 +82,8 @@ data class DriverDeliveryUiState(
 class DriverDeliveryViewModel(
     private val gateway: DriverDeliveryGateway,
     private val metadataStore: DriverAttemptMetadataStore,
+    private val outcomeMetadataStore: DriverOutcomeMetadataStore? = null,
+    private val timeFactory: () -> String = { Instant.now().toString() },
     private val keyFactory: () -> String = { UUID.randomUUID().toString() }
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(DriverDeliveryUiState())
@@ -73,6 +93,8 @@ class DriverDeliveryViewModel(
     private var generation = 0L
     private var pendingStart: DriverAttemptStartCommand? = null
     private var pendingStartPersisted = false
+    private var pendingOutcome: DriverOutcomeCommand? = null
+    private var pendingOutcomePersisted = false
 
     fun activate(currentAuthority: DriverDeliveryAuthority) {
         generation++
@@ -80,6 +102,8 @@ class DriverDeliveryViewModel(
         authority = currentAuthority
         pendingStart = null
         pendingStartPersisted = false
+        pendingOutcome = null
+        pendingOutcomePersisted = false
         mutableState.value = DriverDeliveryUiState(
             authorityEpoch = currentAuthority.authorityEpoch,
             canRead = currentAuthority.canRead,
@@ -93,9 +117,11 @@ class DriverDeliveryViewModel(
         if (!currentAuthority.canRead) return
         viewModelScope.launch {
             var metadataAvailable = true
-            when (val loaded = safeMetadataLoad(currentAuthority.scopeIdentity)) {
+            val loadedStart = safeMetadataLoad(currentAuthority.scopeIdentity)
+            if (!isCurrent(requestGeneration, currentAuthority)) return@launch
+            when (loadedStart) {
                 is DriverAttemptMetadataRead.Available -> {
-                    val intent = loaded.intent
+                    val intent = loadedStart.intent
                     if (intent != null && intent.scope == currentAuthority.scopeIdentity) {
                         pendingStart = DriverAttemptStartCommand(
                             intent.deliveryId,
@@ -116,10 +142,36 @@ class DriverDeliveryViewModel(
 
                 DriverAttemptMetadataRead.Unavailable -> metadataAvailable = false
             }
+            var outcomeMetadataAvailable = true
+            val loadedOutcome = safeOutcomeMetadataLoad(currentAuthority.scopeIdentity)
             if (!isCurrent(requestGeneration, currentAuthority)) return@launch
+            when (loadedOutcome) {
+                is DriverOutcomeMetadataRead.Available -> {
+                    val intent = loadedOutcome.intent
+                    if (intent != null && intent.scope == currentAuthority.scopeIdentity) {
+                        pendingOutcome = intent.command
+                        pendingOutcomePersisted = true
+                        mutableState.update {
+                            it.copy(
+                                outcomeCommandStatus = DriverOutcomeCommandStatus.UnknownOutcome,
+                                hasRecoverableOutcome = true
+                            )
+                        }
+                    } else if (intent != null) {
+                        outcomeMetadataAvailable = false
+                    }
+                }
+
+                DriverOutcomeMetadataRead.Unavailable -> outcomeMetadataAvailable = false
+            }
             if (!metadataAvailable) {
                 mutableState.update {
                     it.copy(commandStatus = DriverDeliveryCommandStatus.PersistenceUnavailable)
+                }
+            }
+            if (outcomeMetadataStore != null && !outcomeMetadataAvailable) {
+                mutableState.update {
+                    it.copy(outcomeCommandStatus = DriverOutcomeCommandStatus.PersistenceUnavailable)
                 }
             }
             val result = safeLoad { gateway.assignedDeliveries(currentAuthority) }
@@ -132,6 +184,8 @@ class DriverDeliveryViewModel(
                             deliveries = result.items,
                             listStatus = DriverDeliveryLoadStatus.Ready,
                             selectedDelivery = restored?.let { command ->
+                                result.items.firstOrNull { item -> item.id == command.deliveryId }
+                            } ?: pendingOutcome?.let { command ->
                                 result.items.firstOrNull { item -> item.id == command.deliveryId }
                             },
                             commandStatus = when {
@@ -155,12 +209,16 @@ class DriverDeliveryViewModel(
         authority = null
         pendingStart = null
         pendingStartPersisted = false
+        pendingOutcome = null
+        pendingOutcomePersisted = false
         mutableState.value = DriverDeliveryUiState()
     }
 
     fun selectDelivery(deliveryId: String) {
         val currentAuthority = authority ?: return
-        if (!currentAuthority.canRead || mutableState.value.commandStatus in FROZEN_COMMANDS) return
+        if (!currentAuthority.canRead || mutableState.value.commandStatus in FROZEN_COMMANDS ||
+            mutableState.value.outcomeCommandStatus in FROZEN_OUTCOME_COMMANDS
+        ) return
         val requestGeneration = generation
         mutableState.update {
                 it.copy(
@@ -186,7 +244,9 @@ class DriverDeliveryViewModel(
         val currentAuthority = authority ?: return
         val selectedId = mutableState.value.selectedDelivery?.id ?: return
         if (!currentAuthority.canStart ||
-            mutableState.value.commandStatus in FROZEN_COMMANDS || pendingStart != null
+            mutableState.value.commandStatus in FROZEN_COMMANDS ||
+            mutableState.value.outcomeCommandStatus in FROZEN_OUTCOME_COMMANDS ||
+            pendingStart != null || pendingOutcome != null
         ) {
             return
         }
@@ -262,6 +322,440 @@ class DriverDeliveryViewModel(
                 persistBeforeStart(command, requestGeneration, currentAuthority)
             }
         }
+    }
+
+    /** Records one outcome from live server facts; durable intent must succeed before POST. */
+    fun recordOutcome(
+        outcome: DriverOutcomeKind,
+        deliveredQuantities: Map<String, String> = emptyMap(),
+        failureReason: String? = null,
+        notes: String? = null
+    ) {
+        val currentAuthority = authority ?: return
+        val currentState = mutableState.value
+        val selected = currentState.selectedDelivery ?: return
+        if (!currentAuthority.canStart || !currentAuthority.canRead ||
+            currentState.detailStatus != DriverDeliveryLoadStatus.Ready ||
+            currentState.outcomeCommandStatus in FROZEN_OUTCOME_COMMANDS ||
+            currentState.commandStatus in FROZEN_COMMANDS || pendingOutcome != null
+        ) {
+            return
+        }
+        if (outcomeMetadataStore == null) {
+            mutableState.update {
+                it.copy(outcomeCommandStatus = DriverOutcomeCommandStatus.PersistenceUnavailable)
+            }
+            return
+        }
+        val immutableQuantities = deliveredQuantities.toMap()
+        val immutableReason = failureReason?.trim()?.takeIf(String::isNotEmpty)
+        val immutableNotes = notes?.trim()?.takeIf(String::isNotEmpty)
+        val requestGeneration = generation
+        mutableState.update {
+            it.copy(
+                outcomeCommandStatus = DriverOutcomeCommandStatus.CheckingCurrent,
+                outcomeRejectionCode = null
+            )
+        }
+        viewModelScope.launch {
+            val detail = safeLoad { gateway.delivery(selected.id, currentAuthority) }
+            if (!isCurrent(requestGeneration, currentAuthority)) return@launch
+            val current = (detail as? DriverDeliveryLoadResult.DetailLoaded)?.item
+            if (current == null) {
+                mutableState.update {
+                    it.copy(
+                        detailStatus = detail.toLoadStatus(),
+                        outcomeCommandStatus = DriverOutcomeCommandStatus.Rejected,
+                        outcomeRejectionCode = detail.toOutcomeFailureCode()
+                    )
+                }
+                return@launch
+            }
+            replaceDelivery(current)
+            val expectedAttemptId = selected.activeAttempt?.id
+            if (current.activeAttempt == null || expectedAttemptId == null ||
+                current.activeAttempt.id != expectedAttemptId
+            ) {
+                mutableState.update {
+                    it.copy(
+                        outcomeCommandStatus = DriverOutcomeCommandStatus.StaleVersion,
+                        outcomeRejectionCode = "DELIVERY_ATTEMPT_NOT_CURRENT"
+                    )
+                }
+                return@launch
+            }
+            val lineBuild = buildOutcomeLines(outcome, current.outcomeLines, immutableQuantities)
+            val validationFailure = validateOutcomeInput(outcome, immutableReason, immutableNotes, lineBuild)
+            if (validationFailure != null) {
+                mutableState.update {
+                    it.copy(
+                        outcomeCommandStatus = DriverOutcomeCommandStatus.Rejected,
+                        outcomeRejectionCode = validationFailure
+                    )
+                }
+                return@launch
+            }
+            val decisions = (lineBuild as OutcomeLineBuildResult.Valid).lines
+            val key = keyFactory().takeIf { it.isNotBlank() && it.length <= 160 }
+            if (key == null) {
+                mutableState.update {
+                    it.copy(
+                        outcomeCommandStatus = DriverOutcomeCommandStatus.Rejected,
+                        outcomeRejectionCode = "IDEMPOTENCY_KEY_INVALID"
+                    )
+                }
+                return@launch
+            }
+            val attemptedAt = timeFactory()
+            val command = DriverOutcomeCommand(
+                current.id,
+                current.activeAttempt.id,
+                current.version,
+                key,
+                outcome,
+                immutableReason,
+                immutableNotes,
+                attemptedAt,
+                decisions,
+                frozenOutcomeBody(outcome, immutableReason, immutableNotes, attemptedAt, decisions)
+            )
+            pendingOutcome = command
+            pendingOutcomePersisted = false
+            mutableState.update {
+                it.copy(
+                    outcomeCommandStatus = DriverOutcomeCommandStatus.PersistingIntent,
+                    hasRecoverableOutcome = true,
+                    outcomeSummary = null
+                )
+            }
+            persistBeforeOutcome(command, requestGeneration, currentAuthority)
+        }
+    }
+
+    /** Replays the same frozen outcome identity after process death or an uncertain response. */
+    fun retryUnknownOutcome() {
+        val currentAuthority = authority ?: return
+        val command = pendingOutcome ?: return
+        if (!currentAuthority.canStart || !mutableState.value.hasRecoverableOutcome ||
+            mutableState.value.outcomeCommandStatus !in setOf(
+                DriverOutcomeCommandStatus.UnknownOutcome,
+                DriverOutcomeCommandStatus.PersistenceUnavailable
+            )
+        ) {
+            return
+        }
+        val requestGeneration = generation
+        if (pendingOutcomePersisted) {
+            mutableState.update { it.copy(outcomeCommandStatus = DriverOutcomeCommandStatus.Pending) }
+            viewModelScope.launch { runOutcome(command, requestGeneration, currentAuthority) }
+        } else {
+            mutableState.update {
+                it.copy(outcomeCommandStatus = DriverOutcomeCommandStatus.PersistingIntent)
+            }
+            viewModelScope.launch { persistBeforeOutcome(command, requestGeneration, currentAuthority) }
+        }
+    }
+
+    private suspend fun persistBeforeOutcome(
+        command: DriverOutcomeCommand,
+        requestGeneration: Long,
+        currentAuthority: DriverDeliveryAuthority
+    ) {
+        val saved = safeOutcomeMetadataWrite(
+            DriverOutcomeIntentMetadata(
+                currentAuthority.scopeIdentity,
+                command,
+                DriverOutcomeIntentStatus.Pending
+            )
+        )
+        if (!isCurrent(requestGeneration, currentAuthority)) return
+        if (saved != DriverOutcomeMetadataWrite.Saved) {
+            mutableState.update {
+                it.copy(
+                    outcomeCommandStatus = DriverOutcomeCommandStatus.PersistenceUnavailable,
+                    hasRecoverableOutcome = true
+                )
+            }
+            return
+        }
+        pendingOutcomePersisted = true
+        mutableState.update {
+            it.copy(
+                outcomeCommandStatus = DriverOutcomeCommandStatus.Pending,
+                hasRecoverableOutcome = true
+            )
+        }
+        runOutcome(command, requestGeneration, currentAuthority)
+    }
+
+    private suspend fun runOutcome(
+        command: DriverOutcomeCommand,
+        requestGeneration: Long,
+        currentAuthority: DriverDeliveryAuthority
+    ) {
+        val result = try {
+            gateway.recordOutcome(command, currentAuthority)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            DriverOutcomeResult.UnknownOutcome
+        }
+        if (!isCurrent(requestGeneration, currentAuthority)) return
+        when (result) {
+            is DriverOutcomeResult.Recorded -> {
+                val cleared = clearOutcomeIntent(command, currentAuthority)
+                if (!isCurrent(requestGeneration, currentAuthority)) return
+                if (cleared) {
+                    pendingOutcome = null
+                    pendingOutcomePersisted = false
+                }
+                mutableState.update {
+                    it.copy(
+                        outcomeCommandStatus = if (cleared) {
+                            DriverOutcomeCommandStatus.Recorded
+                        } else {
+                            DriverOutcomeCommandStatus.PersistenceUnavailable
+                        },
+                        hasRecoverableOutcome = !cleared,
+                        outcomeSummary = result.summary,
+                        outcomeRejectionCode = null
+                    )
+                }
+                refresh()
+            }
+
+            is DriverOutcomeResult.Rejected -> finishOutcomeRejection(
+                result.code ?: "DELIVERY_OUTCOME_REJECTED", command, requestGeneration, currentAuthority
+            )
+
+            DriverOutcomeResult.StaleVersion -> {
+                finishOutcomeRejection("CONCURRENCY_CONFLICT", command, requestGeneration, currentAuthority)
+                if (isCurrent(requestGeneration, currentAuthority)) refresh()
+            }
+
+            DriverOutcomeResult.NotFound -> {
+                val cleared = clearOutcomeIntent(command, currentAuthority)
+                if (!isCurrent(requestGeneration, currentAuthority)) return
+                if (cleared) {
+                    pendingOutcome = null
+                    pendingOutcomePersisted = false
+                }
+                mutableState.update {
+                    it.copy(
+                        detailStatus = DriverDeliveryLoadStatus.NotFound,
+                        outcomeCommandStatus = if (cleared) {
+                            DriverOutcomeCommandStatus.Rejected
+                        } else {
+                            DriverOutcomeCommandStatus.PersistenceUnavailable
+                        },
+                        hasRecoverableOutcome = !cleared,
+                        outcomeRejectionCode = "DELIVERY_NOT_FOUND"
+                    )
+                }
+            }
+
+            DriverOutcomeResult.UnknownOutcome -> {
+                safeOutcomeMetadataWrite(
+                    DriverOutcomeIntentMetadata(
+                        currentAuthority.scopeIdentity,
+                        command,
+                        DriverOutcomeIntentStatus.UnknownOutcome
+                    )
+                )
+                if (!isCurrent(requestGeneration, currentAuthority)) return
+                mutableState.update {
+                    it.copy(
+                        outcomeCommandStatus = DriverOutcomeCommandStatus.UnknownOutcome,
+                        hasRecoverableOutcome = true
+                    )
+                }
+            }
+
+            DriverOutcomeResult.PermissionDenied -> finishOutcomeRejection(
+                "PERMISSION_DENIED", command, requestGeneration, currentAuthority
+            )
+
+            DriverOutcomeResult.ContextInvalidated -> finishOutcomeRejection(
+                "ACCESS_CONTEXT_INVALID", command, requestGeneration, currentAuthority
+            )
+
+            DriverOutcomeResult.SessionInvalidated -> finishOutcomeRejection(
+                "SESSION_INVALIDATED", command, requestGeneration, currentAuthority
+            )
+
+            DriverOutcomeResult.NetworkUnavailable,
+            DriverOutcomeResult.ServiceUnavailable -> {
+                safeOutcomeMetadataWrite(
+                    DriverOutcomeIntentMetadata(
+                        currentAuthority.scopeIdentity,
+                        command,
+                        DriverOutcomeIntentStatus.UnknownOutcome
+                    )
+                )
+                if (!isCurrent(requestGeneration, currentAuthority)) return
+                mutableState.update {
+                    it.copy(
+                        outcomeCommandStatus = DriverOutcomeCommandStatus.UnknownOutcome,
+                        hasRecoverableOutcome = true
+                    )
+                }
+            }
+        }
+    }
+
+    private suspend fun finishOutcomeRejection(
+        code: String,
+        command: DriverOutcomeCommand,
+        requestGeneration: Long,
+        currentAuthority: DriverDeliveryAuthority
+    ) {
+        val cleared = clearOutcomeIntent(command, currentAuthority)
+        if (!isCurrent(requestGeneration, currentAuthority)) return
+        if (cleared) {
+            pendingOutcome = null
+            pendingOutcomePersisted = false
+        }
+        mutableState.update {
+            it.copy(
+                outcomeCommandStatus = if (cleared) {
+                    DriverOutcomeCommandStatus.Rejected
+                } else {
+                    DriverOutcomeCommandStatus.PersistenceUnavailable
+                },
+                hasRecoverableOutcome = !cleared,
+                outcomeRejectionCode = code
+            )
+        }
+    }
+
+    private suspend fun clearOutcomeIntent(
+        command: DriverOutcomeCommand,
+        currentAuthority: DriverDeliveryAuthority
+    ): Boolean = safeOutcomeMetadataClear(currentAuthority.scopeIdentity, command.idempotencyKey) ==
+        DriverOutcomeMetadataWrite.Saved
+
+    private fun buildOutcomeLines(
+        outcome: DriverOutcomeKind,
+        facts: List<DriverDeliveryOutcomeLine>,
+        deliveredInputs: Map<String, String>
+    ): OutcomeLineBuildResult {
+        val outstanding = facts.filter { it.remainingQuantity.signum() > 0 }
+        return when (outcome) {
+            DriverOutcomeKind.FAILED -> OutcomeLineBuildResult.Valid(emptyList())
+            DriverOutcomeKind.DELIVERED -> if (outstanding.isEmpty()) {
+                OutcomeLineBuildResult.Invalid("NO_OUTSTANDING_QUANTITY")
+            } else {
+                OutcomeLineBuildResult.Valid(outstanding.map { line ->
+                    DriverOutcomeLineDecision(
+                        line.fulfillmentLineId, line.skuId, line.remainingQuantity,
+                        line.remainingQuantity, BigDecimal.ZERO, BigDecimal.ZERO, line.unit
+                    )
+                })
+            }
+
+            DriverOutcomeKind.PARTIAL -> {
+                if (deliveredInputs.keys.any { id -> facts.none { it.fulfillmentLineId == id } }) {
+                    return OutcomeLineBuildResult.Invalid("DELIVERY_OUTCOME_LINE_INVALID")
+                }
+                val decisions = mutableListOf<DriverOutcomeLineDecision>()
+                for (line in outstanding) {
+                    val raw = deliveredInputs[line.fulfillmentLineId]?.trim().orEmpty()
+                    if (raw.isEmpty()) continue
+                    val delivered = runCatching { BigDecimal(raw) }.getOrNull()
+                        ?: return OutcomeLineBuildResult.Invalid("DELIVERY_OUTCOME_LINE_INVALID")
+                    if (delivered.signum() <= 0 || delivered >= line.remainingQuantity) {
+                        return OutcomeLineBuildResult.Invalid("DELIVERY_OUTCOME_LINE_INVALID")
+                    }
+                    decisions += DriverOutcomeLineDecision(
+                        line.fulfillmentLineId, line.skuId, delivered, delivered,
+                        BigDecimal.ZERO, BigDecimal.ZERO, line.unit
+                    )
+                }
+                if (decisions.isEmpty()) {
+                    OutcomeLineBuildResult.Invalid("PARTIAL_OUTCOME_REQUIRES_DELIVERY")
+                } else {
+                    OutcomeLineBuildResult.Valid(decisions)
+                }
+            }
+
+            DriverOutcomeKind.REFUSED,
+            DriverOutcomeKind.ABSENT -> if (outstanding.isEmpty()) {
+                OutcomeLineBuildResult.Invalid("NO_OUTSTANDING_QUANTITY")
+            } else {
+                OutcomeLineBuildResult.Valid(outstanding.map { line ->
+                    DriverOutcomeLineDecision(
+                        line.fulfillmentLineId, line.skuId, line.remainingQuantity,
+                        BigDecimal.ZERO, line.remainingQuantity, BigDecimal.ZERO, line.unit
+                    )
+                })
+            }
+        }
+    }
+
+    private fun validateOutcomeInput(
+        outcome: DriverOutcomeKind,
+        reason: String?,
+        notes: String?,
+        lines: OutcomeLineBuildResult
+    ): String? {
+        if (outcome in setOf(DriverOutcomeKind.FAILED, DriverOutcomeKind.REFUSED, DriverOutcomeKind.ABSENT) &&
+            reason.isNullOrBlank()
+        ) return "FAILURE_REASON_REQUIRED"
+        if ((reason?.length ?: 0) > 2000 || (notes?.length ?: 0) > 2000) return "DELIVERY_OUTCOME_TEXT_TOO_LONG"
+        return (lines as? OutcomeLineBuildResult.Invalid)?.code
+    }
+
+    private sealed interface OutcomeLineBuildResult {
+        data class Valid(val lines: List<DriverOutcomeLineDecision>) : OutcomeLineBuildResult
+        data class Invalid(val code: String) : OutcomeLineBuildResult
+    }
+
+    private fun frozenOutcomeBody(
+        outcome: DriverOutcomeKind,
+        reason: String?,
+        notes: String?,
+        attemptedAt: String,
+        lines: List<DriverOutcomeLineDecision>
+    ): String {
+        val lineBody = lines.joinToString(prefix = "[", postfix = "]") { line ->
+            "{" +
+                "\"fulfillmentLineId\":${quoteJson(line.fulfillmentLineId)}," +
+                "\"skuId\":${quoteJson(line.skuId)}," +
+                "\"attemptedQuantity\":${line.attemptedQuantity.toPlainString()}," +
+                "\"deliveredQuantity\":${line.deliveredQuantity.toPlainString()}," +
+                "\"rejectedQuantity\":${line.rejectedQuantity.toPlainString()}," +
+                "\"cancelledQuantity\":${line.cancelledQuantity.toPlainString()}," +
+                "\"unit\":${quoteJson(line.unit)}" +
+                "}"
+        }
+        return "{" +
+            "\"outcome\":${quoteJson(outcome.name)}," +
+            "\"failureReason\":${reason?.let(::quoteJson) ?: "null"}," +
+            "\"notes\":${notes?.let(::quoteJson) ?: "null"}," +
+            "\"attemptedAt\":${quoteJson(attemptedAt)}," +
+            "\"lines\":$lineBody" +
+            "}"
+    }
+
+    private fun quoteJson(value: String): String = buildString {
+        append('"')
+        value.forEach { character ->
+            when (character) {
+                '"' -> append("\\\"")
+                '\\' -> append("\\\\")
+                '\b' -> append("\\b")
+                '\u000C' -> append("\\f")
+                '\n' -> append("\\n")
+                '\r' -> append("\\r")
+                '\t' -> append("\\t")
+                else -> if (character.code < 0x20) {
+                    append("\\u%04x".format(character.code))
+                } else {
+                    append(character)
+                }
+            }
+        }
+        append('"')
     }
 
     /** Refreshes list and selected detail to reconcile an uncertain network result. */
@@ -560,6 +1054,17 @@ class DriverDeliveryViewModel(
         DriverDeliveryLoadResult.SessionInvalidated -> DriverDeliveryLoadStatus.SessionInvalidated
     }
 
+    private fun DriverDeliveryLoadResult.toOutcomeFailureCode(): String = when (this) {
+        DriverDeliveryLoadResult.NotFound -> "DELIVERY_NOT_FOUND"
+        DriverDeliveryLoadResult.PermissionDenied -> "PERMISSION_DENIED"
+        DriverDeliveryLoadResult.ContextInvalidated -> "ACCESS_CONTEXT_INVALID"
+        DriverDeliveryLoadResult.SessionInvalidated -> "SESSION_INVALIDATED"
+        DriverDeliveryLoadResult.NetworkUnavailable -> "NETWORK_UNAVAILABLE"
+        DriverDeliveryLoadResult.ServiceUnavailable -> "SERVICE_UNAVAILABLE"
+        is DriverDeliveryLoadResult.DetailLoaded,
+        is DriverDeliveryLoadResult.ListLoaded -> "DELIVERY_OUTCOME_REJECTED"
+    }
+
     private companion object {
         val FROZEN_COMMANDS = setOf(
             DriverDeliveryCommandStatus.CheckingCurrent,
@@ -567,6 +1072,13 @@ class DriverDeliveryViewModel(
             DriverDeliveryCommandStatus.Pending,
             DriverDeliveryCommandStatus.UnknownOutcome,
             DriverDeliveryCommandStatus.PersistenceUnavailable
+        )
+        val FROZEN_OUTCOME_COMMANDS = setOf(
+            DriverOutcomeCommandStatus.CheckingCurrent,
+            DriverOutcomeCommandStatus.PersistingIntent,
+            DriverOutcomeCommandStatus.Pending,
+            DriverOutcomeCommandStatus.UnknownOutcome,
+            DriverOutcomeCommandStatus.PersistenceUnavailable
         )
     }
 
@@ -599,5 +1111,36 @@ class DriverDeliveryViewModel(
         throw cancelled
     } catch (_: Exception) {
         DriverAttemptMetadataWrite.Unavailable
+    }
+
+    private suspend fun safeOutcomeMetadataLoad(
+        scope: DriverAttemptScopeIdentity
+    ): DriverOutcomeMetadataRead = try {
+        outcomeMetadataStore?.loadIntent(scope) ?: DriverOutcomeMetadataRead.Unavailable
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        DriverOutcomeMetadataRead.Unavailable
+    }
+
+    private suspend fun safeOutcomeMetadataWrite(
+        intent: DriverOutcomeIntentMetadata
+    ): DriverOutcomeMetadataWrite = try {
+        outcomeMetadataStore?.saveIntent(intent) ?: DriverOutcomeMetadataWrite.Unavailable
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        DriverOutcomeMetadataWrite.Unavailable
+    }
+
+    private suspend fun safeOutcomeMetadataClear(
+        scope: DriverAttemptScopeIdentity,
+        idempotencyKey: String
+    ): DriverOutcomeMetadataWrite = try {
+        outcomeMetadataStore?.clearIntent(scope, idempotencyKey) ?: DriverOutcomeMetadataWrite.Unavailable
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        DriverOutcomeMetadataWrite.Unavailable
     }
 }

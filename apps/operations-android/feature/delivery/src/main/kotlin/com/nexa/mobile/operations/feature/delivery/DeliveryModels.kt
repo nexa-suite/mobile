@@ -1,6 +1,7 @@
 package com.nexa.mobile.operations.feature.delivery
 
 import androidx.compose.runtime.Immutable
+import java.math.BigDecimal
 
 /** Current verified identity and permission snapshot supplied by the app boundary. */
 @Immutable
@@ -74,10 +75,105 @@ data class DriverDeliverySnapshot(
     val deliveredAt: String?,
     val updatedAt: String?,
     val version: Long,
-    val activeAttempt: DriverDeliveryAttempt?
+    val activeAttempt: DriverDeliveryAttempt?,
+    val outcomeLines: List<DriverDeliveryOutcomeLine> = emptyList()
 ) {
     override fun toString(): String =
         "DriverDeliverySnapshot(status=$status, version=$version, active=$activeAttempt)"
+}
+
+@Immutable
+data class DriverDeliveryOutcomeLine(
+    val fulfillmentLineId: String,
+    val skuId: String,
+    val catalogItemId: String,
+    val dispatchedQuantity: BigDecimal,
+    val deliveredQuantity: BigDecimal,
+    val rejectedQuantity: BigDecimal,
+    val cancelledQuantity: BigDecimal,
+    val remainingQuantity: BigDecimal,
+    val unit: String
+)
+
+@Immutable
+data class DriverRemainingQuantityLine(
+    val fulfillmentLineId: String,
+    val skuId: String,
+    val catalogItemId: String,
+    val quantity: BigDecimal,
+    val unit: String
+)
+
+enum class DriverOutcomeKind { DELIVERED, PARTIAL, FAILED, REFUSED, ABSENT }
+
+@Immutable
+data class DriverOutcomeLineDecision(
+    val fulfillmentLineId: String,
+    val skuId: String,
+    val attemptedQuantity: BigDecimal,
+    val deliveredQuantity: BigDecimal,
+    val rejectedQuantity: BigDecimal,
+    val cancelledQuantity: BigDecimal,
+    val unit: String
+)
+
+@Immutable
+data class DriverOutcomeCommand(
+    val deliveryId: String,
+    val attemptId: String,
+    val expectedVersion: Long,
+    val idempotencyKey: String,
+    val outcome: DriverOutcomeKind,
+    val failureReason: String?,
+    val notes: String?,
+    val attemptedAt: String,
+    val lines: List<DriverOutcomeLineDecision>,
+    val frozenBody: String
+) {
+    override fun toString(): String =
+        "DriverOutcomeCommand(outcome=$outcome, version=$expectedVersion, key=REDACTED)"
+}
+
+@Immutable
+data class DriverOutcomeSummary(
+    val attemptId: String,
+    val outcome: String,
+    val attemptedAt: String,
+    val deliveryVersion: Long,
+    val partial: Boolean,
+    val remainingLines: List<DriverRemainingQuantityLine>
+)
+
+enum class DriverOutcomeIntentStatus { Pending, UnknownOutcome }
+
+@Immutable
+data class DriverOutcomeIntentMetadata(
+    val scope: DriverAttemptScopeIdentity,
+    val command: DriverOutcomeCommand,
+    val status: DriverOutcomeIntentStatus
+) {
+    override fun toString(): String = "DriverOutcomeIntentMetadata(status=$status, command=REDACTED)"
+}
+
+sealed interface DriverOutcomeMetadataRead {
+    data class Available(val intent: DriverOutcomeIntentMetadata?) : DriverOutcomeMetadataRead
+    data object Unavailable : DriverOutcomeMetadataRead
+}
+
+sealed interface DriverOutcomeMetadataWrite {
+    data object Saved : DriverOutcomeMetadataWrite
+    data object Conflict : DriverOutcomeMetadataWrite
+    data object Stale : DriverOutcomeMetadataWrite
+    data object Unavailable : DriverOutcomeMetadataWrite
+}
+
+interface DriverOutcomeMetadataStore {
+    suspend fun loadIntent(scope: DriverAttemptScopeIdentity): DriverOutcomeMetadataRead
+    suspend fun saveIntent(intent: DriverOutcomeIntentMetadata): DriverOutcomeMetadataWrite
+    suspend fun clearIntent(
+        scope: DriverAttemptScopeIdentity,
+        idempotencyKey: String
+    ): DriverOutcomeMetadataWrite
 }
 
 @Immutable
@@ -169,4 +265,22 @@ interface DriverDeliveryGateway {
         command: DriverAttemptStartCommand,
         authority: DriverDeliveryAuthority
     ): DriverAttemptStartResult
+
+    suspend fun recordOutcome(
+        command: DriverOutcomeCommand,
+        authority: DriverDeliveryAuthority
+    ): DriverOutcomeResult
+}
+
+sealed interface DriverOutcomeResult {
+    data class Recorded(val summary: DriverOutcomeSummary) : DriverOutcomeResult
+    data class Rejected(val code: String?) : DriverOutcomeResult
+    data object NotFound : DriverOutcomeResult
+    data object StaleVersion : DriverOutcomeResult
+    data object UnknownOutcome : DriverOutcomeResult
+    data object NetworkUnavailable : DriverOutcomeResult
+    data object ServiceUnavailable : DriverOutcomeResult
+    data object PermissionDenied : DriverOutcomeResult
+    data object ContextInvalidated : DriverOutcomeResult
+    data object SessionInvalidated : DriverOutcomeResult
 }

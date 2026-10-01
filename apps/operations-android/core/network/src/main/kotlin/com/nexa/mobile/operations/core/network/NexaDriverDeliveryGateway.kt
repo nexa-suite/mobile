@@ -1,10 +1,12 @@
 package com.nexa.mobile.operations.core.network
 
 import com.nexa.mobile.operations.core.network.FailureKind
+import java.math.BigDecimal
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -24,6 +26,36 @@ data class DriverDeliveryAttemptProjection(
     val startedAt: String?
 )
 
+data class DriverDeliveryOutcomeLineProjection(
+    val fulfillmentLineId: String,
+    val skuId: String,
+    val catalogItemId: String,
+    val dispatchedQuantity: BigDecimal,
+    val deliveredQuantity: BigDecimal,
+    val rejectedQuantity: BigDecimal,
+    val cancelledQuantity: BigDecimal,
+    val remainingQuantity: BigDecimal,
+    val unit: String
+)
+
+data class DriverRemainingQuantityLineProjection(
+    val fulfillmentLineId: String,
+    val skuId: String,
+    val catalogItemId: String,
+    val quantity: BigDecimal,
+    val unit: String
+)
+
+data class DriverDeliveryOutcomeProjection(
+    val attemptId: String,
+    val deliveryId: String,
+    val deliveryVersion: Long,
+    val outcome: String,
+    val attemptedAt: String,
+    val partial: Boolean,
+    val remainingLines: List<DriverRemainingQuantityLineProjection>
+)
+
 data class DriverDeliveryProjection(
     val id: String,
     val fulfillmentId: String?,
@@ -35,7 +67,8 @@ data class DriverDeliveryProjection(
     val deliveredAt: String?,
     val updatedAt: String?,
     val version: Long,
-    val activeAttempt: DriverDeliveryAttemptProjection?
+    val activeAttempt: DriverDeliveryAttemptProjection?,
+    val outcomeLines: List<DriverDeliveryOutcomeLineProjection> = emptyList()
 )
 
 sealed interface DriverDeliveryNetworkOutcome {
@@ -45,6 +78,7 @@ sealed interface DriverDeliveryNetworkOutcome {
         val delivery: DriverDeliveryProjection,
         val attempt: DriverDeliveryAttemptProjection
     ) : DriverDeliveryNetworkOutcome
+    data class OutcomeRecorded(val value: DriverDeliveryOutcomeProjection) : DriverDeliveryNetworkOutcome
     data class Rejected(val code: String?) : DriverDeliveryNetworkOutcome
     data object NotFound : DriverDeliveryNetworkOutcome
     data object StaleVersion : DriverDeliveryNetworkOutcome
@@ -153,6 +187,50 @@ class NexaDriverDeliveryGateway(private val protectedCalls: ProtectedCallExecuto
         }
     }
 
+    suspend fun recordOutcome(
+        deliveryId: String,
+        attemptId: String,
+        expectedVersion: Long,
+        idempotencyKey: String,
+        frozenBody: String
+    ): DriverDeliveryNetworkOutcome {
+        if (!driverUuidPattern.matches(deliveryId) || !driverUuidPattern.matches(attemptId) ||
+            expectedVersion < 0 || idempotencyKey.isBlank() || idempotencyKey.length > 160 ||
+            frozenBody.isBlank()
+        ) {
+            return DriverDeliveryNetworkOutcome.ServiceUnavailable
+        }
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(
+                    method = ProtectedMethod.POST,
+                    path = "$DRIVER_DELIVERIES_PATH/$deliveryId/attempts/$attemptId/outcomes",
+                    payload = frozenBody,
+                    idempotencyKey = idempotencyKey,
+                    ifMatch = "\"$expectedVersion\""
+                )
+            )
+        ) {
+            is ProtectedResult.Failure -> result.error.toMutationOutcome()
+
+            is ProtectedResult.Success -> {
+                if (result.status !in setOf(200, 201)) {
+                    return DriverDeliveryNetworkOutcome.UnknownOutcome
+                }
+                val projection = result.body.toOutcomeProjection()
+                    ?: return DriverDeliveryNetworkOutcome.UnknownOutcome
+                if (projection.deliveryId != deliveryId || projection.attemptId != attemptId ||
+                    projection.deliveryVersion <= expectedVersion ||
+                    result.etag.toVersion() != projection.deliveryVersion
+                ) {
+                    DriverDeliveryNetworkOutcome.UnknownOutcome
+                } else {
+                    DriverDeliveryNetworkOutcome.OutcomeRecorded(projection)
+                }
+            }
+        }
+    }
+
     private fun String?.toDeliveryList(): List<DriverDeliveryProjection>? = try {
         val elements = this?.let(driverDeliveryJson::parseToJsonElement)?.jsonArray ?: return null
         elements.map { (it as? JsonObject)?.toProjection() ?: return null }
@@ -234,9 +312,14 @@ class NexaDriverDeliveryGateway(private val protectedCalls: ProtectedCallExecuto
 
             else -> return null
         }
+        val outcomeLineElement = this["outcomeLines"]
+        val outcomeLines = when (outcomeLineElement) {
+            null, JsonNull -> emptyList()
+            else -> outcomeLineElement.jsonArray.map { (it as? JsonObject)?.toOutcomeLine() ?: return null }
+        }
         DriverDeliveryProjection(
             id, fulfillmentId, salesOrderId, status, destination, scheduled, dispatched,
-            delivered, updated, version, activeAttempt
+            delivered, updated, version, activeAttempt, outcomeLines
         )
     } catch (_: Exception) {
         null
@@ -263,6 +346,52 @@ class NexaDriverDeliveryGateway(private val protectedCalls: ProtectedCallExecuto
         null
     }
 
+    private fun JsonObject.toOutcomeLine(): DriverDeliveryOutcomeLineProjection? = try {
+        val lineId = requiredText("fulfillmentLineId")?.takeIf(driverUuidPattern::matches) ?: return null
+        val skuId = requiredText("skuId")?.takeIf(driverUuidPattern::matches) ?: return null
+        val catalogItemId = requiredText("catalogItemId") ?: return null
+        val dispatched = requiredDecimal("dispatchedQuantity")?.takeIf { it.signum() >= 0 } ?: return null
+        val delivered = requiredDecimal("deliveredQuantity")?.takeIf { it.signum() >= 0 } ?: return null
+        val rejected = requiredDecimal("rejectedQuantity")?.takeIf { it.signum() >= 0 } ?: return null
+        val cancelled = requiredDecimal("cancelledQuantity")?.takeIf { it.signum() >= 0 } ?: return null
+        val remaining = requiredDecimal("remainingQuantity")?.takeIf { it.signum() >= 0 } ?: return null
+        val unit = requiredText("unit") ?: return null
+        DriverDeliveryOutcomeLineProjection(
+            lineId, skuId, catalogItemId, dispatched, delivered, rejected, cancelled, remaining, unit
+        )
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun String?.toOutcomeProjection(): DriverDeliveryOutcomeProjection? = try {
+        val root = this.toObject() ?: return null
+        val attemptId = root.requiredText("attemptId")?.takeIf(driverUuidPattern::matches) ?: return null
+        val delivery = root["delivery"]?.jsonObject ?: return null
+        val deliveryId = delivery.requiredText("id")?.takeIf(driverUuidPattern::matches) ?: return null
+        val version = delivery.requiredLong("version")?.takeIf { it >= 0 } ?: return null
+        val attempts = delivery["attempts"]?.jsonArray ?: return null
+        val attempt = attempts.mapNotNull { it as? JsonObject }
+            .firstOrNull { it.requiredText("id") == attemptId } ?: return null
+        val outcome = attempt.requiredText("outcome") ?: return null
+        val attemptedAt = attempt.requiredText("attemptedAt") ?: return null
+        val partial = root["partial"]?.jsonPrimitive?.booleanOrNull ?: return null
+        val remaining = root["remainingLines"]?.jsonArray?.map { element ->
+            val line = element as? JsonObject ?: return null
+            DriverRemainingQuantityLineProjection(
+                line.requiredText("fulfillmentLineId")?.takeIf(driverUuidPattern::matches) ?: return null,
+                line.requiredText("skuId")?.takeIf(driverUuidPattern::matches) ?: return null,
+                line.requiredText("catalogItemId") ?: return null,
+                line.requiredDecimal("quantity")?.takeIf { it.signum() >= 0 } ?: return null,
+                line.requiredText("unit") ?: return null
+            )
+        } ?: return null
+        DriverDeliveryOutcomeProjection(
+            attemptId, deliveryId, version, outcome, attemptedAt, partial, remaining
+        )
+    } catch (_: Exception) {
+        null
+    }
+
     private fun JsonObject.requiredText(key: String): String? =
         this[key]?.jsonPrimitive?.takeIf(JsonPrimitive::isString)?.contentOrNull
             ?.takeIf(String::isNotBlank)
@@ -275,6 +404,10 @@ class NexaDriverDeliveryGateway(private val protectedCalls: ProtectedCallExecuto
 
     private fun JsonObject.requiredLong(key: String): Long? =
         this[key]?.jsonPrimitive?.takeUnless(JsonPrimitive::isString)?.longOrNull
+
+    private fun JsonObject.requiredDecimal(key: String): BigDecimal? =
+        this[key]?.jsonPrimitive?.takeUnless(JsonPrimitive::isString)?.contentOrNull
+            ?.let { runCatching { BigDecimal(it) }.getOrNull() }
 
     private fun String?.toVersion(): Long? = this?.trim()?.removePrefix("W/")?.trim()
         ?.removeSurrounding("\"")?.toLongOrNull()?.takeIf { it >= 0 }

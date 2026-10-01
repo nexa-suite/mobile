@@ -36,4 +36,26 @@
     <string name="driver_delivery_directions_open">Abrir indicaciones</string>
     <string name="driver_delivery_directions_missing">No hay un destino autorizado disponible para abrir indicaciones.</string>
     <string name="driver_delivery_directions_unavailable">No hay una aplicación de navegación disponible. El intento de entrega no cambió.</string>
+    <string name="driver_delivery_quantities_title">Cantidades confirmadas por Nexa</string>
+    <string name="driver_delivery_quantities">Enviada %1$s · entregada %2$s · rechazada %3$s · cancelada %4$s · pendiente %5$s</string>
+    <string name="driver_delivery_outcome_title">Registrar resultado del intento</string>
+    <string name="driver_delivery_outcome_delivered">Entregado</string>
+    <string name="driver_delivery_outcome_partial">Parcial</string>
+    <string name="driver_delivery_outcome_failed">Fallido</string>
+    <string name="driver_delivery_outcome_refused">Rechazado</string>
+    <string name="driver_delivery_outcome_absent">Destinatario ausente</string>
+    <string name="driver_delivery_partial_quantity">%1$s: entregar hasta %2$s %3$s</string>
+    <string name="driver_delivery_outcome_reason">Motivo obligatorio</string>
+    <string name="driver_delivery_outcome_notes">Notas (opcional)</string>
+    <string name="driver_delivery_outcome_submit">Enviar resultado</string>
+    <string name="driver_delivery_outcome_checking">Confirmando asignación, intento y cantidades actuales…</string>
+    <string name="driver_delivery_outcome_persisting">Guardando la misma clave y el contenido exacto antes de enviar…</string>
+    <string name="driver_delivery_outcome_pending">Enviando el resultado a Nexa…</string>
+    <string name="driver_delivery_outcome_unknown">Nexa no confirmó el resultado. No se considera registrado. Repite únicamente el mismo resultado.</string>
+    <string name="driver_delivery_outcome_retry_same">Repetir el mismo resultado</string>
+    <string name="driver_delivery_outcome_storage_unavailable">No se pudo guardar el resultado exacto para recuperación. No se enviará hasta que el almacenamiento esté disponible.</string>
+    <string name="driver_delivery_outcome_recorded">Nexa confirmó %1$s a las %2$s (versión %3$d). Las cantidades pendientes se actualizan desde el servidor.</string>
+    <string name="driver_delivery_outcome_rejected">Nexa rechazó el resultado. Actualiza el detalle antes de decidir de nuevo.</string>
+    <string name="driver_delivery_outcome_rejected_code">Nexa rechazó el resultado (%1$s). Actualiza el detalle antes de decidir de nuevo.</string>
+    <string name="driver_delivery_outcome_stale">Cambió la entrega o el intento. Actualiza el detalle y revisa las cantidades.</string>
 </resources>

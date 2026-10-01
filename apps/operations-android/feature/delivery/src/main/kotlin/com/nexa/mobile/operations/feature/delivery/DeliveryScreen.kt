@@ -18,17 +18,21 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -39,7 +43,9 @@ fun DriverDeliveryScreen(
     onSelectDelivery: (String) -> Unit,
     onBeginDelivery: () -> Unit,
     onRetryUnknownStart: () -> Unit,
-    onOpenDirections: (String) -> Boolean = { false }
+    onOpenDirections: (String) -> Boolean = { false },
+    onRecordOutcome: (DriverOutcomeKind, Map<String, String>, String?, String?) -> Unit = { _, _, _, _ -> },
+    onRetryUnknownOutcome: () -> Unit = {}
 ) {
     var navigationUnavailable by remember { mutableStateOf(false) }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -145,22 +151,6 @@ fun DriverDeliveryScreen(
                             )
                         }
                     }
-                    val destination = state.authorizedDirectionsDestination
-                    if (destination == null) {
-                        Notice(stringResource(R.string.driver_delivery_directions_missing))
-                    } else {
-                        OutlinedButton(
-                            onClick = { navigationUnavailable = !onOpenDirections(destination) }
-                        ) {
-                            Text(stringResource(R.string.driver_delivery_directions_open))
-                        }
-                        if (navigationUnavailable) {
-                            Notice(
-                                stringResource(R.string.driver_delivery_directions_unavailable),
-                                isError = true
-                            )
-                        }
-                    }
                 }
             }
 
@@ -199,6 +189,63 @@ fun DriverDeliveryScreen(
                 else -> Unit
             }
 
+            when (state.outcomeCommandStatus) {
+                DriverOutcomeCommandStatus.CheckingCurrent -> Notice(
+                    stringResource(R.string.driver_delivery_outcome_checking)
+                )
+
+                DriverOutcomeCommandStatus.PersistingIntent -> Notice(
+                    stringResource(R.string.driver_delivery_outcome_persisting)
+                )
+
+                DriverOutcomeCommandStatus.Pending -> Notice(
+                    stringResource(R.string.driver_delivery_outcome_pending)
+                )
+
+                DriverOutcomeCommandStatus.UnknownOutcome -> {
+                    Notice(stringResource(R.string.driver_delivery_outcome_unknown), isError = true)
+                    if (state.hasRecoverableOutcome) {
+                        OutlinedButton(onClick = onRetryUnknownOutcome, enabled = state.canStart) {
+                            Text(stringResource(R.string.driver_delivery_outcome_retry_same))
+                        }
+                    }
+                }
+
+                DriverOutcomeCommandStatus.PersistenceUnavailable -> {
+                    Notice(stringResource(R.string.driver_delivery_outcome_storage_unavailable), isError = true)
+                    if (state.hasRecoverableOutcome) {
+                        OutlinedButton(onClick = onRetryUnknownOutcome, enabled = state.canStart) {
+                            Text(stringResource(R.string.driver_delivery_outcome_retry_same))
+                        }
+                    }
+                }
+
+                DriverOutcomeCommandStatus.Recorded -> state.outcomeSummary?.let { summary ->
+                    Notice(
+                        stringResource(
+                            R.string.driver_delivery_outcome_recorded,
+                            summary.outcome,
+                            summary.attemptedAt,
+                            summary.deliveryVersion
+                        )
+                    )
+                }
+
+                DriverOutcomeCommandStatus.Rejected -> Notice(
+                    state.outcomeRejectionCode?.let {
+                        stringResource(R.string.driver_delivery_outcome_rejected_code, it)
+                    } ?: stringResource(R.string.driver_delivery_outcome_rejected),
+                    isError = true
+                )
+
+                DriverOutcomeCommandStatus.StaleVersion -> Notice(
+                    stringResource(R.string.driver_delivery_outcome_stale),
+                    isError = true
+                )
+
+                DriverOutcomeCommandStatus.Idle -> Unit
+            }
+
             state.selectedDelivery?.let { delivery ->
                 Text(
                     stringResource(R.string.driver_delivery_detail_title),
@@ -232,6 +279,48 @@ fun DriverDeliveryScreen(
                             }
                         }
                     }
+                    val destination = state.authorizedDirectionsDestination
+                    if (destination == null) {
+                        Notice(stringResource(R.string.driver_delivery_directions_missing))
+                    } else {
+                        OutlinedButton(
+                            onClick = { navigationUnavailable = !onOpenDirections(destination) }
+                        ) {
+                            Text(stringResource(R.string.driver_delivery_directions_open))
+                        }
+                        if (navigationUnavailable) {
+                            Notice(
+                                stringResource(R.string.driver_delivery_directions_unavailable),
+                                isError = true
+                            )
+                        }
+                    }
+                    if (delivery.outcomeLines.isNotEmpty()) {
+                        Text(
+                            stringResource(R.string.driver_delivery_quantities_title),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        delivery.outcomeLines.forEach { line ->
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text("${line.catalogItemId} · ${line.unit}")
+                                Text(
+                                    stringResource(
+                                        R.string.driver_delivery_quantities,
+                                        line.dispatchedQuantity.toPlainString(),
+                                        line.deliveredQuantity.toPlainString(),
+                                        line.rejectedQuantity.toPlainString(),
+                                        line.cancelledQuantity.toPlainString(),
+                                        line.remainingQuantity.toPlainString()
+                                    )
+                                )
+                            }
+                        }
+                    }
+                    OutcomeEntry(
+                        delivery = delivery,
+                        state = state,
+                        onRecordOutcome = onRecordOutcome
+                    )
                 }
                 when (state.detailStatus) {
                     DriverDeliveryLoadStatus.Loading -> Notice(
@@ -320,6 +409,94 @@ fun DriverDeliveryScreen(
             }
         }
     }
+}
+
+@Composable
+private fun OutcomeEntry(
+    delivery: DriverDeliverySnapshot,
+    state: DriverDeliveryUiState,
+    onRecordOutcome: (DriverOutcomeKind, Map<String, String>, String?, String?) -> Unit
+) {
+    var selected by remember(delivery.id) { mutableStateOf(DriverOutcomeKind.DELIVERED) }
+    var reason by remember(delivery.id) { mutableStateOf("") }
+    var notes by remember(delivery.id) { mutableStateOf("") }
+    val delivered = remember(delivery.id) { mutableStateMapOf<String, String>() }
+    val canEdit = state.canStart && state.detailStatus == DriverDeliveryLoadStatus.Ready &&
+        state.outcomeCommandStatus in setOf(
+            DriverOutcomeCommandStatus.Idle,
+            DriverOutcomeCommandStatus.Recorded,
+            DriverOutcomeCommandStatus.Rejected,
+            DriverOutcomeCommandStatus.StaleVersion
+        )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            stringResource(R.string.driver_delivery_outcome_title),
+            style = MaterialTheme.typography.titleMedium
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            DriverOutcomeKind.entries.forEach { kind ->
+                TextButton(onClick = { selected = kind }, enabled = canEdit) {
+                    Text(
+                        text = stringResource(kind.label()),
+                        fontWeight = if (kind == selected) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
+        }
+        if (selected == DriverOutcomeKind.PARTIAL) {
+            delivery.outcomeLines.filter { it.remainingQuantity.signum() > 0 }.forEach { line ->
+                OutlinedTextField(
+                    value = delivered[line.fulfillmentLineId].orEmpty(),
+                    onValueChange = { delivered[line.fulfillmentLineId] = it },
+                    label = {
+                        Text(
+                            stringResource(
+                                R.string.driver_delivery_partial_quantity,
+                                line.catalogItemId,
+                                line.remainingQuantity.toPlainString(),
+                                line.unit
+                            )
+                        )
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    enabled = canEdit,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+        if (selected in setOf(DriverOutcomeKind.FAILED, DriverOutcomeKind.REFUSED, DriverOutcomeKind.ABSENT)) {
+            OutlinedTextField(
+                value = reason,
+                onValueChange = { reason = it },
+                label = { Text(stringResource(R.string.driver_delivery_outcome_reason)) },
+                enabled = canEdit,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        OutlinedTextField(
+            value = notes,
+            onValueChange = { notes = it },
+            label = { Text(stringResource(R.string.driver_delivery_outcome_notes)) },
+            enabled = canEdit,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Button(
+            onClick = { onRecordOutcome(selected, delivered.toMap(), reason, notes) },
+            enabled = canEdit
+        ) {
+            Text(stringResource(R.string.driver_delivery_outcome_submit))
+        }
+        if (!state.canStart) Notice(stringResource(R.string.driver_delivery_start_permission), isError = true)
+    }
+}
+
+private fun DriverOutcomeKind.label(): Int = when (this) {
+    DriverOutcomeKind.DELIVERED -> R.string.driver_delivery_outcome_delivered
+    DriverOutcomeKind.PARTIAL -> R.string.driver_delivery_outcome_partial
+    DriverOutcomeKind.FAILED -> R.string.driver_delivery_outcome_failed
+    DriverOutcomeKind.REFUSED -> R.string.driver_delivery_outcome_refused
+    DriverOutcomeKind.ABSENT -> R.string.driver_delivery_outcome_absent
 }
 
 @Composable

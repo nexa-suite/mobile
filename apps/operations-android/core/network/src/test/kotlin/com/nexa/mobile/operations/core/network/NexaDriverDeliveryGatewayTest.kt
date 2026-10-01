@@ -117,6 +117,62 @@ class NexaDriverDeliveryGatewayTest {
         }
     }
 
+    @Test
+    fun outcomeUsesFrozenBodyAttemptPathAndVersionThenParsesServerResult() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val body = """{"outcome":"PARTIAL","attemptedAt":"2026-09-30T20:00:00Z","lines":[{"fulfillmentLineId":"$FULFILLMENT_LINE_ID","skuId":"$SKU_ID","attemptedQuantity":1.250,"deliveredQuantity":1.250,"rejectedQuantity":0,"cancelledQuantity":0,"unit":"UNIT"}]}"""
+            server.enqueue(jsonResponse(200, outcomeJson(version = 10)).setHeader("ETag", "\"10\""))
+
+            val result = gateway(server).recordOutcome(
+                DELIVERY_ID, ATTEMPT_ID, 9, "outcome-same-key", body
+            ) as DriverDeliveryNetworkOutcome.OutcomeRecorded
+            val request = server.takeRequest()
+
+            assertEquals("PARTIAL", result.value.outcome)
+            assertEquals("2026-09-30T20:00:00Z", result.value.attemptedAt)
+            assertEquals("0.250", result.value.remainingLines.single().quantity.toPlainString())
+            assertEquals("POST", request.method)
+            assertEquals(
+                "/api/v1/driver/deliveries/$DELIVERY_ID/attempts/$ATTEMPT_ID/outcomes",
+                request.path
+            )
+            assertEquals("\"9\"", request.getHeader("If-Match"))
+            assertEquals("outcome-same-key", request.getHeader("Idempotency-Key"))
+            assertEquals(body, request.body.readUtf8())
+        }
+    }
+
+    @Test
+    fun eligibleUnauthorizedOutcomeReplayKeepsExactKeyVersionAndDecimalBody() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val body = """{"outcome":"PARTIAL","attemptedAt":"2026-09-30T20:00:00Z","lines":[{"fulfillmentLineId":"$FULFILLMENT_LINE_ID","skuId":"$SKU_ID","attemptedQuantity":1.250,"deliveredQuantity":1.250,"rejectedQuantity":0,"cancelledQuantity":0,"unit":"UNIT"}]}"""
+            server.enqueue(problemResponse(401, "TOKEN_EXPIRED"))
+            server.enqueue(jsonResponse(200, outcomeJson(version = 10)).setHeader("ETag", "\"10\""))
+            val tokens = FakeAccessTokenSource()
+
+            val result = gateway(server, tokens).recordOutcome(
+                DELIVERY_ID, ATTEMPT_ID, 9, "outcome-401", body
+            )
+
+            assertTrue(result is DriverDeliveryNetworkOutcome.OutcomeRecorded)
+            assertEquals(1, tokens.recoverCount)
+            val first = server.takeRequest()
+            val replay = server.takeRequest()
+            listOf(first, replay).forEach { request ->
+                assertEquals("POST", request.method)
+                assertEquals("outcome-401", request.getHeader("Idempotency-Key"))
+                assertEquals("\"9\"", request.getHeader("If-Match"))
+                assertEquals(body, request.body.readUtf8())
+                assertEquals(
+                    "/api/v1/driver/deliveries/$DELIVERY_ID/attempts/$ATTEMPT_ID/outcomes",
+                    request.path
+                )
+            }
+        }
+    }
+
     private fun gateway(
         server: MockWebServer,
         source: FakeAccessTokenSource = FakeAccessTokenSource()
@@ -136,6 +192,8 @@ class NexaDriverDeliveryGatewayTest {
         "\"activeAttempt\":null",
         "\"activeAttempt\":$activeAttemptJson"
     )},"attempt":$activeAttemptJson,"replayed":false}"""
+
+    private fun outcomeJson(version: Long) = """{"attemptId":"$ATTEMPT_ID","delivery":{"id":"$DELIVERY_ID","version":$version,"attempts":[{"id":"$ATTEMPT_ID","outcome":"PARTIAL","attemptedAt":"2026-09-30T20:00:00Z"}]},"partial":true,"remainingLines":[{"fulfillmentLineId":"$FULFILLMENT_LINE_ID","skuId":"$SKU_ID","catalogItemId":"CAT-100","quantity":0.250,"unit":"UNIT"}]}"""
 
     private fun jsonResponse(status: Int, body: String) = MockResponse()
         .setResponseCode(status)
@@ -170,6 +228,8 @@ class NexaDriverDeliveryGatewayTest {
         const val ORDER_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413103"
         const val ATTEMPT_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413104"
         const val MEMBERSHIP_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413105"
+        const val FULFILLMENT_LINE_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413106"
+        const val SKU_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413107"
         val activeAttemptJson =
             """{"id":"$ATTEMPT_ID","attemptNumber":1,"status":"ACTIVE","startedByMembershipId":"$MEMBERSHIP_ID","startedAt":"2026-09-30T15:01:00Z"}"""
     }
