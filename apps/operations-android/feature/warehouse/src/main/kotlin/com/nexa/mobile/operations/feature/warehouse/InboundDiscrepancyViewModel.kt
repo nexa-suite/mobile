@@ -158,6 +158,18 @@ class InboundDiscrepancyViewModel(
     }
 
     /** Re-adopts only artifact staged for exact scope, warehouse and case captured before picker launch. */
+    /** Retains a returned native selection under its original identity for later authorized review. */
+    suspend fun stageReturnedSelection(
+        context: InboundDiscrepancySelectionContext,
+        candidate: InboundDiscrepancyEvidenceCandidate
+    ): InboundDiscrepancyArtifactWrite = try {
+        artifacts.stageReturnedSelection(context, candidate)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        InboundDiscrepancyArtifactWrite.Unavailable
+    }
+
     suspend fun reloadStagedEvidence(context: InboundDiscrepancySelectionContext): Boolean {
         val currentAuthority = authority ?: return false
         return reloadStagedEvidence(context, generation, currentAuthority)
