@@ -32,7 +32,9 @@ data class DispatchDriverAssignmentProjection(
     val responsibleMembershipId: String,
     val responsibleDisplayName: String,
     val assignedAt: Instant,
-    val deliveryId: String?
+    val deliveryId: String?,
+    val plannedDispatchAt: Instant? = null,
+    val current: Boolean = true
 ) {
     override fun toString(): String = "DispatchDriverAssignmentProjection(id=REDACTED, " +
         "fulfillmentVersion=$fulfillmentVersion, deliveryLinked=${deliveryId != null})"
@@ -44,6 +46,19 @@ data class DispatchDriverAssignmentRequest(
     val physicalAllocationId: String,
     val physicalAllocationVersion: Long,
     val responsibleMembershipId: String
+)
+
+data class DispatchPlanChangeRequest(
+    val fulfillmentId: String,
+    val expectedFulfillmentVersion: Long,
+    val expectedAssignmentId: String,
+    val expectedAssignmentVersion: Long,
+    val physicalAllocationId: String,
+    val physicalAllocationVersion: Long,
+    val resultResponsibleMembershipId: String,
+    val resultPlannedDispatchAt: Instant?,
+    val requestBody: String,
+    val idempotencyKey: String
 )
 
 sealed interface DispatchAssignmentNetworkOutcome {
@@ -64,6 +79,23 @@ sealed interface DispatchAssignmentNetworkOutcome {
     data object SessionInvalidated : DispatchAssignmentNetworkOutcome
     data object Stale : DispatchAssignmentNetworkOutcome
     data object Conflict : DispatchAssignmentNetworkOutcome
+}
+
+sealed interface DispatchPlanChangeNetworkOutcome {
+    data class History(val items: List<DispatchDriverAssignmentProjection>) :
+        DispatchPlanChangeNetworkOutcome
+
+    data class Changed(val item: DispatchDriverAssignmentProjection) :
+        DispatchPlanChangeNetworkOutcome
+
+    data object NetworkUnavailable : DispatchPlanChangeNetworkOutcome
+    data object UnknownOutcome : DispatchPlanChangeNetworkOutcome
+    data object ServiceUnavailable : DispatchPlanChangeNetworkOutcome
+    data object PermissionDenied : DispatchPlanChangeNetworkOutcome
+    data object ContextInvalidated : DispatchPlanChangeNetworkOutcome
+    data object SessionInvalidated : DispatchPlanChangeNetworkOutcome
+    data object Stale : DispatchPlanChangeNetworkOutcome
+    data object Conflict : DispatchPlanChangeNetworkOutcome
 }
 
 /** Protected current driver and assignment reads plus the prepared-Fulfillment assignment command. */
@@ -120,6 +152,74 @@ class NexaDispatchAssignmentGateway(private val protectedCalls: ProtectedCallExe
                 }
 
                 else -> DispatchAssignmentNetworkOutcome.ServiceUnavailable
+            }
+        }
+    }
+
+    suspend fun history(fulfillmentId: String): DispatchPlanChangeNetworkOutcome {
+        if (!fulfillmentId.isUuid()) return DispatchPlanChangeNetworkOutcome.ServiceUnavailable
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(ProtectedMethod.GET, "${assignmentPath(fulfillmentId)}/history")
+            )
+        ) {
+            is ProtectedResult.Failure -> result.error.toPlanChangeOutcome(mutation = false)
+
+            is ProtectedResult.Success -> {
+                val items = result.body.decode<List<DispatchDriverAssignmentWire>>()
+                    ?.map {
+                        it.toProjection()
+                            ?: return DispatchPlanChangeNetworkOutcome.ServiceUnavailable
+                    }
+                    ?: return DispatchPlanChangeNetworkOutcome.ServiceUnavailable
+                if (items.any { !it.fulfillmentId.equals(fulfillmentId, ignoreCase = true) } ||
+                    items.map { it.id.lowercase(Locale.ROOT) }.distinct().size != items.size ||
+                    items.count { it.current } > 1 ||
+                    (items.isNotEmpty() && items.none { it.current })
+                ) {
+                    DispatchPlanChangeNetworkOutcome.ServiceUnavailable
+                } else {
+                    DispatchPlanChangeNetworkOutcome.History(items)
+                }
+            }
+        }
+    }
+
+    suspend fun changePlan(request: DispatchPlanChangeRequest): DispatchPlanChangeNetworkOutcome {
+        if (!request.isValid()) return DispatchPlanChangeNetworkOutcome.ServiceUnavailable
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(
+                    method = ProtectedMethod.POST,
+                    path = "${assignmentPath(request.fulfillmentId)}/plan-changes",
+                    payload = request.requestBody,
+                    idempotencyKey = request.idempotencyKey,
+                    ifMatch = "\"${request.expectedFulfillmentVersion}\""
+                )
+            )
+        ) {
+            is ProtectedResult.Failure -> result.error.toPlanChangeOutcome(mutation = true)
+
+            is ProtectedResult.Success -> {
+                val item = result.body.decode<DispatchDriverAssignmentWire>()?.toProjection()
+                    ?: return DispatchPlanChangeNetworkOutcome.UnknownOutcome
+                if (!item.fulfillmentId.equals(request.fulfillmentId, ignoreCase = true) ||
+                    item.fulfillmentVersion != request.expectedFulfillmentVersion + 1 ||
+                    !item.physicalAllocationId.equals(
+                        request.physicalAllocationId,
+                        ignoreCase = true
+                    ) ||
+                    item.physicalAllocationVersion != request.physicalAllocationVersion ||
+                    !item.responsibleMembershipId.equals(
+                        request.resultResponsibleMembershipId,
+                        ignoreCase = true
+                    ) || item.plannedDispatchAt != request.resultPlannedDispatchAt ||
+                    result.etag.toVersion() != item.fulfillmentVersion
+                ) {
+                    DispatchPlanChangeNetworkOutcome.UnknownOutcome
+                } else {
+                    DispatchPlanChangeNetworkOutcome.Changed(item)
+                }
             }
         }
     }
@@ -189,6 +289,9 @@ class NexaDispatchAssignmentGateway(private val protectedCalls: ProtectedCallExe
         val safeName = responsibleDisplayName?.takeIf(String::isNotBlank) ?: return null
         val safeAssignedAt =
             assignedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
+        val safePlannedDispatchAt = plannedDispatchAt?.let {
+            runCatching { Instant.parse(it) }.getOrNull() ?: return null
+        }
         val safeDeliveryId = deliveryId?.takeIf(String::isNotBlank)
         if (deliveryId != null && safeDeliveryId?.isUuid() != true) return null
         return DispatchDriverAssignmentProjection(
@@ -200,7 +303,9 @@ class NexaDispatchAssignmentGateway(private val protectedCalls: ProtectedCallExe
             safeMembership,
             safeName,
             safeAssignedAt,
-            safeDeliveryId
+            safeDeliveryId,
+            safePlannedDispatchAt,
+            current
         )
     }
 
@@ -208,6 +313,13 @@ class NexaDispatchAssignmentGateway(private val protectedCalls: ProtectedCallExe
         fulfillmentId.isUuid() && expectedFulfillmentVersion >= 0 &&
             physicalAllocationId.isUuid() && physicalAllocationVersion >= 0 &&
             responsibleMembershipId.isUuid()
+
+    private fun DispatchPlanChangeRequest.isValid(): Boolean =
+        fulfillmentId.isUuid() && expectedFulfillmentVersion >= 0 &&
+            expectedAssignmentId.isUuid() && expectedAssignmentVersion >= 0 &&
+            physicalAllocationId.isUuid() && physicalAllocationVersion >= 0 &&
+            resultResponsibleMembershipId.isUuid() && requestBody.isNotBlank() &&
+            idempotencyKey.isNotBlank() && idempotencyKey.length <= 160
 
     private fun String.isUuid(): Boolean = dispatchAssignmentUuid.matches(this)
 
@@ -255,6 +367,40 @@ class NexaDispatchAssignmentGateway(private val protectedCalls: ProtectedCallExe
         else -> DispatchAssignmentNetworkOutcome.ServiceUnavailable
     }
 
+    private fun ClientFailure.toPlanChangeOutcome(
+        mutation: Boolean
+    ): DispatchPlanChangeNetworkOutcome = when (toDispatchAssignmentOutcome(mutation)) {
+        DispatchAssignmentNetworkOutcome.NetworkUnavailable ->
+            DispatchPlanChangeNetworkOutcome.NetworkUnavailable
+
+        DispatchAssignmentNetworkOutcome.UnknownOutcome ->
+            DispatchPlanChangeNetworkOutcome.UnknownOutcome
+
+        DispatchAssignmentNetworkOutcome.ServiceUnavailable ->
+            DispatchPlanChangeNetworkOutcome.ServiceUnavailable
+
+        DispatchAssignmentNetworkOutcome.PermissionDenied ->
+            DispatchPlanChangeNetworkOutcome.PermissionDenied
+
+        DispatchAssignmentNetworkOutcome.ContextInvalidated ->
+            DispatchPlanChangeNetworkOutcome.ContextInvalidated
+
+        DispatchAssignmentNetworkOutcome.SessionInvalidated ->
+            DispatchPlanChangeNetworkOutcome.SessionInvalidated
+
+        DispatchAssignmentNetworkOutcome.Stale -> DispatchPlanChangeNetworkOutcome.Stale
+
+        DispatchAssignmentNetworkOutcome.Conflict -> DispatchPlanChangeNetworkOutcome.Conflict
+
+        is DispatchAssignmentNetworkOutcome.Candidates,
+        is DispatchAssignmentNetworkOutcome.Current,
+        is DispatchAssignmentNetworkOutcome.Assigned -> if (mutation) {
+            DispatchPlanChangeNetworkOutcome.UnknownOutcome
+        } else {
+            DispatchPlanChangeNetworkOutcome.ServiceUnavailable
+        }
+    }
+
     private companion object {
         const val ACCESS_CONTEXT_INVALID = "ACCESS_CONTEXT_INVALID"
     }
@@ -277,5 +423,7 @@ private data class DispatchDriverAssignmentWire(
     val responsibleMembershipId: String? = null,
     val responsibleDisplayName: String? = null,
     val assignedAt: String? = null,
-    val deliveryId: String? = null
+    val plannedDispatchAt: String? = null,
+    val deliveryId: String? = null,
+    val current: Boolean = true
 )

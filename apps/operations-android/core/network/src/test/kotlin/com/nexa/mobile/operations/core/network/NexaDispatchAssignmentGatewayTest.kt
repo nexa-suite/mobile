@@ -94,6 +94,72 @@ class NexaDispatchAssignmentGatewayTest {
     }
 
     @Test
+    fun planChangePostsThePersistedBodyAndParsesHistoricalReplayFact() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val plannedAt = "2026-10-01T15:30:00Z"
+            server.enqueue(
+                jsonResponse(
+                    """{"id":"$ASSIGNMENT_ID","fulfillmentId":"$FULFILLMENT_ID","fulfillmentVersion":14,"physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,"responsibleMembershipId":"$MEMBERSHIP_ID","responsibleDisplayName":"Driver One","assignedAt":"2026-09-30T10:15:30Z","plannedDispatchAt":"$plannedAt","deliveryId":null,"current":false}"""
+                ).addHeader("ETag", "\"14\"")
+            )
+            val gateway = gateway(server)
+            val body = """{"exact":"body","plannedDispatchAt":"$plannedAt"}"""
+
+            val result = gateway.changePlan(
+                DispatchPlanChangeRequest(
+                    fulfillmentId = FULFILLMENT_ID,
+                    expectedFulfillmentVersion = 13,
+                    expectedAssignmentId = ASSIGNMENT_ID,
+                    expectedAssignmentVersion = 13,
+                    physicalAllocationId = ALLOCATION_ID,
+                    physicalAllocationVersion = 7,
+                    resultResponsibleMembershipId = MEMBERSHIP_ID,
+                    resultPlannedDispatchAt = java.time.Instant.parse(plannedAt),
+                    requestBody = body,
+                    idempotencyKey = "dispatch-plan-key"
+                )
+            ) as DispatchPlanChangeNetworkOutcome.Changed
+            val request = server.takeRequest()
+
+            assertEquals("POST", request.method)
+            assertEquals(
+                "/api/v1/fulfillments/$FULFILLMENT_ID/driver-assignments/plan-changes",
+                request.requestUrl?.encodedPath
+            )
+            assertEquals("\"13\"", request.getHeader("If-Match"))
+            assertEquals("dispatch-plan-key", request.getHeader("Idempotency-Key"))
+            assertEquals(body, request.body.readUtf8())
+            assertFalse(result.item.current)
+            assertEquals(java.time.Instant.parse(plannedAt), result.item.plannedDispatchAt)
+        }
+    }
+
+    @Test
+    fun assignmentHistoryKeepsSupersededPlanRevisionsAndCurrentMarker() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(
+                jsonResponse(
+                    """[{"id":"$ASSIGNMENT_ID","fulfillmentId":"$FULFILLMENT_ID","fulfillmentVersion":13,"physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,"responsibleMembershipId":"$MEMBERSHIP_ID","responsibleDisplayName":"Driver One","assignedAt":"2026-09-30T10:15:30Z","deliveryId":null,"current":false},{"id":"$SECOND_ASSIGNMENT_ID","fulfillmentId":"$FULFILLMENT_ID","fulfillmentVersion":14,"physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,"responsibleMembershipId":"$OTHER_MEMBERSHIP_ID","responsibleDisplayName":"Driver Two","assignedAt":"2026-09-30T10:16:30Z","plannedDispatchAt":"2026-10-01T15:30:00Z","deliveryId":null,"current":true}]"""
+                )
+            )
+            val result = gateway(server).history(FULFILLMENT_ID) as
+                DispatchPlanChangeNetworkOutcome.History
+            val request = server.takeRequest()
+
+            assertEquals("GET", request.method)
+            assertEquals(
+                "/api/v1/fulfillments/$FULFILLMENT_ID/driver-assignments/history",
+                request.requestUrl?.encodedPath
+            )
+            assertEquals(2, result.items.size)
+            assertFalse(result.items[0].current)
+            assertTrue(result.items[1].current)
+        }
+    }
+
+    @Test
     fun malformedOrStaleAssignmentResponsesDoNotBecomeConfirmedFacts() = runTest {
         MockWebServer().use { server ->
             server.start()
@@ -162,5 +228,7 @@ class NexaDispatchAssignmentGatewayTest {
         const val ALLOCATION_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413101"
         const val MEMBERSHIP_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413104"
         const val ASSIGNMENT_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413105"
+        const val OTHER_MEMBERSHIP_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413106"
+        const val SECOND_ASSIGNMENT_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413107"
     }
 }

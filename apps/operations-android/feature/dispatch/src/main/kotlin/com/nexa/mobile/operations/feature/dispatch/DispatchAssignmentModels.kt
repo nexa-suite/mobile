@@ -22,7 +22,9 @@ data class PreparedFulfillmentDriverAssignment(
     val responsibleMembershipId: String,
     val responsibleDisplayName: String,
     val assignedAt: Instant,
-    val deliveryId: String?
+    val deliveryId: String?,
+    val plannedDispatchAt: Instant? = null,
+    val current: Boolean = true
 ) {
     override fun toString(): String = "PreparedFulfillmentDriverAssignment(id=REDACTED, " +
         "fulfillmentVersion=$fulfillmentVersion, deliveryLinked=${deliveryId != null})"

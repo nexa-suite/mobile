@@ -245,7 +245,8 @@ internal class OperationsDispatchAssignmentGateway @Inject constructor(
         return when {
             identity.permissions.isEmpty() -> Authorization.ContextInvalidated
 
-            DISPATCH_READ_PERMISSION !in identity.permissions ->
+            DISPATCH_READ_PERMISSION !in identity.permissions ||
+                LOGISTICS_READ_PERMISSION !in identity.permissions ->
                 Authorization.PermissionDenied
 
             requireAssignmentPermission &&
@@ -267,7 +268,8 @@ internal class OperationsDispatchAssignmentGateway @Inject constructor(
         }
         val identity = context.identity ?: return false
         val current = sessions.verifiedSession.value ?: return false
-        return current.matches(identity) && DISPATCH_READ_PERMISSION in identity.permissions
+        return current.matches(identity) && DISPATCH_READ_PERMISSION in identity.permissions &&
+            LOGISTICS_READ_PERMISSION in identity.permissions
     }
 
     private suspend fun authorityDrift(context: DispatchAuthorityContext) = when {
@@ -304,7 +306,9 @@ internal class OperationsDispatchAssignmentGateway @Inject constructor(
             responsibleMembershipId = responsibleMembershipId,
             responsibleDisplayName = responsibleDisplayName,
             assignedAt = assignedAt,
-            deliveryId = deliveryId
+            deliveryId = deliveryId,
+            plannedDispatchAt = plannedDispatchAt,
+            current = current
         )
 
     private fun toFeature(item: DispatchReadinessProjection) =

@@ -42,7 +42,8 @@ fun DispatchAssignmentScreen(
     onSelectDriver: (String) -> Unit,
     onAssign: () -> Unit,
     onReplay: () -> Unit,
-    onRouteClosed: () -> Unit
+    onRouteClosed: () -> Unit,
+    onChangePlan: (() -> Unit)? = null
 ) {
     val closeAction = rememberUpdatedState(onRouteClosed)
     DisposableEffect(Unit) {
@@ -143,6 +144,13 @@ fun DispatchAssignmentScreen(
             state.assignment?.let { assignment ->
                 item {
                     AssignmentFactCard(assignment)
+                }
+                if (onChangePlan != null) {
+                    item {
+                        OutlinedButton(onClick = onChangePlan) {
+                            Text(stringResource(R.string.dispatch_assignment_change_plan))
+                        }
+                    }
                 }
             }
 
