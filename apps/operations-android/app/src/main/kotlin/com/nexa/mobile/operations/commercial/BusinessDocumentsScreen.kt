@@ -26,7 +26,13 @@ fun BusinessDocumentsScreen(state: BusinessDocumentsState, onBack: () -> Unit, o
         TextButton(onClick = onBack) { Text("Volver") }
         Text("Documentos emitidos", style = MaterialTheme.typography.headlineSmall)
         Text("Acceso vigente obligatorio. Contenido emitido inmutable; copia local no autoriza decisiones.")
-        Text("Estado: ${state.status}. Visor protegido PDF, CSV y XML hasta 8 MiB.")
+        Text("Estado: ${when (state.status) {
+            "Current" -> "Información recibida"
+            "Pending" -> "Consultando información"
+            "PermissionDenied" -> "Acceso no vigente"
+            "Unavailable" -> "Contenido no disponible"
+            else -> "Sin consultar"
+        }}. Visor protegido PDF, CSV y XML hasta 8 MiB.")
         Button(onClick = onRefresh, enabled = state.status != "Pending") { Text("Actualizar documentos") }
         val content = state.content
         if (content != null) {
