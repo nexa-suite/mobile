@@ -39,6 +39,8 @@ data class DriverDeliveryIncidentUiState(
     val delivery: DriverIncidentCurrentDelivery? = null,
     val draftId: String? = null,
     val status: DriverIncidentUiStatus = DriverIncidentUiStatus.Loading,
+    /** Null for untyped legacy drafts/intents; a new report requires an explicit type. */
+    val type: DriverIncidentType? = null,
     val reason: String = "",
     val description: String = "",
     val place: String = "",
@@ -57,7 +59,7 @@ data class DriverDeliveryIncidentUiState(
     val persistenceCleanupPending: Boolean = false
 ) {
     val validDraft: Boolean
-        get() = reason.isNotBlank() && reason.length <= 500 &&
+        get() = type != null && reason.isNotBlank() && reason.length <= 500 &&
             description.isNotBlank() && description.length <= 2000 &&
             place.isNotBlank() && place.length <= 500
 
@@ -190,6 +192,7 @@ class DriverDeliveryIncidentViewModel(
                         reason = metadata.reason,
                         description = metadata.description,
                         place = metadata.place,
+                        type = metadata.type,
                         draftId = metadata.draftId,
                         savedDraftVersion = metadata.draftVersion,
                         evidence = metadata.evidence,
@@ -221,6 +224,8 @@ class DriverDeliveryIncidentViewModel(
 
     fun editReason(value: String) = editDraft { copy(reason = value) }
 
+    fun editType(value: DriverIncidentType) = editDraft { copy(type = value) }
+
     fun editDescription(value: String) = editDraft { copy(description = value) }
 
     fun editPlace(value: String) = editDraft { copy(place = value) }
@@ -249,7 +254,8 @@ class DriverDeliveryIncidentViewModel(
             place = current.place.trim(),
             status = DriverIncidentRecordStatus.Draft,
             draftId = current.draftId ?: UUID.randomUUID().toString(),
-            evidence = current.evidence
+            evidence = current.evidence,
+            type = current.type
         )
         val requestGeneration = generation
         mutableState.update { it.copy(status = DriverIncidentUiStatus.SavingDraft, rejectionCode = null) }
@@ -264,6 +270,7 @@ class DriverDeliveryIncidentViewModel(
                             reason = metadata.reason,
                             description = metadata.description,
                             place = metadata.place,
+                            type = metadata.type,
                             draftId = metadata.draftId,
                             savedDraftVersion = metadata.draftVersion,
                             evidence = metadata.evidence,
@@ -674,6 +681,7 @@ class DriverDeliveryIncidentViewModel(
         val capturedReason = current.reason.trim()
         val capturedDescription = current.description.trim()
         val capturedPlace = current.place.trim()
+        val capturedType = current.type ?: return
         val requestGeneration = generation
         mutableState.update { it.copy(status = DriverIncidentUiStatus.CheckingCurrent, rejectionCode = null) }
         viewModelScope.launch {
@@ -705,13 +713,15 @@ class DriverDeliveryIncidentViewModel(
             }
             val command = DriverIncidentCommand(
                 deliveryId, attemptId, fresh.version, key, capturedReason, capturedDescription,
-                capturedPlace, driverIncidentBody(capturedReason, capturedDescription, capturedPlace)
+                capturedPlace, driverIncidentBody(capturedType, capturedReason, capturedDescription, capturedPlace),
+                type = capturedType
             )
             val intent = DriverIncidentMetadata(
                 currentAuthority.scopeIdentity, deliveryId, attemptId, fresh.version,
                 capturedReason, capturedDescription, capturedPlace,
                 DriverIncidentRecordStatus.Pending, command,
-                current.draftId ?: UUID.randomUUID().toString(), evidence = current.evidence
+                current.draftId ?: UUID.randomUUID().toString(), evidence = current.evidence,
+                type = capturedType
             )
             pendingCommand = command
             pendingPersisted = false
@@ -752,7 +762,8 @@ class DriverDeliveryIncidentViewModel(
                 currentAuthority.scopeIdentity, command.deliveryId, command.attemptId,
                 command.expectedVersion, command.reason, command.description, command.place,
                 DriverIncidentRecordStatus.Pending, command,
-                current.draftId ?: UUID.randomUUID().toString(), evidence = current.evidence
+                current.draftId ?: UUID.randomUUID().toString(), evidence = current.evidence,
+                type = command.type
             )
             execute(command, metadata, requestGeneration, currentAuthority)
         }
@@ -915,7 +926,8 @@ class DriverDeliveryIncidentViewModel(
         val linkedEvidence = evidence?.takeIf { it.stage == DriverIncidentEvidenceStage.Linked }
             ?.evidenceId?.let(::listOf).orEmpty()
         return DriverIncidentSummary(id, deliveryId, attemptId, reason, description, place, actor, time,
-            linkedEvidence, version, replayed = false)
+            linkedEvidence, version, replayed = false, type = type, severity = severity,
+            operationalExceptionId = operationalExceptionId)
     }
 
     private suspend fun execute(
@@ -944,7 +956,10 @@ class DriverDeliveryIncidentViewModel(
                         incidentId = result.summary.incidentId,
                         recordedAt = result.summary.recordedAt,
                         recordedByMembershipId = result.summary.recordedByMembershipId,
-                        deliveryVersion = result.summary.deliveryVersion
+                        deliveryVersion = result.summary.deliveryVersion,
+                        type = result.summary.type,
+                        severity = result.summary.severity,
+                        operationalExceptionId = result.summary.operationalExceptionId
                     )
                 }
                 val persisted = if (completed != null) {

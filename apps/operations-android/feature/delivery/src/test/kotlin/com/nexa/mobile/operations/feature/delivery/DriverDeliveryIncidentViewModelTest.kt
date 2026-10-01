@@ -22,6 +22,7 @@ class DriverDeliveryIncidentViewModelTest {
         val viewModel = DriverDeliveryIncidentViewModel(gateway, store, keyFactory = { "incident-key" })
         viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
         advanceUntilIdle()
+        viewModel.editType(DriverIncidentType.DELAY)
         viewModel.editReason("Road closure")
         viewModel.editDescription("Entrance blocked")
         viewModel.editPlace("North entrance")
@@ -40,9 +41,11 @@ class DriverDeliveryIncidentViewModelTest {
         assertEquals(7L, gateway.commands.single().expectedVersion)
         assertEquals("incident-key", gateway.commands.single().idempotencyKey)
         assertEquals(
-            """{"reason":"Road closure","description":"Entrance blocked","place":"North entrance"}""",
+            """{"type":"DELAY","reason":"Road closure","description":"Entrance blocked","place":"North entrance"}""",
             gateway.commands.single().frozenBody
         )
+        assertEquals(DriverIncidentType.DELAY, gateway.commands.single().type)
+        assertEquals(DriverIncidentType.DELAY, store.persistedIntents.single().type)
         assertEquals(DriverIncidentUiStatus.Recorded, viewModel.state.value.status)
         assertEquals("PENDIENTE_EVIDENCIA", viewModel.state.value.summary?.evidenceLabel)
         assertTrue(viewModel.state.value.summary?.recordedAt == "2026-10-01T17:00:00Z")
@@ -73,6 +76,47 @@ class DriverDeliveryIncidentViewModelTest {
         advanceUntilIdle()
         assertEquals(1, replayGateway.commands.size)
         assertEquals(firstGateway.commands.single(), replayGateway.commands.single())
+        assertEquals(DriverIncidentUiStatus.Recorded, recovered.state.value.status)
+    }
+
+    @Test
+    fun recoveredLegacyIntentStaysUnclassifiedAndOnlyManualRetryUsesExactOldBody() = runTest {
+        val store = FakeIncidentMetadataStore()
+        val oldCommand = DriverIncidentCommand(
+            DELIVERY_ID, ATTEMPT_ID, 7, "legacy-incident-key", "Road closure",
+            "Entrance blocked", "North entrance",
+            driverIncidentLegacyBody("Road closure", "Entrance blocked", "North entrance")
+        )
+        store.stored = DriverIncidentMetadata(
+            scope = AUTHORITY.scopeIdentity,
+            deliveryId = DELIVERY_ID,
+            attemptId = ATTEMPT_ID,
+            draftVersion = 7,
+            reason = oldCommand.reason,
+            description = oldCommand.description,
+            place = oldCommand.place,
+            status = DriverIncidentRecordStatus.UnknownOutcome,
+            command = oldCommand,
+            draftId = "legacy-draft"
+        )
+        val gateway = FakeIncidentGateway().apply {
+            result = DriverIncidentResult.Recorded(summary(replayed = true, type = null))
+        }
+        val recovered = DriverDeliveryIncidentViewModel(gateway, store)
+        recovered.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
+        advanceUntilIdle()
+
+        assertEquals(DriverIncidentUiStatus.UnknownOutcome, recovered.state.value.status)
+        assertNull(recovered.state.value.type)
+        assertTrue(gateway.commands.isEmpty())
+
+        recovered.retryUnknownOutcome()
+        advanceUntilIdle()
+
+        assertEquals(listOf(oldCommand), gateway.commands)
+        assertEquals(oldCommand.frozenBody, gateway.commands.single().frozenBody)
+        assertNull(gateway.commands.single().type)
+        assertNull(recovered.state.value.summary?.type)
         assertEquals(DriverIncidentUiStatus.Recorded, recovered.state.value.status)
     }
 
@@ -133,7 +177,10 @@ class DriverDeliveryIncidentViewModelTest {
             evidence = staged,
             recordedAt = "2026-10-01T17:00:00Z",
             recordedByMembershipId = MEMBERSHIP_ID,
-            deliveryVersion = 7
+            deliveryVersion = 7,
+            type = DriverIncidentType.DELAY,
+            severity = "WARNING",
+            operationalExceptionId = "99999999-9999-4999-8999-999999999999"
         )
         val gateway = FakeIncidentGateway()
         val viewModel = DriverDeliveryIncidentViewModel(gateway, store)
@@ -154,6 +201,7 @@ class DriverDeliveryIncidentViewModelTest {
         val viewModel = DriverDeliveryIncidentViewModel(gateway, store, keyFactory = { "incident-key" })
         viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
         advanceUntilIdle()
+        viewModel.editType(DriverIncidentType.DELAY)
         viewModel.editReason("Road closure")
         viewModel.editDescription("Entrance blocked")
         viewModel.editPlace("North entrance")
@@ -217,6 +265,7 @@ class DriverDeliveryIncidentViewModelTest {
         DriverIncidentMetadataStore {
         var stored: DriverIncidentMetadata? = null
         var writeResult: DriverIncidentMetadataWrite = DriverIncidentMetadataWrite.Saved
+        val persistedIntents = mutableListOf<DriverIncidentMetadata>()
 
         override suspend fun load(scope: DriverAttemptScopeIdentity): DriverIncidentMetadataRead {
             val current = stored
@@ -241,6 +290,7 @@ class DriverDeliveryIncidentViewModelTest {
                 return DriverIncidentMetadataWrite.Conflict
             }
             stored = metadata
+            persistedIntents += metadata
             events += "persist"
             return DriverIncidentMetadataWrite.Saved
         }
@@ -300,10 +350,12 @@ class DriverDeliveryIncidentViewModelTest {
         fun current(version: Long = 7, activeAttemptId: String? = ATTEMPT_ID) =
             DriverIncidentCurrentDelivery(DELIVERY_ID, "IN_TRANSIT", version, activeAttemptId)
 
-        fun summary(replayed: Boolean = false) = DriverIncidentSummary(
+        fun summary(replayed: Boolean = false, type: DriverIncidentType? = DriverIncidentType.DELAY) = DriverIncidentSummary(
             "88888888-8888-4888-8888-888888888888", DELIVERY_ID, ATTEMPT_ID,
             "Road closure", "Entrance blocked", "North entrance", MEMBERSHIP_ID,
-            "2026-10-01T17:00:00Z", emptyList(), 7, replayed
+            "2026-10-01T17:00:00Z", emptyList(), 7, replayed,
+            type = type, severity = if (type == null) null else "WARNING",
+            operationalExceptionId = if (type == null) null else "99999999-9999-4999-8999-999999999999"
         )
     }
 }

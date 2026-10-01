@@ -25,6 +25,7 @@ import com.nexa.mobile.operations.feature.delivery.DriverIncidentMetadataStore
 import com.nexa.mobile.operations.feature.delivery.DriverIncidentMetadataWrite
 import com.nexa.mobile.operations.feature.delivery.DriverIncidentResult
 import com.nexa.mobile.operations.feature.delivery.DriverIncidentSummary
+import com.nexa.mobile.operations.feature.delivery.DriverIncidentType
 import com.nexa.mobile.operations.feature.delivery.DriverIncidentCommand
 import com.nexa.mobile.operations.feature.delivery.DriverIncidentSelectionContext
 import com.nexa.mobile.operations.feature.delivery.DriverProofFileCandidate
@@ -90,7 +91,7 @@ internal class OperationsDriverIncidentGateway @Inject constructor(
                 DriverIncidentWireCommand(
                     command.deliveryId, command.attemptId, command.expectedVersion,
                     command.idempotencyKey, command.reason, command.description, command.place,
-                    command.frozenBody
+                    command.frozenBody, command.type?.name
                 )
             )
         } catch (cancelled: CancellationException) {
@@ -106,7 +107,9 @@ internal class OperationsDriverIncidentGateway @Inject constructor(
                 if (incident.deliveryId != command.deliveryId || incident.attemptId != command.attemptId ||
                     incident.recordedByMembershipId != authority.membershipId ||
                     incident.reason != command.reason || incident.description != command.description ||
-                    incident.place != command.place || incident.deliveryVersion < command.expectedVersion
+                    incident.place != command.place || incident.deliveryVersion < command.expectedVersion ||
+                    incident.type != command.type?.name ||
+                    (command.type != null && (incident.severity == null || incident.operationalExceptionId == null))
                 ) {
                     DriverIncidentResult.UnknownOutcome
                 } else {
@@ -115,7 +118,10 @@ internal class OperationsDriverIncidentGateway @Inject constructor(
                             incident.id, incident.deliveryId, incident.attemptId, incident.reason,
                             incident.description, incident.place, incident.recordedByMembershipId,
                             incident.recordedAt, incident.evidenceObjectIds, incident.deliveryVersion,
-                            incident.replayed
+                            incident.replayed,
+                            type = incident.type?.let(DriverIncidentType::valueOf),
+                            severity = incident.severity,
+                            operationalExceptionId = incident.operationalExceptionId
                         )
                     )
                 }
@@ -238,7 +244,9 @@ internal class OperationsDriverIncidentGateway @Inject constructor(
 
     private fun com.nexa.mobile.operations.core.network.DriverIncidentProjection.toIncidentSummary() =
         DriverIncidentSummary(id, deliveryId, attemptId, reason, description, place, recordedByMembershipId,
-            recordedAt, evidenceObjectIds, deliveryVersion, replayed)
+            recordedAt, evidenceObjectIds, deliveryVersion, replayed,
+            type = type?.let(DriverIncidentType::valueOf), severity = severity,
+            operationalExceptionId = operationalExceptionId)
 
     private fun com.nexa.mobile.operations.core.network.DriverIncidentEvidenceProjection.toEvidenceProjection() =
         DriverIncidentEvidenceProjection(id, subjectType, subjectId, lifecycleStatus, declaredContentType,

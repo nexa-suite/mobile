@@ -5,19 +5,24 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
 @Composable
 fun DriverDeliveryIncidentScreen(
     state: DriverDeliveryIncidentUiState,
+    onTypeChanged: (DriverIncidentType) -> Unit,
     onReasonChanged: (String) -> Unit,
     onDescriptionChanged: (String) -> Unit,
     onPlaceChanged: (String) -> Unit,
@@ -30,19 +35,47 @@ fun DriverDeliveryIncidentScreen(
     onUploadEvidence: () -> Unit = {},
     onCheckEvidenceAvailability: () -> Unit = {},
     onReviewEvidenceLink: () -> Unit = {},
-    onAttachEvidence: () -> Unit = {}
+    onAttachEvidence: () -> Unit = {},
+    onOpenOperationalExceptions: (String) -> Unit = {}
 ) {
-    val editingEnabled = state.command == null && state.status != DriverIncidentUiStatus.Recorded
+    val editingEnabled = state.command == null && state.status in setOf(
+        DriverIncidentUiStatus.EditingDraft,
+        DriverIncidentUiStatus.NeedsReview,
+        DriverIncidentUiStatus.ReadyForReview,
+        DriverIncidentUiStatus.DraftSaved,
+        DriverIncidentUiStatus.Rejected,
+        DriverIncidentUiStatus.Stale
+    )
     Column(
         modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(stringResource(R.string.driver_incident_title))
         Text(stringResource(R.string.driver_incident_append_only_notice))
+        Text(stringResource(R.string.driver_incident_scope_notice))
         state.deliveryId?.let { Text(stringResource(R.string.driver_incident_delivery, it)) }
         state.attemptId?.let { Text(stringResource(R.string.driver_incident_attempt, it)) }
         statusText(state)?.let { Text(it) }
         state.rejectionCode?.let { Text(stringResource(R.string.driver_incident_error, it)) }
+
+        Text(stringResource(R.string.driver_incident_type_title))
+        DriverIncidentType.entries.forEach { type ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectable(
+                        selected = state.type == type,
+                        enabled = editingEnabled,
+                        role = Role.RadioButton,
+                        onClick = { onTypeChanged(type) }
+                    )
+                    .padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(selected = state.type == type, onClick = null, enabled = editingEnabled)
+                Text(stringResource(type.labelResource()))
+            }
+        }
 
         OutlinedTextField(
             value = state.reason,
@@ -132,6 +165,18 @@ fun DriverDeliveryIncidentScreen(
         }
 
         state.summary?.let { summary ->
+            if (summary.type == null) {
+                Text(stringResource(R.string.driver_incident_unclassified_historical))
+            } else {
+                Text(stringResource(R.string.driver_incident_classification, stringResource(summary.type.labelResource())))
+            }
+            summary.severity?.let { Text(stringResource(R.string.driver_incident_server_severity, it)) }
+            summary.operationalExceptionId?.let { caseId ->
+                Text(stringResource(R.string.driver_incident_operational_exception, caseId))
+                Button(onClick = { onOpenOperationalExceptions(summary.deliveryId) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.driver_incident_open_exceptions))
+                }
+            }
             Text(stringResource(R.string.driver_incident_recorded, summary.recordedByMembershipId, summary.recordedAt))
             Text(stringResource(R.string.driver_incident_evidence_status, summary.evidenceLabel))
             Text(stringResource(R.string.driver_incident_evidence_not_resolution))
@@ -140,6 +185,17 @@ fun DriverDeliveryIncidentScreen(
             Text(stringResource(R.string.driver_incident_cleanup_pending))
         }
     }
+}
+
+@Composable
+private fun DriverIncidentType.labelResource(): Int = when (this) {
+    DriverIncidentType.DELAY -> R.string.driver_incident_type_delay
+    DriverIncidentType.INCOMPLETE_INSTRUCTION -> R.string.driver_incident_type_incomplete_instruction
+    DriverIncidentType.ACCESS_BLOCKED -> R.string.driver_incident_type_access_blocked
+    DriverIncidentType.CUSTOMER_UNAVAILABLE -> R.string.driver_incident_type_customer_unavailable
+    DriverIncidentType.DELIVERY_NOT_EXECUTABLE -> R.string.driver_incident_type_delivery_not_executable
+    DriverIncidentType.TEMPERATURE_EXCURSION -> R.string.driver_incident_type_temperature_excursion
+    DriverIncidentType.SAFETY_COMPROMISING_DAMAGE -> R.string.driver_incident_type_safety_compromising_damage
 }
 
 @Composable

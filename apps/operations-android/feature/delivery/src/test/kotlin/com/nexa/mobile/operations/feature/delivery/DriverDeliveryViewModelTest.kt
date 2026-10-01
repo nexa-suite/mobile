@@ -65,14 +65,17 @@ class DriverDeliveryViewModelTest {
         advanceUntilIdle()
         assertNull(viewModel.state.value.selectedDelivery?.activeAttempt)
         assertEquals(assigned.id, viewModel.state.value.authorizedInstructionsDeliveryId)
+        assertEquals(assigned.id, viewModel.state.value.authorizedOperationalExceptionsDeliveryId)
 
         viewModel.selectDelivery(delivered.id)
         advanceUntilIdle()
         assertNull(viewModel.state.value.authorizedInstructionsDeliveryId)
+        assertNull(viewModel.state.value.authorizedOperationalExceptionsDeliveryId)
 
         viewModel.selectDelivery(cancelled.id)
         advanceUntilIdle()
         assertNull(viewModel.state.value.authorizedInstructionsDeliveryId)
+        assertNull(viewModel.state.value.authorizedOperationalExceptionsDeliveryId)
     }
 
     @Test

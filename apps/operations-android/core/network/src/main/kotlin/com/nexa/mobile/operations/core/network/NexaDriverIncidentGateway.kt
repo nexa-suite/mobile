@@ -31,7 +31,10 @@ data class DriverIncidentProjection(
     val recordedAt: String,
     val evidenceObjectIds: List<String>,
     val deliveryVersion: Long,
-    val replayed: Boolean
+    val replayed: Boolean,
+    val type: String?,
+    val severity: String?,
+    val operationalExceptionId: String?
 )
 
 data class DriverIncidentEvidenceProjection(
@@ -64,7 +67,8 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
     suspend fun record(command: DriverIncidentWireCommand): DriverIncidentNetworkOutcome {
         if (!incidentUuid.matches(command.deliveryId) || !incidentUuid.matches(command.attemptId) ||
             command.expectedVersion < 0 || command.idempotencyKey.isBlank() ||
-            command.idempotencyKey.length > 160 || !bodyMatches(command)
+            command.idempotencyKey.length > 160 ||
+            (command.type != null && command.type !in INCIDENT_TYPES) || !bodyMatches(command)
         ) return DriverIncidentNetworkOutcome.Unavailable
 
         val path = "$DRIVER_INCIDENT_BASE/${command.deliveryId}/attempts/${command.attemptId}/incidents"
@@ -87,6 +91,7 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
                     incident.reason != command.reason || incident.description != command.description ||
                     incident.place != command.place || incident.deliveryVersion != etagVersion ||
                     incident.deliveryVersion < command.expectedVersion ||
+                    !classificationMatches(command, incident) ||
                     incident.replayed != (result.status == 200) || result.status !in setOf(200, 201)
                 ) {
                     DriverIncidentNetworkOutcome.UnknownOutcome
@@ -199,7 +204,9 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
 
     private fun bodyMatches(command: DriverIncidentWireCommand): Boolean = try {
         val body = incidentJson.parseToJsonElement(command.frozenBody).jsonObject
-        body.keys == setOf("reason", "description", "place") &&
+        body.keys == (if (command.type == null) setOf("reason", "description", "place")
+        else setOf("type", "reason", "description", "place")) &&
+            (command.type == null || body.string("type") == command.type) &&
             body.string("reason") == command.reason &&
             body.string("description") == command.description &&
             body.string("place") == command.place
@@ -219,6 +226,12 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
         val version = root.long("deliveryVersion")
         require(version >= 0)
         val replayed = root["replayed"]?.jsonPrimitive?.booleanOrNull ?: return null
+        val type = root.optionalString("type")
+        val severity = root.optionalString("severity")
+        val operationalExceptionId = root.optionalString("operationalExceptionId")
+        if (type != null) require(type in INCIDENT_TYPES)
+        if (severity != null) require(severity in INCIDENT_SEVERITIES)
+        if (operationalExceptionId != null) require(incidentUuid.matches(operationalExceptionId))
         DriverIncidentProjection(
             id = root.string("id").also { require(incidentUuid.matches(it)) },
             deliveryId = root.string("deliveryId").also { require(incidentUuid.matches(it)) },
@@ -230,7 +243,10 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
             recordedAt = recordedAt,
             evidenceObjectIds = evidence,
             deliveryVersion = version,
-            replayed = replayed
+            replayed = replayed,
+            type = type,
+            severity = severity,
+            operationalExceptionId = operationalExceptionId
         )
     } catch (_: Exception) {
         null
@@ -263,6 +279,17 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
         false
     }
 
+    private fun classificationMatches(
+        command: DriverIncidentWireCommand,
+        incident: DriverIncidentProjection
+    ): Boolean = if (command.type != null) {
+        incident.type == command.type && incident.severity?.let(INCIDENT_SEVERITIES::contains) == true &&
+            incident.operationalExceptionId != null
+    } else {
+        // A recovered pre-type idempotency intent may only return its original unclassified record.
+        incident.type == null && incident.severity == null && incident.operationalExceptionId == null
+    }
+
     private fun JsonObject.string(key: String): String =
         this[key]?.jsonPrimitive?.takeIf { it.isString }?.contentOrNull?.takeIf(String::isNotBlank)
             ?: error("Driver incident response field is invalid")
@@ -277,7 +304,8 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
         this[key]?.jsonPrimitive?.takeUnless { it.isString }?.contentOrNull?.toLongOrNull()
             ?: error("Driver incident response field is invalid")
 
-    private fun String?.toVersion(): Long? = this?.trim()?.removePrefix("W/")?.trim()
+    private fun String?.toVersion(): Long? = this?.trim()
+        ?.takeIf { it.length >= 3 && it.first() == '"' && it.last() == '"' }
         ?.removeSurrounding("\"")?.toLongOrNull()?.takeIf { it >= 0 }
 
     private fun ClientFailure.toIncidentOutcome(): DriverIncidentNetworkOutcome = when {
@@ -295,6 +323,11 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
         const val ACCESS_CONTEXT_INVALID = "ACCESS_CONTEXT_INVALID"
         const val MAX_EVIDENCE_BYTES = 10L * 1024L * 1024L
         val ALLOWED_EVIDENCE_TYPES = setOf("image/jpeg", "image/png", "image/webp")
+        val INCIDENT_TYPES = setOf(
+            "DELAY", "INCOMPLETE_INSTRUCTION", "ACCESS_BLOCKED", "CUSTOMER_UNAVAILABLE",
+            "DELIVERY_NOT_EXECUTABLE", "TEMPERATURE_EXCURSION", "SAFETY_COMPROMISING_DAMAGE"
+        )
+        val INCIDENT_SEVERITIES = setOf("WARNING", "BLOCKING", "CRITICAL")
     }
 }
 
@@ -306,5 +339,7 @@ data class DriverIncidentWireCommand(
     val reason: String,
     val description: String,
     val place: String,
-    val frozenBody: String
+    val frozenBody: String,
+    /** Null only for an exact recovered command created before typed reporting was introduced. */
+    val type: String? = null
 )

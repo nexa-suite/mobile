@@ -125,6 +125,14 @@ data class DriverDeliveryUiState(
             null
         }
 
+    /** Exception claim/review remains bounded to a current assigned operational Delivery. */
+    val authorizedOperationalExceptionsDeliveryId: String?
+        get() = if (canRead && detailStatus == DriverDeliveryLoadStatus.Ready) {
+            selectedDelivery?.takeIf { it.status in DRIVER_OPERATIONAL_DELIVERY_STATUSES }?.id
+        } else {
+            null
+        }
+
     override fun toString(): String =
         "DriverDeliveryUiState(epoch=$authorityEpoch, list=$listStatus, detail=$detailStatus, command=$commandStatus, items=${deliveries.size})"
 }

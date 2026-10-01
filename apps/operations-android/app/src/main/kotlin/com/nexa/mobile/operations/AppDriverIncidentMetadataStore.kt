@@ -10,6 +10,7 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.feature.delivery.DriverAttemptScopeIdentity
 import com.nexa.mobile.operations.feature.delivery.DriverIncidentCommand
+import com.nexa.mobile.operations.feature.delivery.DriverIncidentType
 import com.nexa.mobile.operations.feature.delivery.DriverIncidentEvidenceDraft
 import com.nexa.mobile.operations.feature.delivery.DriverIncidentEvidenceStage
 import com.nexa.mobile.operations.feature.delivery.DriverIncidentMetadata
@@ -138,7 +139,7 @@ internal class AppDriverIncidentMetadataStore(
                         current.status == DriverIncidentRecordStatus.Draft && current.command == null &&
                             current.draftId == metadata.draftId &&
                             current.reason == metadata.reason && current.description == metadata.description &&
-                            current.place == metadata.place -> save(metadata)
+                            current.place == metadata.place && current.type == metadata.type -> save(metadata)
                         else -> DriverIncidentMetadataWrite.Conflict
                     }
                 }
@@ -158,7 +159,10 @@ internal class AppDriverIncidentMetadataStore(
                         current.deliveryId != metadata.deliveryId || current.attemptId != metadata.attemptId ||
                         current.draftId != metadata.draftId || current.command == null ||
                         current.reason != metadata.reason || current.description != metadata.description ||
-                        current.place != metadata.place || current.evidence != metadata.evidence
+                        current.place != metadata.place || current.type != metadata.type ||
+                        current.severity != metadata.severity ||
+                        current.operationalExceptionId != metadata.operationalExceptionId ||
+                        current.evidence != metadata.evidence
                     ) return@withLock DriverIncidentMetadataWrite.Conflict
                     save(metadata)
                 }
@@ -254,7 +258,7 @@ internal class AppDriverIncidentMetadataStore(
                 } else if (current.evidence != null) {
                     save(current.copy(status = DriverIncidentRecordStatus.Draft, command = null,
                         incidentId = null, recordedAt = null, recordedByMembershipId = null,
-                        deliveryVersion = null))
+                        deliveryVersion = null, severity = null, operationalExceptionId = null))
                 } else if (local.clear(scope.toLocal())) {
                     DriverIncidentMetadataWrite.Saved
                 } else {
@@ -287,6 +291,7 @@ internal class AppDriverIncidentMetadataStore(
                 "reason" to JsonPrimitive(metadata.reason),
                 "description" to JsonPrimitive(metadata.description),
                 "place" to JsonPrimitive(metadata.place),
+                "type" to (metadata.type?.let { JsonPrimitive(it.name) } ?: JsonNull),
                 "status" to JsonPrimitive(metadata.status.name),
                 "command" to (command?.let {
                     JsonObject(
@@ -296,7 +301,8 @@ internal class AppDriverIncidentMetadataStore(
                             "reason" to JsonPrimitive(it.reason),
                             "description" to JsonPrimitive(it.description),
                             "place" to JsonPrimitive(it.place),
-                            "frozenBody" to JsonPrimitive(it.frozenBody)
+                            "frozenBody" to JsonPrimitive(it.frozenBody),
+                            "type" to (it.type?.let { type -> JsonPrimitive(type.name) } ?: JsonNull)
                         )
                     )
                 } ?: JsonPrimitive("")),
@@ -304,7 +310,9 @@ internal class AppDriverIncidentMetadataStore(
                 "evidence" to (metadata.evidence?.let(::encodeEvidence) ?: JsonNull),
                 "recordedAt" to (metadata.recordedAt?.let(::JsonPrimitive) ?: JsonNull),
                 "recordedByMembershipId" to (metadata.recordedByMembershipId?.let(::JsonPrimitive) ?: JsonNull),
-                "deliveryVersion" to (metadata.deliveryVersion?.let(::JsonPrimitive) ?: JsonNull)
+                "deliveryVersion" to (metadata.deliveryVersion?.let(::JsonPrimitive) ?: JsonNull),
+                "severity" to (metadata.severity?.let(::JsonPrimitive) ?: JsonNull),
+                "operationalExceptionId" to (metadata.operationalExceptionId?.let(::JsonPrimitive) ?: JsonNull)
             )
         ).toString()
     }
@@ -329,7 +337,8 @@ internal class AppDriverIncidentMetadataStore(
                 reason = commandValue.requiredString("reason"),
                 description = commandValue.requiredString("description"),
                 place = commandValue.requiredString("place"),
-                frozenBody = commandValue.requiredString("frozenBody")
+                frozenBody = commandValue.requiredString("frozenBody"),
+                type = commandValue.optionalString("type")?.let(DriverIncidentType::valueOf)
             )
         } else {
             require(commandValue.jsonPrimitive.content == "")
@@ -350,7 +359,10 @@ internal class AppDriverIncidentMetadataStore(
             evidence = root.optionalObject("evidence")?.let(::decodeEvidence),
             recordedAt = root.optionalString("recordedAt"),
             recordedByMembershipId = root.optionalString("recordedByMembershipId"),
-            deliveryVersion = root.optionalLong("deliveryVersion")
+            deliveryVersion = root.optionalLong("deliveryVersion"),
+            type = root.optionalString("type")?.let(DriverIncidentType::valueOf),
+            severity = root.optionalString("severity"),
+            operationalExceptionId = root.optionalString("operationalExceptionId")
         )
     } catch (_: Exception) {
         null

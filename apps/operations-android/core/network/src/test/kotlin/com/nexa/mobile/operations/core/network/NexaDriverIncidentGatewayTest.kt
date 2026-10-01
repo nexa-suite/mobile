@@ -29,6 +29,9 @@ class NexaDriverIncidentGatewayTest {
             val result = gateway(server).record(command) as DriverIncidentNetworkOutcome.Recorded
 
             assertEquals(INCIDENT_ID, result.incident.id)
+            assertEquals("DELAY", result.incident.type)
+            assertEquals("WARNING", result.incident.severity)
+            assertEquals(OPERATIONAL_EXCEPTION_ID, result.incident.operationalExceptionId)
             assertEquals(MEMBERSHIP_ID, result.incident.recordedByMembershipId)
             assertEquals(listOf(EVIDENCE_ID), result.incident.evidenceObjectIds)
             val request = server.takeRequest()
@@ -77,6 +80,40 @@ class NexaDriverIncidentGatewayTest {
         }
     }
 
+    @Test
+    fun preTypeIntentReplaysExactUnclassifiedBodyWithoutAddingClassification() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json")
+                .setHeader("ETag", "\"7\"").setBody(legacyResponse(version = 7, replayed = true)))
+            val legacy = command().copy(
+                type = null,
+                frozenBody = """{"reason":"Road closure","description":"Route blocked at the north entrance","place":"North entrance"}"""
+            )
+
+            val result = gateway(server).record(legacy) as DriverIncidentNetworkOutcome.Recorded
+
+            assertEquals(null, result.incident.type)
+            assertEquals(null, result.incident.severity)
+            assertEquals(null, result.incident.operationalExceptionId)
+            val request = server.takeRequest()
+            assertEquals(legacy.frozenBody, request.body.readUtf8())
+            assertEquals("incident-key-1", request.getHeader("Idempotency-Key"))
+            assertEquals("\"7\"", request.getHeader("If-Match"))
+        }
+    }
+
+    @Test
+    fun typedRequestRejectsUnclassifiedResponseAsUnknown() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse().setResponseCode(201).setHeader("Content-Type", "application/json")
+                .setHeader("ETag", "\"8\"").setBody(legacyResponse(version = 8, replayed = false)))
+
+            assertEquals(DriverIncidentNetworkOutcome.UnknownOutcome, gateway(server).record(command()))
+        }
+    }
+
     private fun gateway(server: MockWebServer) = NexaDriverIncidentGateway(
         ProtectedCallExecutor(
             ApiEndpoint(server.url("/").toString()),
@@ -88,11 +125,15 @@ class NexaDriverIncidentGatewayTest {
     private fun command() = DriverIncidentWireCommand(
         DELIVERY_ID, ATTEMPT_ID, 7, "incident-key-1", "Road closure",
         "Route blocked at the north entrance", "North entrance",
-        """{"reason":"Road closure","description":"Route blocked at the north entrance","place":"North entrance"}"""
+        """{"type":"DELAY","reason":"Road closure","description":"Route blocked at the north entrance","place":"North entrance"}""",
+        "DELAY"
     )
 
     private fun response(version: Long, replayed: Boolean, evidence: String = "[]") =
-        """{"id":"$INCIDENT_ID","deliveryId":"$DELIVERY_ID","attemptId":"$ATTEMPT_ID","reason":"Road closure","description":"Route blocked at the north entrance","place":"North entrance","recordedByMembershipId":"$MEMBERSHIP_ID","recordedAt":"2026-10-01T17:00:00Z","evidenceObjectIds":$evidence,"deliveryVersion":$version,"replayed":$replayed}"""
+        """{"id":"$INCIDENT_ID","deliveryId":"$DELIVERY_ID","attemptId":"$ATTEMPT_ID","reason":"Road closure","description":"Route blocked at the north entrance","place":"North entrance","recordedByMembershipId":"$MEMBERSHIP_ID","recordedAt":"2026-10-01T17:00:00Z","evidenceObjectIds":$evidence,"deliveryVersion":$version,"replayed":$replayed,"type":"DELAY","severity":"WARNING","operationalExceptionId":"$OPERATIONAL_EXCEPTION_ID"}"""
+
+    private fun legacyResponse(version: Long, replayed: Boolean) =
+        """{"id":"$INCIDENT_ID","deliveryId":"$DELIVERY_ID","attemptId":"$ATTEMPT_ID","reason":"Road closure","description":"Route blocked at the north entrance","place":"North entrance","recordedByMembershipId":"$MEMBERSHIP_ID","recordedAt":"2026-10-01T17:00:00Z","evidenceObjectIds":[],"deliveryVersion":$version,"replayed":$replayed}"""
 
     private class FakeTokens : AccessTokenSource {
         override val sessionState: StateFlow<SessionState> = MutableStateFlow(SessionState.Active)
@@ -109,5 +150,6 @@ class NexaDriverIncidentGatewayTest {
         const val INCIDENT_ID = "44444444-4444-4444-8444-444444444444"
         const val MEMBERSHIP_ID = "55555555-5555-4555-8555-555555555555"
         const val EVIDENCE_ID = "66666666-6666-4666-8666-666666666666"
+        const val OPERATIONAL_EXCEPTION_ID = "77777777-7777-4777-8777-777777777777"
     }
 }

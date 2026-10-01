@@ -55,6 +55,8 @@ import com.nexa.mobile.operations.feature.delivery.DriverDeliveryViewModel
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryScreen
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionsViewModel
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionsScreen
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsViewModel
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsScreen
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -189,6 +191,10 @@ class MainActivity : ComponentActivity() {
     private val driverDeliveryInstructionsViewModel: DriverDeliveryInstructionsViewModel by viewModels {
         driverDeliveryInstructionsBindings.viewModelFactory()
     }
+    @Inject internal lateinit var driverDeliveryOperationalExceptionsBindings: DriverDeliveryOperationalExceptionsBindings
+    private val driverDeliveryOperationalExceptionsViewModel: DriverDeliveryOperationalExceptionsViewModel by viewModels {
+        driverDeliveryOperationalExceptionsBindings.viewModelFactory()
+    }
     @Inject internal lateinit var fieldRequestFactory: FieldRequestViewModelFactory
     private val fieldRequestViewModel: FieldRequestViewModel by viewModels { fieldRequestFactory }
     @Inject internal lateinit var businessDocumentsFactory: BusinessDocumentsViewModelFactory
@@ -230,6 +236,7 @@ class MainActivity : ComponentActivity() {
     private val warehouseBatchViewModel: WarehouseBatchViewModel by viewModels()
     private var connectedRoute by mutableStateOf<ConnectedOperationRoute?>(null)
     private var showDriverInstructions by mutableStateOf(false)
+    private var showDriverOperationalExceptions by mutableStateOf(false)
     private var pickingReference by mutableStateOf("")
     private var pickingOpened by mutableStateOf(false)
     private var pickingWorkListEpoch by mutableStateOf(0L)
@@ -254,6 +261,7 @@ class MainActivity : ComponentActivity() {
     private var pendingInboundEvidenceFile by mutableStateOf<InboundDiscrepancySelectionContext?>(null)
     private var pendingDriverIncidentPicker by mutableStateOf<DriverIncidentSelectionContext?>(null)
     private var pendingDriverIncidentFile by mutableStateOf<DriverIncidentSelectionContext?>(null)
+    private var pendingDriverIncidentExceptionDeliveryId by mutableStateOf<String?>(null)
     private var pendingDriverProofPicker by mutableStateOf<DriverProofSelectionContext?>(null)
     @Inject internal lateinit var driverProofMetadataStore: DriverProofMetadataStore
     private var pendingDriverProofFile by mutableStateOf<DriverProofSelectionContext?>(null)
@@ -270,6 +278,7 @@ class MainActivity : ComponentActivity() {
         pendingDriverProofPicker = null
         pendingDriverIncidentPicker = null
         pendingDriverIncidentFile = null
+        pendingDriverIncidentExceptionDeliveryId = null
         pendingInboundEvidencePicker = null
         pendingInboundEvidenceFile = null
         super.onDestroy()
@@ -410,7 +419,9 @@ class MainActivity : ComponentActivity() {
                 val driverIncidentState by driverIncidentViewModel.state.collectAsStateWithLifecycle()
                 val driverDeliveryState by driverDeliveryViewModel.state.collectAsStateWithLifecycle()
                 val driverInstructionsState by driverDeliveryInstructionsViewModel.state.collectAsStateWithLifecycle()
+                val driverOperationalExceptionsState by driverDeliveryOperationalExceptionsViewModel.state.collectAsStateWithLifecycle()
                 BackHandler(enabled = showDriverInstructions, onBack = ::closeDriverDeliveryInstructions)
+                BackHandler(enabled = showDriverOperationalExceptions, onBack = ::closeDriverDeliveryOperationalExceptions)
                 val dispatchReadinessState by dispatchReadinessViewModel.state.collectAsStateWithLifecycle()
                 val dispositionState by dispositionViewModel.state.collectAsStateWithLifecycle()
                 val warehouseBatchState by warehouseBatchViewModel.state.collectAsStateWithLifecycle()
@@ -480,6 +491,70 @@ class MainActivity : ComponentActivity() {
                             pending.deliveryVersion, pending.confirmedTerminalOutcome)
                         pendingDriverIncidentFile = null
                     }
+                }
+                androidx.compose.runtime.LaunchedEffect(
+                    pendingDriverIncidentExceptionDeliveryId,
+                    state,
+                    accessState.authorityEpoch,
+                    warehouseState.authorityEpoch,
+                    driverDeliveryState
+                ) {
+                    val deliveryId = pendingDriverIncidentExceptionDeliveryId ?: return@LaunchedEffect
+                    if (state != SessionState.Active) {
+                        if (state in setOf(SessionState.SignedOut, SessionState.ReauthenticationRequired,
+                                SessionState.LocalProtectionError)
+                        ) pendingDriverIncidentExceptionDeliveryId = null
+                        return@LaunchedEffect
+                    }
+                    val verified = ConnectedOperationsNavigation.currentAuthority(state, accessState, warehouseState)
+                        ?: return@LaunchedEffect
+                    if (connectedRoute?.entryKey != "driver.deliveries") {
+                        val entry = CONNECTED_OPERATIONS.single { it.key == "driver.deliveries" }
+                        val route = ConnectedOperationsNavigation.open(entry, state, accessState, warehouseState)
+                        if (route == null) {
+                            pendingDriverIncidentExceptionDeliveryId = null
+                            return@LaunchedEffect
+                        }
+                        closeConnectedOperation()
+                        connectedRoute = route
+                        driverDeliveryViewModel.activate(DriverDeliveryAuthority(
+                            verified.userId, verified.tenantId, verified.workspaceId, verified.membershipId,
+                            verified.permissions, route.authorityEpoch
+                        ))
+                        return@LaunchedEffect
+                    }
+                    val route = connectedRoute ?: return@LaunchedEffect
+                    if (!ConnectedOperationsNavigation.permits(
+                            route, CONNECTED_OPERATIONS, state, accessState, warehouseState
+                        )
+                    ) {
+                        pendingDriverIncidentExceptionDeliveryId = null
+                        return@LaunchedEffect
+                    }
+                    if (driverDeliveryState.listStatus != DriverDeliveryLoadStatus.Ready) return@LaunchedEffect
+                    if (driverDeliveryState.deliveries.none { it.id == deliveryId }) {
+                        pendingDriverIncidentExceptionDeliveryId = null
+                        return@LaunchedEffect
+                    }
+                    if (driverDeliveryState.selectedDelivery?.id != deliveryId) {
+                        driverDeliveryViewModel.selectDelivery(deliveryId)
+                        return@LaunchedEffect
+                    }
+                    if (driverDeliveryState.detailStatus == DriverDeliveryLoadStatus.Loading) return@LaunchedEffect
+                    if (driverDeliveryState.detailStatus != DriverDeliveryLoadStatus.Ready ||
+                        driverDeliveryState.authorizedOperationalExceptionsDeliveryId != deliveryId
+                    ) {
+                        pendingDriverIncidentExceptionDeliveryId = null
+                        return@LaunchedEffect
+                    }
+                    driverDeliveryOperationalExceptionsViewModel.activate(
+                        DriverDeliveryAuthority(
+                            route.authority.userId, route.authority.tenantId, route.authority.workspaceId,
+                            route.authority.membershipId, route.authority.permissions, route.authorityEpoch
+                        ), deliveryId
+                    )
+                    pendingDriverIncidentExceptionDeliveryId = null
+                    showDriverOperationalExceptions = true
                 }
                 androidx.compose.runtime.LaunchedEffect(pendingDriverProofFile, state, accessState.stage,
                     accessState.authorityEpoch, warehouseState.authorityEpoch, driverDeliveryState) {
@@ -1113,7 +1188,16 @@ class MainActivity : ComponentActivity() {
                                 businessDocumentsViewModel::nextPage, businessDocumentsViewModel::open,
                                 businessDocumentsViewModel::closeContent)
                             "commercial.request" -> FieldRequestScreen(fieldRequestState, ::closeConnectedOperation, fieldRequestViewModel)
-                            "driver.deliveries" -> if (showDriverInstructions) {
+                            "driver.deliveries" -> if (showDriverOperationalExceptions) {
+                                DriverDeliveryOperationalExceptionsScreen(
+                                    state = driverOperationalExceptionsState,
+                                    onBack = ::closeDriverDeliveryOperationalExceptions,
+                                    onRefresh = driverDeliveryOperationalExceptionsViewModel::refresh,
+                                    onClaim = driverDeliveryOperationalExceptionsViewModel::claim,
+                                    onSendForReview = driverDeliveryOperationalExceptionsViewModel::sendForReview,
+                                    onRetrySameCommand = driverDeliveryOperationalExceptionsViewModel::retrySameCommand
+                                )
+                            } else if (showDriverInstructions) {
                                 DriverDeliveryInstructionsScreen(
                                     state = driverInstructionsState,
                                     onBack = ::closeDriverDeliveryInstructions,
@@ -1187,6 +1271,25 @@ class MainActivity : ComponentActivity() {
                                         showDriverInstructions = true
                                     }
                                 },
+                                onOpenOperationalExceptions = { deliveryId ->
+                                    val route = connectedRoute
+                                    if (route != null &&
+                                        driverDeliveryViewModel.state.value.authorizedOperationalExceptionsDeliveryId == deliveryId &&
+                                        ConnectedOperationsNavigation.permits(
+                                            route, CONNECTED_OPERATIONS, state, accessState, warehouseState
+                                        )
+                                    ) {
+                                        val authority = route.authority
+                                        driverDeliveryOperationalExceptionsViewModel.activate(
+                                            DriverDeliveryAuthority(
+                                                authority.userId, authority.tenantId, authority.workspaceId,
+                                                authority.membershipId, authority.permissions, route.authorityEpoch
+                                            ),
+                                            deliveryId
+                                        )
+                                        showDriverOperationalExceptions = true
+                                    }
+                                },
                                 onOpenDirections = { destination ->
                                     val route = connectedRoute
                                     val currentDestination = driverDeliveryViewModel.state.value.authorizedDirectionsDestination
@@ -1218,6 +1321,7 @@ class MainActivity : ComponentActivity() {
                                 }
                                 DriverDeliveryIncidentScreen(
                                     state = driverIncidentState,
+                                    onTypeChanged = driverIncidentViewModel::editType,
                                     onReasonChanged = driverIncidentViewModel::editReason,
                                     onDescriptionChanged = driverIncidentViewModel::editDescription,
                                     onPlaceChanged = driverIncidentViewModel::editPlace,
@@ -1238,7 +1342,10 @@ class MainActivity : ComponentActivity() {
                                     onUploadEvidence = driverIncidentViewModel::uploadEvidence,
                                     onCheckEvidenceAvailability = driverIncidentViewModel::checkEvidenceAvailability,
                                     onReviewEvidenceLink = driverIncidentViewModel::reviewEvidenceLink,
-                                    onAttachEvidence = driverIncidentViewModel::attachEvidence
+                                    onAttachEvidence = driverIncidentViewModel::attachEvidence,
+                                    onOpenOperationalExceptions = { deliveryId ->
+                                        pendingDriverIncidentExceptionDeliveryId = deliveryId
+                                    }
                                 )
                             }
                             "commercial.catalog" -> CommercialCatalogScreen(
@@ -1753,6 +1860,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun closeDriverDeliveryOperationalExceptions() {
+        val deliveryId = driverDeliveryOperationalExceptionsViewModel.state.value.deliveryId
+        showDriverOperationalExceptions = false
+        driverDeliveryOperationalExceptionsViewModel.invalidate()
+        if (deliveryId != null && connectedRoute?.entryKey == "driver.deliveries") {
+            driverDeliveryViewModel.selectDelivery(deliveryId)
+        }
+    }
+
     private fun closeConnectedOperation() {
         if (connectedRoute != null && warehouseViewModel.state.value.route != WarehouseRoute.WorkEntry) {
             warehouseViewModel.back()
@@ -1765,7 +1881,9 @@ class MainActivity : ComponentActivity() {
         warehouseBatchViewModel.invalidate()
         pendingDispositionLot = null
         showDriverInstructions = false
+        showDriverOperationalExceptions = false
         driverDeliveryInstructionsViewModel.invalidate()
+        driverDeliveryOperationalExceptionsViewModel.invalidate()
         connectedRoute = null
         dispositionViewModel.deactivate()
         dispatchAssignmentViewModel.deactivate()

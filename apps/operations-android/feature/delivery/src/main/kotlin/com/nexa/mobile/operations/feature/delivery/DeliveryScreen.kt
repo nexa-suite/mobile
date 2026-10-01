@@ -55,6 +55,7 @@ fun DriverDeliveryScreen(
     onRefreshProofEvidence: () -> Unit = {},
     onAttachAvailableProofEvidence: () -> Unit = {},
     onOpenInstructions: ((String) -> Unit)? = null,
+    onOpenOperationalExceptions: ((String) -> Unit)? = null,
     onOpenIncident: ((String, String, Long, Boolean) -> Unit)? = null,
     onOpenHandoffCode: ((String, String, Long) -> Unit)? = null
 ) {
@@ -279,6 +280,16 @@ fun DriverDeliveryScreen(
                         enabled = state.canRead && state.detailStatus == DriverDeliveryLoadStatus.Ready
                     ) {
                         Text(stringResource(R.string.driver_delivery_instructions_open))
+                    }
+                }
+                if (onOpenOperationalExceptions != null &&
+                    state.authorizedOperationalExceptionsDeliveryId == delivery.id
+                ) {
+                    OutlinedButton(
+                        onClick = { onOpenOperationalExceptions(delivery.id) },
+                        enabled = state.canRead && state.detailStatus == DriverDeliveryLoadStatus.Ready
+                    ) {
+                        Text(stringResource(R.string.driver_delivery_exceptions_open))
                     }
                 }
                 delivery.activeAttempt?.let { attempt ->

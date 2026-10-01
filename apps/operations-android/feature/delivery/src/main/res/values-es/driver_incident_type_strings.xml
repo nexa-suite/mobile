@@ -1,0 +1,16 @@
+<resources>
+    <string name="driver_incident_type_title">Selecciona el tipo de incidente</string>
+    <string name="driver_incident_type_delay">Retraso</string>
+    <string name="driver_incident_type_incomplete_instruction">Instrucción incompleta</string>
+    <string name="driver_incident_type_access_blocked">Acceso bloqueado</string>
+    <string name="driver_incident_type_customer_unavailable">Cliente no disponible</string>
+    <string name="driver_incident_type_delivery_not_executable">Entrega no ejecutable</string>
+    <string name="driver_incident_type_temperature_excursion">Desviación de temperatura</string>
+    <string name="driver_incident_type_safety_compromising_damage">Daño que compromete la seguridad</string>
+    <string name="driver_incident_scope_notice">Nexa asigna la severidad. Reportar, asumir responsabilidad o enviar una excepción a revisión no la resuelve ni la cierra, no libera existencias ni autoriza continuar un trabajo bloqueado.</string>
+    <string name="driver_incident_classification">Tipo reportado: %1$s</string>
+    <string name="driver_incident_server_severity">Severidad asignada por Nexa: %1$s</string>
+    <string name="driver_incident_operational_exception">Excepción operativa: %1$s</string>
+    <string name="driver_incident_unclassified_historical">Reporte registrado anteriormente sin clasificación de tipo. No se ha reclasificado su historial.</string>
+    <string name="driver_incident_open_exceptions">Abrir excepciones operativas</string>
+</resources>
