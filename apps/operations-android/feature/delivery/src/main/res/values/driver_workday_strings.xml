@@ -1,0 +1,35 @@
+<resources>
+    <string name="driver_workday_title">Driver workday and location</string>
+    <string name="driver_workday_back">Back</string>
+    <string name="driver_workday_privacy_note">Nexa receives location only during a confirmed active workday. Samples stay in memory and are not queued offline. End the workday or change access context to stop sharing.</string>
+    <string name="driver_workday_loading">Checking the current workday with Nexa…</string>
+    <string name="driver_workday_no_active">Nexa has no active workday for this driver.</string>
+    <string name="driver_workday_active_tracking">Active since %1$s. Foreground location service start was requested.</string>
+    <string name="driver_workday_active_starting">Active since %1$s. Confirming location service…</string>
+    <string name="driver_workday_active_without_location">Workday is active, but Nexa reports location unavailable.</string>
+    <string name="driver_workday_closed">Workday ended at %1$s.</string>
+    <string name="driver_workday_last_sample">Last accepted sample: %1$s</string>
+    <string name="driver_workday_command_pending">Waiting for Nexa…</string>
+    <string name="driver_workday_unknown_command_pending">A previous action has an unknown result. Retry that exact action before starting another.</string>
+    <string name="driver_workday_retry_pending">Retry pending action</string>
+    <string name="driver_workday_storage_unavailable">Could not securely save or clear the pending action. Workday actions are paused.</string>
+    <string name="driver_workday_start">Start workday</string>
+    <string name="driver_workday_enable_location">Enable location sharing</string>
+    <string name="driver_workday_end">End workday</string>
+    <string name="driver_workday_refresh">Refresh current workday</string>
+    <string name="driver_workday_permission_required">Allow precise location to start or resume workday location sharing.</string>
+    <string name="driver_workday_current_unavailable">Could not confirm the current workday. Location sharing stays stopped.</string>
+    <string name="driver_workday_start_unknown">Nexa did not confirm the start. Refresh the current workday before trying again.</string>
+    <string name="driver_workday_start_rejected">Nexa did not start a workday. Refresh before making another decision.</string>
+    <string name="driver_workday_end_confirmation">Location stopped. Refresh to confirm the workday end.</string>
+    <string name="driver_workday_availability_unknown">Nexa did not confirm the location change. Sharing stays stopped until the current workday is refreshed.</string>
+    <string name="driver_workday_location_unavailable">Location is unavailable. Sharing has stopped.</string>
+    <string name="driver_workday_stale">The workday changed. Refresh before deciding again.</string>
+    <string name="driver_workday_denied">Current driver access does not permit this action.</string>
+    <string name="driver_workday_context">Work context changed. Location sharing stopped.</string>
+    <string name="driver_workday_session">Session ended. Location sharing stopped.</string>
+    <string name="driver_workday_command_rejected">Nexa rejected the workday action. Refresh before deciding again.</string>
+    <string name="driver_workday_notification_channel">Driver location</string>
+    <string name="driver_workday_notification_title">Workday location sharing active</string>
+    <string name="driver_workday_notification_text">Location is shared with Nexa for the active workday.</string>
+</resources>
