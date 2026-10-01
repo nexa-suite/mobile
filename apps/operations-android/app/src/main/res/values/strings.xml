@@ -1,3 +1,24 @@
 <resources>
     <string name="app_name">Nexa Operations</string>
+
+    <string name="commercial_back">Volver</string>
+    <string name="customer_title">Clientes y relación con comprador</string>
+    <string name="customer_search_label">Nombre o código</string>
+    <string name="customer_search">Buscar</string>
+    <string name="customer_idle">Busca una relación autorizada.</string>
+    <string name="customer_loading">Consultando relaciones vigentes…</string>
+    <string name="customer_current">Datos consultados. Actualiza antes de continuar trabajo comercial.</string>
+    <string name="customer_unavailable">Información no disponible. Vuelve a buscar.</string>
+    <string name="customer_denied">Acceso no vigente. No hay información protegida disponible.</string>
+    <string name="customer_received">Recibido: %1$s. Servidor no proporciona fecha del origen.</string>
+    <string name="customer_active">Relación activa</string>
+    <string name="customer_suspended">Relación suspendida. Trabajo comercial no disponible.</string>
+    <string name="customer_buyer_linked">Comprador vinculado</string>
+    <string name="customer_no_buyer">Sin comprador vinculado</string>
+    <string name="customer_version">Versión: %1$d</string>
+    <string name="customer_empty">Sin resultados autorizados.</string>
+    <string name="customer_open">Ver relación</string>
+    <string name="customer_previous">Anterior</string>
+    <string name="customer_next">Siguiente</string>
+
 </resources>
