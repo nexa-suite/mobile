@@ -1,6 +1,11 @@
 package com.nexa.mobile.operations.feature.delivery
 
 import androidx.compose.runtime.Immutable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 private val operationalExceptionUuid =
     Regex("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
@@ -36,7 +41,7 @@ data class DriverDeliveryOperationalException(
         require(affectedObjectType == "DELIVERY")
         require(operationalExceptionUuid.matches(affectedObjectId))
         require(type.isNotBlank() && severity.isNotBlank() && status.isNotBlank())
-        require(status in setOf("OPEN", "CLAIMED", "UNDER_REVIEW"))
+        require(status in setOf("OPEN", "CLAIMED", "UNDER_REVIEW", "RESOLVED", "CLOSED"))
         require(description.isNotBlank())
         require(operationalExceptionUuid.matches(reportedByMembershipId))
         require(occurredAt.isNotBlank())
@@ -63,7 +68,7 @@ data class DriverDeliveryOperationalExceptionsSnapshot(
     }
 }
 
-enum class DriverDeliveryOperationalExceptionAction { Claim, Review }
+enum class DriverDeliveryOperationalExceptionAction { Claim, Review, ResolveWarning, CloseWarning }
 
 @Immutable
 data class DriverDeliveryOperationalExceptionCommand(
@@ -79,7 +84,17 @@ data class DriverDeliveryOperationalExceptionCommand(
         require(operationalExceptionUuid.matches(exceptionId))
         require(expectedDeliveryVersion >= 0)
         require(idempotencyKey.isNotBlank() && idempotencyKey.length <= 160)
-        require(frozenBody == DRIVER_OPERATIONAL_EXCEPTION_EMPTY_BODY)
+        require(
+            when (action) {
+                DriverDeliveryOperationalExceptionAction.Claim,
+                DriverDeliveryOperationalExceptionAction.Review -> frozenBody == DRIVER_OPERATIONAL_EXCEPTION_EMPTY_BODY
+
+                DriverDeliveryOperationalExceptionAction.ResolveWarning ->
+                    driverDeliveryOperationalExceptionResolutionFromBody(frozenBody) != null
+
+                DriverDeliveryOperationalExceptionAction.CloseWarning -> frozenBody.isEmpty()
+            }
+        )
     }
 
     override fun toString(): String =
@@ -87,6 +102,29 @@ data class DriverDeliveryOperationalExceptionCommand(
 }
 
 const val DRIVER_OPERATIONAL_EXCEPTION_EMPTY_BODY = "{}"
+const val DRIVER_WARNING_RESOLUTION_MAX_CHARS = 2000
+
+fun driverDeliveryOperationalExceptionResolutionBody(value: String): String {
+    val normalized = value.trim()
+    require(normalized.isNotEmpty() && normalized.length <= DRIVER_WARNING_RESOLUTION_MAX_CHARS)
+    return JsonObject(mapOf("resolution" to JsonPrimitive(normalized))).toString()
+}
+
+fun driverDeliveryOperationalExceptionResolutionFromBody(body: String): String? {
+    return try {
+        val root = Json.parseToJsonElement(body).jsonObject
+        val value = root["resolution"]?.jsonPrimitive
+        if (root.keys != setOf("resolution") || value == null || !value.isString) {
+            null
+        } else {
+            value.content.trim().takeIf { it.isNotEmpty() && it.length <= DRIVER_WARNING_RESOLUTION_MAX_CHARS }
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
+
+const val DRIVER_OPERATIONAL_EXCEPTION_BODYLESS = ""
 
 @Immutable
 data class DriverDeliveryOperationalExceptionMutation(

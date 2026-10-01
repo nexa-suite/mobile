@@ -6,6 +6,7 @@ import com.nexa.mobile.operations.core.auth.session.SessionState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
@@ -94,6 +95,120 @@ class NexaDriverDeliveryOperationalExceptionsGatewayTest {
     }
 
     @Test
+    fun warningResolutionAndClosureUseVersionedRoutesAndExactBodyContract() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(
+                MockResponse().setResponseCode(201)
+                    .setHeader("Content-Type", "application/json")
+                    .setHeader("ETag", "\"8\"")
+                    .setBody(
+                        mutationResponse(
+                            version = 8,
+                            status = "RESOLVED",
+                            reviewed = true,
+                            replayed = false,
+                            type = "DELAY",
+                            severity = "WARNING",
+                            resolution = "Barrier removed",
+                            outcome = "WARNING_CONDITION_ADDRESSED"
+                        )
+                    )
+            )
+            server.enqueue(
+                MockResponse().setResponseCode(201)
+                    .setHeader("Content-Type", "application/json")
+                    .setHeader("ETag", "\"9\"")
+                    .setBody(
+                        mutationResponse(
+                            version = 9,
+                            status = "CLOSED",
+                            reviewed = true,
+                            replayed = false,
+                            type = "DELAY",
+                            severity = "WARNING",
+                            resolution = "Barrier removed",
+                            outcome = "WARNING_CONDITION_ADDRESSED"
+                        )
+                    )
+            )
+            val gateway = gateway(server)
+
+            val resolved = gateway.mutate(
+                DELIVERY_ID,
+                EXCEPTION_ID,
+                DriverOperationalExceptionActionTransport.ResolveWarning,
+                7,
+                "resolve-key",
+                "{\"resolution\":\"Barrier removed\"}"
+            ) as DriverOperationalExceptionsNetworkOutcome.Changed
+            val resolveRequest = server.takeRequest()
+            assertEquals("POST", resolveRequest.method)
+            assertEquals(
+                "/api/v1/driver/deliveries/$DELIVERY_ID/operational-exceptions/$EXCEPTION_ID/resolutions",
+                resolveRequest.path
+            )
+            assertEquals("\"7\"", resolveRequest.getHeader("If-Match"))
+            assertEquals("resolve-key", resolveRequest.getHeader("Idempotency-Key"))
+            assertEquals("{\"resolution\":\"Barrier removed\"}", resolveRequest.body.readUtf8())
+            assertEquals("RESOLVED", resolved.value.exception.status)
+            assertEquals("Barrier removed", resolved.value.exception.resolution)
+            assertEquals("WARNING_CONDITION_ADDRESSED", resolved.value.exception.outcome)
+
+            val closed = gateway.mutate(
+                DELIVERY_ID,
+                EXCEPTION_ID,
+                DriverOperationalExceptionActionTransport.CloseWarning,
+                8,
+                "close-key",
+                ""
+            ) as DriverOperationalExceptionsNetworkOutcome.Changed
+            val closeRequest = server.takeRequest()
+            assertEquals(
+                "/api/v1/driver/deliveries/$DELIVERY_ID/operational-exceptions/$EXCEPTION_ID/closures",
+                closeRequest.path
+            )
+            assertEquals("\"8\"", closeRequest.getHeader("If-Match"))
+            assertEquals("close-key", closeRequest.getHeader("Idempotency-Key"))
+            assertEquals("", closeRequest.body.readUtf8())
+            assertEquals("CLOSED", closed.value.exception.status)
+            assertEquals("Barrier removed", closed.value.exception.resolution)
+        }
+    }
+
+    @Test
+    fun invalidWarningCompletionBodiesAreNotSent() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val gateway = gateway(server)
+
+            assertEquals(
+                DriverOperationalExceptionsNetworkOutcome.ServiceUnavailable,
+                gateway.mutate(
+                    DELIVERY_ID,
+                    EXCEPTION_ID,
+                    DriverOperationalExceptionActionTransport.ResolveWarning,
+                    7,
+                    "resolve-key",
+                    "{}"
+                )
+            )
+            assertEquals(
+                DriverOperationalExceptionsNetworkOutcome.ServiceUnavailable,
+                gateway.mutate(
+                    DELIVERY_ID,
+                    EXCEPTION_ID,
+                    DriverOperationalExceptionActionTransport.CloseWarning,
+                    7,
+                    "close-key",
+                    "{}"
+                )
+            )
+            assertEquals(0, server.requestCount)
+        }
+    }
+
+    @Test
     fun staleVersionAndBusinessConflictRemainExplicitOutcomes() = runTest {
         MockWebServer().use { server ->
             server.start()
@@ -173,8 +288,14 @@ class NexaDriverDeliveryOperationalExceptionsGatewayTest {
         version: Long,
         status: String,
         reviewed: Boolean = false,
-        replayed: Boolean
-    ) = """{"deliveryId":"$DELIVERY_ID","deliveryVersion":$version,"exception":{"id":"$EXCEPTION_ID","sourceKind":"DRIVER_INCIDENT","sourceIncidentId":"$INCIDENT_ID","affectedObjectType":"DELIVERY","affectedObjectId":"$DELIVERY_ID","type":"ACCESS_BLOCKED","severity":"BLOCKING","status":"$status","reason":"Road closure","description":"The delivery cannot reach its destination.","place":"North entrance","resolution":null,"outcome":null,"reportedByMembershipId":"$MEMBERSHIP_ID","occurredAt":"2026-10-01T16:55:00Z","reportedAt":"2026-10-01T16:58:00Z","responsibleMembershipId":"$MEMBERSHIP_ID","claimedAt":"2026-10-01T17:01:00Z","underReviewByMembershipId":${if (reviewed) "\"$MEMBERSHIP_ID\"" else "null"},"underReviewAt":${if (reviewed) "\"2026-10-01T17:02:00Z\"" else "null"},"evidenceObjectIds":[]},"replayed":$replayed}"""
+        replayed: Boolean,
+        type: String = "ACCESS_BLOCKED",
+        severity: String = "BLOCKING",
+        resolution: String? = null,
+        outcome: String? = null
+    ) = """{"deliveryId":"$DELIVERY_ID","deliveryVersion":$version,"exception":{"id":"$EXCEPTION_ID","sourceKind":"DRIVER_INCIDENT","sourceIncidentId":"$INCIDENT_ID","affectedObjectType":"DELIVERY","affectedObjectId":"$DELIVERY_ID","type":"$type","severity":"$severity","status":"$status","reason":"Road closure","description":"The delivery cannot reach its destination.","place":"North entrance","resolution":${resolution?.let(::jsonString) ?: "null"},"outcome":${outcome?.let(::jsonString) ?: "null"},"reportedByMembershipId":"$MEMBERSHIP_ID","occurredAt":"2026-10-01T16:55:00Z","reportedAt":"2026-10-01T16:58:00Z","responsibleMembershipId":"$MEMBERSHIP_ID","claimedAt":"2026-10-01T17:01:00Z","underReviewByMembershipId":${if (reviewed) "\"$MEMBERSHIP_ID\"" else "null"},"underReviewAt":${if (reviewed) "\"2026-10-01T17:02:00Z\"" else "null"},"evidenceObjectIds":[]},"replayed":$replayed}"""
+
+    private fun jsonString(value: String) = JsonPrimitive(value).toString()
 
     private class FakeTokens : AccessTokenSource {
         override val sessionState: StateFlow<SessionState> = MutableStateFlow(SessionState.Active)

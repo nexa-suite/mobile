@@ -1,7 +1,7 @@
 <resources>
     <string name="driver_delivery_exceptions_open">Operational exceptions</string>
     <string name="driver_operational_exceptions_title">Delivery operational exceptions</string>
-    <string name="driver_operational_exceptions_scope">These actions assign responsibility or send an exception for review. They do not resolve, close, release stock, or authorize continuing blocked work.</string>
+    <string name="driver_operational_exceptions_scope">Claim and review exceptions here. Only DELAY or incomplete-instruction warnings assigned to you can be resolved and closed. Blocking and critical exceptions cannot be resolved or closed by this Driver workflow.</string>
     <string name="driver_operational_exceptions_loading">Checking current delivery exceptions…</string>
     <string name="driver_operational_exceptions_not_found">This delivery is no longer available in your current assignment.</string>
     <string name="driver_operational_exceptions_network">Could not reach Nexa. Refresh before acting.</string>
@@ -27,8 +27,12 @@
     <string name="driver_operational_exceptions_reviewed_by">Sent for review by membership %1$s</string>
     <string name="driver_operational_exceptions_claim">Take responsibility</string>
     <string name="driver_operational_exceptions_send_for_review">Send for review</string>
+    <string name="driver_operational_exceptions_resolution_input">How was the warning addressed?</string>
+    <string name="driver_operational_exceptions_resolution_length">%1$d / %2$d characters</string>
+    <string name="driver_operational_exceptions_resolve_warning">Record resolution</string>
+    <string name="driver_operational_exceptions_close_warning">Close resolved warning</string>
     <string name="driver_operational_exceptions_persisting">Saving your identity, time, version and request before sending…</string>
-    <string name="driver_operational_exceptions_pending">Sending the responsibility or review action to Nexa…</string>
+    <string name="driver_operational_exceptions_pending">Sending the saved exception action to Nexa…</string>
     <string name="driver_operational_exceptions_unknown">Nexa did not confirm the action. The exception is not shown as changed.</string>
     <string name="driver_operational_exceptions_retry_same">Retry the same saved action</string>
     <string name="driver_operational_exceptions_storage_unavailable">Encrypted recovery data is unavailable. No new action will be sent.</string>
@@ -36,6 +40,10 @@
     <string name="driver_operational_exceptions_claim_replayed">Nexa confirmed the saved responsibility action.</string>
     <string name="driver_operational_exceptions_under_review">Nexa sent the exception for review. It remains unresolved and open.</string>
     <string name="driver_operational_exceptions_review_replayed">Nexa confirmed the saved review action.</string>
+    <string name="driver_operational_exceptions_resolved">Nexa recorded the warning resolution. The delivery outcome remains separate.</string>
+    <string name="driver_operational_exceptions_resolution_replayed">Nexa confirmed the saved warning resolution.</string>
+    <string name="driver_operational_exceptions_closed">Nexa confirmed the warning is closed. This does not complete the delivery.</string>
+    <string name="driver_operational_exceptions_closure_replayed">Nexa confirmed the saved warning closure.</string>
     <string name="driver_operational_exceptions_stale">The Delivery changed. The previous action was not reused.</string>
     <string name="driver_operational_exceptions_fresh_decision">Review the current exception status and choose an action again.</string>
     <string name="driver_operational_exceptions_rejected">Nexa rejected the action. Refresh and review the current server status.</string>

@@ -65,6 +65,121 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
     }
 
     @Test
+    fun assignedWarningResolutionAndClosurePersistExactCommandsBeforePost() = runTest {
+        val events = mutableListOf<String>()
+        val store = FakeMetadataStore(events)
+        val warning = exception(
+            status = "UNDER_REVIEW",
+            responsible = MEMBERSHIP_ID,
+            claimedAt = "2026-10-01T17:01:00Z",
+            underReviewBy = MEMBERSHIP_ID,
+            underReviewAt = "2026-10-01T17:02:00Z"
+        )
+        val gateway = FakeGateway(events).apply {
+            readResults += DriverDeliveryOperationalExceptionsLoadResult.Loaded(
+                snapshot().copy(exceptions = listOf(warning))
+            )
+            mutationResults += DriverDeliveryOperationalExceptionMutationResult.Changed(
+                mutation(
+                    version = 8,
+                    exception = warning.copy(
+                        status = "RESOLVED",
+                        resolution = "Path cleared",
+                        outcome = "WARNING_CONDITION_ADDRESSED"
+                    )
+                )
+            )
+            mutationResults += DriverDeliveryOperationalExceptionMutationResult.Changed(
+                mutation(
+                    version = 9,
+                    exception = warning.copy(
+                        status = "CLOSED",
+                        resolution = "Path cleared",
+                        outcome = "WARNING_CONDITION_ADDRESSED"
+                    )
+                )
+            )
+        }
+        val keys = ArrayDeque(listOf("resolve-key", "close-key"))
+        val viewModel = viewModel(gateway, store, keyFactory = { keys.removeFirst() })
+        viewModel.activate(AUTHORITY, DELIVERY_ID)
+        advanceUntilIdle()
+
+        val row = viewModel.state.value.snapshot!!.exceptions.single()
+        assertTrue(viewModel.state.value.canResolveWarning(row))
+        assertFalse(viewModel.state.value.canCloseWarning(row))
+        viewModel.resolveWarning(row.id, "  Path cleared  ")
+        advanceUntilIdle()
+
+        val resolutionCommand = store.savedIntents.last().command
+        assertEquals(
+            DriverDeliveryOperationalExceptionAction.ResolveWarning,
+            resolutionCommand.action
+        )
+        assertEquals(7L, resolutionCommand.expectedDeliveryVersion)
+        assertEquals("resolve-key", resolutionCommand.idempotencyKey)
+        assertEquals("{\"resolution\":\"Path cleared\"}", resolutionCommand.frozenBody)
+        assertEquals(listOf("persist", "post"), events)
+        assertEquals("RESOLVED", viewModel.state.value.snapshot?.exceptions?.single()?.status)
+        assertEquals(DriverDeliveryOperationalExceptionCommandStatus.Resolved, viewModel.state.value.commandStatus)
+        assertTrue(viewModel.state.value.canCloseWarning(viewModel.state.value.snapshot!!.exceptions.single()))
+
+        viewModel.closeWarning(row.id)
+        advanceUntilIdle()
+
+        val closureCommand = store.savedIntents.last().command
+        assertEquals(DriverDeliveryOperationalExceptionAction.CloseWarning, closureCommand.action)
+        assertEquals(8L, closureCommand.expectedDeliveryVersion)
+        assertEquals("close-key", closureCommand.idempotencyKey)
+        assertEquals("", closureCommand.frozenBody)
+        assertEquals(listOf("persist", "post", "persist", "post"), events)
+        assertEquals("CLOSED", viewModel.state.value.snapshot?.exceptions?.single()?.status)
+        assertEquals("Path cleared", viewModel.state.value.snapshot?.exceptions?.single()?.resolution)
+        assertEquals(DriverDeliveryOperationalExceptionCommandStatus.Closed, viewModel.state.value.commandStatus)
+        assertNull(store.intent)
+    }
+
+    @Test
+    fun completionActionsAreLimitedToOwnedSupportedWarningsAndValidResolutionText() = runTest {
+        val row = exception(
+            status = "UNDER_REVIEW",
+            responsible = MEMBERSHIP_ID,
+            claimedAt = "2026-10-01T17:01:00Z",
+            underReviewBy = MEMBERSHIP_ID,
+            underReviewAt = "2026-10-01T17:02:00Z"
+        )
+        val state = DriverDeliveryOperationalExceptionsUiState(
+            canRead = true,
+            canRespond = true,
+            currentMembershipId = MEMBERSHIP_ID,
+            deliveryId = DELIVERY_ID,
+            snapshot = snapshot().copy(exceptions = listOf(row)),
+            loadStatus = DriverDeliveryOperationalExceptionsLoadStatus.Ready
+        )
+        assertTrue(state.canResolveWarning(row))
+        assertFalse(state.canResolveWarning(row.copy(type = "SITE_ACCESS")))
+        assertFalse(state.canResolveWarning(row.copy(severity = "BLOCKING")))
+        assertFalse(state.canResolveWarning(row.copy(responsibleMembershipId = "66666666-6666-4666-8666-666666666666")))
+        assertTrue(state.canCloseWarning(row.copy(status = "RESOLVED")))
+        assertFalse(state.canCloseWarning(row.copy(status = "RESOLVED", severity = "CRITICAL")))
+
+        val gateway = FakeGateway()
+        val store = FakeMetadataStore()
+        val viewModel = viewModel(gateway, store)
+        gateway.readResults += DriverDeliveryOperationalExceptionsLoadResult.Loaded(
+            snapshot().copy(exceptions = listOf(row))
+        )
+        viewModel.activate(AUTHORITY, DELIVERY_ID)
+        advanceUntilIdle()
+        viewModel.resolveWarning(row.id, "  ")
+        viewModel.resolveWarning(row.id, "x".repeat(DRIVER_WARNING_RESOLUTION_MAX_CHARS + 1))
+        advanceUntilIdle()
+
+        assertTrue(gateway.commands.isEmpty())
+        assertTrue(store.savedIntents.isEmpty())
+    }
+
+    @Test
     fun restoredUnknownCommandRequiresManualSameKeyRetry() = runTest {
         val original = intent(DriverDeliveryOperationalExceptionIntentStatus.UnknownOutcome)
         val store = FakeMetadataStore().apply { intent = original }
@@ -89,6 +204,45 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
         assertEquals("{}", gateway.commands.single().frozenBody)
         assertTrue(viewModel.state.value.replayed)
         assertEquals("CLAIMED", viewModel.state.value.snapshot?.exceptions?.single()?.status)
+    }
+
+    @Test
+    fun restoredWarningResolutionRetriesExactFrozenReasonAndKey() = runTest {
+        val original = intent(
+            DriverDeliveryOperationalExceptionIntentStatus.UnknownOutcome,
+            action = DriverDeliveryOperationalExceptionAction.ResolveWarning,
+            frozenBody = "{\"resolution\":\"Path cleared\"}"
+        )
+        val resolved = exception(
+            status = "RESOLVED",
+            responsible = MEMBERSHIP_ID,
+            claimedAt = "2026-10-01T17:01:00Z",
+            underReviewBy = MEMBERSHIP_ID,
+            underReviewAt = "2026-10-01T17:02:00Z",
+            resolution = "Path cleared",
+            outcome = "WARNING_CONDITION_ADDRESSED"
+        )
+        val store = FakeMetadataStore().apply { intent = original }
+        val gateway = FakeGateway().apply {
+            mutationResults += DriverDeliveryOperationalExceptionMutationResult.Changed(
+                mutation(version = 8, exception = resolved, replayed = true)
+            )
+        }
+        val viewModel = viewModel(gateway, store)
+        viewModel.activate(AUTHORITY, DELIVERY_ID)
+        advanceUntilIdle()
+
+        assertEquals(DriverDeliveryOperationalExceptionCommandStatus.UnknownOutcome, viewModel.state.value.commandStatus)
+        assertTrue(gateway.commands.isEmpty())
+
+        viewModel.retrySameCommand()
+        advanceUntilIdle()
+
+        assertEquals(listOf(original.command), gateway.commands)
+        assertEquals("warning-key", gateway.commands.single().idempotencyKey)
+        assertEquals("{\"resolution\":\"Path cleared\"}", gateway.commands.single().frozenBody)
+        assertEquals("RESOLVED", viewModel.state.value.snapshot?.exceptions?.single()?.status)
+        assertTrue(viewModel.state.value.replayed)
     }
 
     @Test
@@ -250,6 +404,38 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
                         )
                     )
                 )
+
+                DriverDeliveryOperationalExceptionAction.ResolveWarning ->
+                    DriverDeliveryOperationalExceptionMutationResult.Changed(
+                        mutation(
+                            version = command.expectedDeliveryVersion + 1,
+                            exception = exception(
+                                status = "RESOLVED",
+                                responsible = MEMBERSHIP_ID,
+                                claimedAt = "2026-10-01T17:01:00Z",
+                                underReviewBy = MEMBERSHIP_ID,
+                                underReviewAt = "2026-10-01T17:02:00Z",
+                                resolution = driverDeliveryOperationalExceptionResolutionFromBody(command.frozenBody),
+                                outcome = "WARNING_CONDITION_ADDRESSED"
+                            )
+                        )
+                    )
+
+                DriverDeliveryOperationalExceptionAction.CloseWarning ->
+                    DriverDeliveryOperationalExceptionMutationResult.Changed(
+                        mutation(
+                            version = command.expectedDeliveryVersion + 1,
+                            exception = exception(
+                                status = "CLOSED",
+                                responsible = MEMBERSHIP_ID,
+                                claimedAt = "2026-10-01T17:01:00Z",
+                                underReviewBy = MEMBERSHIP_ID,
+                                underReviewAt = "2026-10-01T17:02:00Z",
+                                resolution = "Path cleared",
+                                outcome = "WARNING_CONDITION_ADDRESSED"
+                            )
+                        )
+                    )
             }
         }
     }
@@ -282,16 +468,20 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
         }
     }
 
-    private fun intent(status: DriverDeliveryOperationalExceptionIntentStatus) =
+    private fun intent(
+        status: DriverDeliveryOperationalExceptionIntentStatus,
+        action: DriverDeliveryOperationalExceptionAction = DriverDeliveryOperationalExceptionAction.Claim,
+        frozenBody: String = "{}"
+    ) =
         DriverDeliveryOperationalExceptionIntent(
             scope = DriverAttemptScopeIdentity(USER_ID, TENANT_ID, WORKSPACE_ID, MEMBERSHIP_ID),
             command = DriverDeliveryOperationalExceptionCommand(
                 deliveryId = DELIVERY_ID,
                 exceptionId = EXCEPTION_ID,
-                action = DriverDeliveryOperationalExceptionAction.Claim,
+                action = action,
                 expectedDeliveryVersion = 7,
-                idempotencyKey = "original-key",
-                frozenBody = "{}"
+                idempotencyKey = if (action == DriverDeliveryOperationalExceptionAction.ResolveWarning) "warning-key" else "original-key",
+                frozenBody = frozenBody
             ),
             initiatedByMembershipId = MEMBERSHIP_ID,
             initiatedAt = "2026-10-01T17:00:00Z",
@@ -319,25 +509,29 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
         )
 
         fun exception(
+            type: String = "DELAY",
+            severity: String = "WARNING",
             status: String = "OPEN",
             responsible: String? = null,
             claimedAt: String? = null,
             underReviewBy: String? = null,
-            underReviewAt: String? = null
+            underReviewAt: String? = null,
+            resolution: String? = null,
+            outcome: String? = null
         ) = DriverDeliveryOperationalException(
             id = EXCEPTION_ID,
             sourceKind = "DRIVER_INCIDENT",
             sourceIncidentId = INCIDENT_ID,
             affectedObjectType = "DELIVERY",
             affectedObjectId = DELIVERY_ID,
-            type = "DELAY",
-            severity = "WARNING",
+            type = type,
+            severity = severity,
             status = status,
             reason = "Road closure",
             description = "The delivery is blocked at the site.",
             place = "North entrance",
-            resolution = null,
-            outcome = null,
+            resolution = resolution,
+            outcome = outcome,
             reportedByMembershipId = MEMBERSHIP_ID,
             occurredAt = "2026-10-01T16:55:00Z",
             reportedAt = "2026-10-01T16:58:00Z",

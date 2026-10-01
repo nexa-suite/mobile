@@ -17,10 +17,15 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +38,8 @@ fun DriverDeliveryOperationalExceptionsScreen(
     onRefresh: () -> Unit,
     onClaim: (String) -> Unit,
     onSendForReview: (String) -> Unit,
+    onResolve: (String, String) -> Unit,
+    onClose: (String) -> Unit,
     onRetrySameCommand: () -> Unit
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -110,8 +117,12 @@ fun DriverDeliveryOperationalExceptionsScreen(
                         exception = exception,
                         canClaim = state.canClaim(exception),
                         canReview = state.canReview(exception),
+                        canResolveWarning = state.canResolveWarning(exception),
+                        canCloseWarning = state.canCloseWarning(exception),
                         onClaim = { onClaim(exception.id) },
-                        onSendForReview = { onSendForReview(exception.id) }
+                        onSendForReview = { onSendForReview(exception.id) },
+                        onResolve = { resolution -> onResolve(exception.id, resolution) },
+                        onClose = { onClose(exception.id) }
                     )
                 }
             }
@@ -169,6 +180,22 @@ fun DriverDeliveryOperationalExceptionsScreen(
                     if (state.hasRecoverableCommand) RetrySameCommandButton(onRetrySameCommand, state.canRespond)
                 }
 
+                DriverDeliveryOperationalExceptionCommandStatus.Resolved -> ExceptionNotice(
+                    if (state.replayed) {
+                        stringResource(R.string.driver_operational_exceptions_resolution_replayed)
+                    } else {
+                        stringResource(R.string.driver_operational_exceptions_resolved)
+                    }
+                )
+
+                DriverDeliveryOperationalExceptionCommandStatus.Closed -> ExceptionNotice(
+                    if (state.replayed) {
+                        stringResource(R.string.driver_operational_exceptions_closure_replayed)
+                    } else {
+                        stringResource(R.string.driver_operational_exceptions_closed)
+                    }
+                )
+
                 DriverDeliveryOperationalExceptionCommandStatus.StaleVersion -> {
                     ExceptionNotice(stringResource(R.string.driver_operational_exceptions_stale), isError = true)
                     ExceptionNotice(stringResource(R.string.driver_operational_exceptions_fresh_decision))
@@ -193,9 +220,14 @@ private fun OperationalExceptionCard(
     exception: DriverDeliveryOperationalException,
     canClaim: Boolean,
     canReview: Boolean,
+    canResolveWarning: Boolean,
+    canCloseWarning: Boolean,
     onClaim: () -> Unit,
-    onSendForReview: () -> Unit
+    onSendForReview: () -> Unit,
+    onResolve: (String) -> Unit,
+    onClose: () -> Unit
 ) {
+    var resolution by remember(exception.id) { mutableStateOf("") }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -256,6 +288,31 @@ private fun OperationalExceptionCard(
             if (canReview) {
                 OutlinedButton(onClick = onSendForReview) {
                     Text(stringResource(R.string.driver_operational_exceptions_send_for_review))
+                }
+            }
+            if (canResolveWarning) {
+                OutlinedTextField(
+                    value = resolution,
+                    onValueChange = { candidate ->
+                        if (candidate.length <= DRIVER_WARNING_RESOLUTION_MAX_CHARS) resolution = candidate
+                    },
+                    label = { Text(stringResource(R.string.driver_operational_exceptions_resolution_input)) },
+                    supportingText = {
+                        Text(stringResource(
+                            R.string.driver_operational_exceptions_resolution_length,
+                            resolution.length,
+                            DRIVER_WARNING_RESOLUTION_MAX_CHARS
+                        ))
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Button(onClick = { onResolve(resolution) }, enabled = resolution.isNotBlank()) {
+                    Text(stringResource(R.string.driver_operational_exceptions_resolve_warning))
+                }
+            }
+            if (canCloseWarning) {
+                OutlinedButton(onClick = onClose) {
+                    Text(stringResource(R.string.driver_operational_exceptions_close_warning))
                 }
             }
         }

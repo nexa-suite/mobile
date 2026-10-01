@@ -31,7 +31,6 @@ import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExce
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsLoadResult
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsSnapshot
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsViewModel
-import com.nexa.mobile.operations.feature.delivery.driverDeliveryOperationalExceptionEmptyBody
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -99,6 +98,11 @@ internal class OperationsDriverDeliveryOperationalExceptionsGateway @Inject cons
         val action = when (command.action) {
             DriverDeliveryOperationalExceptionAction.Claim -> DriverOperationalExceptionActionTransport.Claim
             DriverDeliveryOperationalExceptionAction.Review -> DriverOperationalExceptionActionTransport.Review
+            DriverDeliveryOperationalExceptionAction.ResolveWarning ->
+                DriverOperationalExceptionActionTransport.ResolveWarning
+
+            DriverDeliveryOperationalExceptionAction.CloseWarning ->
+                DriverOperationalExceptionActionTransport.CloseWarning
         }
         val outcome = try {
             api.mutate(
@@ -341,8 +345,7 @@ internal class AppDriverDeliveryOperationalExceptionMetadataStore(
             root.requiredString("userId"), root.requiredString("tenantId"),
             root.requiredString("workspaceId"), root.requiredString("membershipId")
         )
-        val body = root.requiredString("frozenBody")
-        require(body == driverDeliveryOperationalExceptionEmptyBody())
+        val body = root.requiredStringOrEmpty("frozenBody")
         DriverDeliveryOperationalExceptionIntent(
             scope = scope,
             command = DriverDeliveryOperationalExceptionCommand(
@@ -368,6 +371,10 @@ internal class AppDriverDeliveryOperationalExceptionMetadataStore(
 
     private fun JsonObject.requiredString(key: String): String = this[key]?.jsonPrimitive
         ?.takeIf(JsonPrimitive::isString)?.content?.takeIf(String::isNotBlank)
+        ?: error("Invalid operational exception intent field")
+
+    private fun JsonObject.requiredStringOrEmpty(key: String): String = this[key]?.jsonPrimitive
+        ?.takeIf(JsonPrimitive::isString)?.content
         ?: error("Invalid operational exception intent field")
 
     private fun JsonObject.requiredLong(key: String): Long = this[key]?.jsonPrimitive

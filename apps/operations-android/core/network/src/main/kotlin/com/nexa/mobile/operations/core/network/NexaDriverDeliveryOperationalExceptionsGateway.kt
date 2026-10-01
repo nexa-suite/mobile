@@ -107,19 +107,21 @@ class NexaDriverDeliveryOperationalExceptionsGateway(private val protectedCalls:
     ): DriverOperationalExceptionsNetworkOutcome {
         if (!operationalExceptionUuid.matches(deliveryId) || !operationalExceptionUuid.matches(exceptionId) ||
             expectedDeliveryVersion < 0 || idempotencyKey.isBlank() || idempotencyKey.length > 160 ||
-            frozenBody != EMPTY_BODY
+            !frozenBody.isValidFor(action)
         ) return DriverOperationalExceptionsNetworkOutcome.ServiceUnavailable
 
         val actionPath = when (action) {
             DriverOperationalExceptionActionTransport.Claim -> "claims"
             DriverOperationalExceptionActionTransport.Review -> "reviews"
+            DriverOperationalExceptionActionTransport.ResolveWarning -> "resolutions"
+            DriverOperationalExceptionActionTransport.CloseWarning -> "closures"
         }
         return when (
             val result = protectedCalls.execute(
                 ProtectedRequest(
                     method = ProtectedMethod.POST,
                     path = "$DRIVER_OPERATIONAL_EXCEPTIONS_PATH/$deliveryId/operational-exceptions/$exceptionId/$actionPath",
-                    payload = frozenBody,
+                    payload = frozenBody.takeUnless { action == DriverOperationalExceptionActionTransport.CloseWarning },
                     idempotencyKey = idempotencyKey,
                     ifMatch = "\"$expectedDeliveryVersion\""
                 )
@@ -183,7 +185,8 @@ class NexaDriverDeliveryOperationalExceptionsGateway(private val protectedCalls:
         val affectedObjectId = requiredText("affectedObjectId")?.takeIf(operationalExceptionUuid::matches) ?: return null
         val type = requiredText("type") ?: return null
         val severity = requiredText("severity") ?: return null
-        val status = requiredText("status")?.takeIf { it in setOf("OPEN", "CLAIMED", "UNDER_REVIEW") } ?: return null
+        val status = requiredText("status")
+            ?.takeIf { it in setOf("OPEN", "CLAIMED", "UNDER_REVIEW", "RESOLVED", "CLOSED") } ?: return null
         val reason = requiredNullableText("reason")
         val description = requiredText("description") ?: return null
         val place = requiredNullableText("place")
@@ -252,6 +255,26 @@ class NexaDriverDeliveryOperationalExceptionsGateway(private val protectedCalls:
         return tag.removeSurrounding("\"").toLongOrNull()?.takeIf { it >= 0 }
     }
 
+    private fun String.isValidFor(action: DriverOperationalExceptionActionTransport): Boolean = when (action) {
+        DriverOperationalExceptionActionTransport.Claim,
+        DriverOperationalExceptionActionTransport.Review -> this == EMPTY_BODY
+
+        DriverOperationalExceptionActionTransport.CloseWarning -> isEmpty()
+        DriverOperationalExceptionActionTransport.ResolveWarning -> isResolutionBody()
+    }
+
+    private fun String.isResolutionBody(): Boolean {
+        return try {
+            val root = operationalExceptionJson.parseToJsonElement(this).jsonObject
+            val resolution = root["resolution"]?.jsonPrimitive
+                ?.takeIf(JsonPrimitive::isString)?.contentOrNull
+            root.keys == setOf("resolution") && resolution != null && resolution.isNotBlank() &&
+                resolution.trim().length <= WARNING_RESOLUTION_MAX_CHARS
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     private fun ClientFailure.toOperationalExceptionReadOutcome(): DriverOperationalExceptionsNetworkOutcome = when {
         kind == FailureKind.AuthenticationRequired -> DriverOperationalExceptionsNetworkOutcome.SessionInvalidated
         httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID -> DriverOperationalExceptionsNetworkOutcome.ContextInvalidated
@@ -277,8 +300,9 @@ class NexaDriverDeliveryOperationalExceptionsGateway(private val protectedCalls:
 
     private companion object {
         const val EMPTY_BODY = "{}"
+        const val WARNING_RESOLUTION_MAX_CHARS = 2000
         const val ACCESS_CONTEXT_INVALID = "ACCESS_CONTEXT_INVALID"
     }
 }
 
-enum class DriverOperationalExceptionActionTransport { Claim, Review }
+enum class DriverOperationalExceptionActionTransport { Claim, Review, ResolveWarning, CloseWarning }
