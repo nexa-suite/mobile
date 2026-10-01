@@ -1,5 +1,7 @@
 package com.nexa.mobile.operations
 
+import com.nexa.mobile.operations.commercial.FieldRequestViewModel
+import com.nexa.mobile.operations.commercial.FieldRequestScreen
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryAuthority
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryViewModel
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryScreen
@@ -108,6 +110,8 @@ class MainActivity : ComponentActivity() {
     private val dispatchReadinessViewModel: DispatchReadinessViewModel by viewModels { dispatchReadinessFactory }
     @Inject internal lateinit var driverDeliveryBindings: DriverDeliveryGatewayBindings
     private val driverDeliveryViewModel: DriverDeliveryViewModel by viewModels { driverDeliveryBindings.viewModelFactory() }
+    @Inject internal lateinit var fieldRequestFactory: FieldRequestViewModelFactory
+    private val fieldRequestViewModel: FieldRequestViewModel by viewModels { fieldRequestFactory }
     private var pendingDispositionLot by mutableStateOf<String?>(null)
     private var connectedRoute by mutableStateOf<ConnectedOperationRoute?>(null)
     private var pickingReference by mutableStateOf("")
@@ -196,6 +200,7 @@ class MainActivity : ComponentActivity() {
                 val customerProgressState by customerProgressViewModel.state.collectAsStateWithLifecycle()
                 val customerSearchState by customerSearchViewModel.state.collectAsStateWithLifecycle()
                 val temperatureEvidenceState by temperatureEvidenceViewModel.state.collectAsStateWithLifecycle()
+                val fieldRequestState by fieldRequestViewModel.state.collectAsStateWithLifecycle()
                 val driverDeliveryState by driverDeliveryViewModel.state.collectAsStateWithLifecycle()
                 val dispatchReadinessState by dispatchReadinessViewModel.state.collectAsStateWithLifecycle()
                 val dispositionState by dispositionViewModel.state.collectAsStateWithLifecycle()
@@ -491,6 +496,9 @@ class MainActivity : ComponentActivity() {
                                 connectedRoute = route
                                 val authority = route.authority
                                 when (entry.key) {
+                                    "commercial.request" -> fieldRequestViewModel.activate(CommercialAuthority(
+                                        authority.userId, authority.tenantId, authority.workspaceId, authority.membershipId,
+                                        authority.permissions, route.authorityEpoch))
                                     "driver.deliveries" -> driverDeliveryViewModel.activate(
                                         DriverDeliveryAuthority(authority.userId, authority.tenantId, authority.workspaceId,
                                             authority.membershipId, authority.permissions, route.authorityEpoch)
@@ -539,6 +547,7 @@ class MainActivity : ComponentActivity() {
                     },
                     connectedOperationContent = {
                         when (connectedRoute?.entryKey) {
+                            "commercial.request" -> FieldRequestScreen(fieldRequestState, ::closeConnectedOperation, fieldRequestViewModel)
                             "driver.deliveries" -> DriverDeliveryScreen(
                                 state = driverDeliveryState, onBack = ::closeConnectedOperation,
                                 onRefresh = driverDeliveryViewModel::refresh,
@@ -945,6 +954,7 @@ class MainActivity : ComponentActivity() {
         pendingDispositionLot = null
         connectedRoute = null
         dispositionViewModel.deactivate()
+        fieldRequestViewModel.deactivate()
         driverDeliveryViewModel.invalidate()
         dispatchReadinessViewModel.deactivate()
         temperatureEvidenceViewModel.deactivate()
@@ -1034,6 +1044,7 @@ private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHi
 
 
 private val CONNECTED_OPERATIONS = listOf(
+    ConnectedOperationEntry("commercial.request", "Preparar solicitud", setOf("client.read", "sales:read")),
     ConnectedOperationEntry("driver.deliveries", "Mis entregas", setOf("dispatch.read", "logistics:read")),
     ConnectedOperationEntry("commercial.catalog", "Catálogo comercial", setOf("catalog.read", "catalog:read")),
     ConnectedOperationEntry("commercial.progress", "Compromisos y crédito", setOf("client.read", "sales:read")),
