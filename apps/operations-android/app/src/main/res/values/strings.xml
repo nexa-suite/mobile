@@ -21,4 +21,27 @@
     <string name="customer_previous">Anterior</string>
     <string name="customer_next">Siguiente</string>
 
+    <string name="progress_title">Compromisos y crédito del cliente</string>
+    <string name="progress_customer_reference">Referencia del cliente autorizado</string>
+    <string name="progress_currency">Moneda (ISO 4217)</string>
+    <string name="progress_refresh">Consultar datos vigentes</string>
+    <string name="progress_received">Consulta recibida: %1$s</string>
+    <string name="progress_commitments">Compromisos</string>
+    <string name="progress_no_orders">Sin órdenes en esta página.</string>
+    <string name="progress_source_time">Fecha del dato: %1$s</string>
+    <string name="progress_credit">Crédito y exposición</string>
+    <string name="progress_credit_limit">Límite: %1$s %2$s</string>
+    <string name="progress_ledger">Exposición de libro: %1$s %2$s</string>
+    <string name="progress_outstanding">Cuentas por cobrar: %1$s %2$s</string>
+    <string name="progress_reserved">Exposición reservada: %1$s %2$s</string>
+    <string name="progress_used">Utilizado: %1$s %2$s</string>
+    <string name="progress_available">Disponible según servidor: %1$s %2$s</string>
+    <string name="progress_credit_active">Crédito activo</string>
+    <string name="progress_credit_inactive">Crédito inactivo</string>
+    <string name="progress_no_decision">Esta consulta no aprueba crédito ni confirma compromisos.</string>
+    <string name="progress_idle">Selecciona cliente y consulta.</string>
+    <string name="progress_pending">Consultando…</string>
+    <string name="progress_current">Datos del servidor.</string>
+    <string name="progress_unavailable">Datos incompletos o no disponibles. Actualiza; no hay decisión local.</string>
+    <string name="progress_denied">Acceso o relación no vigente. Datos protegidos no disponibles.</string>
 </resources>
