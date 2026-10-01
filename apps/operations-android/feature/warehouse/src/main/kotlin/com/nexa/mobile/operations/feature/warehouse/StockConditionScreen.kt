@@ -19,6 +19,11 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -41,8 +46,12 @@ fun StockConditionScreen(
     onRefresh: () -> Unit,
     onSelectLot: (String) -> Unit,
     onRouteClosed: () -> Unit,
-    onDisposition: ((String) -> Unit)? = null
+    onDisposition: ((String) -> Unit)? = null,
+    identifiedSkuId: String? = null
 ) {
+    var storageReference by remember(state.authorityEpoch) { mutableStateOf("") }
+    val visibleLots = if (identifiedSkuId == null) state.lots else
+        state.lots.filter { it.skuId.equals(identifiedSkuId, ignoreCase = true) }
     val closeAction = rememberUpdatedState(onRouteClosed)
     DisposableEffect(Unit) {
         onDispose { closeAction.value() }
@@ -85,6 +94,16 @@ fun StockConditionScreen(
                     Text(stringResource(R.string.stock_condition_refresh))
                 }
             }
+            item {
+                identifiedSkuId?.let { Text("Identidad de Catálogo confirmada: SKU $it. Consulta de lotes actuales autorizados; ningún código confirma cantidades físicas.") }
+                OutlinedTextField(storageReference, { storageReference = it }, label = { Text("Referencia manual de lote") }, singleLine = true)
+                OutlinedButton(onClick = { onSelectLot(storageReference.trim()) }, enabled = runCatching { java.util.UUID.fromString(storageReference.trim()) }.isSuccess) {
+                    Text("Confirmar lote y ubicación con el servidor")
+                }
+                if (identifiedSkuId != null && state.status == StockConditionStatus.Current && visibleLots.isEmpty()) {
+                    Text("No hay lotes autorizados de este SKU en la consulta actual. Usa una referencia de lote para confirmación; no se infiere una ubicación desde el código.")
+                }
+            }
             if (state.status == StockConditionStatus.Loading) {
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -93,15 +112,15 @@ fun StockConditionScreen(
                     }
                 }
             }
-            if (state.lots.isNotEmpty()) {
+            if (visibleLots.isNotEmpty()) {
                 item {
                     Text(
-                        text = stringResource(R.string.stock_condition_lots, state.lots.size),
+                        text = stringResource(R.string.stock_condition_lots, visibleLots.size),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
-                items(state.lots, key = { it.id.lowercase() }) { lot ->
+                items(visibleLots, key = { it.id.lowercase() }) { lot ->
                     LotChoiceCard(
                         lot = lot,
                         selected = state.selectedLotId.equals(lot.id, ignoreCase = true),
@@ -110,7 +129,13 @@ fun StockConditionScreen(
                 }
             }
             if (state.selectedLotId != null) {
-                item { SelectedLotPanel(state) }
+                item {
+                    if (identifiedSkuId != null && state.detailStatus == StockConditionDetailStatus.Current &&
+                        state.selectedLot?.skuId?.equals(identifiedSkuId, ignoreCase = true) != true) {
+                        Text("El lote consultado no corresponde al SKU escaneado. Confirma la identidad antes de realizar trabajo físico.")
+                    }
+                    SelectedLotPanel(state)
+                }
                 val confirmedLot = state.selectedLot
                 if (confirmedLot != null && state.detailStatus == StockConditionDetailStatus.Current &&
                     onDisposition != null

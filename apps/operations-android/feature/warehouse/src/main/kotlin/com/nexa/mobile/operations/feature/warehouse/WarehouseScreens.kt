@@ -252,7 +252,8 @@ fun ProductScannerScreen(
     onRequestPermission: () -> Unit,
     onOpenSettings: () -> Unit,
     onRetryScan: () -> Unit,
-    onManualSearch: () -> Unit
+    onManualSearch: () -> Unit,
+    onViewStorage: ((String) -> Unit)? = null
 ) {
     Column(
         modifier = modifier
@@ -457,6 +458,10 @@ fun ProductScannerScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = NexaColors.TextSecondary
                     )
+                    onViewStorage?.let { openStorage ->
+                        NexaPrimaryButton(label = "Consultar lotes y ubicación de este SKU",
+                            onClick = { openStorage(state.sku.skuId.toString()) })
+                    }
                     NexaPrimaryButton(
                         label = stringResource(R.string.warehouse_scanner_start_action),
                         onClick = onRetryScan
