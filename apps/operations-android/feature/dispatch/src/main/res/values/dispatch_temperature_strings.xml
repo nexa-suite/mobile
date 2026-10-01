@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dispatch_temperature_back">Back</string>
+    <string name="dispatch_temperature_title">Temperature evidence</string>
+    <string name="dispatch_temperature_authority_note">Current SKU cold-chain policy and manual Celsius readings for this prepared fulfillment.</string>
+    <string name="dispatch_temperature_refresh">Refresh current policy</string>
+    <string name="dispatch_temperature_loading">Loading current temperature policy…</string>
+    <string name="dispatch_temperature_initial">Choose a prepared fulfillment to view current cold-chain policy.</string>
+    <string name="dispatch_temperature_current">Current server policy loaded.</string>
+    <string name="dispatch_temperature_permission_unknown">Current permissions could not be confirmed.</string>
+    <string name="dispatch_temperature_permission_denied">Your current role cannot read this temperature policy.</string>
+    <string name="dispatch_temperature_network">The server could not be reached. Refresh before continuing.</string>
+    <string name="dispatch_temperature_service">Temperature policy is unavailable. No approval was recorded.</string>
+    <string name="dispatch_temperature_context_invalidated">The authorized workspace changed. Reopen this fulfillment.</string>
+    <string name="dispatch_temperature_session_invalidated">Your session changed. Sign in again before continuing.</string>
+    <string name="dispatch_temperature_as_of">Policy checked at %1$s</string>
+    <string name="dispatch_temperature_optional_note">Temperature is not universally required during Fulfillment. The displayed limits come from current SKU policy; in-range manual evidence is recorded as evidence only and does not approve dispatch.</string>
+    <string name="dispatch_temperature_read_only">This view is read only for your current role.</string>
+    <string name="dispatch_temperature_no_allocated_lots">No current allocated lots have temperature policy to display.</string>
+    <string name="dispatch_temperature_lot_title">Allocated lot</string>
+    <string name="dispatch_temperature_sku">SKU: %1$s</string>
+    <string name="dispatch_temperature_lot">Lot: %1$s</string>
+    <string name="dispatch_temperature_range">Current SKU range: %1$s</string>
+    <string name="dispatch_temperature_policy">Cold-chain applies: %1$s</string>
+    <string name="dispatch_temperature_policy_applies">Yes</string>
+    <string name="dispatch_temperature_policy_not_required">No</string>
+    <string name="dispatch_temperature_unavailable">Unavailable</string>
+    <string name="dispatch_temperature_latest">Latest evidence: %1$s °C at %2$s (%3$s)</string>
+    <string name="dispatch_temperature_entry">Temperature reading for lot</string>
+    <string name="dispatch_temperature_celsius_label">Manual reading (°C)</string>
+    <string name="dispatch_temperature_out_of_range_note">Outside the current SKU range. This cannot be recorded until real photo evidence, an operational exception and affected-stock HOLD are supported.</string>
+    <string name="dispatch_temperature_record">Record in-range reading</string>
+    <string name="dispatch_temperature_evidence_unavailable">No supported current SKU range and allocated lot are available for evidence entry.</string>
+    <string name="dispatch_temperature_submitting">Recording the manual reading…</string>
+    <string name="dispatch_temperature_recorded">Server recorded the temperature evidence. This is not dispatch approval.</string>
+    <string name="dispatch_temperature_out_of_range_gap">Not recorded. Backend contract gap: an outside-range reading needs real photo evidence, an operational exception and affected-stock HOLD.</string>
+    <string name="dispatch_temperature_unknown_outcome">The server result is unclear. Refresh current evidence before entering another reading.</string>
+    <string name="dispatch_temperature_stale">The fulfillment changed. Refresh current policy before recording.</string>
+    <string name="dispatch_temperature_conflict">The current fulfillment policy or allocation conflicts with this reading.</string>
+    <string name="dispatch_temperature_retry_unknown">Retry the saved reading</string>
+</resources>
