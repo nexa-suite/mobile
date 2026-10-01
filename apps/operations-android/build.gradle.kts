@@ -146,6 +146,14 @@ tasks.register("verifyAndroidArchitecture") {
                             it.contains("ProtectedMethod.$method")
                         }) { "Stock transfer transport must not add unrelated mutations" }
                         it.replace("/api/v1/inventory/transfers", "<protected-stock-transfer-route>")
+                    } else if (source.name == "NexaCycleCountGateway.kt") {
+                        check(listOf("/api/v1/inventory/lots", "/api/v1/inventory/cycle-counts", "/corrections").all(it::contains)) {
+                            "Cycle counts must use scoped lot observations and explicit correction requests"
+                        }
+                        check(listOf("PUT", "PATCH", "DELETE").none { method ->
+                            it.contains("ProtectedMethod.$method")
+                        }) { "Cycle counts must not add unrelated stock mutations" }
+                        it.replace("/api/v1/inventory", "<protected-cycle-count-route>")
                     } else if (source.name == "NexaDispositionGateway.kt") {
                         check(it.contains("INVENTORY_LOTS_PATH = \"/api/v1/inventory/lots\"")) {
                             "Disposition must use current lot reads and typed dispositions"

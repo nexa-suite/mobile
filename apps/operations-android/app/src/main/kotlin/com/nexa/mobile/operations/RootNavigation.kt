@@ -92,6 +92,7 @@ internal fun RootNavigation(
     onReceiveStock: () -> Unit = {},
     receivingContent: @Composable () -> Unit = {},
     onViewStock: () -> Unit = {},
+    onViewIdentifiedStorage: ((String) -> Unit)? = null,
     stockConditionContent: @Composable () -> Unit = {},
     onPickStock: () -> Unit = {},
     pickingContent: @Composable () -> Unit = {},
@@ -505,7 +506,8 @@ internal fun RootNavigation(
                                 onRequestPermission = onScannerPermissionRequest,
                                 onOpenSettings = onScannerOpenSettings,
                                 onRetryScan = onScannerRetry,
-                                onManualSearch = onScannerManualSearch
+                                onManualSearch = onScannerManualSearch,
+                                onViewStorage = onViewIdentifiedStorage
                             )
                         } else {
                             OperationsWorkEntryScreen(

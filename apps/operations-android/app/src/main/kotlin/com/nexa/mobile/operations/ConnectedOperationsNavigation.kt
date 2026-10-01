@@ -9,7 +9,7 @@ import com.nexa.mobile.operations.feature.access.AccessUiState
 import com.nexa.mobile.operations.feature.access.VerifiedContextAuthority
 import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
 
-/** Only entries with a connected implementation are supplied to the hub. */
+/** Reachable capability entries, including explicit unavailable states, use current authority. */
 internal data class ConnectedOperationEntry(
     val key: String,
     val label: String,

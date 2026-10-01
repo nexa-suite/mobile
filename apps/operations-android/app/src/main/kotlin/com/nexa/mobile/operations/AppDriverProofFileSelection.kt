@@ -68,6 +68,18 @@ internal class AppDriverProofFileSelection(private val context: Context) {
         }
     }
 
+    /** Selection is volatile; abandoned raw copies are never restored after process recreation. */
+    fun discardAbandonedSelections() {
+        if (!abandonedSelectionsCleared.compareAndSet(false, true)) return
+        File(context.noBackupFilesDir, "driver-proof-selection").takeIf { it.isDirectory }
+            ?.listFiles()?.forEach { directory ->
+                if (directory.isDirectory) {
+                    directory.listFiles()?.filter { it.isFile }?.forEach { it.delete() }
+                    directory.delete()
+                }
+            }
+    }
+
     fun discard(candidate: DriverProofFileCandidate) {
         val root = File(context.noBackupFilesDir, "driver-proof-selection").canonicalFile
         val selected = candidate.file.canonicalFile
@@ -81,5 +93,8 @@ internal class AppDriverProofFileSelection(private val context: Context) {
         else -> false
     }
 
-    private companion object { const val MAX_BYTES = 10L * 1024 * 1024 }
+    private companion object {
+        const val MAX_BYTES = 10L * 1024 * 1024
+        val abandonedSelectionsCleared = java.util.concurrent.atomic.AtomicBoolean(false)
+    }
 }

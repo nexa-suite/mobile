@@ -39,6 +39,7 @@ fun OperationsOverviewScreen(state: DispatchReadinessUiState, tenantId: String, 
         if (items.isEmpty()) Text("Sin elementos en esta proyección. No implica ausencia de excepciones en otros procesos.")
         items.forEach { item -> Card { Column(androidx.compose.ui.Modifier.padding(12.dp)) {
             Text("Fulfillment ${item.fulfillmentId}")
+            Text("Contexto de este trabajo: Tenant $tenantId; Workspace $workspaceId.")
             Text("Estado servidor: ${item.fulfillmentStatus}; listo: ${item.ready}")
             Text("Hechos: ${item.asOf}; versión ${item.fulfillmentVersion}; asignación física ${item.physicalAllocationVersion}")
             if (item.reasons.isNotEmpty()) Text("Bloqueos del servidor: ${item.reasons.joinToString()}")

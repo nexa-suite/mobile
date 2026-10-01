@@ -44,7 +44,8 @@ fun DispatchReadinessScreen(
     onClearSelection: () -> Unit,
     onRouteClosed: () -> Unit,
     onAssignFulfillment: ((String) -> Unit)? = null,
-    onVerifyOutgoingGoods: ((String) -> Unit)? = null
+    onVerifyOutgoingGoods: ((String) -> Unit)? = null,
+    onConfirmHandover: ((String) -> Unit)? = null
 ) {
     val closeAction = rememberUpdatedState(onRouteClosed)
     DisposableEffect(Unit) {
@@ -117,6 +118,9 @@ fun DispatchReadinessScreen(
                             TextButton(onClick = { onVerifyOutgoingGoods(state.detail.fulfillmentId) }) {
                                 Text("Verificar lote y cantidad de salida")
                             }
+                        }
+                        if (onConfirmHandover != null) {
+                            TextButton(onClick = { onConfirmHandover(state.detail.fulfillmentId) }) { Text("Confirmar salida y handoff") }
                         }
                         if (onAssignFulfillment != null) {
                             TextButton(onClick = { onAssignFulfillment(state.detail.fulfillmentId) }) {
