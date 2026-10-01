@@ -77,6 +77,8 @@ import com.nexa.mobile.operations.feature.warehouse.DispositionAuthority
 import com.nexa.mobile.operations.feature.warehouse.DispositionMetadataStatus
 import com.nexa.mobile.operations.feature.warehouse.DispositionScreen
 import com.nexa.mobile.operations.feature.warehouse.DispositionViewModel
+import com.nexa.mobile.operations.feature.warehouse.WarehouseBatchViewModel
+import com.nexa.mobile.operations.feature.warehouse.WarehouseBatchScreen
 import com.nexa.mobile.operations.feature.warehouse.PickingAuthority
 import com.nexa.mobile.operations.feature.warehouse.PickingWorkListScreen
 import com.nexa.mobile.operations.feature.warehouse.PickingWorkListViewModel
@@ -159,6 +161,7 @@ class MainActivity : ComponentActivity() {
     @Inject internal lateinit var dispatchAssignmentFactory: DispatchAssignmentViewModelFactory
     private val dispatchAssignmentViewModel: DispatchAssignmentViewModel by viewModels { dispatchAssignmentFactory }
     private var pendingDispositionLot by mutableStateOf<String?>(null)
+    private val warehouseBatchViewModel: WarehouseBatchViewModel by viewModels()
     private var connectedRoute by mutableStateOf<ConnectedOperationRoute?>(null)
     private var pickingReference by mutableStateOf("")
     private var pickingOpened by mutableStateOf(false)
@@ -257,7 +260,9 @@ class MainActivity : ComponentActivity() {
                 val driverDeliveryState by driverDeliveryViewModel.state.collectAsStateWithLifecycle()
                 val dispatchReadinessState by dispatchReadinessViewModel.state.collectAsStateWithLifecycle()
                 val dispositionState by dispositionViewModel.state.collectAsStateWithLifecycle()
+                val warehouseBatchState by warehouseBatchViewModel.state.collectAsStateWithLifecycle()
                 val pickingState by pickingViewModel.state.collectAsStateWithLifecycle()
+                androidx.compose.runtime.LaunchedEffect(pickingState) { warehouseBatchViewModel.observe(pickingState) }
                 val stockConditionState =
                     stockConditionViewModel.state.collectAsStateWithLifecycle().value
                 val receivingState = receivingViewModel.state.collectAsStateWithLifecycle().value
@@ -549,6 +554,13 @@ class MainActivity : ComponentActivity() {
                                 connectedRoute = route
                                 val authority = route.authority
                                 when (entry.key) {
+                                    "warehouse.batch" -> {
+                                        val proof = PickingAuthority(authority.userId, authority.tenantId, authority.workspaceId,
+                                            authority.membershipId, authority.permissions, route.authorityEpoch)
+                                        warehouseBatchViewModel.activate(proof)
+                                        pickingWorkListEpoch = route.authorityEpoch
+                                        pickingWorkListViewModel.activate(proof)
+                                    }
                                     "warehouse.inbound-discrepancy" -> inboundDiscrepancyViewModel.activate(InboundDiscrepancyAuthority(
                                         InboundDiscrepancyScope(authority.userId, authority.tenantId, authority.workspaceId, authority.membershipId),
                                         route.authorityEpoch))
@@ -647,6 +659,31 @@ class MainActivity : ComponentActivity() {
                                 onReplay = dispatchAssignmentViewModel::retryUnknownOutcome,
                                 onRouteClosed = dispatchAssignmentViewModel::deactivate
                             )
+                            "warehouse.batch" -> {
+                                if (warehouseBatchState.selectedId == null) WarehouseBatchScreen(
+                                    state = warehouseBatchState, work = pickingWorkListState,
+                                    onBack = ::closeConnectedOperation, onRefresh = pickingWorkListViewModel::reload,
+                                    onNextPage = pickingWorkListViewModel::nextPage, onPreviousPage = pickingWorkListViewModel::previousPage,
+                                    onAdd = { warehouseBatchViewModel.add(it, pickingWorkListViewModel.state.value) },
+                                    onMove = warehouseBatchViewModel::move, onReview = warehouseBatchViewModel::review,
+                                    onOpen = { id ->
+                                        val route = connectedRoute
+                                        if (route != null && ConnectedOperationsNavigation.permits(route, CONNECTED_OPERATIONS, state, accessState, warehouseState) && warehouseBatchViewModel.select(id)) {
+                                            val proof = route.authority
+                                            pickingViewModel.activate(PickingAuthority(proof.userId, proof.tenantId, proof.workspaceId,
+                                                proof.membershipId, proof.permissions, route.authorityEpoch), id)
+                                        }
+                                    }
+                                ) else PickingScreen(
+                                    state = pickingState,
+                                    onBack = { warehouseBatchViewModel.observe(pickingViewModel.state.value); warehouseBatchViewModel.closeItem(); pickingViewModel.invalidate(); pickingWorkListViewModel.reload() },
+                                    onReload = pickingViewModel::reload, onSelectOffer = pickingViewModel::selectOffer,
+                                    onLotIdentifierChanged = pickingViewModel::lotIdentifierChanged,
+                                    onQuantityChanged = pickingViewModel::quantityChanged, onStartPicking = pickingViewModel::startPicking,
+                                    onConfirmPick = pickingViewModel::confirmPick, onRetryUnknownOutcome = pickingViewModel::retryUnknownOutcome,
+                                    onRetryIntentCleanup = pickingViewModel::retryIntentCleanup
+                                )
+                            }
                             "warehouse.inbound-discrepancy" -> InboundDiscrepancyScreen(
                                 state = inboundDiscrepancyState, onBack = ::closeConnectedOperation,
                                 onProductReferenceChanged = inboundDiscrepancyViewModel::productReferenceChanged,
@@ -1170,6 +1207,11 @@ class MainActivity : ComponentActivity() {
         if (connectedRoute != null && warehouseViewModel.state.value.route != WarehouseRoute.WorkEntry) {
             warehouseViewModel.back()
         }
+        if (connectedRoute?.entryKey == "warehouse.batch") {
+            pickingViewModel.invalidate()
+            pickingWorkListViewModel.invalidate()
+        }
+        warehouseBatchViewModel.invalidate()
         pendingDispositionLot = null
         connectedRoute = null
         dispositionViewModel.deactivate()
@@ -1270,6 +1312,7 @@ private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHi
 
 
 private val CONNECTED_OPERATIONS = listOf(
+    ConnectedOperationEntry("warehouse.batch", "Preparar grupo de picking", setOf("fulfillment.read", "fulfillment:read")),
     ConnectedOperationEntry("dispatch.assignment", "Asignar desde preparación de despacho", setOf("dispatch.read"), visibleInHub = false),
     ConnectedOperationEntry("warehouse.inbound-discrepancy", "Discrepancia: borrador local", setOf("inventory.receive")),
     ConnectedOperationEntry("warehouse.transfer-receipt", "Recibir traslado en destino", setOf("warehouse:write")),
