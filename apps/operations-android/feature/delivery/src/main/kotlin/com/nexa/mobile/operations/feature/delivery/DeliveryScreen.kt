@@ -54,6 +54,7 @@ fun DriverDeliveryScreen(
     onRetryUnknownProof: () -> Unit = {},
     onRefreshProofEvidence: () -> Unit = {},
     onAttachAvailableProofEvidence: () -> Unit = {},
+    onOpenInstructions: ((String) -> Unit)? = null,
     onOpenIncident: ((String, String, Long, Boolean) -> Unit)? = null,
     onOpenHandoffCode: ((String, String, Long) -> Unit)? = null
 ) {
@@ -269,6 +270,16 @@ fun DriverDeliveryScreen(
                 Text(stringResource(R.string.driver_delivery_status, delivery.status))
                 delivery.scheduledAt?.let {
                     Text(stringResource(R.string.driver_delivery_scheduled, it))
+                }
+                if (onOpenInstructions != null &&
+                    state.authorizedInstructionsDeliveryId == delivery.id
+                ) {
+                    OutlinedButton(
+                        onClick = { onOpenInstructions(delivery.id) },
+                        enabled = state.canRead && state.detailStatus == DriverDeliveryLoadStatus.Ready
+                    ) {
+                        Text(stringResource(R.string.driver_delivery_instructions_open))
+                    }
                 }
                 delivery.activeAttempt?.let { attempt ->
                     Card(Modifier.fillMaxWidth()) {
@@ -505,6 +516,18 @@ fun DriverDeliveryScreen(
                     )
 
                     DriverDeliveryCommandStatus.Idle -> Unit
+                }
+                if (state.commandStatus == DriverDeliveryCommandStatus.Rejected &&
+                    state.rejectionCode == "DELIVERY_CRITICAL_INSTRUCTION_ACK_REQUIRED" &&
+                    onOpenInstructions != null &&
+                    state.authorizedInstructionsDeliveryId == delivery.id
+                ) {
+                    OutlinedButton(
+                        onClick = { onOpenInstructions(delivery.id) },
+                        enabled = state.canRead && state.detailStatus == DriverDeliveryLoadStatus.Ready
+                    ) {
+                        Text(stringResource(R.string.driver_delivery_instructions_required))
+                    }
                 }
                 if (delivery.activeAttempt == null && state.commandStatus in setOf(
                         DriverDeliveryCommandStatus.Idle,

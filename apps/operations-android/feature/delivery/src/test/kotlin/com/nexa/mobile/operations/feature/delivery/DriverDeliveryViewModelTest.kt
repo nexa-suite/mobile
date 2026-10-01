@@ -42,6 +42,40 @@ class DriverDeliveryViewModelTest {
     }
 
     @Test
+    fun instructionsEntryRequiresCurrentOperationalAssignmentButNotAnActiveAttempt() = runTest {
+        val assigned = delivery()
+        val delivered = delivery().copy(id = DELIVERED_DELIVERY_ID, status = "DELIVERED")
+        val cancelled = delivery().copy(id = CANCELLED_DELIVERY_ID, status = "CANCELLED")
+        val gateway = FakeDriverDeliveryGateway().apply {
+            listItems = listOf(assigned, delivered, cancelled)
+            detailBlock = { id ->
+                when (id) {
+                    assigned.id -> DriverDeliveryLoadResult.DetailLoaded(assigned)
+                    delivered.id -> DriverDeliveryLoadResult.DetailLoaded(delivered)
+                    cancelled.id -> DriverDeliveryLoadResult.DetailLoaded(cancelled)
+                    else -> DriverDeliveryLoadResult.NotFound
+                }
+            }
+        }
+        val viewModel = DriverDeliveryViewModel(gateway, FakeDriverAttemptMetadataStore())
+        viewModel.activate(AUTHORITY)
+        advanceUntilIdle()
+
+        viewModel.selectDelivery(assigned.id)
+        advanceUntilIdle()
+        assertNull(viewModel.state.value.selectedDelivery?.activeAttempt)
+        assertEquals(assigned.id, viewModel.state.value.authorizedInstructionsDeliveryId)
+
+        viewModel.selectDelivery(delivered.id)
+        advanceUntilIdle()
+        assertNull(viewModel.state.value.authorizedInstructionsDeliveryId)
+
+        viewModel.selectDelivery(cancelled.id)
+        advanceUntilIdle()
+        assertNull(viewModel.state.value.authorizedInstructionsDeliveryId)
+    }
+
+    @Test
     fun directionsWaitForFreshCurrentDetailRatherThanListProjection() = runTest {
         val gateway = FakeDriverDeliveryGateway()
         val detailGate = CompletableDeferred<DriverDeliveryLoadResult>()
@@ -845,6 +879,8 @@ class DriverDeliveryViewModelTest {
         const val DELIVERY_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413201"
         const val ATTEMPT_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413202"
         const val ARRIVAL_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413209"
+        const val DELIVERED_DELIVERY_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413211"
+        const val CANCELLED_DELIVERY_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413212"
         const val PROOF_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413210"
         const val ARRIVED_AT = "2026-09-30T20:00:00Z"
         const val FULFILLMENT_LINE_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413207"

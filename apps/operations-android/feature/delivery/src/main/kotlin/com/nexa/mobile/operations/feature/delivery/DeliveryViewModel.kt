@@ -117,9 +117,19 @@ data class DriverDeliveryUiState(
             null
         }
 
+    /** Instructions are available for a current operational assignment before its first attempt starts. */
+    val authorizedInstructionsDeliveryId: String?
+        get() = if (canRead && detailStatus == DriverDeliveryLoadStatus.Ready) {
+            selectedDelivery?.takeIf { it.status in DRIVER_OPERATIONAL_DELIVERY_STATUSES }?.id
+        } else {
+            null
+        }
+
     override fun toString(): String =
         "DriverDeliveryUiState(epoch=$authorityEpoch, list=$listStatus, detail=$detailStatus, command=$commandStatus, items=${deliveries.size})"
 }
+
+private val DRIVER_OPERATIONAL_DELIVERY_STATUSES = setOf("ASSIGNED", "DISPATCHED", "IN_TRANSIT")
 
 /** Connected list/detail/start flow; a timeout remains unconfirmed until replay or refresh. */
 class DriverDeliveryViewModel(

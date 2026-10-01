@@ -53,6 +53,8 @@ import com.nexa.mobile.operations.feature.delivery.DriverDeliveryLoadStatus
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryAuthority
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryViewModel
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryScreen
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionsViewModel
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionsScreen
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -61,6 +63,7 @@ import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -182,6 +185,10 @@ class MainActivity : ComponentActivity() {
     private val driverIncidentViewModel: DriverDeliveryIncidentViewModel by viewModels { driverIncidentBindings.viewModelFactory() }
     @Inject internal lateinit var driverDeliveryBindings: DriverDeliveryGatewayBindings
     private val driverDeliveryViewModel: DriverDeliveryViewModel by viewModels { driverDeliveryBindings.viewModelFactory() }
+    @Inject internal lateinit var driverDeliveryInstructionsBindings: DriverDeliveryInstructionsBindings
+    private val driverDeliveryInstructionsViewModel: DriverDeliveryInstructionsViewModel by viewModels {
+        driverDeliveryInstructionsBindings.viewModelFactory()
+    }
     @Inject internal lateinit var fieldRequestFactory: FieldRequestViewModelFactory
     private val fieldRequestViewModel: FieldRequestViewModel by viewModels { fieldRequestFactory }
     @Inject internal lateinit var businessDocumentsFactory: BusinessDocumentsViewModelFactory
@@ -222,6 +229,7 @@ class MainActivity : ComponentActivity() {
     private var pendingDispositionLot by mutableStateOf<String?>(null)
     private val warehouseBatchViewModel: WarehouseBatchViewModel by viewModels()
     private var connectedRoute by mutableStateOf<ConnectedOperationRoute?>(null)
+    private var showDriverInstructions by mutableStateOf(false)
     private var pickingReference by mutableStateOf("")
     private var pickingOpened by mutableStateOf(false)
     private var pickingWorkListEpoch by mutableStateOf(0L)
@@ -401,6 +409,8 @@ class MainActivity : ComponentActivity() {
                 val driverHandoffTokenState by driverHandoffTokenViewModel.state.collectAsStateWithLifecycle()
                 val driverIncidentState by driverIncidentViewModel.state.collectAsStateWithLifecycle()
                 val driverDeliveryState by driverDeliveryViewModel.state.collectAsStateWithLifecycle()
+                val driverInstructionsState by driverDeliveryInstructionsViewModel.state.collectAsStateWithLifecycle()
+                BackHandler(enabled = showDriverInstructions, onBack = ::closeDriverDeliveryInstructions)
                 val dispatchReadinessState by dispatchReadinessViewModel.state.collectAsStateWithLifecycle()
                 val dispositionState by dispositionViewModel.state.collectAsStateWithLifecycle()
                 val warehouseBatchState by warehouseBatchViewModel.state.collectAsStateWithLifecycle()
@@ -1103,7 +1113,16 @@ class MainActivity : ComponentActivity() {
                                 businessDocumentsViewModel::nextPage, businessDocumentsViewModel::open,
                                 businessDocumentsViewModel::closeContent)
                             "commercial.request" -> FieldRequestScreen(fieldRequestState, ::closeConnectedOperation, fieldRequestViewModel)
-                            "driver.deliveries" -> DriverDeliveryScreen(
+                            "driver.deliveries" -> if (showDriverInstructions) {
+                                DriverDeliveryInstructionsScreen(
+                                    state = driverInstructionsState,
+                                    onBack = ::closeDriverDeliveryInstructions,
+                                    onRefresh = driverDeliveryInstructionsViewModel::refresh,
+                                    onSelectInstruction = driverDeliveryInstructionsViewModel::setInstructionSelected,
+                                    onAcknowledgeSelected = driverDeliveryInstructionsViewModel::acknowledgeSelected,
+                                    onRetryUnknownAcknowledgement = driverDeliveryInstructionsViewModel::retryUnknownAcknowledgement
+                                )
+                            } else DriverDeliveryScreen(
                                 state = driverDeliveryState, onBack = ::closeConnectedOperation,
                                 onRefresh = driverDeliveryViewModel::refresh,
                                 onSelectDelivery = driverDeliveryViewModel::selectDelivery,
@@ -1149,6 +1168,25 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onSignalArrival = driverDeliveryViewModel::signalArrival,
                                 onRetryUnknownArrival = driverDeliveryViewModel::retryUnknownArrival,
+                                onOpenInstructions = { deliveryId ->
+                                    val route = connectedRoute
+                                    if (route != null &&
+                                        driverDeliveryViewModel.state.value.authorizedInstructionsDeliveryId == deliveryId &&
+                                        ConnectedOperationsNavigation.permits(
+                                            route, CONNECTED_OPERATIONS, state, accessState, warehouseState
+                                        )
+                                    ) {
+                                        val authority = route.authority
+                                        driverDeliveryInstructionsViewModel.activate(
+                                            DriverDeliveryAuthority(
+                                                authority.userId, authority.tenantId, authority.workspaceId,
+                                                authority.membershipId, authority.permissions, route.authorityEpoch
+                                            ),
+                                            deliveryId
+                                        )
+                                        showDriverInstructions = true
+                                    }
+                                },
                                 onOpenDirections = { destination ->
                                     val route = connectedRoute
                                     val currentDestination = driverDeliveryViewModel.state.value.authorizedDirectionsDestination
@@ -1706,6 +1744,15 @@ class MainActivity : ComponentActivity() {
     private fun cameraPermissionGranted(): Boolean =
         checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
+    private fun closeDriverDeliveryInstructions() {
+        val deliveryId = driverDeliveryInstructionsViewModel.state.value.deliveryId
+        showDriverInstructions = false
+        driverDeliveryInstructionsViewModel.invalidate()
+        if (deliveryId != null && connectedRoute?.entryKey == "driver.deliveries") {
+            driverDeliveryViewModel.selectDelivery(deliveryId)
+        }
+    }
+
     private fun closeConnectedOperation() {
         if (connectedRoute != null && warehouseViewModel.state.value.route != WarehouseRoute.WorkEntry) {
             warehouseViewModel.back()
@@ -1717,6 +1764,8 @@ class MainActivity : ComponentActivity() {
         }
         warehouseBatchViewModel.invalidate()
         pendingDispositionLot = null
+        showDriverInstructions = false
+        driverDeliveryInstructionsViewModel.invalidate()
         connectedRoute = null
         dispositionViewModel.deactivate()
         dispatchAssignmentViewModel.deactivate()
