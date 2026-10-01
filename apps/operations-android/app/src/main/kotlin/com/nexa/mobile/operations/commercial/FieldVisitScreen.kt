@@ -16,7 +16,17 @@ fun FieldVisitScreen(state: FieldVisitState,onBack: ()->Unit,viewModel: FieldVis
         TextButton(onClick=onBack){Text("Volver")}
         Text("Visita al cliente",style=MaterialTheme.typography.headlineSmall)
         Text("Propósito y seguimiento vinculados al cliente. Registrar evidencia no confirma una compra ni registra ubicación.")
-        Text("Estado: ${state.status}")
+        Text("Estado: ${when (state.status) {
+            "Loading" -> "Cargando borrador protegido"
+            "Draft" -> "Visita sin confirmar"
+            "Reviewed" -> "Relación vigente revisada"
+            "Pending" -> "Operación pendiente"
+            "Recorded" -> "Evidencia registrada por Nexa"
+            "UnknownOutcome" -> "Resultado desconocido"
+            "Conflict" -> "Información rechazada o cambió"
+            "MetadataUnavailable" -> "Almacenamiento protegido no disponible"
+            else -> "Información vigente no disponible"
+        }}")
         OutlinedTextField(state.record.customerId,viewModel::customerChanged,enabled=editable,label={Text("Referencia del cliente")})
         OutlinedTextField(state.record.purpose,viewModel::purposeChanged,enabled=editable,label={Text("Propósito de visita")})
         OutlinedTextField(state.record.followUp,viewModel::followUpChanged,enabled=editable,label={Text("Resultado y seguimiento previsto")})
