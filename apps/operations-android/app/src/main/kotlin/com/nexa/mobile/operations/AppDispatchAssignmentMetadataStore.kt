@@ -1,0 +1,227 @@
+package com.nexa.mobile.operations
+
+import android.content.Context
+import com.nexa.mobile.operations.core.local.scoped.AndroidScopedMetadataStore
+import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
+import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
+import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
+import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentIntent
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentIntentStatus
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentScopeIdentity
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import java.util.concurrent.ConcurrentHashMap
+import javax.inject.Singleton
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
+
+/** Typed frozen-command adapter over encrypted storage bound to DispatchAssignment purpose. */
+internal class AppDispatchAssignmentMetadataStore(
+    private val local: ScopedMetadataStore
+) : DispatchAssignmentMetadataStore {
+    override suspend fun loadIntent(
+        scope: DispatchAssignmentScopeIdentity,
+        fulfillmentId: String
+    ): DispatchAssignmentMetadataRead = mutex(scope).withLock {
+        when (val stored = local.load(scope.toLocal())) {
+            ScopedMetadataRead.Unavailable -> DispatchAssignmentMetadataRead.Unavailable
+            is ScopedMetadataRead.Value -> {
+                val intents = stored.payload?.let(::decode)
+                    ?: if (stored.payload == null) emptyList() else {
+                        return@withLock DispatchAssignmentMetadataRead.Unavailable
+                    }
+                val intent = intents.firstOrNull { it.fulfillmentId == fulfillmentId }
+                    ?: return@withLock DispatchAssignmentMetadataRead.Available(null)
+                if (intent.scope != scope) {
+                    return@withLock DispatchAssignmentMetadataRead.Unavailable
+                }
+                if (intent.status == DispatchAssignmentIntentStatus.Pending) {
+                    val recovered = intent.copy(status = DispatchAssignmentIntentStatus.UnknownOutcome)
+                    val updated = intents.map { if (it.fulfillmentId == fulfillmentId) recovered else it }
+                    if (local.save(scope.toLocal(), encode(updated))) {
+                        DispatchAssignmentMetadataRead.Available(recovered)
+                    } else {
+                        DispatchAssignmentMetadataRead.Unavailable
+                    }
+                } else {
+                    DispatchAssignmentMetadataRead.Available(intent)
+                }
+            }
+        }
+    }
+
+    override suspend fun saveIntent(
+        intent: DispatchAssignmentIntent
+    ): DispatchAssignmentMetadataWrite = mutex(intent.scope).withLock {
+        when (val stored = local.load(intent.scope.toLocal())) {
+            ScopedMetadataRead.Unavailable -> DispatchAssignmentMetadataWrite.Unavailable
+            is ScopedMetadataRead.Value -> {
+                val intents = stored.payload?.let(::decode)
+                    ?: if (stored.payload == null) emptyList() else {
+                        return@withLock DispatchAssignmentMetadataWrite.Unavailable
+                    }
+                val current = intents.firstOrNull { it.fulfillmentId == intent.fulfillmentId }
+                if (current == null) {
+                    if (intents.size >= MAX_PENDING_INTENTS) {
+                        return@withLock DispatchAssignmentMetadataWrite.Unavailable
+                    }
+                    write(intent.scope, intents + intent)
+                } else if (current.scope != intent.scope || !current.sameCommand(intent)) {
+                    DispatchAssignmentMetadataWrite.Conflict
+                } else if (current.status == DispatchAssignmentIntentStatus.UnknownOutcome &&
+                    intent.status == DispatchAssignmentIntentStatus.Pending
+                ) {
+                    DispatchAssignmentMetadataWrite.Conflict
+                } else if (current == intent) {
+                    DispatchAssignmentMetadataWrite.Saved
+                } else {
+                    write(
+                        intent.scope,
+                        intents.map { if (it.fulfillmentId == intent.fulfillmentId) intent else it }
+                    )
+                }
+            }
+        }
+    }
+
+    override suspend fun clearIntent(
+        scope: DispatchAssignmentScopeIdentity,
+        fulfillmentId: String,
+        idempotencyKey: String
+    ): DispatchAssignmentMetadataWrite = mutex(scope).withLock {
+        when (val stored = local.load(scope.toLocal())) {
+            ScopedMetadataRead.Unavailable -> DispatchAssignmentMetadataWrite.Unavailable
+            is ScopedMetadataRead.Value -> {
+                val intents = stored.payload?.let(::decode)
+                    ?: if (stored.payload == null) emptyList() else {
+                        return@withLock DispatchAssignmentMetadataWrite.Unavailable
+                    }
+                val current = intents.firstOrNull { it.fulfillmentId == fulfillmentId }
+                    ?: return@withLock DispatchAssignmentMetadataWrite.Saved
+                if (current.scope != scope || current.idempotencyKey != idempotencyKey) {
+                    DispatchAssignmentMetadataWrite.Stale
+                } else {
+                    val remaining = intents.filterNot { it.fulfillmentId == fulfillmentId }
+                    val cleared = if (remaining.isEmpty()) local.clear(scope.toLocal()) else
+                        local.save(scope.toLocal(), encode(remaining))
+                    if (cleared) DispatchAssignmentMetadataWrite.Saved else
+                        DispatchAssignmentMetadataWrite.Unavailable
+                }
+            }
+        }
+    }
+
+    private suspend fun write(
+        scope: DispatchAssignmentScopeIdentity,
+        intents: List<DispatchAssignmentIntent>
+    ): DispatchAssignmentMetadataWrite = if (local.save(scope.toLocal(), encode(intents))) {
+        DispatchAssignmentMetadataWrite.Saved
+    } else {
+        DispatchAssignmentMetadataWrite.Unavailable
+    }
+
+    private fun encode(intents: List<DispatchAssignmentIntent>): String = buildJsonObject {
+        put("schema", JsonPrimitive(SCHEMA_VERSION))
+        put("commands", JsonArray(intents.map(::encodeIntent)))
+    }.toString()
+
+    private fun encodeIntent(intent: DispatchAssignmentIntent): JsonObject = buildJsonObject {
+        put("userId", JsonPrimitive(intent.scope.userId))
+        put("tenantId", JsonPrimitive(intent.scope.tenantId))
+        put("workspaceId", JsonPrimitive(intent.scope.workspaceId))
+        put("membershipId", JsonPrimitive(intent.scope.membershipId))
+        put("fulfillmentId", JsonPrimitive(intent.fulfillmentId))
+        put("expectedFulfillmentVersion", JsonPrimitive(intent.expectedFulfillmentVersion))
+        put("physicalAllocationId", JsonPrimitive(intent.physicalAllocationId))
+        put("physicalAllocationVersion", JsonPrimitive(intent.physicalAllocationVersion))
+        put("responsibleMembershipId", JsonPrimitive(intent.responsibleMembershipId))
+        put("idempotencyKey", JsonPrimitive(intent.idempotencyKey))
+        put("status", JsonPrimitive(intent.status.name))
+    }
+
+    private fun decode(payload: String): List<DispatchAssignmentIntent>? = try {
+        val envelope = Json.parseToJsonElement(payload).jsonObject
+        if (envelope.requiredLong("schema") != SCHEMA_VERSION) {
+            null
+        } else {
+            val intents = envelope["commands"]?.jsonArray?.map { element ->
+                val value = element.jsonObject
+                DispatchAssignmentIntent(
+                    scope = DispatchAssignmentScopeIdentity(
+                        value.requiredString("userId"),
+                        value.requiredString("tenantId"),
+                        value.requiredString("workspaceId"),
+                        value.requiredString("membershipId")
+                    ),
+                    fulfillmentId = value.requiredString("fulfillmentId"),
+                    expectedFulfillmentVersion = value.requiredLong("expectedFulfillmentVersion"),
+                    physicalAllocationId = value.requiredString("physicalAllocationId"),
+                    physicalAllocationVersion = value.requiredLong("physicalAllocationVersion"),
+                    responsibleMembershipId = value.requiredString("responsibleMembershipId"),
+                    idempotencyKey = value.requiredString("idempotencyKey"),
+                    status = DispatchAssignmentIntentStatus.valueOf(value.requiredString("status"))
+                )
+            } ?: error("Dispatch assignment metadata commands are missing")
+            if (intents.map { it.fulfillmentId }.distinct().size != intents.size) null else intents
+        }
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun JsonObject.requiredString(key: String): String =
+        this[key]?.jsonPrimitive?.takeIf(JsonPrimitive::isString)?.content
+            ?.takeIf(String::isNotBlank)
+            ?: error("Dispatch assignment metadata field is invalid")
+
+    private fun JsonObject.requiredLong(key: String): Long =
+        this[key]?.jsonPrimitive?.takeUnless(JsonPrimitive::isString)?.longOrNull
+            ?: error("Dispatch assignment metadata number is invalid")
+
+    private fun DispatchAssignmentIntent.sameCommand(other: DispatchAssignmentIntent): Boolean =
+        scope == other.scope && fulfillmentId == other.fulfillmentId &&
+            expectedFulfillmentVersion == other.expectedFulfillmentVersion &&
+            physicalAllocationId == other.physicalAllocationId &&
+            physicalAllocationVersion == other.physicalAllocationVersion &&
+            responsibleMembershipId == other.responsibleMembershipId &&
+            idempotencyKey == other.idempotencyKey
+
+    private fun DispatchAssignmentScopeIdentity.toLocal() =
+        ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
+
+    private fun mutex(scope: DispatchAssignmentScopeIdentity): Mutex =
+        locks.computeIfAbsent(scope) { Mutex() }
+
+    private companion object {
+        const val SCHEMA_VERSION = 1L
+        const val MAX_PENDING_INTENTS = 32
+        val locks = ConcurrentHashMap<DispatchAssignmentScopeIdentity, Mutex>()
+    }
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+internal object AppDispatchAssignmentMetadataBindings {
+    @Provides
+    @Singleton
+    fun dispatchAssignmentMetadataStore(
+        @ApplicationContext context: Context
+    ): DispatchAssignmentMetadataStore = AppDispatchAssignmentMetadataStore(
+        AndroidScopedMetadataStore(context, ScopedMetadataPurpose.DispatchAssignment)
+    )
+}
