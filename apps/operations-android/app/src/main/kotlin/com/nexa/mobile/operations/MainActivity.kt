@@ -875,7 +875,7 @@ private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHi
 
 
 private val CONNECTED_OPERATIONS = listOf(
-    ConnectedOperationEntry("commercial.customers", "Clientes y compradores", setOf("sales.read")),
+    ConnectedOperationEntry("commercial.customers", "Clientes y compradores", setOf("client.read", "sales:read")),
     ConnectedOperationEntry("warehouse.temperature", "Registrar temperatura", setOf("inventory.receive")),
     ConnectedOperationEntry("dispatch.readiness", "Preparación de despacho", setOf("dispatch.read")),
     ConnectedOperationEntry(
