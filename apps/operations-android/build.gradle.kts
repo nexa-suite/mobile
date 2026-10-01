@@ -94,6 +94,22 @@ tasks.register("verifyAndroidArchitecture") {
                             it.contains("ProtectedMethod.$method")
                         }) { "Dispatch readiness transport must remain read-only" }
                         it.replace("/api/v1/dispatch-readiness", "<dispatch-readiness-read-route>")
+                    } else if (source.name == "NexaDispatchAssignmentGateway.kt") {
+                        check(it.contains("DISPATCH_ASSIGNEES_PATH = \"/api/v1/dispatch-assignees\"")) {
+                            "Dispatch assignment must use current authorized assignee projection"
+                        }
+                        check(listOf("PUT", "PATCH", "DELETE").none { method -> it.contains("ProtectedMethod.$method") }) {
+                            "Assignment transport must preserve append-only plan changes"
+                        }
+                        it.replace("/api/v1/dispatch-assignees", "<authorized-assignee-read-route>")
+                    } else if (source.name == "NexaFulfillmentDispatchGateway.kt") {
+                        check(it.contains("FULFILLMENT_DISPATCH_BASE = \"/api/v1/fulfillments\"")) {
+                            "Warehouse departure must use the canonical Fulfillment transition"
+                        }
+                        check(listOf("PUT", "PATCH", "DELETE").none { method -> it.contains("ProtectedMethod.$method") }) {
+                            "Warehouse departure transport must not introduce unrelated mutations"
+                        }
+                        it.replace("/dispatches", "<warehouse-departure-route>")
                     } else if (source.name == "NexaSkuIdentifierGateway.kt") {
                         check(it.contains("SKU_RESOLUTION_PATH = \"/api/v1/skus/resolve\"")) {
                             "SKU resolver route must remain the exact approved endpoint"
@@ -146,6 +162,30 @@ tasks.register("verifyAndroidArchitecture") {
                             it.contains("ProtectedMethod.$method")
                         }) { "Stock transfer transport must not add unrelated mutations" }
                         it.replace("/api/v1/inventory/transfers", "<protected-stock-transfer-route>")
+                    } else if (source.name == "NexaLotSubstitutionGateway.kt") {
+                        check(it.contains("/api/v1/inventory/physical-allocation-substitution-requests")) {
+                            "Lot substitution must use the canonical request-only inventory seam"
+                        }
+                        check(listOf("PUT", "PATCH", "DELETE").none { method ->
+                            it.contains("ProtectedMethod.$method")
+                        }) { "Lot substitution transport must not mutate stock or allocation directly" }
+                        it.replace("/api/v1/inventory/physical-allocation-substitution-requests", "<protected-lot-substitution-route>")
+                    } else if (source.name == "NexaInboundDiscrepancyGateway.kt") {
+                        check(it.contains("INBOUND_CASES_PATH = \"/api/v1/inventory/inbound-discrepancy-cases\"")) {
+                            "Receiving discrepancies must use the canonical observation-case seam"
+                        }
+                        check(listOf("PUT", "PATCH", "DELETE").none { method ->
+                            it.contains("ProtectedMethod.$method")
+                        }) { "Receiving evidence must not introduce stock or approval mutations" }
+                        it.replace("/api/v1/inventory/inbound-discrepancy-cases", "<protected-inbound-case-route>")
+                    } else if (source.name == "NexaDispatchHandoffIdentityGateway.kt") {
+                        check(it.contains("DISPATCH_HANDOFF_VALIDATE_PATH = \"/api/v1/delivery-handoff/validations\"")) {
+                            "Dispatch identity must use canonical bounded handoff validation"
+                        }
+                        check(listOf("PUT", "PATCH", "DELETE").none { method -> it.contains("ProtectedMethod.$method") }) {
+                            "Handoff identity must not introduce outcome or receipt mutations"
+                        }
+                        it.replace("/api/v1/delivery-handoff/validations", "<bounded-handoff-validation-route>")
                     } else if (source.name == "NexaCycleCountGateway.kt") {
                         check(listOf("/api/v1/inventory/lots", "/api/v1/inventory/cycle-counts", "/corrections").all(it::contains)) {
                             "Cycle counts must use scoped lot observations and explicit correction requests"

@@ -53,7 +53,9 @@ fun DriverDeliveryScreen(
     onUploadSelectedProofEvidence: () -> Unit = {},
     onRetryUnknownProof: () -> Unit = {},
     onRefreshProofEvidence: () -> Unit = {},
-    onAttachAvailableProofEvidence: () -> Unit = {}
+    onAttachAvailableProofEvidence: () -> Unit = {},
+    onOpenIncident: ((String, String, Long, Boolean) -> Unit)? = null,
+    onOpenHandoffCode: ((String, String, Long) -> Unit)? = null
 ) {
     var navigationUnavailable by remember { mutableStateOf(false) }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -404,6 +406,23 @@ fun DriverDeliveryScreen(
                         state = state,
                         onRecordOutcome = onRecordOutcome
                     )
+                }
+                if (onOpenHandoffCode != null && delivery.activeAttempt != null) {
+                    OutlinedButton(onClick = { onOpenHandoffCode(delivery.id, delivery.activeAttempt.id, delivery.version) },
+                        enabled = state.canRead && state.detailStatus == DriverDeliveryLoadStatus.Ready &&
+                            state.outcomeCommandStatus !in setOf(DriverOutcomeCommandStatus.Pending, DriverOutcomeCommandStatus.UnknownOutcome)) {
+                        Text("Presentar código de entrega")
+                    }
+                }
+                val incidentAttemptId = delivery.activeAttempt?.id ?: state.outcomeSummary
+                    ?.takeIf { state.outcomeCommandStatus == DriverOutcomeCommandStatus.Recorded && it.deliveryVersion == delivery.version }
+                    ?.attemptId
+                if (onOpenIncident != null && incidentAttemptId != null) {
+                    OutlinedButton(onClick = { onOpenIncident(delivery.id, incidentAttemptId, delivery.version, delivery.activeAttempt == null) },
+                        enabled = state.canRead && state.canStart && state.detailStatus == DriverDeliveryLoadStatus.Ready &&
+                            state.outcomeCommandStatus !in setOf(DriverOutcomeCommandStatus.Pending, DriverOutcomeCommandStatus.UnknownOutcome)) {
+                        Text("Registrar incidente para revisión")
+                    }
                 }
                 if (delivery.status == "DELIVERED" || state.proofId != null) {
                     ProofEntry(

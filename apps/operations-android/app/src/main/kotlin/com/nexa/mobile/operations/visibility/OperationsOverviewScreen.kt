@@ -34,7 +34,7 @@ fun OperationsOverviewScreen(state: DispatchReadinessUiState, tenantId: String, 
             Text("Hechos vigentes no disponibles. No se calculan totales ni decisiones.")
             return@Column
         }
-        if (exceptionsOnly) Text("Clasificación crítica y severidad no definidas en esta proyección. Cada bloqueo se muestra incompleto; no crea un estado de negocio.")
+        if (exceptionsOnly) Text("Product define WARNING, BLOCKING y CRITICAL. Esta proyección no incluye clasificación, responsable ni lifecycle de Operational Exception; muestra bloqueos del trabajo sin inventar esas decisiones.")
         val items = if (exceptionsOnly) state.items.filter { !it.ready || it.reasons.isNotEmpty() } else state.items
         if (items.isEmpty()) Text("Sin elementos en esta proyección. No implica ausencia de excepciones en otros procesos.")
         items.forEach { item -> Card { Column(androidx.compose.ui.Modifier.padding(12.dp)) {
@@ -43,7 +43,7 @@ fun OperationsOverviewScreen(state: DispatchReadinessUiState, tenantId: String, 
             Text("Estado servidor: ${item.fulfillmentStatus}; listo: ${item.ready}")
             Text("Hechos: ${item.asOf}; versión ${item.fulfillmentVersion}; asignación física ${item.physicalAllocationVersion}")
             if (item.reasons.isNotEmpty()) Text("Bloqueos del servidor: ${item.reasons.joinToString()}")
-            if (exceptionsOnly) Text("Severidad: no disponible. Propietario del trabajo: Fulfillment & Delivery.")
+            if (exceptionsOnly) Text("Clasificación de excepción no proyectada. Propietario del trabajo: Fulfillment & Delivery.")
             TextButton(onClick = { onOpenOwningWork(item.fulfillmentId) }) { Text("Abrir preparación autorizada") }
         } } }
     }

@@ -43,7 +43,8 @@ fun DispatchAssignmentScreen(
     onAssign: () -> Unit,
     onReplay: () -> Unit,
     onRouteClosed: () -> Unit,
-    onChangePlan: (() -> Unit)? = null
+    onChangePlan: (() -> Unit)? = null,
+    onIdentifyHandoff: (() -> Unit)? = null
 ) {
     val closeAction = rememberUpdatedState(onRouteClosed)
     DisposableEffect(Unit) {
@@ -144,6 +145,12 @@ fun DispatchAssignmentScreen(
             state.assignment?.let { assignment ->
                 item {
                     AssignmentFactCard(assignment)
+                }
+                if (onIdentifyHandoff != null && assignment.current && assignment.deliveryId != null &&
+                    state.status == DispatchAssignmentStatus.Current && state.pendingIntent == null) {
+                    item {
+                        OutlinedButton(onClick = onIdentifyHandoff) { Text("Identificar traspaso preparado") }
+                    }
                 }
                 if (onChangePlan != null) {
                     item {

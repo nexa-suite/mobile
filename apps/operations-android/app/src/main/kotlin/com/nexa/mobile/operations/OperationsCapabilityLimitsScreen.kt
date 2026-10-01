@@ -22,7 +22,7 @@ internal fun OperationsCapabilityLimitsScreen(driver: Boolean, onBack: () -> Uni
         TextButton(onClick = onBack) { Text("Volver") }
         Text(if (driver) "Privacidad y coordinación de entrega" else "Identidad, cargas y responsabilidad",
             style = MaterialTheme.typography.headlineSmall)
-        Text("Estas acciones requieren una política aceptada. No se comparte ubicación, inicia contacto, emite código ni cambia responsabilidad desde esta pantalla.")
+        Text("Las decisiones de Product están registradas. Esta pantalla explica funciones excluidas o contratos API pendientes; no registra resultados empresariales.")
         limitations.forEach { (title, missing) ->
             Text(title, style = MaterialTheme.typography.titleMedium)
             Text("No disponible: $missing")
@@ -33,19 +33,19 @@ internal fun OperationsCapabilityLimitsScreen(driver: Boolean, onBack: () -> Uni
 
 private val DRIVER_LIMITATIONS = listOf(
     "Compartir ubicación de entrega (MOB-US-029)" to
-        "Falta política aceptada de consentimiento, destinatarios, frecuencia y retención. No se solicita ubicación ni se ejecuta seguimiento en segundo plano.",
+        "Driver requiere ubicación durante su jornada operativa, nunca fuera de ella. Faltan contratos de jornada, ubicación vigente y acceso limitado; la duración exacta de retención sigue pendiente de Privacy/Security/Data Governance. Esta versión no simula seguimiento.",
     "Contactar al comprador (MOB-US-030)" to
-        "Faltan canal autorizado, consentimiento y registro de uso vinculados a la asignación actual. No se muestran datos personales inferidos desde otros clientes.",
-    "Código de entrega (MOB-US-034)" to
-        "Faltan duración, uso único, autoridad de verificación y alternativa aprobada vinculados a Delivery y Attempt. Un código de recibo de Buyer no sustituye este mecanismo.",
+        "El chat de Nexa está reservado exclusivamente a Sales y Buyer. Driver y Buyer no tienen un canal de chat autorizado en este alcance; no se habilitan WhatsApp, SMS ni datos personales inferidos.",
+    "Alternativa al código de entrega (MOB-US-034)" to
+        "La emisión usa el contrato vigente de Delivery y Attempt y requiere logistics:write. El código permanece solo en memoria; una respuesta repetida sin secreto no permite recuperarlo. La alternativa operativa aprobada aún no está proyectada. Verificar el código no registra recepción ni resultado de entrega.",
     "Instrucciones y contacto vigente (MOB-US-063)" to
-        "Faltan instrucciones y contactos permitidos proyectados para el conductor, con versión y confirmación de vigencia. La dirección autorizada sigue disponible en la entrega."
+        "Product acepta instrucciones actuales durante asignación y entrega activa, con reconocimiento versionado obligatorio para instrucciones críticas. Falta esa proyección y contrato de reconocimiento. La dirección autorizada sigue disponible; chat solo Sales y Buyer."
 )
 private val DISPATCH_LIMITATIONS = listOf(
-    "Identificar traspaso (MOB-US-024)" to
-        "Faltan mecanismo de identidad acotada, vigencia y verificación de Delivery y asignación. La evidencia de salida existente conserva esas referencias, pero no emite una identidad temporal.",
+    "Alcance de identidad de traspaso (MOB-US-024)" to
+        "La identidad requiere Delivery autoritativa y asignación vigente. No crea una Delivery cuando falta esa relación. Resolver un código no registra aceptación bilateral, salida de stock, resultado Driver ni recepción Buyer.",
     "Cargas agrupadas y paradas (MOB-US-059)" to
-        "Faltan reglas aceptadas de compatibilidad entre clientes y cadena de frío, formación de carga y orden de paradas. No se presenta agrupación local como plan del servidor.",
+        "Product acepta origen común, ventanas compatibles, mismo rango térmico, handling/capacidad compatibles y restricciones explícitas. Falta contrato API de carga y esos hechos de compatibilidad; no se presenta agrupación local como plan del servidor.",
     "Traspaso al transportista (MOB-US-060)" to
-        "Faltan identidad y autoridad del transportista, requisitos de evidencia y transición de responsabilidad sobre la carga. Asignar un conductor no confirma este traspaso."
+        "Product requiere confirmación de Dispatch y aceptación explícita de la carga completa por Driver con Membership autorizada. Falta contrato API para ambos hechos; asignación y evidencia de salida no equivalen a aceptación bilateral. Acceso directo de 3PL externo está diferido."
 )
