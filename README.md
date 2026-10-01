@@ -1,6 +1,6 @@
 # Nexa Operations Android
 
-This repository contains the Nexa Operations Android client. The Android project is in [`apps/operations-android`](apps/operations-android). It preserves the native session and protected HTTP foundation and implements the client UI for access, context selection, Operations work entry, manual product search, and confirmed SKU review.
+This repository contains the Nexa Operations Android client. The Android project is in [`apps/operations-android`](apps/operations-android). It preserves the native session and protected HTTP foundation and implements the client UI for access and context selection, permission-gated warehouse and dispatch work, and current Driver delivery operations.
 
 ## Toolchain
 
@@ -21,6 +21,8 @@ Install JDK 17, Android SDK package `platforms;android-37.0`, and `build-tools;3
 | `:core:designsystem` | Nexa Compose theme and the reusable primitives used by Operations |
 | `:feature:access` | Access and workforce-context UI state, ViewModel, and screens |
 | `:feature:warehouse` | Operations work entry, manual search, and confirmed SKU UI state and screens |
+| `:feature:dispatch` | Dispatch assignment, readiness, handover, and outbound operational screens |
+| `:feature:delivery` | Current Driver delivery, attempt, arrival, outcome, proof, incident, and handoff UI |
 
 The API owns authentication, Tenant and Workspace authorization, and business outcomes. Client state and permission hints never grant server authority. The current Wave 4 identity and Catalog checkpoint is verified against Nexa API v0.19.0 (`89ff511c30976cbb1734ab16ecd3fadac0651ed4`); every issued session is checked through `GET /api/v1/session` before the client enters `Active`. Production gateways also consume protected Catalog list/detail reads. Manual identification requires explicit search and candidate selection; only a current successful detail response creates a display-only confirmed SKU. The debug-only review activity uses visibly synthetic fixtures. These flows remain technical continuation work, not Product Acceptance. See [Wave 4 verification](docs/wave4-verification.md), [product boundaries](docs/operations-product-boundaries.md), [design adoption seams](docs/mobile-design-adoption.md), [foundation architecture](docs/android-foundation.md) and [native session security](docs/native-session.md).
 
