@@ -7,6 +7,10 @@ import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyScope
 import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyDraftStore
 import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyViewModel
 import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyScreen
+import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptGateway
+import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptMetadataStore
+import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptViewModel
+import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptScreen
 import com.nexa.mobile.operations.feature.warehouse.StockTransferAuthority
 import com.nexa.mobile.operations.feature.warehouse.StockTransferViewModel
 import com.nexa.mobile.operations.feature.warehouse.StockTransferScreen
@@ -133,6 +137,11 @@ class MainActivity : ComponentActivity() {
     private val fieldVisitViewModel: FieldVisitViewModel by viewModels { fieldVisitFactory }
     @Inject internal lateinit var inboundDiscrepancyStore: InboundDiscrepancyDraftStore
     private val inboundDiscrepancyViewModel: InboundDiscrepancyViewModel by viewModels { InboundDiscrepancyViewModelBindings.viewModelFactory(inboundDiscrepancyStore) }
+    @Inject internal lateinit var stockTransferReceiptGateway: StockTransferReceiptGateway
+    @Inject internal lateinit var stockTransferReceiptMetadataStore: StockTransferReceiptMetadataStore
+    private val stockTransferReceiptViewModel: StockTransferReceiptViewModel by viewModels {
+        StockTransferReceiptViewModelBindings.viewModelFactory(stockTransferReceiptGateway, stockTransferReceiptMetadataStore)
+    }
     @Inject internal lateinit var stockTransferBindings: StockTransferGatewayBindings
     private val stockTransferViewModel: StockTransferViewModel by viewModels { stockTransferBindings.viewModelFactory() }
     @Inject internal lateinit var dispatchAssignmentFactory: DispatchAssignmentViewModelFactory
@@ -227,6 +236,7 @@ class MainActivity : ComponentActivity() {
                 val temperatureEvidenceState by temperatureEvidenceViewModel.state.collectAsStateWithLifecycle()
                 val dispatchAssignmentState by dispatchAssignmentViewModel.state.collectAsStateWithLifecycle()
                 val inboundDiscrepancyState by inboundDiscrepancyViewModel.state.collectAsStateWithLifecycle()
+                val stockTransferReceiptState by stockTransferReceiptViewModel.state.collectAsStateWithLifecycle()
                 val stockTransferState by stockTransferViewModel.state.collectAsStateWithLifecycle()
                 val fieldVisitState by fieldVisitViewModel.state.collectAsStateWithLifecycle()
                 val businessDocumentsState by businessDocumentsViewModel.state.collectAsStateWithLifecycle()
@@ -529,6 +539,9 @@ class MainActivity : ComponentActivity() {
                                     "warehouse.inbound-discrepancy" -> inboundDiscrepancyViewModel.activate(InboundDiscrepancyAuthority(
                                         InboundDiscrepancyScope(authority.userId, authority.tenantId, authority.workspaceId, authority.membershipId),
                                         route.authorityEpoch))
+                                    "warehouse.transfer-receipt" -> stockTransferReceiptViewModel.activate(StockTransferAuthority(
+                                        authority.userId, authority.tenantId, authority.workspaceId, authority.membershipId,
+                                        authority.permissions, route.authorityEpoch))
                                     "warehouse.transfer" -> stockTransferViewModel.activate(StockTransferAuthority(
                                         authority.userId, authority.tenantId, authority.workspaceId, authority.membershipId,
                                         authority.permissions, route.authorityEpoch))
@@ -626,6 +639,16 @@ class MainActivity : ComponentActivity() {
                                 onRequestDiscard = inboundDiscrepancyViewModel::requestDiscard,
                                 onConfirmDiscard = inboundDiscrepancyViewModel::confirmDiscard,
                                 onCancelDiscard = inboundDiscrepancyViewModel::cancelDiscard
+                            )
+                            "warehouse.transfer-receipt" -> StockTransferReceiptScreen(
+                                state = stockTransferReceiptState, onBack = ::closeConnectedOperation,
+                                onReloadWarehouses = stockTransferReceiptViewModel::reloadWarehouses,
+                                onSelectDestinationWarehouse = stockTransferReceiptViewModel::selectDestinationWarehouse,
+                                onLoadMoreTransfers = stockTransferReceiptViewModel::loadMoreTransfers,
+                                onSelectTransfer = stockTransferReceiptViewModel::selectTransfer,
+                                onReceiveExpectedQuantity = stockTransferReceiptViewModel::receiveExpectedQuantity,
+                                onRetryUnknownOutcome = stockTransferReceiptViewModel::retryUnknownOutcome,
+                                onRetryIntentCleanup = stockTransferReceiptViewModel::retryIntentCleanup
                             )
                             "warehouse.transfer" -> StockTransferScreen(
                                 state = stockTransferState, onBack = ::closeConnectedOperation,
@@ -1107,6 +1130,7 @@ class MainActivity : ComponentActivity() {
         dispositionViewModel.deactivate()
         dispatchAssignmentViewModel.deactivate()
         inboundDiscrepancyViewModel.deactivate()
+        stockTransferReceiptViewModel.deactivate()
         stockTransferViewModel.deactivate()
         fieldVisitViewModel.deactivate()
         businessDocumentsViewModel.deactivate()
@@ -1202,6 +1226,7 @@ private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHi
 private val CONNECTED_OPERATIONS = listOf(
     ConnectedOperationEntry("dispatch.assignment", "Asignar desde preparación de despacho", setOf("dispatch.read"), visibleInHub = false),
     ConnectedOperationEntry("warehouse.inbound-discrepancy", "Discrepancia: borrador local", setOf("inventory.receive")),
+    ConnectedOperationEntry("warehouse.transfer-receipt", "Recibir traslado en destino", setOf("warehouse:write")),
     ConnectedOperationEntry("warehouse.transfer", "Traslado interno", setOf("warehouse:write")),
     ConnectedOperationEntry("commercial.visit", "Visita al cliente", setOf("client.read", "sales:read")),
     ConnectedOperationEntry("commercial.documents", "Documentos del cliente", setOf("document.read")),
