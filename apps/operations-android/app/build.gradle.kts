@@ -99,6 +99,7 @@ dependencies {
     implementation(project(":feature:access"))
     implementation(project(":feature:warehouse"))
     implementation(project(":feature:dispatch"))
+    implementation(project(":feature:delivery"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)

@@ -1,0 +1,36 @@
+<resources>
+    <string name="driver_delivery_back">Volver</string>
+    <string name="driver_delivery_title">Entregas asignadas</string>
+    <string name="driver_delivery_authority_note">La lista y el inicio de cada entrega se confirman con Nexa en línea. Una entrega solo está activa cuando el servicio devuelve el intento actual.</string>
+    <string name="driver_delivery_read_permission">No se pudo confirmar el permiso para consultar entregas asignadas.</string>
+    <string name="driver_delivery_start_permission">No se pudo confirmar el permiso para iniciar una entrega.</string>
+    <string name="driver_delivery_loading">Consultando asignaciones actuales…</string>
+    <string name="driver_delivery_not_found">La entrega ya no está asignada a este contexto o no existe.</string>
+    <string name="driver_delivery_network">No se pudo consultar Nexa. Conéctate y vuelve a actualizar.</string>
+    <string name="driver_delivery_service">Nexa no confirmó los datos de la entrega.</string>
+    <string name="driver_delivery_context">Cambió el contexto de trabajo. Selecciona de nuevo un contexto autorizado.</string>
+    <string name="driver_delivery_session">La sesión dejó de estar disponible. Inicia sesión otra vez.</string>
+    <string name="driver_delivery_refresh">Actualizar asignaciones</string>
+    <string name="driver_delivery_empty">Nexa no devolvió entregas actuales para este conductor.</string>
+    <string name="driver_delivery_destination_unknown">Destino no informado</string>
+    <string name="driver_delivery_status">Estado informado por Nexa: %1$s</string>
+    <string name="driver_delivery_active_attempt">Intento activo · %1$d</string>
+    <string name="driver_delivery_detail_title">Detalle actual</string>
+    <string name="driver_delivery_scheduled">Programada: %1$s</string>
+    <string name="driver_delivery_attempt_active">Nexa confirmó un intento activo</string>
+    <string name="driver_delivery_attempt_number">Intento %1$d</string>
+    <string name="driver_delivery_attempt_id">ID del intento: %1$s</string>
+    <string name="driver_delivery_attempt_started">Inicio informado: %1$s</string>
+    <string name="driver_delivery_detail_loading">Consultando el detalle asignado vigente…</string>
+    <string name="driver_delivery_checking">Confirmando la asignación actual antes de comenzar…</string>
+    <string name="driver_delivery_persisting">Guardando la clave y la versión exactas antes de enviar el inicio…</string>
+    <string name="driver_delivery_start_pending">Enviando el inicio a Nexa…</string>
+    <string name="driver_delivery_unknown">Nexa no confirmó el inicio. No se muestra como activo. Actualiza el detalle o repite el mismo intento.</string>
+    <string name="driver_delivery_retry_same">Repetir el mismo inicio</string>
+    <string name="driver_delivery_storage_unavailable">No se pudo confirmar el registro local del mismo inicio. No se creará otra clave; vuelve a intentarlo cuando el almacenamiento esté disponible.</string>
+    <string name="driver_delivery_started">Nexa confirmó el intento activo para esta entrega.</string>
+    <string name="driver_delivery_rejected">Nexa rechazó el inicio. Actualiza la asignación antes de volver a intentar.</string>
+    <string name="driver_delivery_rejected_code">Nexa rechazó el inicio (%1$s).</string>
+    <string name="driver_delivery_stale">La entrega cambió. Actualiza su detalle antes de comenzar.</string>
+    <string name="driver_delivery_begin">Comenzar entrega</string>
+</resources>

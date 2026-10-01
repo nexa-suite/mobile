@@ -24,5 +24,6 @@ include(
     ":core:device",
     ":feature:access",
     ":feature:warehouse",
-    ":feature:dispatch"
+    ":feature:dispatch",
+    ":feature:delivery"
 )
