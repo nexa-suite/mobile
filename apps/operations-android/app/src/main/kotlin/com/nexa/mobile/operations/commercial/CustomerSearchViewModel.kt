@@ -16,7 +16,7 @@ data class CommercialAuthority(
     val permissions: Set<String>,
     val authorityEpoch: Long
 ) {
-    val canReadCustomers: Boolean get() = authorityEpoch > 0 && "sales.read" in permissions &&
+    val canReadCustomers: Boolean get() = authorityEpoch > 0 && permissions.any { it == "client.read" || it == "sales:read" } &&
         listOf(userId, tenantId, workspaceId, membershipId).none(String::isBlank)
     override fun toString(): String = "CommercialAuthority(REDACTED)"
 }

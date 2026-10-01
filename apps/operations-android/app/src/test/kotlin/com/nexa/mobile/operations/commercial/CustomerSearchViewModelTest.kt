@@ -14,7 +14,7 @@ import org.junit.Test
 class CustomerSearchViewModelTest {
     @get:Rule val dispatcher = MainDispatcherRule()
     private val customer = CustomerRelationship("id", "C1", "Customer", null, false, true, 2)
-    private fun authority(permissions: Set<String> = setOf("sales.read")) =
+    private fun authority(permissions: Set<String> = setOf("client.read")) =
         CommercialAuthority("u", "t", "w", "m", permissions, 7)
 
     @Test fun suspendedRelationshipRemainsExplicitAndHasNoCommercialMutation() = runTest {
