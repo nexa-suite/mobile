@@ -27,7 +27,7 @@ internal class OperationsBusinessDocumentsGateway @Inject constructor(private va
         if (result !is ProtectedResult.Success) return failure(result)
         val body = Json.parseToJsonElement(result.body ?: "").jsonObject
         val items = body.getValue("items").jsonArray.map { identity(it.jsonObject) ?: return BusinessDocumentsResult.Unavailable }
-        return BusinessDocumentsResult.Page(items, body.getValue("totalItems").jsonPrimitive.long.also { require(it >= items.size) })
+        return BusinessDocumentsResult.Page(items, body.getValue("total").jsonPrimitive.long.also { require(it >= items.size) })
     }
     override suspend fun content(authority: CommercialAuthority, id: String): BusinessDocumentsResult {
         if (runCatching { UUID.fromString(id) }.isFailure || !current(authority, "document.read") ||
