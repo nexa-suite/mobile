@@ -25,7 +25,8 @@ import com.nexa.mobile.operations.R
 @Composable
 fun CustomerProgressScreen(state: CustomerProgressState, onBack: () -> Unit,
     onCustomerIdChanged: (String) -> Unit, onCurrencyChanged: (String) -> Unit, onRefresh: () -> Unit,
-    onPreviousPage: () -> Unit, onNextPage: () -> Unit, onRouteClosed: () -> Unit) {
+    onPreviousPage: () -> Unit, onNextPage: () -> Unit, onRouteClosed: () -> Unit,
+    onOpenDeliveryInstructions: ((String) -> Unit)? = null) {
     val close = rememberUpdatedState(onRouteClosed)
     DisposableEffect(Unit) { onDispose { close.value() } }
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -50,6 +51,9 @@ fun CustomerProgressScreen(state: CustomerProgressState, onBack: () -> Unit,
                         Text("${order.total} ${order.currency}")
                         Text(stringResource(R.string.customer_version, order.version))
                         Text(stringResource(R.string.progress_source_time, order.updatedAt))
+                        onOpenDeliveryInstructions?.let { open ->
+                            TextButton(onClick = { open(order.id) }) { Text("Instrucciones de entrega") }
+                        }
                     }
                 }
             }

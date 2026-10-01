@@ -87,7 +87,10 @@ internal class OperationsDriverDeliveryInstructionsGateway @Inject constructor(
                                 critical = row.critical,
                                 acknowledged = row.acknowledged,
                                 acknowledgedAt = row.acknowledgedAt,
-                                acknowledgedByMembershipId = row.acknowledgedByMembershipId
+                                acknowledgedByMembershipId = row.acknowledgedByMembershipId,
+                                sourceKind = row.sourceKind,
+                                recordedByMembershipId = row.recordedByMembershipId,
+                                recordedAt = row.recordedAt
                             )
                         }
                     )

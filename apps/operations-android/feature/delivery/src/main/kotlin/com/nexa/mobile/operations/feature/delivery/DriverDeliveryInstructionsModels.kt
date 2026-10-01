@@ -26,7 +26,10 @@ data class DriverDeliveryInstruction(
     val critical: Boolean,
     val acknowledged: Boolean,
     val acknowledgedAt: String?,
-    val acknowledgedByMembershipId: String?
+    val acknowledgedByMembershipId: String?,
+    val sourceKind: String? = null,
+    val recordedByMembershipId: String? = null,
+    val recordedAt: String? = null
 ) {
     init {
         require(instructionUuidPattern.matches(id))

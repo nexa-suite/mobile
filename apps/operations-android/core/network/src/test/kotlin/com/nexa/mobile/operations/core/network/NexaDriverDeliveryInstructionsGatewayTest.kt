@@ -106,6 +106,22 @@ class NexaDriverDeliveryInstructionsGatewayTest {
         }
     }
 
+    @Test
+    fun sourceProvenanceRequiresRealActorAndTimestampWhenPresent() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val sourced = instructionsResponse().replace("\"acknowledged\":false",
+                "\"acknowledged\":false,\"sourceKind\":\"BUYER\",\"recordedByMembershipId\":\"$MEMBERSHIP_ID\",\"recordedAt\":\"2026-10-01T17:30:00Z\"")
+            server.enqueue(MockResponse().setResponseCode(200).setHeader("ETag", "\"7\"").setBody(sourced))
+            val valid = gateway(server).currentInstructions(DELIVERY_ID) as DriverDeliveryInstructionsNetworkOutcome.Loaded
+            assertEquals("BUYER", valid.value.instructions.first().sourceKind)
+            assertEquals(MEMBERSHIP_ID, valid.value.instructions.first().recordedByMembershipId)
+            server.enqueue(MockResponse().setResponseCode(200).setHeader("ETag", "\"7\"")
+                .setBody(sourced.replace("2026-10-01T17:30:00Z", "unverified")))
+            assertEquals(DriverDeliveryInstructionsNetworkOutcome.ServiceUnavailable, gateway(server).currentInstructions(DELIVERY_ID))
+        }
+    }
+
     private fun gateway(server: MockWebServer) = NexaDriverDeliveryInstructionsGateway(
         ProtectedCallExecutor(
             ApiEndpoint(server.url("/").toString()),

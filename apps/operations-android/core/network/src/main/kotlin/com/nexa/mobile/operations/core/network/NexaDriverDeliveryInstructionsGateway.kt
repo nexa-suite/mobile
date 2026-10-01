@@ -26,7 +26,10 @@ data class DriverDeliveryInstructionTransport(
     val critical: Boolean,
     val acknowledged: Boolean,
     val acknowledgedAt: String?,
-    val acknowledgedByMembershipId: String?
+    val acknowledgedByMembershipId: String?,
+    val sourceKind: String? = null,
+    val recordedByMembershipId: String? = null,
+    val recordedAt: String? = null
 )
 
 data class DriverDeliveryInstructionsTransport(
@@ -168,6 +171,14 @@ class NexaDriverDeliveryInstructionsGateway(private val protectedCalls: Protecte
         val acknowledged = requiredBoolean("acknowledged") ?: return null
         val acknowledgedAt = optionalText("acknowledgedAt")
         val acknowledgedBy = optionalText("acknowledgedByMembershipId")
+        val sourceKind = optionalText("sourceKind")
+        val recordedBy = optionalText("recordedByMembershipId")
+        val recordedAt = optionalText("recordedAt")
+        val hasSource = listOf(sourceKind, recordedBy, recordedAt).any { it != null }
+        if (hasSource && (sourceKind !in setOf("BUYER", "CUSTOMER_REPORTED_BY_SALES", "OPERATIONAL_DISPATCH") ||
+                recordedBy == null || !instructionTransportUuid.matches(recordedBy) ||
+                recordedAt == null || !recordedAt.isIsoInstant())) return null
+
         val acknowledgementFactsValid = if (acknowledged) {
             !acknowledgedAt.isNullOrBlank() && !acknowledgedBy.isNullOrBlank() &&
                 acknowledgedAt.isIsoInstant()
@@ -180,7 +191,8 @@ class NexaDriverDeliveryInstructionsGateway(private val protectedCalls: Protecte
             (acknowledgedBy != null && !instructionTransportUuid.matches(acknowledgedBy))
         ) return null
         DriverDeliveryInstructionTransport(
-            id, kind, content, instructionVersion, critical, acknowledged, acknowledgedAt, acknowledgedBy
+            id, kind, content, instructionVersion, critical, acknowledged, acknowledgedAt, acknowledgedBy,
+            sourceKind, recordedBy, recordedAt
         )
     } catch (_: Exception) {
         null

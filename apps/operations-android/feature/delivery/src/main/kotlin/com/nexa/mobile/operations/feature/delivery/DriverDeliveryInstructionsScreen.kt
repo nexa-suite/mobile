@@ -214,6 +214,11 @@ private fun InstructionCard(
                 fontWeight = FontWeight.SemiBold
             )
             Text(instruction.content)
+            instruction.sourceKind?.let { source ->
+                Text(stringResource(R.string.driver_instruction_source, source,
+                    instruction.recordedByMembershipId.orEmpty(), instruction.recordedAt.orEmpty()),
+                    style = MaterialTheme.typography.labelMedium)
+            }
             Text(
                 stringResource(R.string.driver_instruction_revision, instruction.instructionVersion),
                 style = MaterialTheme.typography.labelMedium,
