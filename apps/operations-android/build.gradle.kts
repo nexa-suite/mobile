@@ -76,7 +76,7 @@ tasks.register("verifyAndroidArchitecture") {
                         ) { "Catalog identification adapter must use protected reads only" }
                         it.replace("\"/api/v1/catalog-items\"", "\"<catalog-read-route>\"")
                     } else if (source.name == "NexaCommercialCatalogGateway.kt") {
-                        check(it.contains("COMMERCIAL_CATALOG_PATH = \"/api/v1/catalog-items\"")) {
+                        check(it.contains("COMMERCIAL_CATALOG_PATH = \"/api/v1/client-accounts\"")) {
                             "Commercial catalog must use the canonical protected projection"
                         }
                         check(listOf("POST", "PUT", "PATCH", "DELETE").none { method ->
