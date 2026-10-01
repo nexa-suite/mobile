@@ -331,6 +331,10 @@ internal class PickingGatewayBindings @Inject constructor(
 internal object PickingGatewayModule {
     @Provides
     @Singleton
+    fun featurePickingGateway(implementation: OperationsPickingGateway): PickingGateway = implementation
+
+    @Provides
+    @Singleton
     fun pickingGateway(
         protectedCalls: com.nexa.mobile.operations.core.network.ProtectedCallExecutor
     ) = NexaPickingGateway(protectedCalls)
