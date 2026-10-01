@@ -612,6 +612,16 @@ class MainActivity : ComponentActivity() {
                                 onPreviousPage = customerSearchViewModel::previousPage,
                                 onNextPage = customerSearchViewModel::nextPage,
                                 onRouteClosed = customerSearchViewModel::deactivate,
+                                onPrepareRequest = { customerId ->
+                                    val entry = CONNECTED_OPERATIONS.single { it.key == "commercial.request" }
+                                    ConnectedOperationsNavigation.open(entry, state, accessState, warehouseState)?.let { route ->
+                                        closeConnectedOperation()
+                                        connectedRoute = route
+                                        val authority = route.authority
+                                        fieldRequestViewModel.activate(CommercialAuthority(authority.userId, authority.tenantId,
+                                            authority.workspaceId, authority.membershipId, authority.permissions, route.authorityEpoch), customerId)
+                                    }
+                                },
                                 onReviewProducts = if (accessState.activeContext?.verifiedAuthority?.permissions
                                     ?.any { it == "catalog.read" || it == "catalog:read" } == true
                                 ) { customerId ->
