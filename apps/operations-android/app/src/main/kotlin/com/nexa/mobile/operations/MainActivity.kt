@@ -1,5 +1,7 @@
 package com.nexa.mobile.operations
 
+import com.nexa.mobile.operations.commercial.BusinessDocumentsViewModel
+import com.nexa.mobile.operations.commercial.BusinessDocumentsScreen
 import com.nexa.mobile.operations.visibility.OperationsOverviewScreen
 import com.nexa.mobile.operations.commercial.FieldRequestViewModel
 import com.nexa.mobile.operations.commercial.FieldRequestScreen
@@ -113,6 +115,8 @@ class MainActivity : ComponentActivity() {
     private val driverDeliveryViewModel: DriverDeliveryViewModel by viewModels { driverDeliveryBindings.viewModelFactory() }
     @Inject internal lateinit var fieldRequestFactory: FieldRequestViewModelFactory
     private val fieldRequestViewModel: FieldRequestViewModel by viewModels { fieldRequestFactory }
+    @Inject internal lateinit var businessDocumentsFactory: BusinessDocumentsViewModelFactory
+    private val businessDocumentsViewModel: BusinessDocumentsViewModel by viewModels { businessDocumentsFactory }
     private var pendingDispositionLot by mutableStateOf<String?>(null)
     private var connectedRoute by mutableStateOf<ConnectedOperationRoute?>(null)
     private var pickingReference by mutableStateOf("")
@@ -201,6 +205,7 @@ class MainActivity : ComponentActivity() {
                 val customerProgressState by customerProgressViewModel.state.collectAsStateWithLifecycle()
                 val customerSearchState by customerSearchViewModel.state.collectAsStateWithLifecycle()
                 val temperatureEvidenceState by temperatureEvidenceViewModel.state.collectAsStateWithLifecycle()
+                val businessDocumentsState by businessDocumentsViewModel.state.collectAsStateWithLifecycle()
                 val fieldRequestState by fieldRequestViewModel.state.collectAsStateWithLifecycle()
                 val driverDeliveryState by driverDeliveryViewModel.state.collectAsStateWithLifecycle()
                 val dispatchReadinessState by dispatchReadinessViewModel.state.collectAsStateWithLifecycle()
@@ -497,6 +502,9 @@ class MainActivity : ComponentActivity() {
                                 connectedRoute = route
                                 val authority = route.authority
                                 when (entry.key) {
+                                    "commercial.documents" -> businessDocumentsViewModel.activate(CommercialAuthority(
+                                        authority.userId, authority.tenantId, authority.workspaceId, authority.membershipId,
+                                        authority.permissions, route.authorityEpoch))
                                     "commercial.request" -> fieldRequestViewModel.activate(CommercialAuthority(
                                         authority.userId, authority.tenantId, authority.workspaceId, authority.membershipId,
                                         authority.permissions, route.authorityEpoch))
@@ -563,6 +571,10 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             )
+                            "commercial.documents" -> BusinessDocumentsScreen(businessDocumentsState, ::closeConnectedOperation,
+                                businessDocumentsViewModel::refresh, businessDocumentsViewModel::previousPage,
+                                businessDocumentsViewModel::nextPage, businessDocumentsViewModel::open,
+                                businessDocumentsViewModel::closeContent)
                             "commercial.request" -> FieldRequestScreen(fieldRequestState, ::closeConnectedOperation, fieldRequestViewModel)
                             "driver.deliveries" -> DriverDeliveryScreen(
                                 state = driverDeliveryState, onBack = ::closeConnectedOperation,
@@ -970,6 +982,7 @@ class MainActivity : ComponentActivity() {
         pendingDispositionLot = null
         connectedRoute = null
         dispositionViewModel.deactivate()
+        businessDocumentsViewModel.deactivate()
         fieldRequestViewModel.deactivate()
         driverDeliveryViewModel.invalidate()
         dispatchReadinessViewModel.deactivate()
@@ -1060,6 +1073,7 @@ private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHi
 
 
 private val CONNECTED_OPERATIONS = listOf(
+    ConnectedOperationEntry("commercial.documents", "Documentos del cliente", setOf("document.read")),
     ConnectedOperationEntry("operations.overview", "Vista operativa", setOf("dispatch.read")),
     ConnectedOperationEntry("operations.exceptions", "Trabajo bloqueado", setOf("dispatch.read")),
     ConnectedOperationEntry("commercial.request", "Preparar solicitud", setOf("client.read", "sales:read")),
