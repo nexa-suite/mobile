@@ -11,6 +11,11 @@ import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptGateway
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptMetadataStore
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptViewModel
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptScreen
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsGateway
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsViewModel
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsScreen
+import com.nexa.mobile.operations.feature.dispatch.DispatchReadinessDetailStatus
 import com.nexa.mobile.operations.feature.warehouse.StockTransferAuthority
 import com.nexa.mobile.operations.feature.warehouse.StockTransferViewModel
 import com.nexa.mobile.operations.feature.warehouse.StockTransferScreen
@@ -142,6 +147,11 @@ class MainActivity : ComponentActivity() {
     private val stockTransferReceiptViewModel: StockTransferReceiptViewModel by viewModels {
         StockTransferReceiptViewModelBindings.viewModelFactory(stockTransferReceiptGateway, stockTransferReceiptMetadataStore)
     }
+    @Inject internal lateinit var dispatchOutgoingGoodsGateway: DispatchOutgoingGoodsGateway
+    @Inject internal lateinit var dispatchOutgoingGoodsMetadataStore: DispatchOutgoingGoodsMetadataStore
+    private val dispatchOutgoingGoodsViewModel: DispatchOutgoingGoodsViewModel by viewModels {
+        DispatchOutgoingGoodsViewModelFactory(dispatchOutgoingGoodsGateway, dispatchOutgoingGoodsMetadataStore)
+    }
     @Inject internal lateinit var stockTransferBindings: StockTransferGatewayBindings
     private val stockTransferViewModel: StockTransferViewModel by viewModels { stockTransferBindings.viewModelFactory() }
     @Inject internal lateinit var dispatchAssignmentFactory: DispatchAssignmentViewModelFactory
@@ -237,6 +247,7 @@ class MainActivity : ComponentActivity() {
                 val dispatchAssignmentState by dispatchAssignmentViewModel.state.collectAsStateWithLifecycle()
                 val inboundDiscrepancyState by inboundDiscrepancyViewModel.state.collectAsStateWithLifecycle()
                 val stockTransferReceiptState by stockTransferReceiptViewModel.state.collectAsStateWithLifecycle()
+                val dispatchOutgoingGoodsState by dispatchOutgoingGoodsViewModel.state.collectAsStateWithLifecycle()
                 val stockTransferState by stockTransferViewModel.state.collectAsStateWithLifecycle()
                 val fieldVisitState by fieldVisitViewModel.state.collectAsStateWithLifecycle()
                 val businessDocumentsState by businessDocumentsViewModel.state.collectAsStateWithLifecycle()
@@ -617,6 +628,15 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             )
+                            "dispatch.outgoing-goods" -> DispatchOutgoingGoodsScreen(
+                                state = dispatchOutgoingGoodsState, onBack = ::closeConnectedOperation,
+                                onRefresh = dispatchOutgoingGoodsViewModel::refresh,
+                                onObservedLotChanged = dispatchOutgoingGoodsViewModel::changeObservedLot,
+                                onObservedQuantityChanged = dispatchOutgoingGoodsViewModel::changeObservedQuantity,
+                                onRecord = dispatchOutgoingGoodsViewModel::record,
+                                onRetry = dispatchOutgoingGoodsViewModel::retryUnknownOutcome,
+                                onRouteClosed = dispatchOutgoingGoodsViewModel::deactivate
+                            )
                             "dispatch.assignment" -> DispatchAssignmentScreen(
                                 state = dispatchAssignmentState, onBack = ::closeConnectedOperation,
                                 onRefresh = dispatchAssignmentViewModel::refresh,
@@ -806,6 +826,24 @@ class MainActivity : ComponentActivity() {
                                 onSelectFulfillment = dispatchReadinessViewModel::selectFulfillment,
                                 onClearSelection = dispatchReadinessViewModel::clearSelection,
                                 onRouteClosed = dispatchReadinessViewModel::deactivate,
+                                onVerifyOutgoingGoods = if (connectedRoute?.authority?.permissions?.contains("fulfillment.manage") == true) {
+                                    { fulfillmentId ->
+                                        val detail = dispatchReadinessViewModel.state.value.detail
+                                        if (detail?.fulfillmentId == fulfillmentId &&
+                                            dispatchReadinessViewModel.state.value.detailStatus == DispatchReadinessDetailStatus.Current
+                                        ) {
+                                            val entry = CONNECTED_OPERATIONS.single { it.key == "dispatch.outgoing-goods" }
+                                            ConnectedOperationsNavigation.open(entry, state, accessState, warehouseState)?.let { route ->
+                                                closeConnectedOperation()
+                                                connectedRoute = route
+                                                val authority = route.authority
+                                                dispatchOutgoingGoodsViewModel.activate(detail, DispatchAuthorityContext(route.authorityEpoch,
+                                                    DispatchAuthorityIdentity(authority.userId, authority.tenantId, authority.workspaceId,
+                                                        authority.membershipId, authority.permissions)))
+                                            }
+                                        }
+                                    }
+                                } else null,
                                 onAssignFulfillment = { fulfillmentId ->
                                     val entry = CONNECTED_OPERATIONS.single { it.key == "dispatch.assignment" }
                                     ConnectedOperationsNavigation.open(entry, state, accessState, warehouseState)?.let { route ->
@@ -1131,6 +1169,7 @@ class MainActivity : ComponentActivity() {
         dispatchAssignmentViewModel.deactivate()
         inboundDiscrepancyViewModel.deactivate()
         stockTransferReceiptViewModel.deactivate()
+        dispatchOutgoingGoodsViewModel.deactivate()
         stockTransferViewModel.deactivate()
         fieldVisitViewModel.deactivate()
         businessDocumentsViewModel.deactivate()
@@ -1227,6 +1266,7 @@ private val CONNECTED_OPERATIONS = listOf(
     ConnectedOperationEntry("dispatch.assignment", "Asignar desde preparación de despacho", setOf("dispatch.read"), visibleInHub = false),
     ConnectedOperationEntry("warehouse.inbound-discrepancy", "Discrepancia: borrador local", setOf("inventory.receive")),
     ConnectedOperationEntry("warehouse.transfer-receipt", "Recibir traslado en destino", setOf("warehouse:write")),
+    ConnectedOperationEntry("dispatch.outgoing-goods", "Verificar salida", setOf("fulfillment.manage"), visibleInHub = false),
     ConnectedOperationEntry("warehouse.transfer", "Traslado interno", setOf("warehouse:write")),
     ConnectedOperationEntry("commercial.visit", "Visita al cliente", setOf("client.read", "sales:read")),
     ConnectedOperationEntry("commercial.documents", "Documentos del cliente", setOf("document.read")),
