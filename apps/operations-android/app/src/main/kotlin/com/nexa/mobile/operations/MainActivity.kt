@@ -2,6 +2,11 @@ package com.nexa.mobile.operations
 
 import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentViewModel
 import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentScreen
+import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyAuthority
+import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyScope
+import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyDraftStore
+import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyViewModel
+import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyScreen
 import com.nexa.mobile.operations.feature.warehouse.StockTransferAuthority
 import com.nexa.mobile.operations.feature.warehouse.StockTransferViewModel
 import com.nexa.mobile.operations.feature.warehouse.StockTransferScreen
@@ -126,6 +131,8 @@ class MainActivity : ComponentActivity() {
     private val businessDocumentsViewModel: BusinessDocumentsViewModel by viewModels { businessDocumentsFactory }
     @Inject internal lateinit var fieldVisitFactory: FieldVisitViewModelFactory
     private val fieldVisitViewModel: FieldVisitViewModel by viewModels { fieldVisitFactory }
+    @Inject internal lateinit var inboundDiscrepancyStore: InboundDiscrepancyDraftStore
+    private val inboundDiscrepancyViewModel: InboundDiscrepancyViewModel by viewModels { InboundDiscrepancyViewModelBindings.viewModelFactory(inboundDiscrepancyStore) }
     @Inject internal lateinit var stockTransferBindings: StockTransferGatewayBindings
     private val stockTransferViewModel: StockTransferViewModel by viewModels { stockTransferBindings.viewModelFactory() }
     @Inject internal lateinit var dispatchAssignmentFactory: DispatchAssignmentViewModelFactory
@@ -219,6 +226,7 @@ class MainActivity : ComponentActivity() {
                 val customerSearchState by customerSearchViewModel.state.collectAsStateWithLifecycle()
                 val temperatureEvidenceState by temperatureEvidenceViewModel.state.collectAsStateWithLifecycle()
                 val dispatchAssignmentState by dispatchAssignmentViewModel.state.collectAsStateWithLifecycle()
+                val inboundDiscrepancyState by inboundDiscrepancyViewModel.state.collectAsStateWithLifecycle()
                 val stockTransferState by stockTransferViewModel.state.collectAsStateWithLifecycle()
                 val fieldVisitState by fieldVisitViewModel.state.collectAsStateWithLifecycle()
                 val businessDocumentsState by businessDocumentsViewModel.state.collectAsStateWithLifecycle()
@@ -518,6 +526,9 @@ class MainActivity : ComponentActivity() {
                                 connectedRoute = route
                                 val authority = route.authority
                                 when (entry.key) {
+                                    "warehouse.inbound-discrepancy" -> inboundDiscrepancyViewModel.activate(InboundDiscrepancyAuthority(
+                                        InboundDiscrepancyScope(authority.userId, authority.tenantId, authority.workspaceId, authority.membershipId),
+                                        route.authorityEpoch))
                                     "warehouse.transfer" -> stockTransferViewModel.activate(StockTransferAuthority(
                                         authority.userId, authority.tenantId, authority.workspaceId, authority.membershipId,
                                         authority.permissions, route.authorityEpoch))
@@ -600,6 +611,21 @@ class MainActivity : ComponentActivity() {
                                 onAssign = dispatchAssignmentViewModel::assign,
                                 onReplay = dispatchAssignmentViewModel::retryUnknownOutcome,
                                 onRouteClosed = dispatchAssignmentViewModel::deactivate
+                            )
+                            "warehouse.inbound-discrepancy" -> InboundDiscrepancyScreen(
+                                state = inboundDiscrepancyState, onBack = ::closeConnectedOperation,
+                                onProductReferenceChanged = inboundDiscrepancyViewModel::productReferenceChanged,
+                                onLotOrBatchReferenceChanged = inboundDiscrepancyViewModel::lotOrBatchReferenceChanged,
+                                onKindChanged = inboundDiscrepancyViewModel::kindChanged,
+                                onReasonDetailsChanged = inboundDiscrepancyViewModel::reasonDetailsChanged,
+                                onExpectedQuantityChanged = inboundDiscrepancyViewModel::expectedQuantityChanged,
+                                onObservedQuantityChanged = inboundDiscrepancyViewModel::observedQuantityChanged,
+                                onEvidencePlanChanged = inboundDiscrepancyViewModel::evidencePlanChanged,
+                                onObservationNotesChanged = inboundDiscrepancyViewModel::observationNotesChanged,
+                                onSaveDraft = inboundDiscrepancyViewModel::saveDraft,
+                                onRequestDiscard = inboundDiscrepancyViewModel::requestDiscard,
+                                onConfirmDiscard = inboundDiscrepancyViewModel::confirmDiscard,
+                                onCancelDiscard = inboundDiscrepancyViewModel::cancelDiscard
                             )
                             "warehouse.transfer" -> StockTransferScreen(
                                 state = stockTransferState, onBack = ::closeConnectedOperation,
@@ -1061,6 +1087,7 @@ class MainActivity : ComponentActivity() {
         connectedRoute = null
         dispositionViewModel.deactivate()
         dispatchAssignmentViewModel.deactivate()
+        inboundDiscrepancyViewModel.deactivate()
         stockTransferViewModel.deactivate()
         fieldVisitViewModel.deactivate()
         businessDocumentsViewModel.deactivate()
@@ -1155,6 +1182,7 @@ private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHi
 
 private val CONNECTED_OPERATIONS = listOf(
     ConnectedOperationEntry("dispatch.assignment", "Asignar desde preparación de despacho", setOf("dispatch.read"), visibleInHub = false),
+    ConnectedOperationEntry("warehouse.inbound-discrepancy", "Discrepancia: borrador local", setOf("inventory.receive")),
     ConnectedOperationEntry("warehouse.transfer", "Traslado interno", setOf("warehouse:write")),
     ConnectedOperationEntry("commercial.visit", "Visita al cliente", setOf("client.read", "sales:read")),
     ConnectedOperationEntry("commercial.documents", "Documentos del cliente", setOf("document.read")),
