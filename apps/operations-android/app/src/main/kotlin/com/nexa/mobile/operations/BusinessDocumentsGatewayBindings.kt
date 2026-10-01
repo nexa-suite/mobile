@@ -44,19 +44,21 @@ internal class OperationsBusinessDocumentsGateway @Inject constructor(private va
         if (content !is ProtectedResult.Success) return failure(content)
         val bytes = content.bytes ?: return BusinessDocumentsResult.Unavailable
         val hash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-        if (content.status != 200 || content.contentType?.substringBefore(';') != "application/pdf" ||
+        if (content.status != 200 || content.contentType?.substringBefore(';') != identity.contentType ||
             bytes.size.toLong() != identity.byteSize || !hash.equals(identity.checksum, true) ||
             !hash.equals(content.checksumSha256, true)) return BusinessDocumentsResult.Unavailable
         return BusinessDocumentsResult.Content(BusinessDocumentContent(identity, bytes))
     }
     private fun identity(value: JsonObject): BusinessDocumentIdentity? = runCatching {
         fun text(key: String) = value.getValue(key).jsonPrimitive.content
-        require(text("status") == "ISSUED" && text("format") == "PDF" && text("contentType") == "application/pdf")
+        require(text("status") == "ISSUED")
+        val formats = mapOf("PDF" to "application/pdf", "CSV" to "text/csv", "XML" to "application/xml")
+        require(formats[text("format")] == text("contentType"))
         UUID.fromString(text("id")); UUID.fromString(text("clientAccountId")); UUID.fromString(text("subjectId"))
         require(Regex("[0-9a-fA-F]{64}").matches(text("checksumSha256")))
         BusinessDocumentIdentity(text("id"), text("clientAccountId"), text("subjectType"), text("subjectId"),
             value["documentNumber"]?.jsonPrimitive?.contentOrNull, text("documentType"), value.getValue("version").jsonPrimitive.long,
-            value["generatedAt"]?.jsonPrimitive?.contentOrNull, text("checksumSha256"), value.getValue("byteSize").jsonPrimitive.long)
+            value["generatedAt"]?.jsonPrimitive?.contentOrNull, text("checksumSha256"), value.getValue("byteSize").jsonPrimitive.long, text("format"), text("contentType"))
     }.getOrNull()
     private fun failure(result: ProtectedResult) = if (result is ProtectedResult.Failure && result.error.httpStatus in setOf(401,403,404))
         BusinessDocumentsResult.Denied else BusinessDocumentsResult.Unavailable

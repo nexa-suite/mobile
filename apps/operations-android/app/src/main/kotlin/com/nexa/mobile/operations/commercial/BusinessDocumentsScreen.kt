@@ -26,14 +26,14 @@ fun BusinessDocumentsScreen(state: BusinessDocumentsState, onBack: () -> Unit, o
         TextButton(onClick = onBack) { Text("Volver") }
         Text("Documentos emitidos", style = MaterialTheme.typography.headlineSmall)
         Text("Acceso vigente obligatorio. Contenido emitido inmutable; copia local no autoriza decisiones.")
-        Text("Estado: ${state.status}. Visor PDF protegido hasta 8 MiB.")
+        Text("Estado: ${state.status}. Visor protegido PDF, CSV y XML hasta 8 MiB.")
         Button(onClick = onRefresh, enabled = state.status != "Pending") { Text("Actualizar documentos") }
         val content = state.content
         if (content != null) {
             Text("${content.identity.number ?: content.identity.id} · versión ${content.identity.version}")
             Text("${content.identity.subjectType}: ${content.identity.subjectId}")
             TextButton(onClick = onCloseContent) { Text("Cerrar contenido") }
-            ProtectedPdfContent(content)
+            if (content.identity.format == "PDF") ProtectedPdfContent(content) else ProtectedTextContent(content)
         } else {
             if (state.status == "Current" && state.items.isEmpty()) Text("Documento emitido no disponible. Ningún compromiso cambia.")
             if (state.status == "PermissionDenied") Text("Acceso no vigente. Contenido privado no disponible.")
@@ -88,5 +88,19 @@ private fun ProtectedPdfContent(content: BusinessDocumentContent) {
             Text("${page + 1}/${result.totalPages}")
             TextButton(onClick = { page++ }, enabled = page + 1 < result.totalPages) { Text("Página siguiente") }
         }
+    }
+}
+
+@Composable
+private fun ProtectedTextContent(content: BusinessDocumentContent) {
+    val text = remember(content) { content.bytes.toString(Charsets.UTF_8) }
+    var page by remember(content) { mutableIntStateOf(0) }
+    val pageSize = 16000
+    val pages = maxOf(1, (text.length + pageSize - 1) / pageSize)
+    Text(text.substring(page * pageSize, minOf(text.length, (page + 1) * pageSize)))
+    Row {
+        TextButton(onClick = { page-- }, enabled = page > 0) { Text("Anterior") }
+        Text("${page + 1}/$pages")
+        TextButton(onClick = { page++ }, enabled = page + 1 < pages) { Text("Siguiente") }
     }
 }
