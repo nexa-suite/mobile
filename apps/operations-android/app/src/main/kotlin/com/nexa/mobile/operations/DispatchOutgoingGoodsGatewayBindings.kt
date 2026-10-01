@@ -10,6 +10,7 @@ import com.nexa.mobile.operations.core.network.NexaDispatchReadinessGateway
 import com.nexa.mobile.operations.core.network.NexaOutgoingGoodsCheckGateway
 import com.nexa.mobile.operations.core.network.OutgoingGoodsCheckCommand
 import com.nexa.mobile.operations.core.network.OutgoingGoodsCheckNetworkOutcome
+import com.nexa.mobile.operations.core.network.OutgoingGoodsDiscrepancyResolutionCommand
 import com.nexa.mobile.operations.core.network.OutgoingGoodsObservation
 import com.nexa.mobile.operations.core.network.PhysicalAllocationProjection
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
@@ -19,11 +20,13 @@ import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityIdentity
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsAllocation
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsCheck
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsCheckLine
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsDiscrepancy
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsCommand
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsGateway
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsGatewayResult
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsLine
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsObservation
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsResolution
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsSnapshot
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsViewModel
 import com.nexa.mobile.operations.feature.dispatch.DispatchReadiness
@@ -146,6 +149,34 @@ internal class OperationsDispatchOutgoingGoodsGateway @Inject constructor(
         return if (isCurrent(context, initial.lease)) result else authorityDrift(context)
     }
 
+    override suspend fun resolveDiscrepancy(
+        fulfillment: DispatchReadiness,
+        command: DispatchOutgoingGoodsCommand,
+        context: DispatchAuthorityContext
+    ): DispatchOutgoingGoodsGatewayResult {
+        val initial = authorize(context)
+        if (initial !is Authorization.Current) return initial.toResult()
+        if (command.type != com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsCommandType.ResolveDiscrepancy ||
+            command.fulfillmentId != fulfillment.fulfillmentId || command.exactRequestBody.isBlank() ||
+            command.idempotencyKey.isBlank()
+        ) return DispatchOutgoingGoodsGatewayResult.Stale
+        if (!isCurrent(context, initial.lease)) return authorityDrift(context)
+        val result = outgoingGoods.resolve(
+            OutgoingGoodsDiscrepancyResolutionCommand(
+                fulfillmentId = command.fulfillmentId,
+                expectedFulfillmentVersion = command.expectedFulfillmentVersion,
+                physicalAllocationId = command.physicalAllocationId,
+                physicalAllocationVersion = command.physicalAllocationVersion,
+                discrepancyCheckId = command.discrepancyCheckId.orEmpty(),
+                matchingCheckId = command.matchingCheckId.orEmpty(),
+                reason = command.reason.orEmpty(),
+                idempotencyKey = command.idempotencyKey,
+                exactRequestBody = command.exactRequestBody
+            )
+        ).toFeatureResult()
+        return if (isCurrent(context, initial.lease)) result else authorityDrift(context)
+    }
+
     private suspend fun authorize(context: DispatchAuthorityContext): Authorization {
         if (sessions.sessionState.value != SessionState.Active) return Authorization.SessionInvalidated
         val lease = sessions.currentAccess() ?: return Authorization.SessionInvalidated
@@ -220,7 +251,8 @@ internal class OperationsDispatchOutgoingGoodsGateway @Inject constructor(
                                     it.matches
                                 )
                             },
-                            replayed = check.replayed
+                            replayed = check.replayed,
+                            discrepancy = check.discrepancy?.let { it.toFeature() }
                         )
                     }
                 )
@@ -248,7 +280,25 @@ internal class OperationsDispatchOutgoingGoodsGateway @Inject constructor(
                             it.matches
                         )
                     },
-                    replayed = check.replayed
+                    replayed = check.replayed,
+                    discrepancy = check.discrepancy?.let { it.toFeature() }
+                )
+            )
+
+            is OutgoingGoodsCheckNetworkOutcome.Resolved -> DispatchOutgoingGoodsGatewayResult.Resolved(
+                DispatchOutgoingGoodsResolution(
+                    id = resolution.id,
+                    fulfillmentId = resolution.fulfillmentId,
+                    fulfillmentVersion = resolution.fulfillmentVersion,
+                    physicalAllocationId = resolution.physicalAllocationId,
+                    physicalAllocationVersion = resolution.physicalAllocationVersion,
+                    discrepancyCheckId = resolution.discrepancyCheckId,
+                    matchingCheckId = resolution.matchingCheckId,
+                    actorMembershipId = resolution.actorMembershipId,
+                    reason = resolution.reason,
+                    resolvedAt = resolution.resolvedAt,
+                    current = resolution.current,
+                    replayed = resolution.replayed
                 )
             )
 
@@ -298,6 +348,20 @@ internal class OperationsDispatchOutgoingGoodsGateway @Inject constructor(
             )
         }
     )
+
+    private fun com.nexa.mobile.operations.core.network.OutgoingGoodsDiscrepancyProjection.toFeature() =
+        DispatchOutgoingGoodsDiscrepancy(
+            id = id,
+            fulfillmentVersion = fulfillmentVersion,
+            physicalAllocationId = physicalAllocationId,
+            physicalAllocationVersion = physicalAllocationVersion,
+            checkedByMembershipId = checkedByMembershipId,
+            checkedAt = checkedAt,
+            lines = lines.map {
+                DispatchOutgoingGoodsCheckLine(it.physicalAllocationLineId, it.expectedLotId, it.observedLotId,
+                    it.expectedQuantity, it.observedQuantity, it.unit, it.matches)
+            }
+        )
 
     private fun DispatchReadiness.matches(expected: DispatchReadiness): Boolean =
         subjectKind == expected.subjectKind && fulfillmentId == expected.fulfillmentId &&

@@ -45,6 +45,16 @@ data class OutgoingGoodsCheckLineProjection(
     val matches: Boolean
 )
 
+data class OutgoingGoodsDiscrepancyProjection(
+    val id: String,
+    val fulfillmentVersion: Long,
+    val physicalAllocationId: String,
+    val physicalAllocationVersion: Long,
+    val checkedByMembershipId: String,
+    val checkedAt: Instant,
+    val lines: List<OutgoingGoodsCheckLineProjection>
+)
+
 data class OutgoingGoodsCheckProjection(
     val id: String,
     val fulfillmentId: String,
@@ -56,6 +66,34 @@ data class OutgoingGoodsCheckProjection(
     val openDiscrepancy: Boolean,
     val checkedAt: Instant,
     val lines: List<OutgoingGoodsCheckLineProjection>,
+    val replayed: Boolean,
+    val discrepancy: OutgoingGoodsDiscrepancyProjection? = null
+)
+
+data class OutgoingGoodsDiscrepancyResolutionCommand(
+    val fulfillmentId: String,
+    val expectedFulfillmentVersion: Long,
+    val physicalAllocationId: String,
+    val physicalAllocationVersion: Long,
+    val discrepancyCheckId: String,
+    val matchingCheckId: String,
+    val reason: String,
+    val idempotencyKey: String,
+    val exactRequestBody: String
+)
+
+data class OutgoingGoodsDiscrepancyResolutionProjection(
+    val id: String,
+    val fulfillmentId: String,
+    val fulfillmentVersion: Long,
+    val physicalAllocationId: String,
+    val physicalAllocationVersion: Long,
+    val discrepancyCheckId: String,
+    val matchingCheckId: String,
+    val actorMembershipId: String,
+    val reason: String,
+    val resolvedAt: Instant,
+    val current: Boolean,
     val replayed: Boolean
 )
 
@@ -82,6 +120,7 @@ sealed interface OutgoingGoodsCheckNetworkOutcome {
     ) : OutgoingGoodsCheckNetworkOutcome
 
     data class Recorded(val check: OutgoingGoodsCheckProjection) : OutgoingGoodsCheckNetworkOutcome
+    data class Resolved(val resolution: OutgoingGoodsDiscrepancyResolutionProjection) : OutgoingGoodsCheckNetworkOutcome
     data object NetworkUnavailable : OutgoingGoodsCheckNetworkOutcome
     data object UnknownOutcome : OutgoingGoodsCheckNetworkOutcome
     data object ServiceUnavailable : OutgoingGoodsCheckNetworkOutcome
@@ -179,6 +218,44 @@ class NexaOutgoingGoodsCheckGateway(private val protectedCalls: ProtectedCallExe
         }
     }
 
+    suspend fun resolve(command: OutgoingGoodsDiscrepancyResolutionCommand): OutgoingGoodsCheckNetworkOutcome {
+        if (!command.fulfillmentId.isUuid() || command.expectedFulfillmentVersion < 0 ||
+            !command.physicalAllocationId.isUuid() || command.physicalAllocationVersion < 0 ||
+            !command.discrepancyCheckId.isUuid() || !command.matchingCheckId.isUuid() ||
+            command.discrepancyCheckId.equals(command.matchingCheckId, ignoreCase = true) ||
+            command.reason.isBlank() || command.reason.length > 1000 ||
+            command.idempotencyKey.isBlank() || command.idempotencyKey.length > 160
+        ) return OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
+        val canonicalBody = command.toJson()
+        if (command.exactRequestBody != canonicalBody) return OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
+        val result = protectedCalls.execute(
+            ProtectedRequest(
+                method = ProtectedMethod.POST,
+                path = fulfillmentPath(command.fulfillmentId, "outgoing-discrepancy-resolutions"),
+                payload = command.exactRequestBody,
+                idempotencyKey = command.idempotencyKey,
+                ifMatch = "\"${command.expectedFulfillmentVersion}\""
+            )
+        )
+        return when (result) {
+            is ProtectedResult.Failure -> result.error.toOutgoingOutcome(mutation = true)
+            is ProtectedResult.Success -> {
+                if (result.status != 200 && result.status != 201) return OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
+                val value = result.body.decode<OutgoingGoodsDiscrepancyResolutionWire>()?.toProjection()
+                    ?: return OutgoingGoodsCheckNetworkOutcome.UnknownOutcome
+                if (!value.fulfillmentId.equals(command.fulfillmentId, true) ||
+                    value.fulfillmentVersion != command.expectedFulfillmentVersion ||
+                    !value.physicalAllocationId.equals(command.physicalAllocationId, true) ||
+                    value.physicalAllocationVersion != command.physicalAllocationVersion ||
+                    !value.discrepancyCheckId.equals(command.discrepancyCheckId, true) ||
+                    !value.matchingCheckId.equals(command.matchingCheckId, true) ||
+                    result.etag.toVersion() != value.fulfillmentVersion
+                ) OutgoingGoodsCheckNetworkOutcome.UnknownOutcome
+                else OutgoingGoodsCheckNetworkOutcome.Resolved(value)
+            }
+        }
+    }
+
     private fun PhysicalAllocationWire.toProjection(): PhysicalAllocationProjection? {
         val safeId = allocationId?.takeIf { it.isUuid() } ?: return null
         val safeStatus = status?.takeIf(String::isNotBlank) ?: return null
@@ -228,12 +305,58 @@ class NexaOutgoingGoodsCheckGateway(private val protectedCalls: ProtectedCallExe
                 line.matches ?: return null)
         } ?: return null
         if (safeLines.isEmpty() || safeLines.map { it.physicalAllocationLineId.lowercase() }.toSet().size != safeLines.size) return null
+        val safeDiscrepancy = discrepancy?.toProjection() ?: if (discrepancy == null) null else return null
         return OutgoingGoodsCheckProjection(
             safeId, fulfillment, fulfillmentVersion, allocation, allocationVersion,
             matches ?: return null, current ?: return null, openDiscrepancy ?: return null,
-            checked, safeLines, replayed ?: false
+            checked, safeLines, replayed ?: false, safeDiscrepancy
         )
     }
+
+    private fun OutgoingGoodsDiscrepancyWire.toProjection(): OutgoingGoodsDiscrepancyProjection? {
+        val safeId = id?.takeIf { it.isUuid() } ?: return null
+        val safeAllocation = physicalAllocationId?.takeIf { it.isUuid() } ?: return null
+        val actor = checkedByMembershipId?.takeIf { it.isUuid() } ?: return null
+        val checked = checkedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
+        val safeLines = lines?.map { line ->
+            val lineId = line.physicalAllocationLineId?.takeIf { it.isUuid() } ?: return null
+            val sku = line.skuId?.takeIf { it.isUuid() } ?: return null
+            val expectedLot = line.expectedLotId
+            val observedLot = line.observedLotId
+            if ((expectedLot != null && !expectedLot.isUuid()) || (observedLot != null && !observedLot.isUuid())) return null
+            val expected = line.expectedQuantity.decimalValue()?.takeIf { it.signum() >= 0 } ?: return null
+            val observed = line.observedQuantity.decimalValue()?.takeIf { it.signum() >= 0 } ?: return null
+            OutgoingGoodsCheckLineProjection(lineId, sku, expectedLot, observedLot, expected, observed,
+                line.unit?.takeIf(String::isNotBlank) ?: return null, line.matches ?: return null)
+        } ?: return null
+        if (safeLines.isEmpty()) return null
+        return OutgoingGoodsDiscrepancyProjection(safeId, fulfillmentVersion?.takeIf { it >= 0 } ?: return null,
+            safeAllocation, physicalAllocationVersion?.takeIf { it >= 0 } ?: return null, actor, checked, safeLines)
+    }
+
+    private fun OutgoingGoodsDiscrepancyResolutionWire.toProjection(): OutgoingGoodsDiscrepancyResolutionProjection? {
+        val safeId = id?.takeIf { it.isUuid() } ?: return null
+        val fulfillment = fulfillmentId?.takeIf { it.isUuid() } ?: return null
+        val safeFulfillmentVersion = fulfillmentVersion?.takeIf { it >= 0 } ?: return null
+        val allocation = physicalAllocationId?.takeIf { it.isUuid() } ?: return null
+        val safeAllocationVersion = physicalAllocationVersion?.takeIf { it >= 0 } ?: return null
+        val discrepancy = discrepancyCheckId?.takeIf { it.isUuid() } ?: return null
+        val matching = matchingCheckId?.takeIf { it.isUuid() } ?: return null
+        val actor = actorMembershipId?.takeIf { it.isUuid() } ?: return null
+        val safeReason = reason?.takeIf(String::isNotBlank) ?: return null
+        val at = resolvedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
+        return OutgoingGoodsDiscrepancyResolutionProjection(safeId, fulfillment, safeFulfillmentVersion,
+            allocation, safeAllocationVersion, discrepancy, matching, actor, safeReason, at,
+            current ?: return null, replayed ?: return null)
+    }
+
+    private fun OutgoingGoodsDiscrepancyResolutionCommand.toJson(): String =
+        "{\"physicalAllocationId\":\"$physicalAllocationId\",\"physicalAllocationVersion\":$physicalAllocationVersion," +
+            "\"discrepancyCheckId\":\"$discrepancyCheckId\",\"matchingCheckId\":\"$matchingCheckId\"," +
+            "\"reason\":\"${reason.jsonEscape()}\"}"
+
+    private fun String.jsonEscape(): String = replace("\\", "\\\\").replace("\"", "\\\"")
+        .replace("\n", "\\n").replace("\r", "\\r")
 
     private fun OutgoingGoodsCheckCommand.toJson(): String = buildString {
         append("{\"physicalAllocationId\":\"").append(physicalAllocationId)
@@ -332,6 +455,34 @@ private data class OutgoingGoodsCheckWire(
     val checkedByMembershipId: String? = null,
     val checkedAt: String? = null,
     val lines: List<OutgoingGoodsCheckLineWire>? = null,
+    val replayed: Boolean? = null,
+    val discrepancy: OutgoingGoodsDiscrepancyWire? = null
+)
+
+@Serializable
+private data class OutgoingGoodsDiscrepancyWire(
+    val id: String? = null,
+    val fulfillmentVersion: Long? = null,
+    val physicalAllocationId: String? = null,
+    val physicalAllocationVersion: Long? = null,
+    val checkedByMembershipId: String? = null,
+    val checkedAt: String? = null,
+    val lines: List<OutgoingGoodsCheckLineWire>? = null
+)
+
+@Serializable
+private data class OutgoingGoodsDiscrepancyResolutionWire(
+    val id: String? = null,
+    val fulfillmentId: String? = null,
+    val fulfillmentVersion: Long? = null,
+    val physicalAllocationId: String? = null,
+    val physicalAllocationVersion: Long? = null,
+    val discrepancyCheckId: String? = null,
+    val matchingCheckId: String? = null,
+    val actorMembershipId: String? = null,
+    val reason: String? = null,
+    val resolvedAt: String? = null,
+    val current: Boolean? = null,
     val replayed: Boolean? = null
 )
 

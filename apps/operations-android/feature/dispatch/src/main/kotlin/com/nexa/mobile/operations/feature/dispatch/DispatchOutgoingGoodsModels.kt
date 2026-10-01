@@ -43,6 +43,17 @@ data class DispatchOutgoingGoodsCheckLine(
 )
 
 @Immutable
+data class DispatchOutgoingGoodsDiscrepancy(
+    val id: String,
+    val fulfillmentVersion: Long,
+    val physicalAllocationId: String,
+    val physicalAllocationVersion: Long,
+    val checkedByMembershipId: String,
+    val checkedAt: Instant,
+    val lines: List<DispatchOutgoingGoodsCheckLine>
+)
+
+@Immutable
 data class DispatchOutgoingGoodsCheck(
     val id: String,
     val fulfillmentId: String,
@@ -54,10 +65,29 @@ data class DispatchOutgoingGoodsCheck(
     val openDiscrepancy: Boolean,
     val checkedAt: Instant,
     val lines: List<DispatchOutgoingGoodsCheckLine>,
-    val replayed: Boolean
+    val replayed: Boolean,
+    val discrepancy: DispatchOutgoingGoodsDiscrepancy? = null
 ) {
     override fun toString(): String = "DispatchOutgoingGoodsCheck(REDACTED, matches=$matches, current=$current)"
 }
+
+@Immutable
+data class DispatchOutgoingGoodsResolution(
+    val id: String,
+    val fulfillmentId: String,
+    val fulfillmentVersion: Long,
+    val physicalAllocationId: String,
+    val physicalAllocationVersion: Long,
+    val discrepancyCheckId: String,
+    val matchingCheckId: String,
+    val actorMembershipId: String,
+    val reason: String,
+    val resolvedAt: Instant,
+    val current: Boolean,
+    val replayed: Boolean
+)
+
+enum class DispatchOutgoingGoodsCommandType { RecordCheck, ResolveDiscrepancy }
 
 data class DispatchOutgoingGoodsObservation(
     val physicalAllocationLineId: String,
@@ -72,7 +102,11 @@ data class DispatchOutgoingGoodsCommand(
     val physicalAllocationVersion: Long,
     val observations: List<DispatchOutgoingGoodsObservation>,
     val idempotencyKey: String,
-    val exactRequestBody: String
+    val exactRequestBody: String,
+    val type: DispatchOutgoingGoodsCommandType = DispatchOutgoingGoodsCommandType.RecordCheck,
+    val discrepancyCheckId: String? = null,
+    val matchingCheckId: String? = null,
+    val reason: String? = null
 ) {
     override fun toString(): String = "DispatchOutgoingGoodsCommand(REDACTED, " +
         "versions=$expectedFulfillmentVersion/$physicalAllocationVersion)"
@@ -147,6 +181,8 @@ data class DispatchOutgoingGoodsUiState(
     val status: DispatchOutgoingGoodsStatus = DispatchOutgoingGoodsStatus.Initial,
     val allocation: DispatchOutgoingGoodsAllocation? = null,
     val currentCheck: DispatchOutgoingGoodsCheck? = null,
+    val resolutionReason: String = "",
+    val currentResolution: DispatchOutgoingGoodsResolution? = null,
     val observedAt: Instant? = null,
     val hasPendingCommand: Boolean = false
 ) {
@@ -155,11 +191,20 @@ data class DispatchOutgoingGoodsUiState(
             fulfillment?.let { it.ready && it.fulfillmentStatus == READY_FOR_DISPATCH } == true &&
             allocation?.let { it.status == ALLOCATED && it.lines.isNotEmpty() } == true &&
             currentCheck?.openDiscrepancy != true &&
+            currentCheck?.let { check -> allocation?.let { active ->
+                check.current && check.physicalAllocationId == active.id &&
+                    check.physicalAllocationVersion == active.version
+            } } != true &&
+            allocation?.let { active -> active.lines.all(::isValidObservation) } == true
+
+    val canResolveDiscrepancy: Boolean
+        get() = status == DispatchOutgoingGoodsStatus.Current && !hasPendingCommand &&
             currentCheck?.let {
-                it.current && it.physicalAllocationId == allocation?.id &&
-                    it.physicalAllocationVersion == allocation.version
-            } != true &&
-            allocation?.lines?.all(::isValidObservation) == true
+                it.current && it.openDiscrepancy && it.matches && it.discrepancy != null &&
+                    allocation?.let { active ->
+                        it.physicalAllocationId == active.id && it.physicalAllocationVersion == active.version
+                    } == true
+            } == true && resolutionReason.isNotBlank() && resolutionReason.trim().length <= 1000
 
     override fun toString(): String = "DispatchOutgoingGoodsUiState(status=$status, " +
         "lines=${allocation?.lines?.size ?: 0}, pending=$hasPendingCommand)"
@@ -185,6 +230,7 @@ data class DispatchOutgoingGoodsUiState(
 sealed interface DispatchOutgoingGoodsGatewayResult {
     data class Snapshot(val value: DispatchOutgoingGoodsSnapshot) : DispatchOutgoingGoodsGatewayResult
     data class Recorded(val value: DispatchOutgoingGoodsCheck) : DispatchOutgoingGoodsGatewayResult
+    data class Resolved(val value: DispatchOutgoingGoodsResolution) : DispatchOutgoingGoodsGatewayResult
     data object UnknownOutcome : DispatchOutgoingGoodsGatewayResult
     data object NetworkUnavailable : DispatchOutgoingGoodsGatewayResult
     data object ServiceUnavailable : DispatchOutgoingGoodsGatewayResult
@@ -205,6 +251,12 @@ interface DispatchOutgoingGoodsGateway {
     suspend fun record(
         fulfillment: DispatchReadiness,
         allocation: DispatchOutgoingGoodsAllocation,
+        command: DispatchOutgoingGoodsCommand,
+        context: DispatchAuthorityContext
+    ): DispatchOutgoingGoodsGatewayResult
+
+    suspend fun resolveDiscrepancy(
+        fulfillment: DispatchReadiness,
         command: DispatchOutgoingGoodsCommand,
         context: DispatchAuthorityContext
     ): DispatchOutgoingGoodsGatewayResult

@@ -40,7 +40,9 @@ fun DispatchOutgoingGoodsScreen(
     onObservedQuantityChanged: (String, String) -> Unit,
     onRecord: () -> Unit,
     onRetry: () -> Unit,
-    onRouteClosed: () -> Unit
+    onRouteClosed: () -> Unit,
+    onResolutionReasonChanged: (String) -> Unit = {},
+    onResolveDiscrepancy: () -> Unit = {}
 ) {
     val closeAction = rememberUpdatedState(onRouteClosed)
     DisposableEffect(Unit) {
@@ -96,6 +98,54 @@ fun DispatchOutgoingGoodsScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(stringResource(R.string.dispatch_outgoing_checked_at, formatInstant(check.checkedAt)))
+                        }
+                    }
+                }
+                check.discrepancy?.let { discrepancy ->
+                    item {
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(stringResource(R.string.dispatch_outgoing_discrepancy_history),
+                                    fontWeight = FontWeight.SemiBold)
+                                Text(stringResource(R.string.dispatch_outgoing_discrepancy_identity,
+                                    discrepancy.id, discrepancy.checkedByMembershipId,
+                                    formatInstant(discrepancy.checkedAt)))
+                                discrepancy.lines.forEach { line ->
+                                    Text(stringResource(R.string.dispatch_outgoing_discrepancy_line,
+                                        line.expectedLotId ?: "—", line.expectedQuantity.toPlainString(),
+                                        line.observedLotId ?: "—", line.observedQuantity.toPlainString(), line.unit))
+                                }
+                            }
+                        }
+                    }
+                    if (check.matches && check.current && check.openDiscrepancy) {
+                        item {
+                            OutlinedTextField(
+                                value = state.resolutionReason,
+                                onValueChange = onResolutionReasonChanged,
+                                label = { Text(stringResource(R.string.dispatch_outgoing_resolution_reason)) },
+                                supportingText = { Text(stringResource(R.string.dispatch_outgoing_resolution_explainer)) },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Button(onClick = onResolveDiscrepancy,
+                                enabled = state.canResolveDiscrepancy,
+                                modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.dispatch_outgoing_resolve_discrepancy))
+                            }
+                        }
+                    }
+                }
+            }
+            state.currentResolution?.let { resolution ->
+                item {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(stringResource(R.string.dispatch_outgoing_resolution_recorded),
+                                fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.dispatch_outgoing_resolution_identity,
+                                resolution.actorMembershipId, formatInstant(resolution.resolvedAt)))
+                            Text(resolution.reason)
+                            if (!resolution.current) Text(stringResource(R.string.dispatch_outgoing_resolution_historical))
                         }
                     }
                 }

@@ -78,6 +78,39 @@ class NexaOutgoingGoodsCheckGatewayTest {
         }
     }
 
+    @Test
+    fun resolvesOnlyWithFrozenReasonAndBothCheckIdentities() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(jsonResponse(
+                """{"id":"$RESOLUTION_ID","fulfillmentId":"$FULFILLMENT_ID","fulfillmentVersion":12,"physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,"discrepancyCheckId":"$DISCREPANCY_ID","matchingCheckId":"$CHECK_ID","actorMembershipId":"$MEMBERSHIP_ID","reason":"Recount confirmed the allocated goods.","resolvedAt":"2026-09-30T10:16:30Z","current":true,"replayed":false}"""
+            ).addHeader("ETag", "\"12\""))
+            val body = """{"physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,"discrepancyCheckId":"$DISCREPANCY_ID","matchingCheckId":"$CHECK_ID","reason":"Recount confirmed the allocated goods."}"""
+
+            val result = gateway(server).resolve(OutgoingGoodsDiscrepancyResolutionCommand(
+                fulfillmentId = FULFILLMENT_ID,
+                expectedFulfillmentVersion = 12,
+                physicalAllocationId = ALLOCATION_ID,
+                physicalAllocationVersion = 7,
+                discrepancyCheckId = DISCREPANCY_ID,
+                matchingCheckId = CHECK_ID,
+                reason = "Recount confirmed the allocated goods.",
+                idempotencyKey = "outgoing-resolution-key",
+                exactRequestBody = body
+            )) as OutgoingGoodsCheckNetworkOutcome.Resolved
+
+            val request = server.takeRequest()
+            assertEquals("POST", request.method)
+            assertEquals("/api/v1/fulfillments/$FULFILLMENT_ID/outgoing-discrepancy-resolutions",
+                request.requestUrl?.encodedPath)
+            assertEquals("\"12\"", request.getHeader("If-Match"))
+            assertEquals("outgoing-resolution-key", request.getHeader("Idempotency-Key"))
+            assertEquals(body, request.body.readUtf8())
+            assertEquals(DISCREPANCY_ID, result.resolution.discrepancyCheckId)
+            assertTrue(result.resolution.current)
+        }
+    }
+
     private fun gateway(server: MockWebServer) = NexaOutgoingGoodsCheckGateway(
         ProtectedCallExecutor(
             ApiEndpoint(server.url("/").toString()),
@@ -109,5 +142,7 @@ class NexaOutgoingGoodsCheckGatewayTest {
         const val LOT_ID = "55555555-5555-4555-8555-555555555555"
         const val MEMBERSHIP_ID = "66666666-6666-4666-8666-666666666666"
         const val CHECK_ID = "77777777-7777-4777-8777-777777777777"
+        const val DISCREPANCY_ID = "88888888-8888-4888-8888-888888888888"
+        const val RESOLUTION_ID = "99999999-9999-4999-8999-999999999999"
     }
 }

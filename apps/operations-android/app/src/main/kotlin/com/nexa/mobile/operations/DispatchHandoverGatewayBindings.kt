@@ -301,7 +301,21 @@ internal class OperationsDispatchHandoverGateway @Inject constructor(
                     it.matches
                 )
             },
-            replayed = replayed
+            replayed = replayed,
+            discrepancy = discrepancy?.let { detail ->
+                com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsDiscrepancy(
+                    id = detail.id,
+                    fulfillmentVersion = detail.fulfillmentVersion,
+                    physicalAllocationId = detail.physicalAllocationId,
+                    physicalAllocationVersion = detail.physicalAllocationVersion,
+                    checkedByMembershipId = detail.checkedByMembershipId,
+                    checkedAt = detail.checkedAt,
+                    lines = detail.lines.map {
+                        DispatchOutgoingGoodsCheckLine(it.physicalAllocationLineId, it.expectedLotId, it.observedLotId,
+                            it.expectedQuantity, it.observedQuantity, it.unit, it.matches)
+                    }
+                )
+            }
         )
 
     private fun com.nexa.mobile.operations.core.network.FulfillmentDispatchProjection.toHandoverReceipt() =
@@ -350,7 +364,8 @@ internal class OperationsDispatchHandoverGateway @Inject constructor(
         OutgoingGoodsCheckNetworkOutcome.Conflict -> DispatchHandoverGatewayResult.Conflict
         OutgoingGoodsCheckNetworkOutcome.UnknownOutcome -> DispatchHandoverGatewayResult.UnknownOutcome
         is OutgoingGoodsCheckNetworkOutcome.Recorded,
-        is OutgoingGoodsCheckNetworkOutcome.Snapshot -> DispatchHandoverGatewayResult.ServiceUnavailable
+        is OutgoingGoodsCheckNetworkOutcome.Snapshot,
+        is OutgoingGoodsCheckNetworkOutcome.Resolved -> DispatchHandoverGatewayResult.ServiceUnavailable
     }
 
     private fun DispatchAssignmentNetworkOutcome.toHandoverFailure(): DispatchHandoverGatewayResult = when (this) {

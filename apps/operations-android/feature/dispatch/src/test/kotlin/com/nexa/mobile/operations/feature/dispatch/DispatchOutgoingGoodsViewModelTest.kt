@@ -64,6 +64,40 @@ class DispatchOutgoingGoodsViewModelTest {
         assertFalse(viewModel.state.value.hasPendingCommand)
     }
 
+    @Test
+    fun resolutionRequiresMatchingReinspectionAndSavesExactIntentBeforePost() = runTest {
+        val events = mutableListOf<String>()
+        val discrepancy = DispatchOutgoingGoodsDiscrepancy(
+            DISCREPANCY_ID, 12, ALLOCATION_ID, 7, ACTOR_MEMBERSHIP_ID, AS_OF.minusSeconds(60),
+            listOf(DispatchOutgoingGoodsCheckLine(LINE_ID, LOT_ID, LOT_ID,
+                BigDecimal("2.50"), BigDecimal("3.50"), "each", false))
+        )
+        val current = DispatchOutgoingGoodsCheck(
+            CHECK_ID, FULFILLMENT_ID, 12, ALLOCATION_ID, 7, true, true, true, AS_OF,
+            listOf(DispatchOutgoingGoodsCheckLine(LINE_ID, LOT_ID, LOT_ID,
+                BigDecimal("2.50"), BigDecimal("2.50"), "each", true)), false, discrepancy
+        )
+        val gateway = FakeGateway(events, allocation(), current)
+        val metadata = FakeMetadata(events)
+        val viewModel = DispatchOutgoingGoodsViewModel(gateway, metadata, newCommandKey = { RESOLUTION_KEY })
+        viewModel.activate(fulfillment(), context())
+        runCurrent()
+        assertFalse(viewModel.state.value.canResolveDiscrepancy)
+
+        viewModel.changeResolutionReason("Recount confirmed the allocated goods.")
+        assertTrue(viewModel.state.value.canResolveDiscrepancy)
+        viewModel.resolveDiscrepancy()
+        runCurrent()
+
+        assertEquals(listOf("load", "read", "save", "resolve", "clear"), events)
+        assertEquals(DispatchOutgoingGoodsCommandType.ResolveDiscrepancy, gateway.resolutionPosted?.type)
+        assertEquals("""{"physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,"discrepancyCheckId":"$DISCREPANCY_ID","matchingCheckId":"$CHECK_ID","reason":"Recount confirmed the allocated goods."}""",
+            gateway.resolutionPosted?.exactRequestBody)
+        assertEquals(RESOLUTION_ID, viewModel.state.value.currentResolution?.id)
+        assertFalse(viewModel.state.value.currentCheck?.openDiscrepancy ?: true)
+        assertEquals(null, metadata.intent)
+    }
+
     private fun context() = DispatchAuthorityContext(
         authorityEpoch = 3,
         identity = DispatchAuthorityIdentity(
@@ -137,16 +171,18 @@ class DispatchOutgoingGoodsViewModelTest {
 
     private class FakeGateway(
         private val events: MutableList<String>,
-        private val allocation: DispatchOutgoingGoodsAllocation
+        private val allocation: DispatchOutgoingGoodsAllocation,
+        private val check: DispatchOutgoingGoodsCheck? = null
     ) : DispatchOutgoingGoodsGateway {
         var posted: DispatchOutgoingGoodsCommand? = null
+        var resolutionPosted: DispatchOutgoingGoodsCommand? = null
 
         override suspend fun load(
             fulfillment: DispatchReadiness,
             context: DispatchAuthorityContext
         ): DispatchOutgoingGoodsGatewayResult {
             events += "read"
-            return DispatchOutgoingGoodsGatewayResult.Snapshot(DispatchOutgoingGoodsSnapshot(allocation, null))
+            return DispatchOutgoingGoodsGatewayResult.Snapshot(DispatchOutgoingGoodsSnapshot(allocation, check))
         }
 
         override suspend fun record(
@@ -182,6 +218,29 @@ class DispatchOutgoingGoodsViewModelTest {
                     replayed = false
                 )
             )
+        }
+
+        override suspend fun resolveDiscrepancy(
+            fulfillment: DispatchReadiness,
+            command: DispatchOutgoingGoodsCommand,
+            context: DispatchAuthorityContext
+        ): DispatchOutgoingGoodsGatewayResult {
+            events += "resolve"
+            resolutionPosted = command
+            return DispatchOutgoingGoodsGatewayResult.Resolved(DispatchOutgoingGoodsResolution(
+                id = RESOLUTION_ID,
+                fulfillmentId = command.fulfillmentId,
+                fulfillmentVersion = command.expectedFulfillmentVersion,
+                physicalAllocationId = command.physicalAllocationId,
+                physicalAllocationVersion = command.physicalAllocationVersion,
+                discrepancyCheckId = command.discrepancyCheckId.orEmpty(),
+                matchingCheckId = command.matchingCheckId.orEmpty(),
+                actorMembershipId = context.identity?.membershipId.orEmpty(),
+                reason = command.reason.orEmpty(),
+                resolvedAt = AS_OF,
+                current = true,
+                replayed = false
+            ))
         }
     }
 
@@ -229,7 +288,10 @@ class DispatchOutgoingGoodsViewModelTest {
         const val SKU_ID = "44444444-4444-4444-8444-444444444444"
         const val LOT_ID = "55555555-5555-4555-8555-555555555555"
         const val CHECK_ID = "77777777-7777-4777-8777-777777777777"
+        const val RESOLUTION_ID = "66666666-6666-4666-8666-666666666666"
+        const val DISCREPANCY_ID = "88888888-8888-4888-8888-888888888888"
         const val KEY = "outgoing-check-key"
+        const val RESOLUTION_KEY = "outgoing-resolution-key"
         val AS_OF = Instant.parse("2026-09-30T10:15:30Z")
     }
 }

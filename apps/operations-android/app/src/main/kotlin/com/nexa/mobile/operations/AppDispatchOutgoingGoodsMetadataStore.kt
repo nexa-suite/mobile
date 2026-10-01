@@ -7,6 +7,7 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataStore
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsCommand
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsCommandType
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsIntent
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsIntentStatus
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsMetadataRead
@@ -159,6 +160,10 @@ internal class AppDispatchOutgoingGoodsMetadataStore(
         put("physicalAllocationVersion", JsonPrimitive(intent.command.physicalAllocationVersion))
         put("idempotencyKey", JsonPrimitive(intent.command.idempotencyKey))
         put("exactRequestBody", JsonPrimitive(intent.command.exactRequestBody))
+        put("type", JsonPrimitive(intent.command.type.name))
+        put("discrepancyCheckId", intent.command.discrepancyCheckId?.let(::JsonPrimitive) ?: JsonNull)
+        put("matchingCheckId", intent.command.matchingCheckId?.let(::JsonPrimitive) ?: JsonNull)
+        put("reason", intent.command.reason?.let(::JsonPrimitive) ?: JsonNull)
         put("status", JsonPrimitive(intent.status.name))
         put("observations", JsonArray(intent.command.observations.map { observation ->
             buildJsonObject {
@@ -171,7 +176,8 @@ internal class AppDispatchOutgoingGoodsMetadataStore(
 
     private fun decode(payload: String): List<DispatchOutgoingGoodsIntent>? = try {
         val envelope = Json.parseToJsonElement(payload).jsonObject
-        if (envelope.requiredLong("schema") != SCHEMA_VERSION) {
+        val schema = envelope.requiredLong("schema")
+        if (schema !in 1L..SCHEMA_VERSION) {
             null
         } else {
             val intents = envelope["commands"]?.jsonArray?.map { element ->
@@ -201,7 +207,12 @@ internal class AppDispatchOutgoingGoodsMetadataStore(
                         physicalAllocationVersion = value.requiredLong("physicalAllocationVersion"),
                         observations = observations,
                         idempotencyKey = value.requiredString("idempotencyKey"),
-                        exactRequestBody = value.requiredString("exactRequestBody")
+                        exactRequestBody = value.requiredString("exactRequestBody"),
+                        type = value.optionalString("type")?.let(DispatchOutgoingGoodsCommandType::valueOf)
+                            ?: DispatchOutgoingGoodsCommandType.RecordCheck,
+                        discrepancyCheckId = value.optionalString("discrepancyCheckId"),
+                        matchingCheckId = value.optionalString("matchingCheckId"),
+                        reason = value.optionalString("reason")
                     ),
                     status = DispatchOutgoingGoodsIntentStatus.valueOf(value.requiredString("status"))
                 )
@@ -223,15 +234,33 @@ internal class AppDispatchOutgoingGoodsMetadataStore(
         this[key]?.jsonPrimitive?.takeUnless(JsonPrimitive::isString)?.longOrNull
             ?: error("Outgoing goods metadata number is invalid")
 
+    private fun JsonObject.optionalString(key: String): String? = this[key]?.let {
+        if (it == JsonNull) null else it.jsonPrimitive.content.takeIf(String::isNotBlank)
+    }
+
     private fun DispatchOutgoingGoodsIntent.sameCommand(other: DispatchOutgoingGoodsIntent): Boolean =
         scope == other.scope && command == other.command
 
     private fun DispatchOutgoingGoodsCommand.hasConsistentBody(): Boolean =
         fulfillmentId.isNotBlank() && expectedFulfillmentVersion >= 0 &&
             physicalAllocationId.isNotBlank() && physicalAllocationVersion >= 0 &&
-            idempotencyKey.isNotBlank() && exactRequestBody == requestBody()
+            idempotencyKey.isNotBlank() && exactRequestBody == requestBody() && when (type) {
+                DispatchOutgoingGoodsCommandType.RecordCheck -> observations.isNotEmpty() &&
+                    discrepancyCheckId == null && matchingCheckId == null && reason == null
+                DispatchOutgoingGoodsCommandType.ResolveDiscrepancy -> observations.isEmpty() &&
+                    !discrepancyCheckId.isNullOrBlank() && !matchingCheckId.isNullOrBlank() &&
+                    discrepancyCheckId != matchingCheckId && reason?.let { it.isNotBlank() && it.length <= 1000 } == true
+            }
 
     private fun DispatchOutgoingGoodsCommand.requestBody(): String = buildString {
+        if (type == DispatchOutgoingGoodsCommandType.ResolveDiscrepancy) {
+            append("{\"physicalAllocationId\":\"").append(physicalAllocationId)
+                .append("\",\"physicalAllocationVersion\":").append(physicalAllocationVersion)
+                .append(",\"discrepancyCheckId\":\"").append(discrepancyCheckId)
+                .append("\",\"matchingCheckId\":\"").append(matchingCheckId)
+                .append("\",\"reason\":\"").append(reason!!.jsonEscape()).append("\"}")
+            return@buildString
+        }
         append("{\"physicalAllocationId\":\"").append(physicalAllocationId)
             .append("\",\"physicalAllocationVersion\":").append(physicalAllocationVersion)
             .append(",\"observations\":[")
@@ -246,6 +275,9 @@ internal class AppDispatchOutgoingGoodsMetadataStore(
         append("]}")
     }
 
+    private fun String.jsonEscape(): String = replace("\\", "\\\\").replace("\"", "\\\"")
+        .replace("\n", "\\n").replace("\r", "\\r")
+
     private fun DispatchOutgoingGoodsScopeIdentity.toLocal() =
         ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
 
@@ -253,7 +285,7 @@ internal class AppDispatchOutgoingGoodsMetadataStore(
         locks.computeIfAbsent(scope) { Mutex() }
 
     private companion object {
-        const val SCHEMA_VERSION = 1L
+        const val SCHEMA_VERSION = 2L
         const val MAX_PENDING_INTENTS = 32
         val locks = ConcurrentHashMap<DispatchOutgoingGoodsScopeIdentity, Mutex>()
     }

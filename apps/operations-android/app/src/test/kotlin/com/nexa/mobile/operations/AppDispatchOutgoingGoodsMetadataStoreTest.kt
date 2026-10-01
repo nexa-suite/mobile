@@ -4,6 +4,7 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataStore
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsCommand
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsCommandType
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsIntent
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsIntentStatus
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsMetadataRead
@@ -59,6 +60,36 @@ class AppDispatchOutgoingGoodsMetadataStoreTest {
         )
     }
 
+    @Test
+    fun discrepancyResolutionPersistsExactReasonAndReferencesAsUnknownOutcome() = runTest {
+        val local = FakeScopedMetadataStore()
+        val scope = DispatchOutgoingGoodsScopeIdentity(USER, TENANT, WORKSPACE, MEMBERSHIP)
+        val command = DispatchOutgoingGoodsCommand(
+            fulfillmentId = FULFILLMENT,
+            expectedFulfillmentVersion = 12,
+            physicalAllocationId = ALLOCATION,
+            physicalAllocationVersion = 7,
+            observations = emptyList(),
+            idempotencyKey = "outgoing-resolution-key",
+            exactRequestBody = """{"physicalAllocationId":"$ALLOCATION","physicalAllocationVersion":7,"discrepancyCheckId":"$DISCREPANCY","matchingCheckId":"$MATCH","reason":"Recount confirmed the allocated goods."}""",
+            type = DispatchOutgoingGoodsCommandType.ResolveDiscrepancy,
+            discrepancyCheckId = DISCREPANCY,
+            matchingCheckId = MATCH,
+            reason = "Recount confirmed the allocated goods."
+        )
+        val pending = DispatchOutgoingGoodsIntent(scope, command)
+        val first = AppDispatchOutgoingGoodsMetadataStore(local)
+        assertEquals(DispatchOutgoingGoodsMetadataWrite.Saved, first.saveIntent(pending))
+
+        val recovered = AppDispatchOutgoingGoodsMetadataStore(local).loadIntent(scope, FULFILLMENT)
+        assertEquals(
+            DispatchOutgoingGoodsMetadataRead.Available(
+                pending.copy(status = DispatchOutgoingGoodsIntentStatus.UnknownOutcome)
+            ),
+            recovered
+        )
+    }
+
     private class FakeScopedMetadataStore : ScopedMetadataStore {
         private val records = mutableMapOf<ScopedMetadataScope, String>()
 
@@ -85,5 +116,7 @@ class AppDispatchOutgoingGoodsMetadataStoreTest {
         const val ALLOCATION = "22222222-2222-4222-8222-222222222222"
         const val LINE = "33333333-3333-4333-8333-333333333333"
         const val LOT = "55555555-5555-4555-8555-555555555555"
+        const val DISCREPANCY = "88888888-8888-4888-8888-888888888888"
+        const val MATCH = "77777777-7777-4777-8777-777777777777"
     }
 }
