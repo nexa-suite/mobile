@@ -33,7 +33,7 @@ The work remains on `feature/w4-operations-mobile` and `feature/w4-api-capabilit
 | MOB-US-021 | Assign a driver to a ready delivery | Implementation integrated; acceptance unverified |
 | MOB-US-022 | Check outgoing goods against the prepared delivery | Implementation integrated; acceptance unverified |
 | MOB-US-023 | Preserve warehouse-to-driver handoff evidence | Implementation integrated; acceptance unverified |
-| MOB-US-024 | Reliably identify a dispatch handoff | Mobile implementation integrated and compiled; backend purpose/assignment contract integration pending. Identity is separate from handoff acceptance and Buyer Receipt. |
+| MOB-US-024 | Reliably identify a dispatch handoff | Mobile and API implementation integrated; compilation and generated OpenAPI contract passed. Explicit DISPATCH_HANDOFF binds current assignment, Driver and Delivery version; validation returns no secret. Identity is separate from handoff acceptance and Buyer Receipt; acceptance unverified. |
 | MOB-US-025 | Confirm goods left warehouse control | Implementation integrated; acceptance unverified |
 | MOB-US-026 | See deliveries assigned to the driver | Implementation integrated; acceptance unverified |
 | MOB-US-027 | Begin an assigned delivery | Implementation integrated; acceptance unverified |
@@ -67,7 +67,7 @@ The work remains on `feature/w4-operations-mobile` and `feature/w4-api-capabilit
 
 ## Current validation
 
-Affected Android application compilation passed after integrating count correction, confirmed-SKU stock lookup, discrepancy resolution, POD evidence, protected returned-picker retention, lot-substitution requests and dispatch-plan changes. Focused local tests cover immutable command replay, scoped metadata, evidence subject binding, stale versions and the new server mutations. Detailed final results will accompany the final artifact references.
+Affected Android application compilation passed after integrating count correction, confirmed-SKU stock lookup, discrepancy resolution, POD evidence, protected returned-picker retention, lot-substitution requests and dispatch-plan changes. Focused local tests cover immutable command replay, scoped metadata, evidence subject binding, stale versions and the new server mutations. Final Android architecture check and debug APK assembly passed. Focused dispatch identity/temperature client tests passed. Integrated OpenAPIContractIT passed with PostgreSQL migrations, including V126; API024 focused service tests passed 4/4 in its implementation worktree. Delivery thermal guard unit tests passed 2/2 and receiving excursion integration test passed 1/1. These are bounded technical checks, not full story acceptance.
 
 No full native/device/design validation, screenshots, final-SHA CI, visual acceptance or production deployment is claimed. An attempted dispatch/network formatting check reported failures and was not classified as passing.
 
