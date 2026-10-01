@@ -45,7 +45,9 @@ fun DriverDeliveryScreen(
     onRetryUnknownStart: () -> Unit,
     onOpenDirections: (String) -> Boolean = { false },
     onRecordOutcome: (DriverOutcomeKind, Map<String, String>, String?, String?) -> Unit = { _, _, _, _ -> },
-    onRetryUnknownOutcome: () -> Unit = {}
+    onRetryUnknownOutcome: () -> Unit = {},
+    onSignalArrival: () -> Unit = {},
+    onRetryUnknownArrival: () -> Unit = {}
 ) {
     var navigationUnavailable by remember { mutableStateOf(false) }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -295,6 +297,82 @@ fun DriverDeliveryScreen(
                             )
                         }
                     }
+                    Text(
+                        stringResource(R.string.driver_delivery_coordination_title),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    delivery.arrival?.let { arrival ->
+                        if (arrival.attemptId == attempt.id) {
+                            Notice(stringResource(R.string.driver_delivery_arrival_confirmed, arrival.arrivedAt))
+                        }
+                    }
+                    when (state.arrivalCommandStatus) {
+                        DriverArrivalCommandStatus.CheckingCurrent -> Notice(
+                            stringResource(R.string.driver_delivery_arrival_checking)
+                        )
+
+                        DriverArrivalCommandStatus.PersistingIntent -> Notice(
+                            stringResource(R.string.driver_delivery_arrival_persisting)
+                        )
+
+                        DriverArrivalCommandStatus.Pending -> Notice(
+                            stringResource(R.string.driver_delivery_arrival_pending)
+                        )
+
+                        DriverArrivalCommandStatus.UnknownOutcome -> {
+                            Notice(stringResource(R.string.driver_delivery_arrival_unknown), isError = true)
+                            if (state.hasRecoverableArrival) {
+                                OutlinedButton(onClick = onRetryUnknownArrival, enabled = state.canStart) {
+                                    Text(stringResource(R.string.driver_delivery_arrival_retry_same))
+                                }
+                            }
+                        }
+
+                        DriverArrivalCommandStatus.PersistenceUnavailable -> {
+                            Notice(stringResource(R.string.driver_delivery_arrival_storage_unavailable), isError = true)
+                            if (state.hasRecoverableArrival) {
+                                OutlinedButton(onClick = onRetryUnknownArrival, enabled = state.canStart) {
+                                    Text(stringResource(R.string.driver_delivery_arrival_retry_same))
+                                }
+                            }
+                        }
+
+                        DriverArrivalCommandStatus.Recorded -> state.arrivalSummary?.let { arrival ->
+                            Notice(stringResource(R.string.driver_delivery_arrival_confirmed, arrival.arrivedAt))
+                        }
+
+                        DriverArrivalCommandStatus.Rejected -> Notice(
+                            state.arrivalRejectionCode?.let {
+                                stringResource(R.string.driver_delivery_arrival_rejected_code, it)
+                            } ?: stringResource(R.string.driver_delivery_arrival_rejected),
+                            isError = true
+                        )
+
+                        DriverArrivalCommandStatus.StaleVersion -> Notice(
+                            stringResource(R.string.driver_delivery_arrival_stale), isError = true
+                        )
+
+                        DriverArrivalCommandStatus.Idle -> Unit
+                    }
+                    if (delivery.arrival?.attemptId != attempt.id &&
+                        state.arrivalCommandStatus in setOf(
+                            DriverArrivalCommandStatus.Idle,
+                            DriverArrivalCommandStatus.Rejected,
+                            DriverArrivalCommandStatus.StaleVersion
+                        )
+                    ) {
+                        OutlinedButton(
+                            onClick = onSignalArrival,
+                            enabled = state.canRead && state.canStart &&
+                                state.detailStatus == DriverDeliveryLoadStatus.Ready
+                        ) {
+                            Text(stringResource(R.string.driver_delivery_arrival_signal))
+                        }
+                    }
+                    Notice(stringResource(R.string.driver_delivery_location_sharing_unavailable))
+                    Notice(stringResource(R.string.driver_delivery_contact_unavailable))
+                    Notice(stringResource(R.string.driver_delivery_handoff_code_unavailable))
+                    Notice(stringResource(R.string.driver_delivery_pod_capture_unavailable))
                     if (delivery.outcomeLines.isNotEmpty()) {
                         Text(
                             stringResource(R.string.driver_delivery_quantities_title),

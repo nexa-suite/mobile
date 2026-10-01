@@ -47,6 +47,18 @@ enum class DriverOutcomeCommandStatus {
     StaleVersion
 }
 
+enum class DriverArrivalCommandStatus {
+    Idle,
+    CheckingCurrent,
+    PersistingIntent,
+    Pending,
+    UnknownOutcome,
+    PersistenceUnavailable,
+    Recorded,
+    Rejected,
+    StaleVersion
+}
+
 data class DriverDeliveryUiState(
     val authorityEpoch: Long = 0,
     val canRead: Boolean = false,
@@ -61,7 +73,11 @@ data class DriverDeliveryUiState(
     val outcomeCommandStatus: DriverOutcomeCommandStatus = DriverOutcomeCommandStatus.Idle,
     val hasRecoverableOutcome: Boolean = false,
     val outcomeSummary: DriverOutcomeSummary? = null,
-    val outcomeRejectionCode: String? = null
+    val outcomeRejectionCode: String? = null,
+    val arrivalCommandStatus: DriverArrivalCommandStatus = DriverArrivalCommandStatus.Idle,
+    val hasRecoverableArrival: Boolean = false,
+    val arrivalSummary: DriverArrivalSummary? = null,
+    val arrivalRejectionCode: String? = null
 ) {
     /** Destination leaves Nexa only after current assigned detail confirms an active attempt. */
     val authorizedDirectionsDestination: String?
@@ -83,6 +99,7 @@ class DriverDeliveryViewModel(
     private val gateway: DriverDeliveryGateway,
     private val metadataStore: DriverAttemptMetadataStore,
     private val outcomeMetadataStore: DriverOutcomeMetadataStore? = null,
+    private val arrivalMetadataStore: DriverArrivalMetadataStore? = null,
     private val timeFactory: () -> String = { Instant.now().toString() },
     private val keyFactory: () -> String = { UUID.randomUUID().toString() }
 ) : ViewModel() {
@@ -95,6 +112,8 @@ class DriverDeliveryViewModel(
     private var pendingStartPersisted = false
     private var pendingOutcome: DriverOutcomeCommand? = null
     private var pendingOutcomePersisted = false
+    private var pendingArrival: DriverArrivalCommand? = null
+    private var pendingArrivalPersisted = false
 
     fun activate(currentAuthority: DriverDeliveryAuthority) {
         generation++
@@ -104,6 +123,8 @@ class DriverDeliveryViewModel(
         pendingStartPersisted = false
         pendingOutcome = null
         pendingOutcomePersisted = false
+        pendingArrival = null
+        pendingArrivalPersisted = false
         mutableState.value = DriverDeliveryUiState(
             authorityEpoch = currentAuthority.authorityEpoch,
             canRead = currentAuthority.canRead,
@@ -164,6 +185,28 @@ class DriverDeliveryViewModel(
 
                 DriverOutcomeMetadataRead.Unavailable -> outcomeMetadataAvailable = false
             }
+            var arrivalMetadataAvailable = true
+            val loadedArrival = safeArrivalMetadataLoad(currentAuthority.scopeIdentity)
+            if (!isCurrent(requestGeneration, currentAuthority)) return@launch
+            when (loadedArrival) {
+                is DriverArrivalMetadataRead.Available -> {
+                    val intent = loadedArrival.intent
+                    if (intent != null && intent.scope == currentAuthority.scopeIdentity) {
+                        pendingArrival = intent.command
+                        pendingArrivalPersisted = true
+                        mutableState.update {
+                            it.copy(
+                                arrivalCommandStatus = DriverArrivalCommandStatus.UnknownOutcome,
+                                hasRecoverableArrival = true
+                            )
+                        }
+                    } else if (intent != null) {
+                        arrivalMetadataAvailable = false
+                    }
+                }
+
+                DriverArrivalMetadataRead.Unavailable -> arrivalMetadataAvailable = false
+            }
             if (!metadataAvailable) {
                 mutableState.update {
                     it.copy(commandStatus = DriverDeliveryCommandStatus.PersistenceUnavailable)
@@ -172,6 +215,11 @@ class DriverDeliveryViewModel(
             if (outcomeMetadataStore != null && !outcomeMetadataAvailable) {
                 mutableState.update {
                     it.copy(outcomeCommandStatus = DriverOutcomeCommandStatus.PersistenceUnavailable)
+                }
+            }
+            if (arrivalMetadataStore != null && !arrivalMetadataAvailable) {
+                mutableState.update {
+                    it.copy(arrivalCommandStatus = DriverArrivalCommandStatus.PersistenceUnavailable)
                 }
             }
             val result = safeLoad { gateway.assignedDeliveries(currentAuthority) }
@@ -186,6 +234,8 @@ class DriverDeliveryViewModel(
                             selectedDelivery = restored?.let { command ->
                                 result.items.firstOrNull { item -> item.id == command.deliveryId }
                             } ?: pendingOutcome?.let { command ->
+                                result.items.firstOrNull { item -> item.id == command.deliveryId }
+                            } ?: pendingArrival?.let { command ->
                                 result.items.firstOrNull { item -> item.id == command.deliveryId }
                             },
                             commandStatus = when {
@@ -211,13 +261,16 @@ class DriverDeliveryViewModel(
         pendingStartPersisted = false
         pendingOutcome = null
         pendingOutcomePersisted = false
+        pendingArrival = null
+        pendingArrivalPersisted = false
         mutableState.value = DriverDeliveryUiState()
     }
 
     fun selectDelivery(deliveryId: String) {
         val currentAuthority = authority ?: return
         if (!currentAuthority.canRead || mutableState.value.commandStatus in FROZEN_COMMANDS ||
-            mutableState.value.outcomeCommandStatus in FROZEN_OUTCOME_COMMANDS
+            mutableState.value.outcomeCommandStatus in FROZEN_OUTCOME_COMMANDS ||
+            mutableState.value.arrivalCommandStatus in FROZEN_ARRIVAL_COMMANDS
         ) return
         val requestGeneration = generation
         mutableState.update {
@@ -229,7 +282,11 @@ class DriverDeliveryViewModel(
                 detailStatus = DriverDeliveryLoadStatus.Loading,
                 commandStatus = DriverDeliveryCommandStatus.Idle,
                 hasRecoverableStart = false,
-                rejectionCode = null
+                rejectionCode = null,
+                arrivalCommandStatus = DriverArrivalCommandStatus.Idle,
+                hasRecoverableArrival = false,
+                arrivalSummary = null,
+                arrivalRejectionCode = null
             )
         }
         viewModelScope.launch {
@@ -246,7 +303,8 @@ class DriverDeliveryViewModel(
         if (!currentAuthority.canStart ||
             mutableState.value.commandStatus in FROZEN_COMMANDS ||
             mutableState.value.outcomeCommandStatus in FROZEN_OUTCOME_COMMANDS ||
-            pendingStart != null || pendingOutcome != null
+            mutableState.value.arrivalCommandStatus in FROZEN_ARRIVAL_COMMANDS ||
+            pendingStart != null || pendingOutcome != null || pendingArrival != null
         ) {
             return
         }
@@ -455,6 +513,300 @@ class DriverDeliveryViewModel(
             viewModelScope.launch { persistBeforeOutcome(command, requestGeneration, currentAuthority) }
         }
     }
+
+    /** Signals one explicit arrival for the active attempt after storing exact retry identity. */
+    fun signalArrival() {
+        val currentAuthority = authority ?: return
+        val currentState = mutableState.value
+        val selected = currentState.selectedDelivery ?: return
+        val selectedAttempt = selected.activeAttempt ?: return
+        if (!currentAuthority.canStart || !currentAuthority.canRead ||
+            currentState.detailStatus != DriverDeliveryLoadStatus.Ready ||
+            currentState.commandStatus in FROZEN_COMMANDS ||
+            currentState.arrivalCommandStatus in FROZEN_ARRIVAL_COMMANDS || pendingArrival != null
+        ) {
+            return
+        }
+        if (arrivalMetadataStore == null) {
+            mutableState.update {
+                it.copy(arrivalCommandStatus = DriverArrivalCommandStatus.PersistenceUnavailable)
+            }
+            return
+        }
+        val requestGeneration = generation
+        mutableState.update {
+            it.copy(
+                arrivalCommandStatus = DriverArrivalCommandStatus.CheckingCurrent,
+                arrivalRejectionCode = null,
+                arrivalSummary = null
+            )
+        }
+        viewModelScope.launch {
+            val detail = safeLoad { gateway.delivery(selected.id, currentAuthority) }
+            if (!isCurrent(requestGeneration, currentAuthority)) return@launch
+            val current = (detail as? DriverDeliveryLoadResult.DetailLoaded)?.item
+            if (current == null) {
+                mutableState.update {
+                    it.copy(
+                        detailStatus = detail.toLoadStatus(),
+                        arrivalCommandStatus = DriverArrivalCommandStatus.Rejected,
+                        arrivalRejectionCode = detail.toArrivalFailureCode()
+                    )
+                }
+                return@launch
+            }
+            replaceDelivery(current)
+            val active = current.activeAttempt
+            if (active == null || active.id != selectedAttempt.id) {
+                mutableState.update {
+                    it.copy(
+                        arrivalCommandStatus = DriverArrivalCommandStatus.StaleVersion,
+                        arrivalRejectionCode = "DELIVERY_ATTEMPT_NOT_CURRENT"
+                    )
+                }
+                return@launch
+            }
+            val existing = current.arrival?.takeIf { it.attemptId == active.id }
+            if (existing != null) {
+                mutableState.update {
+                    it.copy(
+                        arrivalCommandStatus = DriverArrivalCommandStatus.Recorded,
+                        arrivalSummary = DriverArrivalSummary(
+                            existing.id, current.id, active.id, existing.arrivedAt, current.version
+                        ),
+                        hasRecoverableArrival = false
+                    )
+                }
+                return@launch
+            }
+            val key = keyFactory().takeIf { it.isNotBlank() && it.length <= 160 }
+            if (key == null) {
+                mutableState.update {
+                    it.copy(
+                        arrivalCommandStatus = DriverArrivalCommandStatus.Rejected,
+                        arrivalRejectionCode = "IDEMPOTENCY_KEY_INVALID"
+                    )
+                }
+                return@launch
+            }
+            val command = DriverArrivalCommand(
+                deliveryId = current.id,
+                attemptId = active.id,
+                expectedVersion = current.version,
+                idempotencyKey = key
+            )
+            pendingArrival = command
+            pendingArrivalPersisted = false
+            mutableState.update {
+                it.copy(
+                    arrivalCommandStatus = DriverArrivalCommandStatus.PersistingIntent,
+                    hasRecoverableArrival = true,
+                    arrivalSummary = null
+                )
+            }
+            persistBeforeArrival(command, requestGeneration, currentAuthority)
+        }
+    }
+
+    /** Replays exact arrival key/body/version after uncertain response or process recovery. */
+    fun retryUnknownArrival() {
+        val currentAuthority = authority ?: return
+        val command = pendingArrival ?: return
+        if (!currentAuthority.canStart || !mutableState.value.hasRecoverableArrival ||
+            mutableState.value.arrivalCommandStatus !in setOf(
+                DriverArrivalCommandStatus.UnknownOutcome,
+                DriverArrivalCommandStatus.PersistenceUnavailable
+            )
+        ) {
+            return
+        }
+        val requestGeneration = generation
+        if (pendingArrivalPersisted) {
+            mutableState.update { it.copy(arrivalCommandStatus = DriverArrivalCommandStatus.Pending) }
+            viewModelScope.launch { runArrival(command, requestGeneration, currentAuthority) }
+        } else {
+            mutableState.update {
+                it.copy(arrivalCommandStatus = DriverArrivalCommandStatus.PersistingIntent)
+            }
+            viewModelScope.launch { persistBeforeArrival(command, requestGeneration, currentAuthority) }
+        }
+    }
+
+    private suspend fun persistBeforeArrival(
+        command: DriverArrivalCommand,
+        requestGeneration: Long,
+        currentAuthority: DriverDeliveryAuthority
+    ) {
+        val saved = safeArrivalMetadataWrite(
+            DriverArrivalIntentMetadata(
+                currentAuthority.scopeIdentity,
+                command,
+                DriverArrivalIntentStatus.Pending
+            )
+        )
+        if (!isCurrent(requestGeneration, currentAuthority)) return
+        if (saved != DriverArrivalMetadataWrite.Saved) {
+            mutableState.update {
+                it.copy(
+                    arrivalCommandStatus = DriverArrivalCommandStatus.PersistenceUnavailable,
+                    hasRecoverableArrival = true
+                )
+            }
+            return
+        }
+        pendingArrivalPersisted = true
+        mutableState.update {
+            it.copy(
+                arrivalCommandStatus = DriverArrivalCommandStatus.Pending,
+                hasRecoverableArrival = true
+            )
+        }
+        runArrival(command, requestGeneration, currentAuthority)
+    }
+
+    private suspend fun runArrival(
+        command: DriverArrivalCommand,
+        requestGeneration: Long,
+        currentAuthority: DriverDeliveryAuthority
+    ) {
+        val result = try {
+            gateway.signalArrival(command, currentAuthority)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            DriverArrivalResult.UnknownOutcome
+        }
+        if (!isCurrent(requestGeneration, currentAuthority)) return
+        when (result) {
+            is DriverArrivalResult.Recorded -> {
+                val cleared = clearArrivalIntent(command, currentAuthority)
+                if (!isCurrent(requestGeneration, currentAuthority)) return
+                if (cleared) {
+                    pendingArrival = null
+                    pendingArrivalPersisted = false
+                }
+                val summary = result.summary
+                mutableState.update { current ->
+                    val selected = current.selectedDelivery
+                    current.copy(
+                        selectedDelivery = selected?.takeIf { it.id == command.deliveryId }?.copy(
+                            arrival = DriverDeliveryArrivalFact(
+                                summary.eventId, summary.attemptId, summary.arrivedAt
+                            ),
+                            version = maxOf(selected.version, summary.deliveryVersion)
+                        ) ?: selected,
+                        arrivalCommandStatus = if (cleared) {
+                            DriverArrivalCommandStatus.Recorded
+                        } else {
+                            DriverArrivalCommandStatus.PersistenceUnavailable
+                        },
+                        hasRecoverableArrival = !cleared,
+                        arrivalSummary = summary,
+                        arrivalRejectionCode = null
+                    )
+                }
+                refresh()
+            }
+
+            is DriverArrivalResult.Rejected -> finishArrivalRejection(
+                result.code ?: "DELIVERY_ARRIVAL_REJECTED", command, requestGeneration, currentAuthority
+            )
+
+            DriverArrivalResult.StaleVersion -> {
+                finishArrivalRejection(
+                    "CONCURRENCY_CONFLICT", command, requestGeneration, currentAuthority,
+                    DriverArrivalCommandStatus.StaleVersion
+                )
+                if (isCurrent(requestGeneration, currentAuthority)) refresh()
+            }
+
+            DriverArrivalResult.NotFound -> {
+                val cleared = clearArrivalIntent(command, currentAuthority)
+                if (!isCurrent(requestGeneration, currentAuthority)) return
+                if (cleared) {
+                    pendingArrival = null
+                    pendingArrivalPersisted = false
+                }
+                mutableState.update {
+                    it.copy(
+                        detailStatus = DriverDeliveryLoadStatus.NotFound,
+                        arrivalCommandStatus = if (cleared) {
+                            DriverArrivalCommandStatus.Rejected
+                        } else {
+                            DriverArrivalCommandStatus.PersistenceUnavailable
+                        },
+                        hasRecoverableArrival = !cleared,
+                        arrivalRejectionCode = "DELIVERY_NOT_FOUND"
+                    )
+                }
+            }
+
+            DriverArrivalResult.UnknownOutcome,
+            DriverArrivalResult.NetworkUnavailable,
+            DriverArrivalResult.ServiceUnavailable -> markArrivalUnknown(
+                command, requestGeneration, currentAuthority
+            )
+
+            DriverArrivalResult.PermissionDenied -> finishArrivalRejection(
+                "PERMISSION_DENIED", command, requestGeneration, currentAuthority
+            )
+
+            DriverArrivalResult.ContextInvalidated -> finishArrivalRejection(
+                "ACCESS_CONTEXT_INVALID", command, requestGeneration, currentAuthority
+            )
+
+            DriverArrivalResult.SessionInvalidated -> finishArrivalRejection(
+                "SESSION_INVALIDATED", command, requestGeneration, currentAuthority
+            )
+        }
+    }
+
+    private suspend fun markArrivalUnknown(
+        command: DriverArrivalCommand,
+        requestGeneration: Long,
+        currentAuthority: DriverDeliveryAuthority
+    ) {
+        safeArrivalMetadataWrite(
+            DriverArrivalIntentMetadata(
+                currentAuthority.scopeIdentity, command, DriverArrivalIntentStatus.UnknownOutcome
+            )
+        )
+        if (!isCurrent(requestGeneration, currentAuthority)) return
+        mutableState.update {
+            it.copy(
+                arrivalCommandStatus = DriverArrivalCommandStatus.UnknownOutcome,
+                hasRecoverableArrival = true
+            )
+        }
+    }
+
+    private suspend fun finishArrivalRejection(
+        code: String,
+        command: DriverArrivalCommand,
+        requestGeneration: Long,
+        currentAuthority: DriverDeliveryAuthority,
+        status: DriverArrivalCommandStatus = DriverArrivalCommandStatus.Rejected
+    ) {
+        val cleared = clearArrivalIntent(command, currentAuthority)
+        if (!isCurrent(requestGeneration, currentAuthority)) return
+        if (cleared) {
+            pendingArrival = null
+            pendingArrivalPersisted = false
+        }
+        mutableState.update {
+            it.copy(
+                arrivalCommandStatus = if (cleared) status else DriverArrivalCommandStatus.PersistenceUnavailable,
+                hasRecoverableArrival = !cleared,
+                arrivalRejectionCode = code
+            )
+        }
+    }
+
+    private suspend fun clearArrivalIntent(
+        command: DriverArrivalCommand,
+        currentAuthority: DriverDeliveryAuthority
+    ): Boolean = safeArrivalMetadataClear(currentAuthority.scopeIdentity, command.idempotencyKey) ==
+        DriverArrivalMetadataWrite.Saved
 
     private suspend fun persistBeforeOutcome(
         command: DriverOutcomeCommand,
@@ -764,6 +1116,7 @@ class DriverDeliveryViewModel(
         if (!currentAuthority.canRead) return
         val requestGeneration = generation
         val selectedId = mutableState.value.selectedDelivery?.id
+            ?: pendingArrival?.deliveryId
         if (mutableState.value.commandStatus !in setOf(
                 DriverDeliveryCommandStatus.UnknownOutcome,
                 DriverDeliveryCommandStatus.Pending,
@@ -1080,6 +1433,13 @@ class DriverDeliveryViewModel(
             DriverOutcomeCommandStatus.UnknownOutcome,
             DriverOutcomeCommandStatus.PersistenceUnavailable
         )
+        val FROZEN_ARRIVAL_COMMANDS = setOf(
+            DriverArrivalCommandStatus.CheckingCurrent,
+            DriverArrivalCommandStatus.PersistingIntent,
+            DriverArrivalCommandStatus.Pending,
+            DriverArrivalCommandStatus.UnknownOutcome,
+            DriverArrivalCommandStatus.PersistenceUnavailable
+        )
     }
 
     private suspend fun safeMetadataLoad(
@@ -1142,5 +1502,47 @@ class DriverDeliveryViewModel(
         throw cancelled
     } catch (_: Exception) {
         DriverOutcomeMetadataWrite.Unavailable
+    }
+
+    private fun DriverDeliveryLoadResult.toArrivalFailureCode(): String = when (this) {
+        DriverDeliveryLoadResult.NotFound -> "DELIVERY_NOT_FOUND"
+        DriverDeliveryLoadResult.PermissionDenied -> "PERMISSION_DENIED"
+        DriverDeliveryLoadResult.ContextInvalidated -> "ACCESS_CONTEXT_INVALID"
+        DriverDeliveryLoadResult.SessionInvalidated -> "SESSION_INVALIDATED"
+        DriverDeliveryLoadResult.NetworkUnavailable -> "NETWORK_UNAVAILABLE"
+        DriverDeliveryLoadResult.ServiceUnavailable -> "SERVICE_UNAVAILABLE"
+        is DriverDeliveryLoadResult.DetailLoaded,
+        is DriverDeliveryLoadResult.ListLoaded -> "DELIVERY_ARRIVAL_REJECTED"
+    }
+
+    private suspend fun safeArrivalMetadataLoad(
+        scope: DriverAttemptScopeIdentity
+    ): DriverArrivalMetadataRead = try {
+        arrivalMetadataStore?.loadIntent(scope) ?: DriverArrivalMetadataRead.Unavailable
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        DriverArrivalMetadataRead.Unavailable
+    }
+
+    private suspend fun safeArrivalMetadataWrite(
+        intent: DriverArrivalIntentMetadata
+    ): DriverArrivalMetadataWrite = try {
+        arrivalMetadataStore?.saveIntent(intent) ?: DriverArrivalMetadataWrite.Unavailable
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        DriverArrivalMetadataWrite.Unavailable
+    }
+
+    private suspend fun safeArrivalMetadataClear(
+        scope: DriverAttemptScopeIdentity,
+        idempotencyKey: String
+    ): DriverArrivalMetadataWrite = try {
+        arrivalMetadataStore?.clearIntent(scope, idempotencyKey) ?: DriverArrivalMetadataWrite.Unavailable
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        DriverArrivalMetadataWrite.Unavailable
     }
 }

@@ -42,6 +42,26 @@ class DriverDeliveryViewModelTest {
     }
 
     @Test
+    fun directionsWaitForFreshCurrentDetailRatherThanListProjection() = runTest {
+        val gateway = FakeDriverDeliveryGateway()
+        val detailGate = CompletableDeferred<DriverDeliveryLoadResult>()
+        gateway.detailBlock = { detailGate.await() }
+        val viewModel = DriverDeliveryViewModel(gateway, FakeDriverAttemptMetadataStore())
+        viewModel.activate(AUTHORITY)
+        advanceUntilIdle()
+
+        viewModel.selectDelivery(DELIVERY_ID)
+        runCurrent()
+
+        assertNull(viewModel.state.value.authorizedDirectionsDestination)
+        assertEquals(DriverDeliveryLoadStatus.Loading, viewModel.state.value.detailStatus)
+        detailGate.complete(DriverDeliveryLoadResult.DetailLoaded(activeDelivery(9)))
+        advanceUntilIdle()
+
+        assertEquals("Server destination", viewModel.state.value.authorizedDirectionsDestination)
+    }
+
+    @Test
     fun unknownStartRetainsSameKeyAndPayloadForExplicitReplay() = runTest {
         val gateway = FakeDriverDeliveryGateway().apply {
             startResults += DriverAttemptStartResult.UnknownOutcome
@@ -218,6 +238,118 @@ class DriverDeliveryViewModelTest {
     }
 
     @Test
+    fun arrivalPersistsExactIdentityBeforePostAndKeepsDeliveryOpen() = runTest {
+        val metadata = FakeDriverArrivalMetadataStore()
+        val confirmed = activeDelivery(10).copy(
+            status = "IN_TRANSIT",
+            arrival = DriverDeliveryArrivalFact(ARRIVAL_ID, ATTEMPT_ID, ARRIVED_AT)
+        )
+        val gateway = FakeDriverDeliveryGateway().apply {
+            listItems = listOf(activeDelivery(9).copy(status = "IN_TRANSIT"))
+            detailBlock = { DriverDeliveryLoadResult.DetailLoaded(activeDelivery(9).copy(status = "IN_TRANSIT")) }
+            arrivalBlock = { command, _ ->
+                assertEquals(DriverArrivalIntentStatus.Pending, metadata.stored?.status)
+                assertEquals("arrival-stable-key", command.idempotencyKey)
+                listItems = listOf(confirmed)
+                detailBlock = { DriverDeliveryLoadResult.DetailLoaded(confirmed) }
+                DriverArrivalResult.Recorded(
+                    DriverArrivalSummary(ARRIVAL_ID, DELIVERY_ID, ATTEMPT_ID, ARRIVED_AT, 10)
+                )
+            }
+        }
+        val viewModel = DriverDeliveryViewModel(
+            gateway,
+            FakeDriverAttemptMetadataStore(),
+            arrivalMetadataStore = metadata,
+            keyFactory = { "arrival-stable-key" }
+        )
+        activateAndSelect(viewModel)
+
+        viewModel.signalArrival()
+        advanceUntilIdle()
+
+        assertEquals(1, gateway.arrivalCommands.size)
+        assertEquals(DriverArrivalCommand(DELIVERY_ID, ATTEMPT_ID, 9, "arrival-stable-key"),
+            gateway.arrivalCommands.single())
+        assertEquals(DriverArrivalCommandStatus.Recorded, viewModel.state.value.arrivalCommandStatus)
+        assertEquals(ARRIVAL_ID, viewModel.state.value.selectedDelivery?.arrival?.id)
+        assertEquals("IN_TRANSIT", viewModel.state.value.selectedDelivery?.status)
+        assertEquals(ATTEMPT_ID, viewModel.state.value.selectedDelivery?.activeAttempt?.id)
+        assertNull(metadata.stored)
+    }
+
+    @Test
+    fun uncertainArrivalOnlyReplaysAfterExplicitTapWithSameIdentity() = runTest {
+        val metadata = FakeDriverArrivalMetadataStore()
+        val gateway = FakeDriverDeliveryGateway().apply {
+            listItems = listOf(activeDelivery(9))
+            detailBlock = { DriverDeliveryLoadResult.DetailLoaded(activeDelivery(9)) }
+            arrivalResults += DriverArrivalResult.UnknownOutcome
+            arrivalResults += DriverArrivalResult.Recorded(
+                DriverArrivalSummary(ARRIVAL_ID, DELIVERY_ID, ATTEMPT_ID, ARRIVED_AT, 10)
+            )
+        }
+        var keys = 0
+        val viewModel = DriverDeliveryViewModel(
+            gateway,
+            FakeDriverAttemptMetadataStore(),
+            arrivalMetadataStore = metadata,
+            keyFactory = { keys++; "arrival-unknown-key" }
+        )
+        activateAndSelect(viewModel)
+
+        viewModel.signalArrival()
+        advanceUntilIdle()
+        assertEquals(DriverArrivalCommandStatus.UnknownOutcome, viewModel.state.value.arrivalCommandStatus)
+        assertEquals(DriverArrivalIntentStatus.UnknownOutcome, metadata.stored?.status)
+        assertEquals(1, gateway.arrivalCommands.size)
+
+        viewModel.signalArrival()
+        advanceUntilIdle()
+        assertEquals(1, gateway.arrivalCommands.size)
+
+        viewModel.retryUnknownArrival()
+        advanceUntilIdle()
+        assertEquals(2, gateway.arrivalCommands.size)
+        assertEquals(gateway.arrivalCommands.first(), gateway.arrivalCommands.last())
+        assertEquals(1, keys)
+        assertEquals(DriverArrivalCommandStatus.Recorded, viewModel.state.value.arrivalCommandStatus)
+        assertNull(metadata.stored)
+    }
+
+    @Test
+    fun restoredPendingArrivalBecomesUnknownAndWaitsForExplicitReplay() = runTest {
+        val command = DriverArrivalCommand(DELIVERY_ID, ATTEMPT_ID, 9, "recovered-arrival-key")
+        val metadata = FakeDriverArrivalMetadataStore().apply {
+            stored = DriverArrivalIntentMetadata(
+                AUTHORITY.scopeIdentity, command, DriverArrivalIntentStatus.Pending
+            )
+        }
+        val gateway = FakeDriverDeliveryGateway().apply {
+            listItems = listOf(activeDelivery(10))
+            arrivalResults += DriverArrivalResult.Recorded(
+                DriverArrivalSummary(ARRIVAL_ID, DELIVERY_ID, ATTEMPT_ID, ARRIVED_AT, 10)
+            )
+        }
+        val viewModel = DriverDeliveryViewModel(
+            gateway, FakeDriverAttemptMetadataStore(), arrivalMetadataStore = metadata
+        )
+        viewModel.activate(AUTHORITY)
+        advanceUntilIdle()
+
+        assertEquals(DriverArrivalCommandStatus.UnknownOutcome, viewModel.state.value.arrivalCommandStatus)
+        assertEquals(DriverArrivalIntentStatus.UnknownOutcome, metadata.stored?.status)
+        assertTrue(gateway.arrivalCommands.isEmpty())
+
+        viewModel.retryUnknownArrival()
+        advanceUntilIdle()
+
+        assertEquals(listOf(command), gateway.arrivalCommands)
+        assertEquals(DriverArrivalCommandStatus.Recorded, viewModel.state.value.arrivalCommandStatus)
+        assertNull(metadata.stored)
+    }
+
+    @Test
     fun outcomePersistsExactDecimalIntentBeforePostAndReplaysSameCommand() = runTest {
         val line = DriverDeliveryOutcomeLine(
             FULFILLMENT_LINE_ID, SKU_ID, "CAT-100", BigDecimal("2.000"),
@@ -332,11 +464,19 @@ class DriverDeliveryViewModelTest {
 
     private class FakeDriverDeliveryGateway : DriverDeliveryGateway {
         var detailCalls = 0
+        var listItems = listOf(delivery())
         val commands = mutableListOf<DriverAttemptStartCommand>()
         val outcomeCommands = mutableListOf<DriverOutcomeCommand>()
+        val arrivalCommands = mutableListOf<DriverArrivalCommand>()
         val startResults = ArrayDeque<DriverAttemptStartResult>()
         val outcomeResults = ArrayDeque<DriverOutcomeResult>()
+        val arrivalResults = ArrayDeque<DriverArrivalResult>()
         var beforeOutcome: () -> Unit = {}
+        var arrivalBlock: suspend (DriverArrivalCommand, DriverDeliveryAuthority) -> DriverArrivalResult =
+            { command, _ ->
+                arrivalCommands += command
+                arrivalResults.removeFirstOrNull() ?: DriverArrivalResult.UnknownOutcome
+            }
         var detailBlock: suspend (String) -> DriverDeliveryLoadResult = { deliveryId ->
             if (deliveryId == DELIVERY_ID) {
                 DriverDeliveryLoadResult.DetailLoaded(delivery())
@@ -356,7 +496,7 @@ class DriverDeliveryViewModelTest {
 
         override suspend fun assignedDeliveries(
             authority: DriverDeliveryAuthority
-        ): DriverDeliveryLoadResult = DriverDeliveryLoadResult.ListLoaded(listOf(delivery()))
+        ): DriverDeliveryLoadResult = DriverDeliveryLoadResult.ListLoaded(listItems)
 
         override suspend fun delivery(
             deliveryId: String,
@@ -384,6 +524,13 @@ class DriverDeliveryViewModelTest {
             beforeOutcome()
             outcomeCommands += command
             return outcomeResults.removeFirstOrNull() ?: DriverOutcomeResult.UnknownOutcome
+        }
+
+        override suspend fun signalArrival(
+            command: DriverArrivalCommand,
+            authority: DriverDeliveryAuthority
+        ): DriverArrivalResult = arrivalBlock(command, authority).also {
+            if (command !in arrivalCommands) arrivalCommands += command
         }
     }
 
@@ -467,9 +614,49 @@ class DriverDeliveryViewModelTest {
         }
     }
 
+    private class FakeDriverArrivalMetadataStore : DriverArrivalMetadataStore {
+        var stored: DriverArrivalIntentMetadata? = null
+        var writeResult: DriverArrivalMetadataWrite = DriverArrivalMetadataWrite.Saved
+
+        override suspend fun loadIntent(scope: DriverAttemptScopeIdentity): DriverArrivalMetadataRead {
+            val current = stored
+            if (current?.scope != scope) return DriverArrivalMetadataRead.Available(null)
+            if (current.status == DriverArrivalIntentStatus.Pending) {
+                stored = current.copy(status = DriverArrivalIntentStatus.UnknownOutcome)
+            }
+            return DriverArrivalMetadataRead.Available(stored)
+        }
+
+        override suspend fun saveIntent(intent: DriverArrivalIntentMetadata): DriverArrivalMetadataWrite {
+            if (writeResult != DriverArrivalMetadataWrite.Saved) return writeResult
+            val current = stored
+            if (current != null && current.command != intent.command) return DriverArrivalMetadataWrite.Conflict
+            if (current?.status == DriverArrivalIntentStatus.UnknownOutcome &&
+                intent.status == DriverArrivalIntentStatus.Pending
+            ) return DriverArrivalMetadataWrite.Conflict
+            stored = intent
+            return DriverArrivalMetadataWrite.Saved
+        }
+
+        override suspend fun clearIntent(
+            scope: DriverAttemptScopeIdentity,
+            idempotencyKey: String
+        ): DriverArrivalMetadataWrite {
+            if (writeResult != DriverArrivalMetadataWrite.Saved) return writeResult
+            val current = stored ?: return DriverArrivalMetadataWrite.Saved
+            if (current.scope != scope || current.command.idempotencyKey != idempotencyKey) {
+                return DriverArrivalMetadataWrite.Stale
+            }
+            stored = null
+            return DriverArrivalMetadataWrite.Saved
+        }
+    }
+
     private companion object {
         const val DELIVERY_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413201"
         const val ATTEMPT_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413202"
+        const val ARRIVAL_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413209"
+        const val ARRIVED_AT = "2026-09-30T20:00:00Z"
         const val FULFILLMENT_LINE_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413207"
         const val SKU_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413208"
         val AUTHORITY = DriverDeliveryAuthority(

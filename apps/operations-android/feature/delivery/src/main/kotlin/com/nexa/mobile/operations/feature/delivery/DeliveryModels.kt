@@ -76,11 +76,19 @@ data class DriverDeliverySnapshot(
     val updatedAt: String?,
     val version: Long,
     val activeAttempt: DriverDeliveryAttempt?,
-    val outcomeLines: List<DriverDeliveryOutcomeLine> = emptyList()
+    val outcomeLines: List<DriverDeliveryOutcomeLine> = emptyList(),
+    val arrival: DriverDeliveryArrivalFact? = null
 ) {
     override fun toString(): String =
         "DriverDeliverySnapshot(status=$status, version=$version, active=$activeAttempt)"
 }
+
+@Immutable
+data class DriverDeliveryArrivalFact(
+    val id: String,
+    val attemptId: String,
+    val arrivedAt: String
+)
 
 @Immutable
 data class DriverDeliveryOutcomeLine(
@@ -143,6 +151,65 @@ data class DriverOutcomeSummary(
     val partial: Boolean,
     val remainingLines: List<DriverRemainingQuantityLine>
 )
+
+@Immutable
+data class DriverArrivalCommand(
+    val deliveryId: String,
+    val attemptId: String,
+    val expectedVersion: Long,
+    val idempotencyKey: String,
+    val frozenBody: String = "{}"
+) {
+    init {
+        require(deliveryId.isNotBlank() && attemptId.isNotBlank())
+        require(expectedVersion >= 0)
+        require(idempotencyKey.isNotBlank() && idempotencyKey.length <= 160)
+        require(frozenBody == "{}")
+    }
+
+    override fun toString(): String = "DriverArrivalCommand(version=$expectedVersion, key=REDACTED)"
+}
+
+@Immutable
+data class DriverArrivalSummary(
+    val eventId: String,
+    val deliveryId: String,
+    val attemptId: String,
+    val arrivedAt: String,
+    val deliveryVersion: Long
+)
+
+enum class DriverArrivalIntentStatus { Pending, UnknownOutcome }
+
+@Immutable
+data class DriverArrivalIntentMetadata(
+    val scope: DriverAttemptScopeIdentity,
+    val command: DriverArrivalCommand,
+    val status: DriverArrivalIntentStatus
+) {
+    override fun toString(): String = "DriverArrivalIntentMetadata(status=$status, command=REDACTED)"
+}
+
+sealed interface DriverArrivalMetadataRead {
+    data class Available(val intent: DriverArrivalIntentMetadata?) : DriverArrivalMetadataRead
+    data object Unavailable : DriverArrivalMetadataRead
+}
+
+sealed interface DriverArrivalMetadataWrite {
+    data object Saved : DriverArrivalMetadataWrite
+    data object Conflict : DriverArrivalMetadataWrite
+    data object Stale : DriverArrivalMetadataWrite
+    data object Unavailable : DriverArrivalMetadataWrite
+}
+
+interface DriverArrivalMetadataStore {
+    suspend fun loadIntent(scope: DriverAttemptScopeIdentity): DriverArrivalMetadataRead
+    suspend fun saveIntent(intent: DriverArrivalIntentMetadata): DriverArrivalMetadataWrite
+    suspend fun clearIntent(
+        scope: DriverAttemptScopeIdentity,
+        idempotencyKey: String
+    ): DriverArrivalMetadataWrite
+}
 
 enum class DriverOutcomeIntentStatus { Pending, UnknownOutcome }
 
@@ -270,6 +337,24 @@ interface DriverDeliveryGateway {
         command: DriverOutcomeCommand,
         authority: DriverDeliveryAuthority
     ): DriverOutcomeResult
+
+    suspend fun signalArrival(
+        command: DriverArrivalCommand,
+        authority: DriverDeliveryAuthority
+    ): DriverArrivalResult
+}
+
+sealed interface DriverArrivalResult {
+    data class Recorded(val summary: DriverArrivalSummary) : DriverArrivalResult
+    data class Rejected(val code: String?) : DriverArrivalResult
+    data object NotFound : DriverArrivalResult
+    data object StaleVersion : DriverArrivalResult
+    data object UnknownOutcome : DriverArrivalResult
+    data object NetworkUnavailable : DriverArrivalResult
+    data object ServiceUnavailable : DriverArrivalResult
+    data object PermissionDenied : DriverArrivalResult
+    data object ContextInvalidated : DriverArrivalResult
+    data object SessionInvalidated : DriverArrivalResult
 }
 
 sealed interface DriverOutcomeResult {

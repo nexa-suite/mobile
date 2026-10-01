@@ -19,7 +19,12 @@ import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.feature.delivery.DriverAttemptStartCommand
 import com.nexa.mobile.operations.feature.delivery.DriverAttemptStartResult
 import com.nexa.mobile.operations.feature.delivery.DriverAttemptMetadataStore
+import com.nexa.mobile.operations.feature.delivery.DriverArrivalCommand
+import com.nexa.mobile.operations.feature.delivery.DriverArrivalMetadataStore
+import com.nexa.mobile.operations.feature.delivery.DriverArrivalResult
+import com.nexa.mobile.operations.feature.delivery.DriverArrivalSummary
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOutcomeLine
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryArrivalFact
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryAttempt
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryAuthority
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryGateway
@@ -156,7 +161,8 @@ internal class OperationsDriverDeliveryGateway @Inject constructor(
 
             is DriverDeliveryNetworkOutcome.Assigned,
             is DriverDeliveryNetworkOutcome.Detail,
-            is DriverDeliveryNetworkOutcome.OutcomeRecorded -> DriverAttemptStartResult.ServiceUnavailable
+            is DriverDeliveryNetworkOutcome.OutcomeRecorded,
+            is DriverDeliveryNetworkOutcome.ArrivalRecorded -> DriverAttemptStartResult.ServiceUnavailable
         }
     }
 
@@ -217,7 +223,62 @@ internal class OperationsDriverDeliveryGateway @Inject constructor(
             DriverDeliveryNetworkOutcome.SessionInvalidated -> DriverOutcomeResult.SessionInvalidated
             is DriverDeliveryNetworkOutcome.Assigned,
             is DriverDeliveryNetworkOutcome.Detail,
-            is DriverDeliveryNetworkOutcome.Started -> DriverOutcomeResult.ServiceUnavailable
+            is DriverDeliveryNetworkOutcome.Started,
+            is DriverDeliveryNetworkOutcome.ArrivalRecorded -> DriverOutcomeResult.ServiceUnavailable
+        }
+    }
+
+    override suspend fun signalArrival(
+        command: DriverArrivalCommand,
+        authority: DriverDeliveryAuthority
+    ): DriverArrivalResult {
+        val before = authorize(authority, DRIVER_START_PERMISSIONS)
+        if (before !is Authorization.Current) return before.toArrivalFailure()
+        val outcome = try {
+            deliveryApi.signalArrival(
+                command.deliveryId,
+                command.attemptId,
+                command.expectedVersion,
+                command.idempotencyKey,
+                command.frozenBody
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return DriverArrivalResult.UnknownOutcome
+        }
+        if (!currentAfter(authority, before.lease)) return DriverArrivalResult.UnknownOutcome
+        return when (outcome) {
+            is DriverDeliveryNetworkOutcome.ArrivalRecorded -> {
+                val value = outcome.value
+                if (value.deliveryId != command.deliveryId || value.attemptId != command.attemptId ||
+                    value.actorMembershipId != authority.membershipId ||
+                    value.deliveryVersion < command.expectedVersion || value.arrivedAt.isBlank()
+                ) {
+                    DriverArrivalResult.UnknownOutcome
+                } else {
+                    DriverArrivalResult.Recorded(
+                        DriverArrivalSummary(
+                            value.id, value.deliveryId, value.attemptId,
+                            value.arrivedAt, value.deliveryVersion
+                        )
+                    )
+                }
+            }
+
+            is DriverDeliveryNetworkOutcome.Rejected -> DriverArrivalResult.Rejected(outcome.code)
+            DriverDeliveryNetworkOutcome.NotFound -> DriverArrivalResult.NotFound
+            DriverDeliveryNetworkOutcome.StaleVersion -> DriverArrivalResult.StaleVersion
+            DriverDeliveryNetworkOutcome.UnknownOutcome,
+            DriverDeliveryNetworkOutcome.NetworkUnavailable,
+            DriverDeliveryNetworkOutcome.ServiceUnavailable -> DriverArrivalResult.UnknownOutcome
+            DriverDeliveryNetworkOutcome.PermissionDenied -> DriverArrivalResult.PermissionDenied
+            DriverDeliveryNetworkOutcome.ContextInvalidated -> DriverArrivalResult.ContextInvalidated
+            DriverDeliveryNetworkOutcome.SessionInvalidated -> DriverArrivalResult.SessionInvalidated
+            is DriverDeliveryNetworkOutcome.Assigned,
+            is DriverDeliveryNetworkOutcome.Detail,
+            is DriverDeliveryNetworkOutcome.Started,
+            is DriverDeliveryNetworkOutcome.OutcomeRecorded -> DriverArrivalResult.ServiceUnavailable
         }
     }
 
@@ -295,6 +356,13 @@ internal class OperationsDriverDeliveryGateway @Inject constructor(
         is Authorization.Current -> error("authorized result is not a failure")
     }
 
+    private fun Authorization.toArrivalFailure(): DriverArrivalResult = when (this) {
+        Authorization.SessionInvalidated -> DriverArrivalResult.SessionInvalidated
+        Authorization.ContextInvalidated -> DriverArrivalResult.ContextInvalidated
+        Authorization.PermissionDenied -> DriverArrivalResult.PermissionDenied
+        is Authorization.Current -> error("authorized result is not a failure")
+    }
+
     private fun DriverDeliveryProjection.toFeature() = DriverDeliverySnapshot(
         id = id,
         fulfillmentId = fulfillmentId,
@@ -313,6 +381,9 @@ internal class OperationsDriverDeliveryGateway @Inject constructor(
                 line.dispatchedQuantity, line.deliveredQuantity, line.rejectedQuantity,
                 line.cancelledQuantity, line.remainingQuantity, line.unit
             )
+        },
+        arrival = arrival?.let { fact ->
+            DriverDeliveryArrivalFact(fact.id, fact.attemptId, fact.arrivedAt)
         }
     )
 
@@ -336,7 +407,8 @@ internal class OperationsDriverDeliveryGateway @Inject constructor(
 internal class DriverDeliveryGatewayBindings @Inject constructor(
     private val gateway: OperationsDriverDeliveryGateway,
     private val metadataStore: DriverAttemptMetadataStore,
-    private val outcomeMetadataStore: DriverOutcomeMetadataStore
+    private val outcomeMetadataStore: DriverOutcomeMetadataStore,
+    private val arrivalMetadataStore: DriverArrivalMetadataStore
 ) {
     fun viewModelFactory(): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
@@ -345,7 +417,8 @@ internal class DriverDeliveryGatewayBindings @Inject constructor(
             return DriverDeliveryViewModel(
                 gateway,
                 metadataStore,
-                outcomeMetadataStore = outcomeMetadataStore
+                outcomeMetadataStore = outcomeMetadataStore,
+                arrivalMetadataStore = arrivalMetadataStore
             ) as T
         }
     }

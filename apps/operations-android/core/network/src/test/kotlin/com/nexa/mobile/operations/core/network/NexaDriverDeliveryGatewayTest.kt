@@ -19,7 +19,11 @@ class NexaDriverDeliveryGatewayTest {
         MockWebServer().use { server ->
             server.start()
             server.enqueue(jsonResponse(200, "[${deliveryJson(version = 9)}]"))
-            server.enqueue(jsonResponse(200, deliveryJson(version = 9)).setHeader("ETag", "\"9\""))
+            val activeWithArrival = deliveryJson(version = 9).replace(
+                "\"activeAttempt\":null",
+                "\"activeAttempt\":$activeAttemptJson,\"arrival\":{\"id\":\"$ARRIVAL_ID\",\"attemptId\":\"$ATTEMPT_ID\",\"arrivedAt\":\"2026-09-30T15:02:00Z\"}"
+            )
+            server.enqueue(jsonResponse(200, activeWithArrival).setHeader("ETag", "\"9\""))
             val gateway = gateway(server)
 
             val list = gateway.assignedDeliveries() as DriverDeliveryNetworkOutcome.Assigned
@@ -28,6 +32,8 @@ class NexaDriverDeliveryGatewayTest {
             assertEquals(listOf(DELIVERY_ID), list.items.map { it.id })
             assertEquals("DISPATCHED", detail.item.status)
             assertEquals("Av. Central 100", detail.item.destinationSnapshot)
+            assertEquals(ARRIVAL_ID, detail.item.arrival?.id)
+            assertEquals(ATTEMPT_ID, detail.item.arrival?.attemptId)
             assertEquals("/api/v1/driver/deliveries", server.takeRequest().path)
             assertEquals("/api/v1/driver/deliveries/$DELIVERY_ID", server.takeRequest().path)
         }
@@ -173,6 +179,62 @@ class NexaDriverDeliveryGatewayTest {
         }
     }
 
+    @Test
+    fun arrivalUsesCurrentAttemptRouteAndFrozenIdentityAndParsesServerFact() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(jsonResponse(201, arrivalJson(version = 10, replayed = false)).setHeader("ETag", "\"10\""))
+
+            val result = gateway(server).signalArrival(
+                DELIVERY_ID, ATTEMPT_ID, 9, "arrival-same-key", "{}"
+            ) as DriverDeliveryNetworkOutcome.ArrivalRecorded
+            val request = server.takeRequest()
+
+            assertEquals(ARRIVAL_ID, result.value.id)
+            assertEquals(DELIVERY_ID, result.value.deliveryId)
+            assertEquals(ATTEMPT_ID, result.value.attemptId)
+            assertEquals(MEMBERSHIP_ID, result.value.actorMembershipId)
+            assertEquals(10L, result.value.deliveryVersion)
+            assertEquals("POST", request.method)
+            assertEquals(
+                "/api/v1/driver/deliveries/$DELIVERY_ID/attempts/$ATTEMPT_ID/arrivals",
+                request.path
+            )
+            assertEquals("\"9\"", request.getHeader("If-Match"))
+            assertEquals("arrival-same-key", request.getHeader("Idempotency-Key"))
+            assertEquals("{}", request.body.readUtf8())
+        }
+    }
+
+    @Test
+    fun safeUnauthorizedArrivalReplayRetainsSameKeyVersionAndBody() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(problemResponse(401, "TOKEN_EXPIRED"))
+            server.enqueue(jsonResponse(200, arrivalJson(version = 10, replayed = true)).setHeader("ETag", "\"10\""))
+            val tokens = FakeAccessTokenSource()
+
+            val result = gateway(server, tokens).signalArrival(
+                DELIVERY_ID, ATTEMPT_ID, 9, "arrival-401", "{}"
+            )
+
+            assertTrue(result is DriverDeliveryNetworkOutcome.ArrivalRecorded)
+            assertEquals(1, tokens.recoverCount)
+            val first = server.takeRequest()
+            val replay = server.takeRequest()
+            listOf(first, replay).forEach { request ->
+                assertEquals("POST", request.method)
+                assertEquals("arrival-401", request.getHeader("Idempotency-Key"))
+                assertEquals("\"9\"", request.getHeader("If-Match"))
+                assertEquals("{}", request.body.readUtf8())
+                assertEquals(
+                    "/api/v1/driver/deliveries/$DELIVERY_ID/attempts/$ATTEMPT_ID/arrivals",
+                    request.path
+                )
+            }
+        }
+    }
+
     private fun gateway(
         server: MockWebServer,
         source: FakeAccessTokenSource = FakeAccessTokenSource()
@@ -194,6 +256,9 @@ class NexaDriverDeliveryGatewayTest {
     )},"attempt":$activeAttemptJson,"replayed":false}"""
 
     private fun outcomeJson(version: Long) = """{"attemptId":"$ATTEMPT_ID","delivery":{"id":"$DELIVERY_ID","version":$version,"attempts":[{"id":"$ATTEMPT_ID","outcome":"PARTIAL","attemptedAt":"2026-09-30T20:00:00Z"}]},"partial":true,"remainingLines":[{"fulfillmentLineId":"$FULFILLMENT_LINE_ID","skuId":"$SKU_ID","catalogItemId":"CAT-100","quantity":0.250,"unit":"UNIT"}]}"""
+
+    private fun arrivalJson(version: Long, replayed: Boolean) =
+        """{"id":"$ARRIVAL_ID","deliveryId":"$DELIVERY_ID","attemptId":"$ATTEMPT_ID","actorMembershipId":"$MEMBERSHIP_ID","arrivedAt":"2026-09-30T20:00:00Z","deliveryVersion":$version,"replayed":$replayed}"""
 
     private fun jsonResponse(status: Int, body: String) = MockResponse()
         .setResponseCode(status)
@@ -227,6 +292,7 @@ class NexaDriverDeliveryGatewayTest {
         const val FULFILLMENT_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413102"
         const val ORDER_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413103"
         const val ATTEMPT_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413104"
+        const val ARRIVAL_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413108"
         const val MEMBERSHIP_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413105"
         const val FULFILLMENT_LINE_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413106"
         const val SKU_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413107"

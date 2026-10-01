@@ -56,6 +56,22 @@ data class DriverDeliveryOutcomeProjection(
     val remainingLines: List<DriverRemainingQuantityLineProjection>
 )
 
+data class DriverDeliveryArrivalProjection(
+    val id: String,
+    val deliveryId: String,
+    val attemptId: String,
+    val actorMembershipId: String,
+    val arrivedAt: String,
+    val deliveryVersion: Long,
+    val replayed: Boolean
+)
+
+data class DriverDeliveryArrivalFactProjection(
+    val id: String,
+    val attemptId: String,
+    val arrivedAt: String
+)
+
 data class DriverDeliveryProjection(
     val id: String,
     val fulfillmentId: String?,
@@ -68,7 +84,8 @@ data class DriverDeliveryProjection(
     val updatedAt: String?,
     val version: Long,
     val activeAttempt: DriverDeliveryAttemptProjection?,
-    val outcomeLines: List<DriverDeliveryOutcomeLineProjection> = emptyList()
+    val outcomeLines: List<DriverDeliveryOutcomeLineProjection> = emptyList(),
+    val arrival: DriverDeliveryArrivalFactProjection? = null
 )
 
 sealed interface DriverDeliveryNetworkOutcome {
@@ -79,6 +96,7 @@ sealed interface DriverDeliveryNetworkOutcome {
         val attempt: DriverDeliveryAttemptProjection
     ) : DriverDeliveryNetworkOutcome
     data class OutcomeRecorded(val value: DriverDeliveryOutcomeProjection) : DriverDeliveryNetworkOutcome
+    data class ArrivalRecorded(val value: DriverDeliveryArrivalProjection) : DriverDeliveryNetworkOutcome
     data class Rejected(val code: String?) : DriverDeliveryNetworkOutcome
     data object NotFound : DriverDeliveryNetworkOutcome
     data object StaleVersion : DriverDeliveryNetworkOutcome
@@ -231,6 +249,51 @@ class NexaDriverDeliveryGateway(private val protectedCalls: ProtectedCallExecuto
         }
     }
 
+    suspend fun signalArrival(
+        deliveryId: String,
+        attemptId: String,
+        expectedVersion: Long,
+        idempotencyKey: String,
+        frozenBody: String
+    ): DriverDeliveryNetworkOutcome {
+        if (!driverUuidPattern.matches(deliveryId) || !driverUuidPattern.matches(attemptId) ||
+            expectedVersion < 0 || idempotencyKey.isBlank() || idempotencyKey.length > 160 ||
+            frozenBody != "{}"
+        ) {
+            return DriverDeliveryNetworkOutcome.ServiceUnavailable
+        }
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(
+                    method = ProtectedMethod.POST,
+                    path = "$DRIVER_DELIVERIES_PATH/$deliveryId/attempts/$attemptId/arrivals",
+                    payload = frozenBody,
+                    idempotencyKey = idempotencyKey,
+                    ifMatch = "\"$expectedVersion\""
+                )
+            )
+        ) {
+            is ProtectedResult.Failure -> result.error.toMutationOutcome()
+            is ProtectedResult.Success -> {
+                if (result.status !in setOf(200, 201)) {
+                    return DriverDeliveryNetworkOutcome.UnknownOutcome
+                }
+                val arrival = result.body.toArrivalProjection()
+                    ?: return DriverDeliveryNetworkOutcome.UnknownOutcome
+                val replayStatus = result.status == 200
+                if (arrival.deliveryId != deliveryId || arrival.attemptId != attemptId ||
+                    arrival.deliveryVersion < expectedVersion ||
+                    (!replayStatus && arrival.deliveryVersion <= expectedVersion) ||
+                    arrival.replayed != replayStatus || result.etag.toVersion() != arrival.deliveryVersion
+                ) {
+                    DriverDeliveryNetworkOutcome.UnknownOutcome
+                } else {
+                    DriverDeliveryNetworkOutcome.ArrivalRecorded(arrival)
+                }
+            }
+        }
+    }
+
     private fun String?.toDeliveryList(): List<DriverDeliveryProjection>? = try {
         val elements = this?.let(driverDeliveryJson::parseToJsonElement)?.jsonArray ?: return null
         elements.map { (it as? JsonObject)?.toProjection() ?: return null }
@@ -317,9 +380,16 @@ class NexaDriverDeliveryGateway(private val protectedCalls: ProtectedCallExecuto
             null, JsonNull -> emptyList()
             else -> outcomeLineElement.jsonArray.map { (it as? JsonObject)?.toOutcomeLine() ?: return null }
         }
+        val arrivalElement = this["arrival"]
+        val arrival = when (arrivalElement) {
+            null, JsonNull -> null
+            is JsonObject -> arrivalElement.toArrivalFact() ?: return null
+            else -> return null
+        }
+        if (arrival != null && activeAttempt?.id != arrival.attemptId) return null
         DriverDeliveryProjection(
             id, fulfillmentId, salesOrderId, status, destination, scheduled, dispatched,
-            delivered, updated, version, activeAttempt, outcomeLines
+            delivered, updated, version, activeAttempt, outcomeLines, arrival
         )
     } catch (_: Exception) {
         null
@@ -388,6 +458,29 @@ class NexaDriverDeliveryGateway(private val protectedCalls: ProtectedCallExecuto
         DriverDeliveryOutcomeProjection(
             attemptId, deliveryId, version, outcome, attemptedAt, partial, remaining
         )
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun String?.toArrivalProjection(): DriverDeliveryArrivalProjection? = try {
+        val root = this.toObject() ?: return null
+        val id = root.requiredText("id")?.takeIf(driverUuidPattern::matches) ?: return null
+        val deliveryId = root.requiredText("deliveryId")?.takeIf(driverUuidPattern::matches) ?: return null
+        val attemptId = root.requiredText("attemptId")?.takeIf(driverUuidPattern::matches) ?: return null
+        val actorId = root.requiredText("actorMembershipId")?.takeIf(driverUuidPattern::matches) ?: return null
+        val arrivedAt = root.requiredText("arrivedAt") ?: return null
+        val version = root.requiredLong("deliveryVersion")?.takeIf { it >= 0 } ?: return null
+        val replayed = root["replayed"]?.jsonPrimitive?.booleanOrNull ?: return null
+        DriverDeliveryArrivalProjection(id, deliveryId, attemptId, actorId, arrivedAt, version, replayed)
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun JsonObject.toArrivalFact(): DriverDeliveryArrivalFactProjection? = try {
+        val id = requiredText("id")?.takeIf(driverUuidPattern::matches) ?: return null
+        val attemptId = requiredText("attemptId")?.takeIf(driverUuidPattern::matches) ?: return null
+        val arrivedAt = requiredText("arrivedAt") ?: return null
+        DriverDeliveryArrivalFactProjection(id, attemptId, arrivedAt)
     } catch (_: Exception) {
         null
     }
