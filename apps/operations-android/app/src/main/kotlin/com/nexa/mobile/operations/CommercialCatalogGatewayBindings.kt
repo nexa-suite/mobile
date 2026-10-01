@@ -38,7 +38,7 @@ internal class OperationsCommercialCatalogGateway @Inject constructor(private va
         }
     override suspend fun detail(authority: CommercialAuthority, customerId: String, id: String): CommercialCatalogResult =
         execute(authority, customerId) {
-            when (val result = commercial.detail(id)) {
+            when (val result = commercial.detail(customerId, id)) {
                 is CommercialCatalogNetworkResult.Found -> {
                     val item = result.value
                     val money = item.currentOfferPrice ?: item.effectivePrice ?: item.unitPrice
