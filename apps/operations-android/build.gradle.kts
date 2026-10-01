@@ -75,6 +75,14 @@ tasks.register("verifyAndroidArchitecture") {
                             }
                         ) { "Catalog identification adapter must use protected reads only" }
                         it.replace("\"/api/v1/catalog-items\"", "\"<catalog-read-route>\"")
+                    } else if (source.name == "NexaCommercialCatalogGateway.kt") {
+                        check(it.contains("COMMERCIAL_CATALOG_PATH = \"/api/v1/catalog-items\"")) {
+                            "Commercial catalog must use the canonical protected projection"
+                        }
+                        check(listOf("POST", "PUT", "PATCH", "DELETE").none { method ->
+                            it.contains("ProtectedMethod.$method")
+                        }) { "Commercial catalog transport must remain read-only" }
+                        it.replace("/api/v1/catalog-items", "<commercial-catalog-read-route>")
                     } else if (source.name == "NexaDispatchReadinessGateway.kt") {
                         check(it.contains("READINESS_PATH = \"/api/v1/dispatch-readiness\"")) {
                             "Dispatch readiness must use the canonical protected projection"

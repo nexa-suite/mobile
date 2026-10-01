@@ -29,6 +29,8 @@ import com.nexa.mobile.operations.feature.access.PermissionHint
 import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
 import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
 import com.nexa.mobile.operations.feature.warehouse.ConfirmedReceivingProduct
+import com.nexa.mobile.operations.commercial.CommercialCatalogScreen
+import com.nexa.mobile.operations.commercial.CommercialCatalogViewModel
 import com.nexa.mobile.operations.commercial.CustomerProgressScreen
 import com.nexa.mobile.operations.commercial.CustomerProgressViewModel
 import com.nexa.mobile.operations.commercial.CommercialAuthority
@@ -82,6 +84,8 @@ class MainActivity : ComponentActivity() {
     }
     @Inject internal lateinit var dispositionFactory: DispositionViewModelFactory
     private val dispositionViewModel: DispositionViewModel by viewModels { dispositionFactory }
+    @Inject internal lateinit var commercialCatalogFactory: CommercialCatalogViewModelFactory
+    private val commercialCatalogViewModel: CommercialCatalogViewModel by viewModels { commercialCatalogFactory }
     @Inject internal lateinit var customerProgressFactory: CustomerProgressViewModelFactory
     private val customerProgressViewModel: CustomerProgressViewModel by viewModels { customerProgressFactory }
     @Inject internal lateinit var customerSearchFactory: CustomerSearchViewModelFactory
@@ -174,6 +178,7 @@ class MainActivity : ComponentActivity() {
                 val accessState = accessViewModel.state.collectAsStateWithLifecycle().value
                 val warehouseState = warehouseViewModel.state.collectAsStateWithLifecycle().value
                 val scannerState = scannerViewModel.state.collectAsStateWithLifecycle().value
+                val commercialCatalogState by commercialCatalogViewModel.state.collectAsStateWithLifecycle()
                 val customerProgressState by customerProgressViewModel.state.collectAsStateWithLifecycle()
                 val customerSearchState by customerSearchViewModel.state.collectAsStateWithLifecycle()
                 val temperatureEvidenceState by temperatureEvidenceViewModel.state.collectAsStateWithLifecycle()
@@ -467,6 +472,12 @@ class MainActivity : ComponentActivity() {
                                 connectedRoute = route
                                 val authority = route.authority
                                 when (entry.key) {
+                                    "commercial.catalog" -> commercialCatalogViewModel.activate(
+                                        CommercialAuthority(
+                                            authority.userId, authority.tenantId, authority.workspaceId,
+                                            authority.membershipId, authority.permissions, route.authorityEpoch
+                                        )
+                                    )
                                     "commercial.progress" -> customerProgressViewModel.activate(
                                         CommercialAuthority(
                                             authority.userId, authority.tenantId, authority.workspaceId,
@@ -505,6 +516,16 @@ class MainActivity : ComponentActivity() {
                     },
                     connectedOperationContent = {
                         when (connectedRoute?.entryKey) {
+                            "commercial.catalog" -> CommercialCatalogScreen(
+                                state = commercialCatalogState,
+                                onBack = ::closeConnectedOperation,
+                                onCustomerIdChanged = commercialCatalogViewModel::customerIdChanged,
+                                onQueryChanged = commercialCatalogViewModel::queryChanged,
+                                onSearch = commercialCatalogViewModel::search,
+                                onNextPage = commercialCatalogViewModel::nextPage,
+                                onSelectProduct = commercialCatalogViewModel::selectProduct,
+                                onRouteClosed = commercialCatalogViewModel::deactivate
+                            )
                             "commercial.progress" -> CustomerProgressScreen(
                                 state = customerProgressState,
                                 onBack = ::closeConnectedOperation,
@@ -524,6 +545,24 @@ class MainActivity : ComponentActivity() {
                                 onPreviousPage = customerSearchViewModel::previousPage,
                                 onNextPage = customerSearchViewModel::nextPage,
                                 onRouteClosed = customerSearchViewModel::deactivate,
+                                onReviewProducts = if (accessState.activeContext?.verifiedAuthority?.permissions
+                                    ?.any { it == "catalog.read" || it == "catalog:read" } == true
+                                ) { customerId ->
+                                    val entry = CONNECTED_OPERATIONS.single { it.key == "commercial.catalog" }
+                                    ConnectedOperationsNavigation.open(entry, state, accessState, warehouseState)
+                                        ?.let { route ->
+                                            closeConnectedOperation()
+                                            connectedRoute = route
+                                            val authority = route.authority
+                                            commercialCatalogViewModel.activate(
+                                                CommercialAuthority(
+                                                    authority.userId, authority.tenantId, authority.workspaceId,
+                                                    authority.membershipId, authority.permissions, route.authorityEpoch
+                                                )
+                                            )
+                                            commercialCatalogViewModel.customerIdChanged(customerId)
+                                        }
+                                } else null,
                                 onReviewProgress = { customerId ->
                                     val entry = CONNECTED_OPERATIONS.single { it.key == "commercial.progress" }
                                     ConnectedOperationsNavigation.open(entry, state, accessState, warehouseState)
@@ -831,6 +870,7 @@ class MainActivity : ComponentActivity() {
         temperatureEvidenceViewModel.deactivate()
         customerSearchViewModel.deactivate()
         customerProgressViewModel.deactivate()
+        commercialCatalogViewModel.deactivate()
     }
 
     private fun invalidateProtectedContentForForegroundReturn() {
@@ -914,6 +954,7 @@ private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHi
 
 
 private val CONNECTED_OPERATIONS = listOf(
+    ConnectedOperationEntry("commercial.catalog", "Catálogo comercial", setOf("catalog.read", "catalog:read")),
     ConnectedOperationEntry("commercial.progress", "Compromisos y crédito", setOf("client.read", "sales:read")),
     ConnectedOperationEntry("commercial.customers", "Clientes y compradores", setOf("client.read", "sales:read")),
     ConnectedOperationEntry("warehouse.temperature", "Registrar temperatura", setOf("inventory.receive")),
