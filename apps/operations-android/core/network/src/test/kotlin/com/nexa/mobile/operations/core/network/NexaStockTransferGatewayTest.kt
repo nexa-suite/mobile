@@ -118,6 +118,60 @@ class NexaStockTransferGatewayTest {
         }
     }
 
+    @Test
+    fun recordsArrivalObservationAsSeparateVersionedFactAndRejectsMalformedConfirmation() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(jsonResponse("""{"items":[${inTransitTransferJson()}],"page":0,"size":25,"total":1}""", status = 200))
+            server.enqueue(jsonResponse(receiptObservationJson(), status = 201))
+            server.enqueue(jsonResponse(receiptObservationJson().replace("\"transferVersion\":2", "\"transferVersion\":1"), status = 201))
+            server.enqueue(problemResponse(412, "CONCURRENCY_CONFLICT"))
+            val gateway = gateway(server)
+            val expected = (gateway.transfersForDestination(DESTINATION_WAREHOUSE_ID) as StockTransferLookupNetworkOutcome.Page)
+                .items.single()
+            server.takeRequest()
+
+            val recorded = gateway.observeTransferArrival(
+                expected, "B-OBSERVED", "2027-02-16", java.math.BigDecimal("0.000"), "EA", "observation-key-1"
+            )
+            val request = server.takeRequest()
+            assertEquals("POST", request.method)
+            assertEquals("/api/v1/inventory/transfers/$TRANSFER_ID/receipt-observations", request.requestUrl?.encodedPath)
+            assertEquals("observation-key-1", request.getHeader("Idempotency-Key"))
+            assertEquals("\"2\"", request.getHeader("If-Match"))
+            assertEquals(
+                """{"observedBatchNumber":"B-OBSERVED","observedExpirationDate":"2027-02-16","observedQuantity":"0.000","unit":"EA"}""",
+                request.body.readUtf8()
+            )
+            val observation = (recorded as StockTransferReceiptObservationNetworkOutcome.Recorded).observation
+            assertEquals(TRANSFER_ID, observation.transferId)
+            assertEquals("0.000", observation.observedQuantity.toPlainString())
+            assertEquals(true, observation.hasDifference)
+
+            assertEquals(
+                StockTransferReceiptObservationNetworkOutcome.UnknownOutcome,
+                gateway.observeTransferArrival(
+                    expected, "B-OBSERVED", "2027-02-16", java.math.BigDecimal("0.000"), "EA", "observation-key-1"
+                )
+            )
+            server.takeRequest()
+            assertEquals(
+                StockTransferReceiptObservationNetworkOutcome.PreconditionFailed,
+                gateway.observeTransferArrival(
+                    expected, "B-OBSERVED", "2027-02-16", java.math.BigDecimal("0.000"), "EA", "observation-key-1"
+                )
+            )
+            server.takeRequest()
+            assertEquals(
+                StockTransferReceiptObservationNetworkOutcome.Rejected("INVALID_REQUEST"),
+                gateway.observeTransferArrival(
+                    expected, "B-OBSERVED", null, java.math.BigDecimal("-1"), "EA", "observation-key-1"
+                )
+            )
+            assertEquals(4, server.requestCount)
+        }
+    }
+
     private fun gateway(server: MockWebServer): NexaStockTransferGateway {
         val endpoint = ApiEndpoint(server.url("/").toString())
         return NexaStockTransferGateway(
@@ -147,6 +201,9 @@ class NexaStockTransferGatewayTest {
         .replace("\"destinationVersionAfter\":null", "\"destinationVersionAfter\":7")
         .replace("\"version\":2", "\"version\":3")
         .replace("\"receivedAt\":null", "\"receivedAt\":\"2026-09-30T10:30:00Z\"")
+
+    private fun receiptObservationJson() =
+        """{"observationId":"d8c24a46-57d9-4f64-8fa7-6a641b413401","transferId":"$TRANSFER_ID","transferVersion":2,"sourceWarehouseId":"$SOURCE_WAREHOUSE_ID","sourceZoneId":"$SOURCE_ZONE_ID","sourceLotId":"$SOURCE_LOT_ID","destinationWarehouseId":"$DESTINATION_WAREHOUSE_ID","destinationZoneId":"$DESTINATION_ZONE_ID","expectedBatchNumber":"LOT-17","expectedExpirationDate":"2027-02-15","expectedQuantity":1.2300,"expectedUnit":"EA","observedBatchNumber":"B-OBSERVED","observedExpirationDate":"2027-02-16","observedQuantity":0.000,"observedUnit":"EA","hasDifference":true,"actorMembershipId":"e6c14000-0479-453f-93b9-c71cde8fbd04","recordedAt":"2026-09-30T10:40:00Z"}"""
 
     private fun String.jsonEscaped(): String = replace("\\", "\\\\").replace("\"", "\\\"")
 

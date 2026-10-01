@@ -11,9 +11,14 @@ import com.nexa.mobile.operations.core.network.NexaStockTransferGateway
 import com.nexa.mobile.operations.core.network.StockTransferLookupNetworkOutcome
 import com.nexa.mobile.operations.core.network.StockTransferNetworkOutcome
 import com.nexa.mobile.operations.core.network.StockTransferProjection
+import com.nexa.mobile.operations.core.network.StockTransferReceiptObservationNetworkOutcome
 import com.nexa.mobile.operations.feature.warehouse.StockTransferAuthority
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptGateway
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptIntent
+import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservation
+import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservationIntent
+import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservationMetadataStore
+import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservationResult
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptLookupResult
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptResult
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptTransfer
@@ -120,6 +125,41 @@ internal class OperationsStockTransferReceiptGateway @Inject constructor(
         }
     }
 
+    override suspend fun observeArrival(
+        intent: StockTransferReceiptObservationIntent,
+        authority: StockTransferAuthority
+    ): StockTransferReceiptObservationResult {
+        if (intent.scope != authority.scope) return StockTransferReceiptObservationResult.ContextInvalidated
+        val before = authorize(authority, WRITE_PERMISSIONS)
+        if (before !is Authorization.Current) return before.toObservationFailure()
+        val result = try {
+            when (val response = transfers.observeTransferArrival(
+                expectedTransfer = intent.transfer.toNetworkProjection(),
+                observedBatchNumber = intent.observedBatchNumber,
+                observedExpirationDate = intent.observedExpirationDate,
+                observedQuantity = requireNotNull(intent.observedQuantityText.toBigDecimalOrNull()),
+                unit = intent.observedUnit,
+                idempotencyKey = intent.idempotencyKey
+            )) {
+                is StockTransferReceiptObservationNetworkOutcome.Recorded ->
+                    if (response.observation.actorMembershipId == authority.membershipId) {
+                        response.toReceiptObservationResult()
+                    } else {
+                        StockTransferReceiptObservationResult.UnknownOutcome
+                    }
+                else -> response.toReceiptObservationResult()
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            StockTransferReceiptObservationResult.UnknownOutcome
+        }
+        return if (currentAfter(authority, before.lease, WRITE_PERMISSIONS)) result else when (authorityDrift(authority)) {
+            StockTransferReceiptLookupResult.SessionInvalidated -> StockTransferReceiptObservationResult.SessionInvalidated
+            else -> StockTransferReceiptObservationResult.ContextInvalidated
+        }
+    }
+
     private suspend fun authorize(authority: StockTransferAuthority, required: Set<String>): Authorization {
         if (sessions.sessionState.value != SessionState.Active) return Authorization.SessionInvalidated
         val lease = sessions.currentAccess() ?: return Authorization.SessionInvalidated
@@ -164,6 +204,13 @@ internal class OperationsStockTransferReceiptGateway @Inject constructor(
         is Authorization.Current -> error("authorized result is not a command failure")
     }
 
+    private fun Authorization.toObservationFailure(): StockTransferReceiptObservationResult = when (this) {
+        Authorization.SessionInvalidated -> StockTransferReceiptObservationResult.SessionInvalidated
+        Authorization.ContextInvalidated -> StockTransferReceiptObservationResult.ContextInvalidated
+        Authorization.PermissionDenied -> StockTransferReceiptObservationResult.PermissionDenied
+        is Authorization.Current -> error("authorized result is not an observation failure")
+    }
+
     private fun StockTransferNetworkOutcome.toReceiptResult(): StockTransferReceiptResult = when (this) {
         is StockTransferNetworkOutcome.Confirmed -> StockTransferReceiptResult.Confirmed(transfer.toReceiptTransfer())
         is StockTransferNetworkOutcome.Rejected -> StockTransferReceiptResult.Rejected(code)
@@ -175,6 +222,41 @@ internal class OperationsStockTransferReceiptGateway @Inject constructor(
         StockTransferNetworkOutcome.PermissionDenied -> StockTransferReceiptResult.PermissionDenied
         StockTransferNetworkOutcome.ContextInvalidated -> StockTransferReceiptResult.ContextInvalidated
         StockTransferNetworkOutcome.SessionInvalidated -> StockTransferReceiptResult.SessionInvalidated
+    }
+
+    private fun StockTransferReceiptObservationNetworkOutcome.toReceiptObservationResult(): StockTransferReceiptObservationResult = when (this) {
+        is StockTransferReceiptObservationNetworkOutcome.Recorded -> {
+            val value = observation
+            StockTransferReceiptObservationResult.Recorded(
+                StockTransferReceiptObservation(
+                    observationId = value.observationId,
+                    transferId = value.transferId,
+                    transferVersion = value.transferVersion,
+                    observedBatchNumber = value.observedBatchNumber,
+                    observedExpirationDate = value.observedExpirationDate,
+                    observedQuantityText = value.observedQuantity.toPlainString(),
+                    observedUnit = value.observedUnit,
+                    hasDifference = value.hasDifference,
+                    actorMembershipId = value.actorMembershipId,
+                    recordedAt = value.recordedAt
+                )
+            )
+        }
+        is StockTransferReceiptObservationNetworkOutcome.Rejected -> StockTransferReceiptObservationResult.Rejected(code)
+        StockTransferReceiptObservationNetworkOutcome.UnknownOutcome -> StockTransferReceiptObservationResult.UnknownOutcome
+        StockTransferReceiptObservationNetworkOutcome.PreconditionFailed ->
+            StockTransferReceiptObservationResult.PreconditionFailed
+        StockTransferReceiptObservationNetworkOutcome.Conflict -> StockTransferReceiptObservationResult.Conflict
+        StockTransferReceiptObservationNetworkOutcome.NetworkUnavailable ->
+            StockTransferReceiptObservationResult.NetworkUnavailable
+        StockTransferReceiptObservationNetworkOutcome.ServiceUnavailable ->
+            StockTransferReceiptObservationResult.ServiceUnavailable
+        StockTransferReceiptObservationNetworkOutcome.PermissionDenied ->
+            StockTransferReceiptObservationResult.PermissionDenied
+        StockTransferReceiptObservationNetworkOutcome.ContextInvalidated ->
+            StockTransferReceiptObservationResult.ContextInvalidated
+        StockTransferReceiptObservationNetworkOutcome.SessionInvalidated ->
+            StockTransferReceiptObservationResult.SessionInvalidated
     }
 
     private fun StockTransferProjection.toReceiptTransfer() = StockTransferReceiptTransfer(
@@ -261,12 +343,13 @@ internal object StockTransferReceiptGatewayBindings {
 internal object StockTransferReceiptViewModelBindings {
     fun viewModelFactory(
         gateway: StockTransferReceiptGateway,
-        metadataStore: com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptMetadataStore
+        metadataStore: com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptMetadataStore,
+        observationMetadataStore: StockTransferReceiptObservationMetadataStore
     ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass.isAssignableFrom(StockTransferReceiptViewModel::class.java))
-            return StockTransferReceiptViewModel(gateway, metadataStore) as T
+            return StockTransferReceiptViewModel(gateway, metadataStore, observationMetadataStore) as T
         }
     }
 }

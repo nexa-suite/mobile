@@ -1,9 +1,11 @@
 package com.nexa.mobile.operations.core.network
 
 import java.math.BigDecimal
+import java.time.Instant
 import java.util.UUID
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -54,6 +56,45 @@ sealed interface StockTransferNetworkOutcome {
     data object PermissionDenied : StockTransferNetworkOutcome
     data object ContextInvalidated : StockTransferNetworkOutcome
     data object SessionInvalidated : StockTransferNetworkOutcome
+}
+
+/** Server-attributed observation of what arrived; it does not receive stock or close a transfer. */
+data class StockTransferReceiptObservationProjection(
+    val observationId: String,
+    val transferId: String,
+    val transferVersion: Long,
+    val sourceWarehouseId: String,
+    val sourceZoneId: String,
+    val sourceLotId: String,
+    val destinationWarehouseId: String,
+    val destinationZoneId: String,
+    val expectedBatchNumber: String,
+    val expectedExpirationDate: String?,
+    val expectedQuantity: BigDecimal,
+    val expectedUnit: String,
+    val observedBatchNumber: String,
+    val observedExpirationDate: String?,
+    val observedQuantity: BigDecimal,
+    val observedUnit: String,
+    val hasDifference: Boolean,
+    val actorMembershipId: String,
+    val recordedAt: String
+) {
+    override fun toString(): String =
+        "StockTransferReceiptObservationProjection(id=$observationId, hasDifference=$hasDifference, quantities=REDACTED)"
+}
+
+sealed interface StockTransferReceiptObservationNetworkOutcome {
+    data class Recorded(val observation: StockTransferReceiptObservationProjection) : StockTransferReceiptObservationNetworkOutcome
+    data class Rejected(val code: String?) : StockTransferReceiptObservationNetworkOutcome
+    data object UnknownOutcome : StockTransferReceiptObservationNetworkOutcome
+    data object PreconditionFailed : StockTransferReceiptObservationNetworkOutcome
+    data object Conflict : StockTransferReceiptObservationNetworkOutcome
+    data object NetworkUnavailable : StockTransferReceiptObservationNetworkOutcome
+    data object ServiceUnavailable : StockTransferReceiptObservationNetworkOutcome
+    data object PermissionDenied : StockTransferReceiptObservationNetworkOutcome
+    data object ContextInvalidated : StockTransferReceiptObservationNetworkOutcome
+    data object SessionInvalidated : StockTransferReceiptObservationNetworkOutcome
 }
 
 sealed interface StockTransferLookupNetworkOutcome {
@@ -148,6 +189,62 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
                     ?: return StockTransferNetworkOutcome.UnknownOutcome
                 if (item.matchesReceipt(expectedTransfer)) StockTransferNetworkOutcome.Confirmed(item)
                 else StockTransferNetworkOutcome.UnknownOutcome
+            }
+        }
+    }
+
+    /** Persists one attributable observation with the selected transfer's own version and a frozen key. */
+    suspend fun observeTransferArrival(
+        expectedTransfer: StockTransferProjection,
+        observedBatchNumber: String,
+        observedExpirationDate: String?,
+        observedQuantity: BigDecimal,
+        unit: String,
+        idempotencyKey: String
+    ): StockTransferReceiptObservationNetworkOutcome {
+        if (expectedTransfer.status != STATUS_IN_TRANSIT || expectedTransfer.version < 0 ||
+            expectedTransfer.transferredQuantity.signum() <= 0 || expectedTransfer.dispatchedAt.isNullOrBlank() ||
+            expectedTransfer.batchNumber.isNullOrBlank() || !expectedTransfer.id.isUuid() ||
+            observedBatchNumber.isBlank() || observedBatchNumber != observedBatchNumber.trim() ||
+            observedBatchNumber.length > MAX_BATCH_NUMBER_LENGTH || observedBatchNumber.any(Char::isISOControl) ||
+            (observedExpirationDate != null && !observedExpirationDate.isValidLocalDate()) ||
+            observedQuantity.signum() < 0 || !unit.equals(expectedTransfer.unit, ignoreCase = true) ||
+            idempotencyKey.isBlank() || idempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH
+        ) {
+            return StockTransferReceiptObservationNetworkOutcome.Rejected("INVALID_REQUEST")
+        }
+        val payload = try {
+            stockTransferJson.encodeToString(
+                TransferReceiptObservationRequestWire(
+                    observedBatchNumber,
+                    observedExpirationDate,
+                    observedQuantity.toPlainString(),
+                    unit
+                )
+            )
+        } catch (_: SerializationException) {
+            return StockTransferReceiptObservationNetworkOutcome.Rejected("INVALID_REQUEST")
+        }
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(
+                    method = ProtectedMethod.POST,
+                    path = "$INVENTORY_TRANSFERS_PATH/${expectedTransfer.id}/receipt-observations",
+                    payload = payload,
+                    idempotencyKey = idempotencyKey,
+                    ifMatch = "\"${expectedTransfer.version}\""
+                )
+            )
+        ) {
+            is ProtectedResult.Failure -> result.error.toReceiptObservationOutcome()
+            is ProtectedResult.Success -> {
+                if (result.status != HTTP_CREATED) return StockTransferReceiptObservationNetworkOutcome.UnknownOutcome
+                val wire = result.body.decode<TransferReceiptObservationResponseWire>()
+                    ?: return StockTransferReceiptObservationNetworkOutcome.UnknownOutcome
+                val observation = wire.toProjection(expectedTransfer, observedBatchNumber,
+                    observedExpirationDate, observedQuantity, unit)
+                    ?: return StockTransferReceiptObservationNetworkOutcome.UnknownOutcome
+                StockTransferReceiptObservationNetworkOutcome.Recorded(observation)
             }
         }
     }
@@ -297,6 +394,66 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
         else -> StockTransferLookupNetworkOutcome.ServiceUnavailable
     }
 
+    private fun ClientFailure.toReceiptObservationOutcome(): StockTransferReceiptObservationNetworkOutcome = when {
+        kind == FailureKind.AuthenticationRequired -> StockTransferReceiptObservationNetworkOutcome.SessionInvalidated
+        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
+            StockTransferReceiptObservationNetworkOutcome.ContextInvalidated
+        kind == FailureKind.AuthorizationFailure || httpStatus == 404 ->
+            StockTransferReceiptObservationNetworkOutcome.PermissionDenied
+        kind == FailureKind.StaleState || httpStatus == 412 ->
+            StockTransferReceiptObservationNetworkOutcome.PreconditionFailed
+        kind == FailureKind.BusinessConflict || httpStatus == 409 ->
+            StockTransferReceiptObservationNetworkOutcome.Conflict
+        kind == FailureKind.ValidationFailure -> StockTransferReceiptObservationNetworkOutcome.Rejected(problemCode)
+        kind == FailureKind.UnknownOutcome || kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
+            StockTransferReceiptObservationNetworkOutcome.UnknownOutcome
+        else -> StockTransferReceiptObservationNetworkOutcome.ServiceUnavailable
+    }
+
+    private fun TransferReceiptObservationResponseWire.toProjection(
+        expectedTransfer: StockTransferProjection,
+        observedBatchNumber: String,
+        observedExpirationDate: String?,
+        observedQuantity: BigDecimal,
+        observedUnit: String
+    ): StockTransferReceiptObservationProjection? {
+        val safeObservationId = observationId?.takeIf { it.isUuid() } ?: return null
+        val safeTransferId = transferId?.takeIf { it.isUuid() } ?: return null
+        val safeSourceWarehouse = sourceWarehouseId?.takeIf { it.isUuid() } ?: return null
+        val safeSourceZone = sourceZoneId?.takeIf { it.isUuid() } ?: return null
+        val safeSourceLot = sourceLotId?.takeIf { it.isUuid() } ?: return null
+        val safeDestinationWarehouse = destinationWarehouseId?.takeIf { it.isUuid() } ?: return null
+        val safeDestinationZone = destinationZoneId?.takeIf { it.isUuid() } ?: return null
+        val expectedBatch = expectedBatchNumber?.takeIf(String::isNotBlank) ?: return null
+        val safeExpectedQuantity = expectedQuantity.decimalValue() ?: return null
+        val safeExpectedUnit = expectedUnit?.takeIf(String::isNotBlank) ?: return null
+        val safeObservedBatch = observedBatchNumber.takeIf(String::isNotBlank) ?: return null
+        val safeObservedQuantity = observedQuantity
+        val safeObservedUnit = observedUnit.takeIf(String::isNotBlank) ?: return null
+        val safeActor = actorMembershipId?.takeIf { it.isUuid() } ?: return null
+        val safeRecordedAt = recordedAt?.takeIf { value ->
+            try { Instant.parse(value); true } catch (_: RuntimeException) { false }
+        } ?: return null
+        if (transferVersion != expectedTransfer.version || safeTransferId != expectedTransfer.id ||
+            safeSourceWarehouse != expectedTransfer.sourceWarehouseId || safeSourceZone != expectedTransfer.sourceZoneId ||
+            safeSourceLot != expectedTransfer.sourceLotId ||
+            safeDestinationWarehouse != expectedTransfer.destinationWarehouseId ||
+            safeDestinationZone != expectedTransfer.destinationZoneId ||
+            expectedBatch != expectedTransfer.batchNumber || expectedExpirationDate != expectedTransfer.expirationDate ||
+            safeExpectedQuantity.compareTo(expectedTransfer.transferredQuantity) != 0 ||
+            !safeExpectedUnit.equals(expectedTransfer.unit, ignoreCase = true) ||
+            safeObservedBatch != observedBatchNumber || observedExpirationDate != this.observedExpirationDate ||
+            safeObservedQuantity.compareTo(observedQuantity) != 0 ||
+            !safeObservedUnit.equals(observedUnit, ignoreCase = true) || hasDifference != true
+        ) return null
+        return StockTransferReceiptObservationProjection(
+            safeObservationId, safeTransferId, transferVersion, safeSourceWarehouse, safeSourceZone,
+            safeSourceLot, safeDestinationWarehouse, safeDestinationZone, expectedBatch,
+            expectedExpirationDate, safeExpectedQuantity, safeExpectedUnit, safeObservedBatch,
+            this.observedExpirationDate, safeObservedQuantity, safeObservedUnit, true, safeActor, safeRecordedAt
+        )
+    }
+
     private fun String.parseTransferCommand(): TransferCommandWire? = try {
         val objectValue = stockTransferJson.parseToJsonElement(this) as? JsonObject ?: return null
         val required = setOf(
@@ -345,6 +502,12 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
         false
     }
 
+    private fun String.isValidLocalDate(): Boolean = try {
+        java.time.LocalDate.parse(this).toString() == this
+    } catch (_: RuntimeException) {
+        false
+    }
+
     private fun JsonElement?.decimalValue(): BigDecimal? = try {
         when (this) {
             null, JsonNull -> null
@@ -387,6 +550,14 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
     )
 
     @Serializable
+    private data class TransferReceiptObservationRequestWire(
+        val observedBatchNumber: String,
+        val observedExpirationDate: String?,
+        val observedQuantity: String,
+        val unit: String
+    )
+
+    @Serializable
     private data class TransferPageResponseWire(
         val items: List<TransferResponseWire>? = null,
         val page: Int? = null,
@@ -421,6 +592,29 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
         val expirationDate: String? = null
     )
 
+    @Serializable
+    private data class TransferReceiptObservationResponseWire(
+        val observationId: String? = null,
+        val transferId: String? = null,
+        val transferVersion: Long? = null,
+        val sourceWarehouseId: String? = null,
+        val sourceZoneId: String? = null,
+        val sourceLotId: String? = null,
+        val destinationWarehouseId: String? = null,
+        val destinationZoneId: String? = null,
+        val expectedBatchNumber: String? = null,
+        val expectedExpirationDate: String? = null,
+        val expectedQuantity: JsonElement? = null,
+        val expectedUnit: String? = null,
+        val observedBatchNumber: String? = null,
+        val observedExpirationDate: String? = null,
+        val observedQuantity: JsonElement? = null,
+        val observedUnit: String? = null,
+        val hasDifference: Boolean? = null,
+        val actorMembershipId: String? = null,
+        val recordedAt: String? = null
+    )
+
     private companion object {
         val CATALOG_ITEM_ID = Regex("(?i)CAT-[A-Z0-9-]{1,63}")
         const val ACCESS_CONTEXT_INVALID = "ACCESS_CONTEXT_INVALID"
@@ -428,6 +622,8 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
         const val STATUS_RECEIVED = "RECEIVED"
         const val HTTP_OK = 200
         const val HTTP_CREATED = 201
+        const val MAX_BATCH_NUMBER_LENGTH = 80
+        const val MAX_IDEMPOTENCY_KEY_LENGTH = 160
         const val DEFAULT_PAGE_SIZE = 25
         const val MAX_PAGE_SIZE = 100
         const val MAX_PAGE = 10_000

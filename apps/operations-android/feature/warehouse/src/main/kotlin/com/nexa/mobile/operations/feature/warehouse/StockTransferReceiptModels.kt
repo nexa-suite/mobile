@@ -62,7 +62,57 @@ enum class StockTransferReceiptNotice {
     Conflict,
     MetadataUnavailable,
     CurrentTransferUnavailable,
-    ExpectedQuantityOnly
+    ExpectedQuantityOnly,
+    ObservedDifferenceRequiresResolution
+}
+
+enum class StockTransferReceiptObservationCommandStatus {
+    Editing,
+    PersistingIntent,
+    Pending,
+    UnknownOutcome,
+    Recorded,
+    Rejected,
+    PreconditionFailed,
+    Conflict,
+    PermissionDenied,
+    ContextInvalidated,
+    SessionInvalidated
+}
+
+enum class StockTransferReceiptObservationNotice {
+    InvalidBatch,
+    InvalidExpirationDate,
+    InvalidQuantity,
+    UnitMismatch,
+    NoDifference,
+    NetworkUnavailable,
+    ServiceUnavailable,
+    PermissionDenied,
+    ContextInvalidated,
+    SessionInvalidated,
+    PreconditionFailed,
+    Conflict,
+    MetadataUnavailable,
+    CurrentTransferUnavailable
+}
+
+/** A server-attributed record of arrived facts. It neither receives stock nor changes transfer status. */
+@Immutable
+data class StockTransferReceiptObservation(
+    val observationId: String,
+    val transferId: String,
+    val transferVersion: Long,
+    val observedBatchNumber: String,
+    val observedExpirationDate: String?,
+    val observedQuantityText: String,
+    val observedUnit: String,
+    val hasDifference: Boolean,
+    val actorMembershipId: String,
+    val recordedAt: String
+) {
+    override fun toString(): String =
+        "StockTransferReceiptObservation(id=$observationId, hasDifference=$hasDifference, quantity=REDACTED)"
 }
 
 data class StockTransferReceiptUiState(
@@ -78,12 +128,19 @@ data class StockTransferReceiptUiState(
     val total: Long = 0,
     val selectedTransferId: String? = null,
     val metadata: TransferMetadataStatus = TransferMetadataStatus.Loading,
+    val observationMetadata: TransferMetadataStatus = TransferMetadataStatus.Loading,
     val command: StockTransferReceiptCommandStatus = StockTransferReceiptCommandStatus.Editing,
     val frozenIntent: StockTransferReceiptIntent? = null,
+    val observationCommand: StockTransferReceiptObservationCommandStatus =
+        StockTransferReceiptObservationCommandStatus.Editing,
+    val frozenObservationIntent: StockTransferReceiptObservationIntent? = null,
     val confirmed: StockTransferReceiptTransfer? = null,
+    val recordedObservation: StockTransferReceiptObservation? = null,
     val notice: StockTransferReceiptNotice? = null,
+    val observationNotice: StockTransferReceiptObservationNotice? = null,
     val rejectionCode: String? = null,
-    val intentCleanupPending: Boolean = false
+    val intentCleanupPending: Boolean = false,
+    val observationCleanupPending: Boolean = false
 ) {
     val selectedTransfer: StockTransferReceiptTransfer?
         get() = transfers.firstOrNull { it.id == selectedTransferId }
@@ -96,7 +153,11 @@ data class StockTransferReceiptUiState(
             StockTransferReceiptCommandStatus.PersistingIntent,
             StockTransferReceiptCommandStatus.Pending,
             StockTransferReceiptCommandStatus.UnknownOutcome
-        ) || intentCleanupPending
+        ) || intentCleanupPending || observationCommand in setOf(
+            StockTransferReceiptObservationCommandStatus.PersistingIntent,
+            StockTransferReceiptObservationCommandStatus.Pending,
+            StockTransferReceiptObservationCommandStatus.UnknownOutcome
+        ) || observationCleanupPending
 
     override fun toString(): String =
         "StockTransferReceiptUiState(epoch=$authorityEpoch, command=$command, transfers=${transfers.size})"
@@ -142,6 +203,10 @@ interface StockTransferReceiptGateway {
         intent: StockTransferReceiptIntent,
         authority: StockTransferAuthority
     ): StockTransferReceiptResult
+    suspend fun observeArrival(
+        intent: StockTransferReceiptObservationIntent,
+        authority: StockTransferAuthority
+    ): StockTransferReceiptObservationResult
 }
 
 enum class StockTransferReceiptIntentStatus { Pending, UnknownOutcome }
@@ -179,4 +244,63 @@ interface StockTransferReceiptMetadataStore {
         idempotencyKey: String
     ): StockTransferReceiptMetadataWrite
     suspend fun clearIntent(scope: StockTransferScope, idempotencyKey: String): StockTransferReceiptMetadataWrite
+}
+
+enum class StockTransferReceiptObservationIntentStatus { Pending, UnknownOutcome }
+
+@Immutable
+data class StockTransferReceiptObservationIntent(
+    val scope: StockTransferScope,
+    val idempotencyKey: String,
+    val transfer: StockTransferReceiptTransfer,
+    val observedBatchNumber: String,
+    val observedExpirationDate: String?,
+    val observedQuantityText: String,
+    val observedUnit: String,
+    val status: StockTransferReceiptObservationIntentStatus
+) {
+    init {
+        require(idempotencyKey.isNotBlank() && idempotencyKey.length <= 160)
+        require(transfer.id.isNotBlank() && transfer.version >= 0)
+    }
+
+    override fun toString(): String = "StockTransferReceiptObservationIntent(status=$status, key=REDACTED)"
+
+    fun sameFrozenCommand(other: StockTransferReceiptObservationIntent): Boolean =
+        scope == other.scope && idempotencyKey == other.idempotencyKey && transfer == other.transfer &&
+            observedBatchNumber == other.observedBatchNumber && observedExpirationDate == other.observedExpirationDate &&
+            observedQuantityText == other.observedQuantityText && observedUnit == other.observedUnit
+}
+
+sealed interface StockTransferReceiptObservationResult {
+    data class Recorded(val observation: StockTransferReceiptObservation) : StockTransferReceiptObservationResult
+    data class Rejected(val code: String?) : StockTransferReceiptObservationResult
+    data object UnknownOutcome : StockTransferReceiptObservationResult
+    data object PreconditionFailed : StockTransferReceiptObservationResult
+    data object Conflict : StockTransferReceiptObservationResult
+    data object NetworkUnavailable : StockTransferReceiptObservationResult
+    data object ServiceUnavailable : StockTransferReceiptObservationResult
+    data object PermissionDenied : StockTransferReceiptObservationResult
+    data object ContextInvalidated : StockTransferReceiptObservationResult
+    data object SessionInvalidated : StockTransferReceiptObservationResult
+}
+
+sealed interface StockTransferReceiptObservationMetadataRead {
+    data class Available(val value: StockTransferReceiptObservationIntent?) : StockTransferReceiptObservationMetadataRead
+    data object Unavailable : StockTransferReceiptObservationMetadataRead
+}
+
+enum class StockTransferReceiptObservationMetadataWrite { Saved, Unavailable }
+
+interface StockTransferReceiptObservationMetadataStore {
+    suspend fun loadIntent(scope: StockTransferScope): StockTransferReceiptObservationMetadataRead
+    suspend fun saveIntent(intent: StockTransferReceiptObservationIntent): StockTransferReceiptObservationMetadataWrite
+    suspend fun markUnknownOutcome(
+        scope: StockTransferScope,
+        idempotencyKey: String
+    ): StockTransferReceiptObservationMetadataWrite
+    suspend fun clearIntent(
+        scope: StockTransferScope,
+        idempotencyKey: String
+    ): StockTransferReceiptObservationMetadataWrite
 }
