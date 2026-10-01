@@ -384,4 +384,5 @@
     <string name="picking_work_reload">Actualizar lista</string>
     <string name="picking_work_previous">Anterior</string>
     <string name="picking_work_next">Siguiente</string>
+    <string name="receiving_report_discrepancy">Reportar diferencia observada</string>
 </resources>

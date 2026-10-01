@@ -49,7 +49,8 @@ fun ReceivingScreen(
     onSubmit: () -> Unit,
     onRetryUnknownOutcome: () -> Unit,
     onRetryIntentCleanup: () -> Unit,
-    onStartAnotherReceipt: () -> Unit
+    onStartAnotherReceipt: () -> Unit,
+    onReportDiscrepancy: (() -> Unit)? = null
 ) {
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -141,6 +142,22 @@ fun ReceivingScreen(
                         enabled = !state.isIntentFrozen,
                         onClick = { onSelectZone(zone.id) }
                     )
+                }
+            }
+
+            if (onReportDiscrepancy != null &&
+                state.productVerifiedEpoch == state.authorityEpoch &&
+                state.product?.skuId != null && state.selectedWarehouseId != null
+            ) {
+                OutlinedButton(
+                    onClick = onReportDiscrepancy,
+                    enabled = !state.isIntentFrozen && state.command !in setOf(
+                        ReceivingCommandStatus.Confirmed,
+                        ReceivingCommandStatus.Pending
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.receiving_report_discrepancy))
                 }
             }
 

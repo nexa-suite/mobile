@@ -56,13 +56,16 @@ class AppInboundDiscrepancyDraftStoreTest {
 
     private fun draft(id: String) = InboundDiscrepancyDraft(
         id = id,
-        productReference = "supplier label SKU 42",
-        lotOrBatchReference = "batch-2026-09",
+        warehouseId = "00000000-0000-0000-0000-000000000050",
+        expectedSkuId = "00000000-0000-0000-0000-000000000051",
+        observedSkuId = "00000000-0000-0000-0000-000000000051",
+        expectedBatchReference = "batch-2026-08",
+        observedBatchReference = "batch-2026-09",
         kind = InboundDiscrepancyKind.QuantityDifference,
         reasonDetails = "Short count at receiving dock",
         expectedQuantityText = "10.2500",
         observedQuantityText = "9.7500",
-        evidencePlan = "Photo of open carton; not attached",
+        unit = "UNIT",
         observationNotes = "Local only",
         capturedAtDeviceMillis = 1_727_700_000_000
     )
