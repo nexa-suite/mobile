@@ -48,6 +48,8 @@ import com.nexa.mobile.operations.feature.warehouse.DispositionMetadataStatus
 import com.nexa.mobile.operations.feature.warehouse.DispositionScreen
 import com.nexa.mobile.operations.feature.warehouse.DispositionViewModel
 import com.nexa.mobile.operations.feature.warehouse.PickingAuthority
+import com.nexa.mobile.operations.feature.warehouse.PickingWorkListScreen
+import com.nexa.mobile.operations.feature.warehouse.PickingWorkListViewModel
 import com.nexa.mobile.operations.feature.warehouse.PickingEntryScreen
 import com.nexa.mobile.operations.feature.warehouse.PickingScreen
 import com.nexa.mobile.operations.feature.warehouse.PickingViewModel
@@ -78,6 +80,11 @@ class MainActivity : ComponentActivity() {
         stockConditionFactory
     }
 
+    @Inject internal lateinit var pickingWorkListBindings: PickingWorkListGatewayBindings
+    private val pickingWorkListViewModel: PickingWorkListViewModel by viewModels {
+        pickingWorkListBindings.viewModelFactory()
+    }
+    private var pickingManualEntry by mutableStateOf(false)
     @Inject internal lateinit var pickingBindings: PickingGatewayBindings
     private val pickingViewModel: PickingViewModel by viewModels {
         pickingBindings.viewModelFactory()
@@ -100,6 +107,7 @@ class MainActivity : ComponentActivity() {
     private var connectedRoute by mutableStateOf<ConnectedOperationRoute?>(null)
     private var pickingReference by mutableStateOf("")
     private var pickingOpened by mutableStateOf(false)
+    private var pickingWorkListEpoch by mutableStateOf(0L)
     private var choosingReceivingProduct by mutableStateOf(false)
 
     @Inject internal lateinit var operationsGateway: OperationsAccessGateway
@@ -179,6 +187,7 @@ class MainActivity : ComponentActivity() {
                 val warehouseState = warehouseViewModel.state.collectAsStateWithLifecycle().value
                 val scannerState = scannerViewModel.state.collectAsStateWithLifecycle().value
                 val commercialCatalogState by commercialCatalogViewModel.state.collectAsStateWithLifecycle()
+                val pickingWorkListState by pickingWorkListViewModel.state.collectAsStateWithLifecycle()
                 val customerProgressState by customerProgressViewModel.state.collectAsStateWithLifecycle()
                 val customerSearchState by customerSearchViewModel.state.collectAsStateWithLifecycle()
                 val temperatureEvidenceState by temperatureEvidenceViewModel.state.collectAsStateWithLifecycle()
@@ -425,9 +434,13 @@ class MainActivity : ComponentActivity() {
                             it == "fulfillment.read" ||
                                 it == "fulfillment:read"
                         } ||
-                        (pickingOpened && pickingState.authorityEpoch != accessState.authorityEpoch)
+                        (pickingOpened && pickingState.authorityEpoch != accessState.authorityEpoch) ||
+                        (pickingWorkListEpoch > 0 &&
+                            pickingWorkListEpoch != accessState.authorityEpoch)
                     ) {
                         pickingViewModel.invalidate()
+                        pickingWorkListViewModel.invalidate()
+                        pickingManualEntry = false
                         pickingReference = ""
                         pickingOpened = false
                     }
@@ -621,17 +634,60 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onPickStock = {
+                        pickingWorkListViewModel.invalidate()
+                        pickingManualEntry = false
                         pickingReference = ""
                         pickingOpened = false
                         pickingViewModel.invalidate()
-                        warehouseViewModel.openPicking()
+                        val authority = ConnectedOperationsNavigation.currentAuthority(
+                            state, accessState, warehouseState
+                        )
+                        if (authority != null) {
+                            pickingManualEntry = false
+                            pickingWorkListEpoch = accessState.authorityEpoch
+                            pickingWorkListViewModel.activate(
+                                PickingAuthority(authority.userId, authority.tenantId, authority.workspaceId,
+                                    authority.membershipId, authority.permissions, accessState.authorityEpoch)
+                            )
+                            warehouseViewModel.openPicking()
+                        }
                     },
                     pickingContent = {
-                        if (!pickingOpened) {
+                        if (!pickingOpened && !pickingManualEntry) {
+                            androidx.compose.foundation.layout.Column {
+                                androidx.compose.material3.TextButton(onClick = { pickingManualEntry = true }) {
+                                    androidx.compose.material3.Text(getString(R.string.picking_manual_reference))
+                                }
+                                PickingWorkListScreen(
+                                    state = pickingWorkListState,
+                                    onBack = {
+                                        pickingWorkListViewModel.invalidate()
+                                        warehouseViewModel.back()
+                                    },
+                                    onReload = pickingWorkListViewModel::reload,
+                                    onPreviousPage = pickingWorkListViewModel::previousPage,
+                                    onNextPage = pickingWorkListViewModel::nextPage,
+                                    onSelectFulfillment = { fulfillmentId ->
+                                        val authority = ConnectedOperationsNavigation.currentAuthority(
+                                            state, accessState, warehouseState
+                                        )
+                                        if (authority != null) {
+                                            pickingReference = fulfillmentId
+                                            pickingViewModel.activate(
+                                                PickingAuthority(authority.userId, authority.tenantId, authority.workspaceId,
+                                                    authority.membershipId, authority.permissions, accessState.authorityEpoch),
+                                                fulfillmentId
+                                            )
+                                            pickingOpened = true
+                                        }
+                                    }
+                                )
+                            }
+                        } else if (!pickingOpened) {
                             PickingEntryScreen(
                                 reference = pickingReference,
                                 onReferenceChanged = { pickingReference = it },
-                                onBack = warehouseViewModel::back,
+                                onBack = { pickingManualEntry = false },
                                 onOpen = {
                                     val authority = accessState.activeContext?.verifiedAuthority
                                     if (authority != null && pickingReference.isNotBlank()) {
@@ -655,7 +711,9 @@ class MainActivity : ComponentActivity() {
                                 state = pickingState,
                                 onBack = {
                                     pickingOpened = false
+                                    pickingManualEntry = false
                                     pickingViewModel.invalidate()
+                                    pickingWorkListViewModel.reload()
                                 },
                                 onReload = pickingViewModel::reload,
                                 onSelectOffer = pickingViewModel::selectOffer,
@@ -767,6 +825,8 @@ class MainActivity : ComponentActivity() {
                         receivingViewModel.invalidate()
                         stockConditionViewModel.invalidateContext()
                         pickingViewModel.invalidate()
+                        pickingWorkListViewModel.invalidate()
+                        pickingManualEntry = false
                         pickingReference = ""
                         pickingOpened = false
                         logoutRequested = true
@@ -784,6 +844,8 @@ class MainActivity : ComponentActivity() {
                         receivingViewModel.invalidate()
                         stockConditionViewModel.invalidateContext()
                         pickingViewModel.invalidate()
+                        pickingWorkListViewModel.invalidate()
+                        pickingManualEntry = false
                         pickingReference = ""
                         pickingOpened = false
                         if (warehouseState.route == WarehouseRoute.Scanner) {

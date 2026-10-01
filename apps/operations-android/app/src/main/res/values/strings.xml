@@ -56,4 +56,5 @@
     <string name="commercial_catalog_availability_missing">Disponibilidad o fecha no disponibles.</string>
     <string name="commercial_catalog_no_commitment">Disponibilidad vendible no es stock físico ni reserva. Confirma información vigente al enviar solicitud.</string>
     <string name="commercial_catalog_empty">Sin productos permitidos para esta búsqueda.</string>
+    <string name="picking_manual_reference">Abrir por referencia</string>
 </resources>
