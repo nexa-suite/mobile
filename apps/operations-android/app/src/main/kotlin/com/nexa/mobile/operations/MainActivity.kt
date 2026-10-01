@@ -654,7 +654,26 @@ class MainActivity : ComponentActivity() {
                                 onRefresh = driverDeliveryViewModel::refresh,
                                 onSelectDelivery = driverDeliveryViewModel::selectDelivery,
                                 onBeginDelivery = driverDeliveryViewModel::beginSelectedDelivery,
-                                onRetryUnknownStart = driverDeliveryViewModel::retryUnknownStart
+                                onRetryUnknownStart = driverDeliveryViewModel::retryUnknownStart,
+                                onRecordOutcome = driverDeliveryViewModel::recordOutcome,
+                                onRetryUnknownOutcome = driverDeliveryViewModel::retryUnknownOutcome,
+                                onOpenDirections = { destination ->
+                                    val route = connectedRoute
+                                    val currentDestination = driverDeliveryViewModel.state.value.authorizedDirectionsDestination
+                                    if (route == null || currentDestination != destination ||
+                                        !ConnectedOperationsNavigation.permits(route, CONNECTED_OPERATIONS, state, accessState, warehouseState)
+                                    ) false else {
+                                        try {
+                                            startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                                                android.net.Uri.parse("geo:0,0?q=" + android.net.Uri.encode(destination))))
+                                            true
+                                        } catch (_: android.content.ActivityNotFoundException) {
+                                            false
+                                        } catch (_: SecurityException) {
+                                            false
+                                        }
+                                    }
+                                }
                             )
                             "commercial.catalog" -> CommercialCatalogScreen(
                                 state = commercialCatalogState,
