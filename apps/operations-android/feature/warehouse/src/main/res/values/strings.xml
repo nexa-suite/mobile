@@ -367,4 +367,21 @@
     <string name="temperature_evidence_notice_permission">El servidor denegó la operación. No se confirmó una lectura.</string>
     <string name="temperature_evidence_notice_context">El contexto cambió. El intento no se atribuyó a un contexto nuevo.</string>
     <string name="temperature_evidence_notice_session">La sesión dejó de estar disponible. Vuelve a autenticarte para continuar.</string>
+    <string name="picking_work_title">Preparaciones asignadas</string>
+    <string name="picking_work_support">Nexa devuelve las preparaciones vigentes autorizadas para tus almacenes. Al abrir una fila, la aplicación vuelve a consultar su asignación actual.</string>
+    <string name="picking_work_loading">Consultando preparaciones actuales…</string>
+    <string name="picking_work_network_error">No hay conexión con Nexa. No se muestran preparaciones anteriores como vigentes.</string>
+    <string name="picking_work_service_error">No se pudieron consultar las preparaciones. Inténtalo de nuevo.</string>
+    <string name="picking_work_permission_error">Tu contexto actual no permite consultar preparaciones.</string>
+    <string name="picking_work_empty">No hay preparaciones asignadas para recoger en este contexto.</string>
+    <string name="picking_work_freshness">Consultado: %1$s · trabajo visible: %2$d</string>
+    <string name="picking_work_item_title">Preparación %1$s</string>
+    <string name="picking_work_item_status">Estado: %1$s · versión: %2$d</string>
+    <string name="picking_work_item_order">Orden: %1$s</string>
+    <string name="picking_work_item_lines">Líneas: %1$d</string>
+    <string name="picking_work_open">Abrir picking</string>
+    <string name="picking_work_back">Volver</string>
+    <string name="picking_work_reload">Actualizar lista</string>
+    <string name="picking_work_previous">Anterior</string>
+    <string name="picking_work_next">Siguiente</string>
 </resources>

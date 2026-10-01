@@ -69,6 +69,24 @@ data class PickingAllocationProjection(
         "PickingAllocationProjection(status=$status, version=$version, lines=${lines.size})"
 }
 
+data class PickingWorkListItemProjection(
+    val fulfillmentId: String,
+    val salesOrderId: String,
+    val status: String,
+    val version: Long,
+    val physicalAllocationId: String,
+    val allocationVersion: Long,
+    val lineCount: Int
+)
+
+data class PickingWorkListProjection(
+    val items: List<PickingWorkListItemProjection>,
+    val page: Int,
+    val size: Int,
+    val totalItems: Long,
+    val asOf: Instant
+)
+
 data class PickingConfirmationRequest(
     val fulfillmentId: String,
     val expectedFulfillmentVersion: Long,
@@ -109,8 +127,36 @@ sealed interface PickingNetworkOutcome {
     data object SessionInvalidated : PickingNetworkOutcome
 }
 
+sealed interface PickingWorkListNetworkOutcome {
+    data class Loaded(val value: PickingWorkListProjection) : PickingWorkListNetworkOutcome
+    data object NetworkUnavailable : PickingWorkListNetworkOutcome
+    data object ServiceUnavailable : PickingWorkListNetworkOutcome
+    data object PermissionDenied : PickingWorkListNetworkOutcome
+    data object ContextInvalidated : PickingWorkListNetworkOutcome
+    data object SessionInvalidated : PickingWorkListNetworkOutcome
+}
+
 /** Protected transport for current fulfillment/allocation projections and exact picking commands. */
 class NexaPickingGateway(private val protectedCalls: ProtectedCallExecutor) {
+    suspend fun workList(page: Int = 0, size: Int = 25): PickingWorkListNetworkOutcome {
+        if (page < 0 || size !in 1..100) return PickingWorkListNetworkOutcome.ServiceUnavailable
+        val result = protectedCalls.execute(
+            ProtectedRequest(
+                ProtectedMethod.GET,
+                "$FULFILLMENTS_PATH?page=$page&size=$size"
+            )
+        )
+        return when (result) {
+            is ProtectedResult.Failure -> result.error.toWorkListOutcome()
+
+            is ProtectedResult.Success -> {
+                val projection = result.body.toWorkListProjection(page, size)
+                    ?: return PickingWorkListNetworkOutcome.ServiceUnavailable
+                PickingWorkListNetworkOutcome.Loaded(projection)
+            }
+        }
+    }
+
     suspend fun fulfillment(fulfillmentId: String): PickingNetworkOutcome {
         if (!uuidPattern.matches(fulfillmentId)) return PickingNetworkOutcome.ServiceUnavailable
         val result = protectedCalls.execute(
@@ -261,6 +307,58 @@ class NexaPickingGateway(private val protectedCalls: ProtectedCallExecutor) {
         }
     }
 
+    private fun String?.toWorkListProjection(requestedPage: Int, requestedSize: Int): PickingWorkListProjection? {
+        return try {
+            val root = this?.let(pickingJson::parseToJsonElement)?.jsonObject ?: return null
+            val page = root.long("page")?.takeIf { it in 0..Int.MAX_VALUE.toLong() }?.toInt()
+                ?: return null
+            val size = root.long("size")?.takeIf { it in 1..100 }?.toInt() ?: return null
+            val totalItems = root.long("totalItems")?.takeIf { it >= 0 } ?: return null
+            val asOf = root.string("asOf")?.let { runCatching { Instant.parse(it) }.getOrNull() }
+                ?: return null
+            val items = root["items"]?.jsonArray?.map { it.toWorkListItem() ?: return null }
+                ?: return null
+            if (page != requestedPage || size != requestedSize || items.size > size ||
+                totalItems < items.size || items.map { it.fulfillmentId }.distinct().size != items.size
+            ) {
+                return null
+            }
+            PickingWorkListProjection(items, page, size, totalItems, asOf)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun JsonElement.toWorkListItem(): PickingWorkListItemProjection? {
+        return try {
+            val item = jsonObject
+            val fulfillmentId = item.string("fulfillmentId")?.takeIf(uuidPattern::matches)
+                ?: return null
+            val salesOrderId = item.string("salesOrderId")?.takeIf(uuidPattern::matches)
+                ?: return null
+            val status = item.string("status")?.takeIf { it in setOf("ALLOCATED", "PICKING") }
+                ?: return null
+            val version = item.long("version")?.takeIf { it >= 0 } ?: return null
+            val allocationId = item.string("physicalAllocationId")?.takeIf(uuidPattern::matches)
+                ?: return null
+            val allocationVersion = item.long("allocationVersion")?.takeIf { it >= 0 }
+                ?: return null
+            val lineCount = item.long("lineCount")?.takeIf { it in 1..Int.MAX_VALUE.toLong() }
+                ?.toInt() ?: return null
+            PickingWorkListItemProjection(
+                fulfillmentId,
+                salesOrderId,
+                status,
+                version,
+                allocationId,
+                allocationVersion,
+                lineCount
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun JsonElement.toFulfillmentLine(): PickingFulfillmentLineProjection? {
         return try {
             val line = jsonObject
@@ -393,6 +491,14 @@ class NexaPickingGateway(private val protectedCalls: ProtectedCallExecutor) {
             PickingNetworkOutcome.NetworkUnavailable
 
         else -> PickingNetworkOutcome.ServiceUnavailable
+    }
+
+    private fun ClientFailure.toWorkListOutcome(): PickingWorkListNetworkOutcome = when (toReadOutcome()) {
+        PickingNetworkOutcome.NetworkUnavailable -> PickingWorkListNetworkOutcome.NetworkUnavailable
+        PickingNetworkOutcome.PermissionDenied -> PickingWorkListNetworkOutcome.PermissionDenied
+        PickingNetworkOutcome.ContextInvalidated -> PickingWorkListNetworkOutcome.ContextInvalidated
+        PickingNetworkOutcome.SessionInvalidated -> PickingWorkListNetworkOutcome.SessionInvalidated
+        else -> PickingWorkListNetworkOutcome.ServiceUnavailable
     }
 
     private fun ClientFailure.toMutationOutcome(): PickingNetworkOutcome = when {
