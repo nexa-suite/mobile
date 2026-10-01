@@ -144,6 +144,7 @@ class DriverDeliveryViewModel(
     private var pendingArrivalPersisted = false
     private var pendingProof: DriverProofIntentMetadata? = null
     private var pendingProofPersisted = false
+    private var reloadingReturnedProof = false
 
     fun activate(currentAuthority: DriverDeliveryAuthority) {
         generation++
@@ -748,7 +749,7 @@ class DriverDeliveryViewModel(
             currentState.proofCommandStatus in FROZEN_PROOF_COMMANDS || pendingProof != null
         ) return
         val note = notes?.trim()?.takeIf(String::isNotEmpty)
-        if (receiver.length > 255 || (note?.length ?: 0) > 2000) {
+        if (receiver.length > 160 || (note?.length ?: 0) > 2000) {
             mutableState.update {
                 it.copy(proofCommandStatus = DriverProofCommandStatus.Rejected, proofRejectionCode = "POD_RECEIVER_REQUIRED")
             }
@@ -812,6 +813,51 @@ class DriverDeliveryViewModel(
             }
             persistBeforeProofCreate(intent, requestGeneration, currentAuthority)
         }
+    }
+
+    /** Adopts an encrypted picker return only after current authority and server detail are restored. */
+    fun reloadStagedProofSelection(context: DriverProofSelectionContext): Boolean {
+        val currentAuthority = authority ?: return false
+        val current = mutableState.value
+        val selected = current.selectedDelivery ?: return false
+        if (!currentAuthority.canCaptureProof || currentAuthority.scopeIdentity != context.scope ||
+            selected.id != context.deliveryId || selected.status != "DELIVERED" ||
+            current.detailStatus != DriverDeliveryLoadStatus.Ready
+        ) return false
+        val pending = pendingProof
+        if (pending?.stage == DriverProofIntentStage.EvidenceReadyForReview &&
+            pending.deliveryId == context.deliveryId && pending.attemptId == context.attemptId &&
+            pending.proofId == context.proofId && pending.scope == context.scope &&
+            current.proofCommandStatus == DriverProofCommandStatus.ReadyToUploadReview
+        ) return true
+        if (reloadingReturnedProof) return false
+        reloadingReturnedProof = true
+        val requestGeneration = generation
+        viewModelScope.launch {
+            try {
+                val loaded = safeProofMetadataLoad(context.scope)
+                if (!isCurrent(requestGeneration, currentAuthority)) return@launch
+                val intent = (loaded as? DriverProofMetadataRead.Available)?.intent
+                if (intent == null || intent.scope != context.scope || intent.deliveryId != context.deliveryId ||
+                    intent.attemptId != context.attemptId || intent.proofId != context.proofId ||
+                    intent.stage != DriverProofIntentStage.EvidenceReadyForReview
+                ) {
+                    mutableState.update { it.copy(proofCommandStatus = DriverProofCommandStatus.PersistenceUnavailable) }
+                    return@launch
+                }
+                pendingProof = intent
+                pendingProofPersisted = true
+                mutableState.update {
+                    it.copy(proofCommandStatus = DriverProofCommandStatus.ReadyToUploadReview,
+                        proofId = intent.proofId, proofAttemptId = intent.attemptId,
+                        proofEvidenceKind = intent.evidenceKind, hasRecoverableProof = true,
+                        proofRejectionCode = null)
+                }
+            } finally {
+                reloadingReturnedProof = false
+            }
+        }
+        return false
     }
 
     /** Captures only route identity. The app launches GetContent after this returns. */
