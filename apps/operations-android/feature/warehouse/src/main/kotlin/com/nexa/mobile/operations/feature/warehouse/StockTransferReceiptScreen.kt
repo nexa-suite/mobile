@@ -7,6 +7,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -25,7 +30,10 @@ fun StockTransferReceiptScreen(
     onSelectTransfer: (String) -> Unit,
     onReceiveExpectedQuantity: () -> Unit,
     onRetryUnknownOutcome: () -> Unit,
-    onRetryIntentCleanup: () -> Unit
+    onRetryIntentCleanup: () -> Unit,
+    onObserveArrival: (String, String?, String, String) -> Unit,
+    onRetryObservation: () -> Unit,
+    onCleanupObservation: () -> Unit
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -54,6 +62,17 @@ fun StockTransferReceiptScreen(
             Text("Vencimiento: ${transfer.expirationDate ?: "no informado"}")
             Text("Solicitado: ${transfer.requestedQuantityText} ${transfer.unit}; despachado: ${transfer.transferredQuantityText} ${transfer.unit}")
             transfer.dispatchedAt?.let { Text("Salida registrada: $it") }
+            var observedBatch by remember(state.authorityEpoch, transfer.id) { mutableStateOf(transfer.batchNumber.orEmpty()) }
+            var observedExpiry by remember(state.authorityEpoch, transfer.id) { mutableStateOf(transfer.expirationDate.orEmpty()) }
+            var observedQuantity by remember(state.authorityEpoch, transfer.id) { mutableStateOf(transfer.transferredQuantityText) }
+            Text("Registrar diferencia física de llegada; no recibe ni modifica stock.")
+            OutlinedTextField(observedBatch, { observedBatch = it }, label = { Text("Lote físico observado") }, enabled = !state.isFrozen)
+            OutlinedTextField(observedExpiry, { observedExpiry = it }, label = { Text("Vencimiento observado AAAA-MM-DD (opcional)") }, enabled = !state.isFrozen)
+            OutlinedTextField(observedQuantity, { observedQuantity = it }, label = { Text("Cantidad observada (${transfer.unit})") }, enabled = !state.isFrozen)
+            Button(onClick = { onObserveArrival(observedBatch, observedExpiry.takeIf { it.isNotBlank() }, observedQuantity, transfer.unit) },
+                enabled = state.canReceive && !state.isFrozen && transfer.canReceiveExpectedQuantity && state.observationMetadata == TransferMetadataStatus.Available) {
+                Text("Registrar hechos observados de llegada")
+            }
             Text("Solo confirma si recibiste ese lote y toda la cantidad despachada. Una diferencia requiere registro y resolución separados.")
             Button(onClick = onReceiveExpectedQuantity,
                 enabled = state.canReceive && !state.isFrozen &&
@@ -73,6 +92,21 @@ fun StockTransferReceiptScreen(
             StockTransferReceiptCommandStatus.ContextInvalidated, StockTransferReceiptCommandStatus.SessionInvalidated -> "Confirma nuevamente sesión y contexto."
             StockTransferReceiptCommandStatus.Rejected -> "Recepción rechazada por el servidor."
         })
+        if (state.observationCommand != StockTransferReceiptObservationCommandStatus.Editing) {
+            Text("Registro de observación: ${state.observationCommand}")
+        }
+        state.recordedObservation?.let { observation ->
+            Text("Observación ${observation.observationId}: ${observation.observedBatchNumber}, ${observation.observedQuantityText} ${observation.observedUnit}; vencimiento ${observation.observedExpirationDate ?: "no informado"}.")
+            Text("Servidor: ${observation.recordedAt}; persona: ${observation.actorMembershipId}.")
+            if (observation.hasDifference) Text("Diferencia registrada. La recepción requiere resolución autorizada; este registro no mueve stock.")
+        }
+        if (state.observationCommand == StockTransferReceiptObservationCommandStatus.UnknownOutcome) {
+            Text("Resultado de observación incierto. Recupera el mismo intento sin cambiar hechos ni clave.")
+            Button(onClick = onRetryObservation, enabled = state.canReceive) { Text("Recuperar observación pendiente") }
+        }
+        if (state.observationCleanupPending) Button(onClick = onCleanupObservation) { Text("Conservar resultado de observación") }
+        state.observationNotice?.let { Text("Observación: $it") }
+        if (state.observationMetadata == TransferMetadataStatus.Unavailable) Text("Registro de diferencias bloqueado: almacenamiento protegido no disponible.")
         state.confirmed?.let { transfer ->
             Text("Resultado: ${transfer.status}; recibido: ${transfer.receivedAt ?: "no informado"}; lote destino: ${transfer.destinationLotId ?: "no informado"}; versión ${transfer.version}")
         }

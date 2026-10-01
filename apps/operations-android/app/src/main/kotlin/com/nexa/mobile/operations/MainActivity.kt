@@ -8,6 +8,7 @@ import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyDraftStore
 import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyViewModel
 import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyScreen
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptGateway
+import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservationMetadataStore
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptMetadataStore
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptViewModel
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptScreen
@@ -144,8 +145,9 @@ class MainActivity : ComponentActivity() {
     private val inboundDiscrepancyViewModel: InboundDiscrepancyViewModel by viewModels { InboundDiscrepancyViewModelBindings.viewModelFactory(inboundDiscrepancyStore) }
     @Inject internal lateinit var stockTransferReceiptGateway: StockTransferReceiptGateway
     @Inject internal lateinit var stockTransferReceiptMetadataStore: StockTransferReceiptMetadataStore
+    @Inject internal lateinit var stockTransferReceiptObservationMetadataStore: StockTransferReceiptObservationMetadataStore
     private val stockTransferReceiptViewModel: StockTransferReceiptViewModel by viewModels {
-        StockTransferReceiptViewModelBindings.viewModelFactory(stockTransferReceiptGateway, stockTransferReceiptMetadataStore)
+        StockTransferReceiptViewModelBindings.viewModelFactory(stockTransferReceiptGateway, stockTransferReceiptMetadataStore, stockTransferReceiptObservationMetadataStore)
     }
     @Inject internal lateinit var dispatchOutgoingGoodsGateway: DispatchOutgoingGoodsGateway
     @Inject internal lateinit var dispatchOutgoingGoodsMetadataStore: DispatchOutgoingGoodsMetadataStore
@@ -668,7 +670,10 @@ class MainActivity : ComponentActivity() {
                                 onSelectTransfer = stockTransferReceiptViewModel::selectTransfer,
                                 onReceiveExpectedQuantity = stockTransferReceiptViewModel::receiveExpectedQuantity,
                                 onRetryUnknownOutcome = stockTransferReceiptViewModel::retryUnknownOutcome,
-                                onRetryIntentCleanup = stockTransferReceiptViewModel::retryIntentCleanup
+                                onRetryIntentCleanup = stockTransferReceiptViewModel::retryIntentCleanup,
+                                onObserveArrival = stockTransferReceiptViewModel::observeArrival,
+                                onRetryObservation = stockTransferReceiptViewModel::retryObservationUnknownOutcome,
+                                onCleanupObservation = stockTransferReceiptViewModel::retryObservationIntentCleanup
                             )
                             "warehouse.transfer" -> StockTransferScreen(
                                 state = stockTransferState, onBack = ::closeConnectedOperation,
@@ -700,6 +705,8 @@ class MainActivity : ComponentActivity() {
                                 onRetryUnknownStart = driverDeliveryViewModel::retryUnknownStart,
                                 onRecordOutcome = driverDeliveryViewModel::recordOutcome,
                                 onRetryUnknownOutcome = driverDeliveryViewModel::retryUnknownOutcome,
+                                onSignalArrival = driverDeliveryViewModel::signalArrival,
+                                onRetryUnknownArrival = driverDeliveryViewModel::retryUnknownArrival,
                                 onOpenDirections = { destination ->
                                     val route = connectedRoute
                                     val currentDestination = driverDeliveryViewModel.state.value.authorizedDirectionsDestination
