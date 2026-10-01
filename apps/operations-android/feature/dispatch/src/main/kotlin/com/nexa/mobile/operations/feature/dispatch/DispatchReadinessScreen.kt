@@ -42,7 +42,8 @@ fun DispatchReadinessScreen(
     onRefresh: () -> Unit,
     onSelectFulfillment: (String) -> Unit,
     onClearSelection: () -> Unit,
-    onRouteClosed: () -> Unit
+    onRouteClosed: () -> Unit,
+    onAssignFulfillment: ((String) -> Unit)? = null
 ) {
     val closeAction = rememberUpdatedState(onRouteClosed)
     DisposableEffect(Unit) {
@@ -111,6 +112,11 @@ fun DispatchReadinessScreen(
                         state.detailStatus == DispatchReadinessDetailStatus.Current
                     ) {
                         ReadinessDetail(state.detail, onClearSelection)
+                        if (onAssignFulfillment != null) {
+                            TextButton(onClick = { onAssignFulfillment(state.detail.fulfillmentId) }) {
+                                Text(stringResource(R.string.dispatch_assignment_title))
+                            }
+                        }
                     } else {
                         DetailStatusPanel(state.detailStatus, onClearSelection)
                     }

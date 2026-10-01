@@ -13,7 +13,8 @@ import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
 internal data class ConnectedOperationEntry(
     val key: String,
     val label: String,
-    val readPermissions: Set<String>
+    val readPermissions: Set<String>,
+    val visibleInHub: Boolean = true
 ) {
     init {
         require(key.isNotBlank() && label.isNotBlank() && readPermissions.isNotEmpty())
@@ -60,7 +61,7 @@ internal object ConnectedOperationsNavigation {
         warehouse: WarehouseUiState
     ): List<ConnectedOperationEntry> {
         val authority = currentAuthority(session, access, warehouse) ?: return emptyList()
-        return entries.filter { entry -> authority.permissions.any(entry.readPermissions::contains) }
+        return entries.filter { entry -> entry.visibleInHub && authority.permissions.any(entry.readPermissions::contains) }
     }
 
     fun open(

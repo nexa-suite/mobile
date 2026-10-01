@@ -20,7 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** Only accepted, caller-owned staging purposes. This store has no authority or replay behavior. */
-enum class ScopedMetadataPurpose { DriverAttemptStart, FieldPurchaseRequest, FieldVisit, StockTransfer }
+enum class ScopedMetadataPurpose { DriverAttemptStart, FieldPurchaseRequest, FieldVisit, StockTransfer, DispatchAssignment }
 data class ScopedMetadataScope(val userId: String, val tenantId: String, val workspaceId: String, val membershipId: String) {
     init { require(listOf(userId, tenantId, workspaceId, membershipId).all { it.isNotBlank() && it.length <= 160 }) }
     override fun toString(): String = "ScopedMetadataScope(REDACTED)"
@@ -32,13 +32,20 @@ sealed interface ScopedMetadataRead {
     data object Unavailable : ScopedMetadataRead
 }
 
+/** Storage port for purpose-bound opaque metadata; it performs no network replay. */
+interface ScopedMetadataStore {
+    suspend fun load(scope: ScopedMetadataScope): ScopedMetadataRead
+    suspend fun save(scope: ScopedMetadataScope, payload: String): Boolean
+    suspend fun clear(scope: ScopedMetadataScope): Boolean
+}
+
 /** Atomic encrypted staging, bound to purpose and all four verified identity dimensions. */
-class AndroidScopedMetadataStore(context: Context, private val purpose: ScopedMetadataPurpose) {
+class AndroidScopedMetadataStore(context: Context, private val purpose: ScopedMetadataPurpose) : ScopedMetadataStore {
     private val directory = File(context.applicationContext.noBackupFilesDir, "scoped-metadata/${purpose.name}")
     private val keyAlias = "com.nexa.mobile.operations.scoped-metadata.${purpose.name}.v1"
     private val lock = locks.getOrPut(directory.absolutePath) { Any() }
 
-    suspend fun load(scope: ScopedMetadataScope): ScopedMetadataRead = withContext(Dispatchers.IO) {
+    override suspend fun load(scope: ScopedMetadataScope): ScopedMetadataRead = withContext(Dispatchers.IO) {
         synchronized(lock) {
             try {
                 val file = record(scope)
@@ -73,7 +80,7 @@ class AndroidScopedMetadataStore(context: Context, private val purpose: ScopedMe
         }
     }
 
-    suspend fun save(scope: ScopedMetadataScope, payload: String): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun save(scope: ScopedMetadataScope, payload: String): Boolean = withContext(Dispatchers.IO) {
         synchronized(lock) {
             try {
                 val plaintext = payload.toByteArray(Charsets.UTF_8)
@@ -94,7 +101,7 @@ class AndroidScopedMetadataStore(context: Context, private val purpose: ScopedMe
         }
     }
 
-    suspend fun clear(scope: ScopedMetadataScope): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun clear(scope: ScopedMetadataScope): Boolean = withContext(Dispatchers.IO) {
         synchronized(lock) {
             try { val file = record(scope); file.delete(); artifacts(file.baseFile).none(File::exists) }
             catch (cancelled: CancellationException) { throw cancelled }
