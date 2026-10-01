@@ -32,7 +32,8 @@ fun CustomerSearchScreen(
     onPreviousPage: () -> Unit,
     onNextPage: () -> Unit,
     onRouteClosed: () -> Unit,
-    onReviewProgress: ((String) -> Unit)? = null
+    onReviewProgress: ((String) -> Unit)? = null,
+    onReviewProducts: ((String) -> Unit)? = null
 ) {
     val close = rememberUpdatedState(onRouteClosed)
     DisposableEffect(Unit) { onDispose { close.value() } }
@@ -97,6 +98,11 @@ fun CustomerSearchScreen(
                             customer.contactPerson?.let { Text(it) }
                             customer.email?.let { Text(it) }
                             customer.phone?.let { Text(it) }
+                            if (customer.active && onReviewProducts != null) {
+                                TextButton(onClick = { onReviewProducts(customer.id) }) {
+                                    Text(stringResource(R.string.commercial_catalog_title))
+                                }
+                            }
                             if (customer.active && onReviewProgress != null) {
                                 TextButton(onClick = { onReviewProgress(customer.id) }) {
                                     Text(stringResource(R.string.progress_title))
