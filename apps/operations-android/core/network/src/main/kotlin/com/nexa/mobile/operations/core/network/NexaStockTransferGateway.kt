@@ -35,7 +35,9 @@ data class StockTransferProjection(
     val destinationVersionAfter: Long?,
     val version: Long,
     val dispatchedAt: String?,
-    val receivedAt: String?
+    val receivedAt: String?,
+    val batchNumber: String? = null,
+    val expirationDate: String? = null
 ) {
     override fun toString(): String =
         "StockTransferProjection(status=$status, version=$version, quantity=REDACTED)"
@@ -54,8 +56,102 @@ sealed interface StockTransferNetworkOutcome {
     data object SessionInvalidated : StockTransferNetworkOutcome
 }
 
+sealed interface StockTransferLookupNetworkOutcome {
+    data class Transfer(val item: StockTransferProjection) : StockTransferLookupNetworkOutcome
+    data class Page(
+        val items: List<StockTransferProjection>,
+        val page: Int,
+        val size: Int,
+        val total: Long
+    ) : StockTransferLookupNetworkOutcome
+    data object Rejected : StockTransferLookupNetworkOutcome
+    data object NetworkUnavailable : StockTransferLookupNetworkOutcome
+    data object ServiceUnavailable : StockTransferLookupNetworkOutcome
+    data object PermissionDenied : StockTransferLookupNetworkOutcome
+    data object ContextInvalidated : StockTransferLookupNetworkOutcome
+    data object SessionInvalidated : StockTransferLookupNetworkOutcome
+}
+
 /** Sends one frozen, scope-bound request body unchanged with its source-lot version and key. */
 class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor) {
+    suspend fun transfersForDestination(
+        destinationWarehouseId: String,
+        page: Int = 0,
+        size: Int = DEFAULT_PAGE_SIZE
+    ): StockTransferLookupNetworkOutcome {
+        if (!destinationWarehouseId.isUuid() || page !in 0..MAX_PAGE || size !in 1..MAX_PAGE_SIZE) {
+            return StockTransferLookupNetworkOutcome.Rejected
+        }
+        val path = "$INVENTORY_TRANSFERS_PATH?destinationWarehouseId=$destinationWarehouseId&page=$page&size=$size"
+        return when (val result = protectedCalls.execute(ProtectedRequest(ProtectedMethod.GET, path))) {
+            is ProtectedResult.Failure -> result.error.toStockTransferLookupOutcome()
+            is ProtectedResult.Success -> {
+                if (result.status != HTTP_OK) return StockTransferLookupNetworkOutcome.ServiceUnavailable
+                val wire = result.body.decode<TransferPageResponseWire>()
+                    ?: return StockTransferLookupNetworkOutcome.ServiceUnavailable
+                val items = wire.items?.map { item ->
+                    item.toProjection() ?: return StockTransferLookupNetworkOutcome.ServiceUnavailable
+                } ?: return StockTransferLookupNetworkOutcome.ServiceUnavailable
+                if (wire.page != page || wire.size != size || wire.total == null || wire.total < items.size ||
+                    items.size > size
+                ) {
+                    StockTransferLookupNetworkOutcome.ServiceUnavailable
+                } else {
+                    StockTransferLookupNetworkOutcome.Page(items, page, size, wire.total)
+                }
+            }
+        }
+    }
+
+    suspend fun transfer(transferId: String): StockTransferLookupNetworkOutcome {
+        if (!transferId.isUuid()) return StockTransferLookupNetworkOutcome.Rejected
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(ProtectedMethod.GET, "$INVENTORY_TRANSFERS_PATH/$transferId")
+            )
+        ) {
+            is ProtectedResult.Failure -> result.error.toStockTransferLookupOutcome()
+            is ProtectedResult.Success -> {
+                if (result.status != HTTP_OK) return StockTransferLookupNetworkOutcome.ServiceUnavailable
+                val item = result.body.decode<TransferResponseWire>()?.toProjection()
+                    ?: return StockTransferLookupNetworkOutcome.ServiceUnavailable
+                if (item.id == transferId) StockTransferLookupNetworkOutcome.Transfer(item)
+                else StockTransferLookupNetworkOutcome.ServiceUnavailable
+            }
+        }
+    }
+
+    suspend fun receiveTransfer(
+        expectedTransfer: StockTransferProjection,
+        idempotencyKey: String
+    ): StockTransferNetworkOutcome {
+        if (expectedTransfer.status != STATUS_IN_TRANSIT || expectedTransfer.version < 0 ||
+            expectedTransfer.transferredQuantity.signum() <= 0 || idempotencyKey.isBlank() ||
+            idempotencyKey.length > 160 || !expectedTransfer.id.isUuid()
+        ) {
+            return StockTransferNetworkOutcome.Rejected("INVALID_REQUEST")
+        }
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(
+                    method = ProtectedMethod.POST,
+                    path = "$INVENTORY_TRANSFERS_PATH/${expectedTransfer.id}/receipts",
+                    idempotencyKey = idempotencyKey,
+                    ifMatch = "\"${expectedTransfer.version}\""
+                )
+            )
+        ) {
+            is ProtectedResult.Failure -> result.error.toStockTransferOutcome()
+            is ProtectedResult.Success -> {
+                if (result.status != HTTP_OK) return StockTransferNetworkOutcome.UnknownOutcome
+                val item = result.body.decode<TransferResponseWire>()?.toProjection()
+                    ?: return StockTransferNetworkOutcome.UnknownOutcome
+                if (item.matchesReceipt(expectedTransfer)) StockTransferNetworkOutcome.Confirmed(item)
+                else StockTransferNetworkOutcome.UnknownOutcome
+            }
+        }
+    }
+
     suspend fun createTransfer(
         frozenPayload: String,
         expectedSourceVersion: Long,
@@ -139,9 +235,23 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
             destinationVersionAfter,
             safeVersion,
             dispatchedAt?.takeIf(String::isNotBlank),
-            safeReceivedAt
+            safeReceivedAt,
+            batchNumber?.takeIf(String::isNotBlank),
+            expirationDate?.takeIf(String::isNotBlank)
         )
     }
+
+    private fun StockTransferProjection.matchesReceipt(expected: StockTransferProjection): Boolean =
+        id == expected.id && sourceWarehouseId == expected.sourceWarehouseId &&
+            sourceZoneId == expected.sourceZoneId && sourceLotId == expected.sourceLotId &&
+            destinationWarehouseId == expected.destinationWarehouseId && destinationZoneId == expected.destinationZoneId &&
+            skuId == expected.skuId && catalogItemId == expected.catalogItemId &&
+            requestedQuantity.compareTo(expected.requestedQuantity) == 0 &&
+            transferredQuantity.compareTo(expected.transferredQuantity) == 0 &&
+            mode == expected.mode && unit.equals(expected.unit, ignoreCase = true) && reason == expected.reason &&
+            status == STATUS_RECEIVED && destinationLotId != null && receivedAt != null &&
+            sourceVersionAfter != null && sourceVersionAfter >= 0 &&
+            destinationVersionAfter != null && destinationVersionAfter >= 0 && version > expected.version
 
     private fun StockTransferProjection.matches(
         command: TransferCommandWire,
@@ -174,6 +284,17 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
         kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
             StockTransferNetworkOutcome.UnknownOutcome
         else -> StockTransferNetworkOutcome.ServiceUnavailable
+    }
+
+    private fun ClientFailure.toStockTransferLookupOutcome(): StockTransferLookupNetworkOutcome = when {
+        kind == FailureKind.AuthenticationRequired -> StockTransferLookupNetworkOutcome.SessionInvalidated
+        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
+            StockTransferLookupNetworkOutcome.ContextInvalidated
+        kind == FailureKind.AuthorizationFailure -> StockTransferLookupNetworkOutcome.PermissionDenied
+        kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
+            StockTransferLookupNetworkOutcome.NetworkUnavailable
+        kind == FailureKind.ValidationFailure -> StockTransferLookupNetworkOutcome.Rejected
+        else -> StockTransferLookupNetworkOutcome.ServiceUnavailable
     }
 
     private fun String.parseTransferCommand(): TransferCommandWire? = try {
@@ -266,6 +387,14 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
     )
 
     @Serializable
+    private data class TransferPageResponseWire(
+        val items: List<TransferResponseWire>? = null,
+        val page: Int? = null,
+        val size: Int? = null,
+        val total: Long? = null
+    )
+
+    @Serializable
     private data class TransferResponseWire(
         val id: String? = null,
         val sourceWarehouseId: String? = null,
@@ -287,12 +416,20 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
         val destinationVersionAfter: Long? = null,
         val version: Long? = null,
         val dispatchedAt: String? = null,
-        val receivedAt: String? = null
+        val receivedAt: String? = null,
+        val batchNumber: String? = null,
+        val expirationDate: String? = null
     )
 
     private companion object {
         val CATALOG_ITEM_ID = Regex("(?i)CAT-[A-Z0-9-]{1,63}")
         const val ACCESS_CONTEXT_INVALID = "ACCESS_CONTEXT_INVALID"
+        const val STATUS_IN_TRANSIT = "IN_TRANSIT"
+        const val STATUS_RECEIVED = "RECEIVED"
+        const val HTTP_OK = 200
         const val HTTP_CREATED = 201
+        const val DEFAULT_PAGE_SIZE = 25
+        const val MAX_PAGE_SIZE = 100
+        const val MAX_PAGE = 10_000
     }
 }

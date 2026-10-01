@@ -85,6 +85,39 @@ class NexaStockTransferGatewayTest {
         }
     }
 
+    @Test
+    fun loadsDestinationTransfersAndPostsOnlyExpectedReceiptWithVersionAndStableKey() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(jsonResponse(
+                """{"items":[${inTransitTransferJson()}],"page":0,"size":25,"total":1}""",
+                status = 200
+            ))
+            server.enqueue(jsonResponse(receivedTransferJson(), status = 200))
+            val gateway = gateway(server)
+
+            val page = gateway.transfersForDestination(DESTINATION_WAREHOUSE_ID)
+            val listRequest = server.takeRequest()
+            assertEquals("GET", listRequest.method)
+            assertEquals(
+                "/api/v1/inventory/transfers?destinationWarehouseId=$DESTINATION_WAREHOUSE_ID&page=0&size=25",
+                listRequest.path
+            )
+            val expected = (page as StockTransferLookupNetworkOutcome.Page).items.single()
+            assertEquals("1.2300", expected.transferredQuantity.toPlainString())
+            assertEquals("IN_TRANSIT", expected.status)
+
+            val result = gateway.receiveTransfer(expected, "receipt-key-1")
+            val receiptRequest = server.takeRequest()
+            assertEquals("POST", receiptRequest.method)
+            assertEquals("/api/v1/inventory/transfers/$TRANSFER_ID/receipts", receiptRequest.requestUrl?.encodedPath)
+            assertEquals("receipt-key-1", receiptRequest.getHeader("Idempotency-Key"))
+            assertEquals("\"2\"", receiptRequest.getHeader("If-Match"))
+            assertEquals("", receiptRequest.body.readUtf8())
+            assertEquals("RECEIVED", (result as StockTransferNetworkOutcome.Confirmed).transfer.status)
+        }
+    }
+
     private fun gateway(server: MockWebServer): NexaStockTransferGateway {
         val endpoint = ApiEndpoint(server.url("/").toString())
         return NexaStockTransferGateway(
@@ -101,10 +134,24 @@ class NexaStockTransferGatewayTest {
     ) =
         """{"id":"$TRANSFER_ID","sourceWarehouseId":"$SOURCE_WAREHOUSE_ID","sourceZoneId":"$SOURCE_ZONE_ID","sourceLotId":"$SOURCE_LOT_ID","destinationWarehouseId":"$DESTINATION_WAREHOUSE_ID","destinationZoneId":"$DESTINATION_ZONE_ID","destinationLotId":null,"skuId":"$SKU_ID","catalogItemId":"CAT-42","batchNumber":"LOT-17","expirationDate":"2027-02-15","requestedQuantity":1.2300,"transferredQuantity":0,"unit":"EA","mode":"PARTIAL","status":"$status","reason":"${reason.jsonEscaped()}","sourceVersionBefore":17,"sourceVersionAfter":null,"destinationVersionAfter":null,"version":0,"dispatchedAt":null,"receivedAt":null} """.trim()
 
+    private fun inTransitTransferJson() = transferJson()
+        .replace("\"status\":\"REQUESTED\"", "\"status\":\"IN_TRANSIT\"")
+        .replace("\"transferredQuantity\":0", "\"transferredQuantity\":1.2300")
+        .replace("\"sourceVersionAfter\":null", "\"sourceVersionAfter\":18")
+        .replace("\"version\":0", "\"version\":2")
+        .replace("\"dispatchedAt\":null", "\"dispatchedAt\":\"2026-09-30T10:00:00Z\"")
+
+    private fun receivedTransferJson() = inTransitTransferJson()
+        .replace("\"status\":\"IN_TRANSIT\"", "\"status\":\"RECEIVED\"")
+        .replace("\"destinationLotId\":null", "\"destinationLotId\":\"d8c24a46-57d9-4f64-8fa7-6a641b413401\"")
+        .replace("\"destinationVersionAfter\":null", "\"destinationVersionAfter\":7")
+        .replace("\"version\":2", "\"version\":3")
+        .replace("\"receivedAt\":null", "\"receivedAt\":\"2026-09-30T10:30:00Z\"")
+
     private fun String.jsonEscaped(): String = replace("\\", "\\\\").replace("\"", "\\\"")
 
-    private fun jsonResponse(body: String) = MockResponse()
-        .setResponseCode(201)
+    private fun jsonResponse(body: String, status: Int = 201) = MockResponse()
+        .setResponseCode(status)
         .addHeader("Content-Type", "application/json; charset=utf-8")
         .setBody(body)
 
