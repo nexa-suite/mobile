@@ -36,7 +36,8 @@ fun PickingScreen(
     onStartPicking: () -> Unit,
     onConfirmPick: () -> Unit,
     onRetryUnknownOutcome: () -> Unit,
-    onRetryIntentCleanup: () -> Unit
+    onRetryIntentCleanup: () -> Unit,
+    onProposeLotSubstitution: ((String) -> Unit)? = null
 ) {
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -218,6 +219,12 @@ fun PickingScreen(
                                         enabled = canEdit(state) && offer?.isPickable == true
                                     ) {
                                         Text(stringResource(R.string.picking_offer_select))
+                                    }
+                                    if (onProposeLotSubstitution != null && offer?.isPickable == true) {
+                                        OutlinedButton(onClick = { onProposeLotSubstitution(line.physicalAllocationLineId) },
+                                            enabled = canEdit(state)) {
+                                            Text("Proponer sustitución razonada de este lote")
+                                        }
                                     }
                                 }
                             }
