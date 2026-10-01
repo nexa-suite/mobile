@@ -20,7 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** Only accepted, caller-owned staging purposes. This store has no authority or replay behavior. */
-enum class ScopedMetadataPurpose { DriverAttemptStart, FieldPurchaseRequest }
+enum class ScopedMetadataPurpose { DriverAttemptStart, FieldPurchaseRequest, FieldVisit }
 data class ScopedMetadataScope(val userId: String, val tenantId: String, val workspaceId: String, val membershipId: String) {
     init { require(listOf(userId, tenantId, workspaceId, membershipId).all { it.isNotBlank() && it.length <= 160 }) }
     override fun toString(): String = "ScopedMetadataScope(REDACTED)"

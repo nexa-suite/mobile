@@ -1,5 +1,7 @@
 package com.nexa.mobile.operations
 
+import com.nexa.mobile.operations.commercial.FieldVisitViewModel
+import com.nexa.mobile.operations.commercial.FieldVisitScreen
 import com.nexa.mobile.operations.commercial.BusinessDocumentsViewModel
 import com.nexa.mobile.operations.commercial.BusinessDocumentsScreen
 import com.nexa.mobile.operations.visibility.OperationsOverviewScreen
@@ -117,6 +119,8 @@ class MainActivity : ComponentActivity() {
     private val fieldRequestViewModel: FieldRequestViewModel by viewModels { fieldRequestFactory }
     @Inject internal lateinit var businessDocumentsFactory: BusinessDocumentsViewModelFactory
     private val businessDocumentsViewModel: BusinessDocumentsViewModel by viewModels { businessDocumentsFactory }
+    @Inject internal lateinit var fieldVisitFactory: FieldVisitViewModelFactory
+    private val fieldVisitViewModel: FieldVisitViewModel by viewModels { fieldVisitFactory }
     private var pendingDispositionLot by mutableStateOf<String?>(null)
     private var connectedRoute by mutableStateOf<ConnectedOperationRoute?>(null)
     private var pickingReference by mutableStateOf("")
@@ -205,6 +209,7 @@ class MainActivity : ComponentActivity() {
                 val customerProgressState by customerProgressViewModel.state.collectAsStateWithLifecycle()
                 val customerSearchState by customerSearchViewModel.state.collectAsStateWithLifecycle()
                 val temperatureEvidenceState by temperatureEvidenceViewModel.state.collectAsStateWithLifecycle()
+                val fieldVisitState by fieldVisitViewModel.state.collectAsStateWithLifecycle()
                 val businessDocumentsState by businessDocumentsViewModel.state.collectAsStateWithLifecycle()
                 val fieldRequestState by fieldRequestViewModel.state.collectAsStateWithLifecycle()
                 val driverDeliveryState by driverDeliveryViewModel.state.collectAsStateWithLifecycle()
@@ -502,6 +507,9 @@ class MainActivity : ComponentActivity() {
                                 connectedRoute = route
                                 val authority = route.authority
                                 when (entry.key) {
+                                    "commercial.visit" -> fieldVisitViewModel.activate(CommercialAuthority(
+                                        authority.userId, authority.tenantId, authority.workspaceId, authority.membershipId,
+                                        authority.permissions, route.authorityEpoch))
                                     "commercial.documents" -> businessDocumentsViewModel.activate(CommercialAuthority(
                                         authority.userId, authority.tenantId, authority.workspaceId, authority.membershipId,
                                         authority.permissions, route.authorityEpoch))
@@ -571,6 +579,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             )
+                            "commercial.visit" -> FieldVisitScreen(fieldVisitState, ::closeConnectedOperation, fieldVisitViewModel)
                             "commercial.documents" -> BusinessDocumentsScreen(businessDocumentsState, ::closeConnectedOperation,
                                 businessDocumentsViewModel::refresh, businessDocumentsViewModel::previousPage,
                                 businessDocumentsViewModel::nextPage, businessDocumentsViewModel::open,
@@ -992,6 +1001,7 @@ class MainActivity : ComponentActivity() {
         pendingDispositionLot = null
         connectedRoute = null
         dispositionViewModel.deactivate()
+        fieldVisitViewModel.deactivate()
         businessDocumentsViewModel.deactivate()
         fieldRequestViewModel.deactivate()
         driverDeliveryViewModel.invalidate()
@@ -1083,6 +1093,7 @@ private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHi
 
 
 private val CONNECTED_OPERATIONS = listOf(
+    ConnectedOperationEntry("commercial.visit", "Visita al cliente", setOf("client.read", "sales:read")),
     ConnectedOperationEntry("commercial.documents", "Documentos del cliente", setOf("document.read")),
     ConnectedOperationEntry("operations.overview", "Vista operativa", setOf("dispatch.read")),
     ConnectedOperationEntry("operations.exceptions", "Trabajo bloqueado", setOf("dispatch.read")),
