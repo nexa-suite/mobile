@@ -24,7 +24,7 @@ import com.nexa.mobile.operations.R
 @Composable
 fun CommercialCatalogScreen(state: CommercialCatalogState, onBack: () -> Unit,
     onCustomerIdChanged: (String) -> Unit, onQueryChanged: (String) -> Unit, onSearch: () -> Unit,
-    onNextPage: () -> Unit, onSelectProduct: (String) -> Unit, onRouteClosed: () -> Unit) {
+    onNextPage: () -> Unit, onSelectProduct: (String) -> Unit, onRouteClosed: () -> Unit, onPrepareRequest: ((String, String) -> Unit)? = null) {
     val close = rememberUpdatedState(onRouteClosed)
     DisposableEffect(Unit) { onDispose { close.value() } }
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -67,5 +67,13 @@ fun CommercialCatalogScreen(state: CommercialCatalogState, onBack: () -> Unit,
             }
             if (state.nextPage != null) item { TextButton(onClick = onNextPage) { Text(stringResource(R.string.customer_next)) } }
         }
+        if (state.status == CommercialCatalogStatus.Current && state.product != null && onPrepareRequest != null) {
+            item {
+                TextButton(onClick = { onPrepareRequest(state.customerId, state.product.catalogItemId) }) {
+                    Text(stringResource(R.string.customer_prepare_request))
+                }
+            }
+        }
+
     }
 }

@@ -18,7 +18,7 @@ class FieldRequestViewModel(private val gateway: FieldRequestGateway, private va
     private var generation = 0L
     private val mutex = Mutex()
     fun deactivate() { generation++; authority = null; mutableState.value = FieldRequestState() }
-    fun activate(value: CommercialAuthority, requestedCustomerId: String? = null) {
+    fun activate(value: CommercialAuthority, requestedCustomerId: String? = null, requestedProductId: String? = null) {
         deactivate(); authority = value.copy(permissions = value.permissions.toSet())
         val epoch = generation
         viewModelScope.launch { mutex.withLock {
@@ -42,7 +42,8 @@ class FieldRequestViewModel(private val gateway: FieldRequestGateway, private va
                         "Conflict" -> FieldRequestStatus.Conflict
                         null -> FieldRequestStatus.Draft
                         else -> FieldRequestStatus.UnknownOutcome
-                    })
+                    }, productId = if (record.intent == null && record.draft.customerId == requestedCustomerId)
+                        requestedProductId ?: "" else "")
                 }
             }
         } }
