@@ -137,4 +137,33 @@
 <string name="dispatch_outgoing_retry">Reenviar solicitud guardada</string>
 <string name="dispatch_outgoing_pending_note">Hay una solicitud exacta cifrada pendiente de confirmación; no se enviará automáticamente.</string>
 <string name="dispatch_outgoing_observed_at">Consulta confirmada: %1$s</string>
+
+<string name="dispatch_handover_title">Confirmar salida a despacho</string>
+<string name="dispatch_handover_authority">Nexa comprobará de nuevo las versiones de la asignación física, el conductor y la revisión de salida.</string>
+<string name="dispatch_handover_fulfillment">Preparación %1$s</string>
+<string name="dispatch_handover_versions">Preparación versión %1$d · asignación física versión %2$d</string>
+<string name="dispatch_handover_assignment">Conductor asignado: %1$s</string>
+<string name="dispatch_handover_check">Revisión de salida: %1$s</string>
+<string name="dispatch_handover_missing">Pendiente</string>
+<string name="dispatch_handover_confirmed">Confirmada</string>
+<string name="dispatch_handover_completed">Entrega %1$s · %2$s</string>
+<string name="dispatch_handover_evidence">Transferencia declarada por membresía %1$s al conductor %2$s · comprobación %3$s · %4$s · %5$s. Esto no confirma recepción por el conductor.</string>
+<string name="dispatch_handover_current_fact">vigente</string>
+<string name="dispatch_handover_historical_fact">registro histórico; el despacho cambió después</string>
+<string name="dispatch_handover_initial">Consulta pendiente</string>
+<string name="dispatch_handover_loading">Consultando estado actual</string>
+<string name="dispatch_handover_current">Datos actuales confirmados</string>
+<string name="dispatch_handover_submitting">Guardando confirmación de despacho</string>
+<string name="dispatch_handover_completed_label">Entrega despachada</string>
+<string name="dispatch_handover_unknown">Resultado sin confirmar. Reintenta la misma solicitud guardada.</string>
+<string name="dispatch_handover_network">No se pudo consultar el estado actual.</string>
+<string name="dispatch_handover_service">Nexa no confirmó la solicitud.</string>
+<string name="dispatch_handover_permission">El permiso o grant actual no permite esta operación.</string>
+<string name="dispatch_handover_stale">Los datos cambiaron. Consulta de nuevo.</string>
+<string name="dispatch_handover_conflict">La transición no se pudo completar.</string>
+<string name="dispatch_handover_context">El contexto autorizado cambió.</string>
+<string name="dispatch_handover_session">La sesión ya no está disponible.</string>
+<string name="dispatch_handover_refresh">Consultar estado actual</string>
+<string name="dispatch_handover_confirm">Confirmar salida</string>
+<string name="dispatch_handover_replay">Reintentar solicitud guardada</string>
 </resources>
