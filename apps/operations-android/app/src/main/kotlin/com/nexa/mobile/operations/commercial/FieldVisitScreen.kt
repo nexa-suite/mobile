@@ -9,7 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun FieldVisitScreen(state: FieldVisitState,onBack: ()->Unit,viewModel: FieldVisitViewModel) {
+fun FieldVisitScreen(state: FieldVisitState,onBack: ()->Unit,viewModel: FieldVisitViewModel, canRecord: Boolean) {
     val editable=state.record.intent==null && state.status !in setOf("Loading","MetadataUnavailable","Pending")
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding()
         .verticalScroll(rememberScrollState()).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -26,7 +26,8 @@ fun FieldVisitScreen(state: FieldVisitState,onBack: ()->Unit,viewModel: FieldVis
             Text("Relación ${if(customer.active) "activa" else "suspendida"}; Buyer vinculado: ${customer.buyerLinked}")
             Text("Contexto recibido: ${state.receivedAt}")
         }
-        if(state.status=="Reviewed") Button(onClick=viewModel::recordFollowUp){Text("Confirmar evidencia de visita")}
+        if(state.status=="Reviewed" && !canRecord) Text("Registrar seguimiento requiere autorización vigente para administrar la relación del cliente.")
+        if(state.status=="Reviewed") Button(onClick=viewModel::recordFollowUp, enabled=canRecord){Text("Confirmar evidencia de visita")}
         if(state.status=="UnknownOutcome") {
             Text("Resultado desconocido. No crear otra visita para resolver este envío.")
             Button(onClick=viewModel::retryUnknownOutcome){Text("Resolver mismo envío")}
