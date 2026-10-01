@@ -1,5 +1,6 @@
 package com.nexa.mobile.operations
 
+import com.nexa.mobile.operations.visibility.OperationsOverviewScreen
 import com.nexa.mobile.operations.commercial.FieldRequestViewModel
 import com.nexa.mobile.operations.commercial.FieldRequestScreen
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryAuthority
@@ -527,7 +528,7 @@ class MainActivity : ComponentActivity() {
                                             authority.membershipId, authority.permissions, route.authorityEpoch
                                         )
                                     )
-                                    "dispatch.readiness" -> dispatchReadinessViewModel.activate(
+                                    "operations.overview", "operations.exceptions", "dispatch.readiness" -> dispatchReadinessViewModel.activate(
                                         DispatchAuthorityContext(
                                             route.authorityEpoch,
                                             DispatchAuthorityIdentity(
@@ -547,6 +548,21 @@ class MainActivity : ComponentActivity() {
                     },
                     connectedOperationContent = {
                         when (connectedRoute?.entryKey) {
+                            "operations.overview", "operations.exceptions" -> OperationsOverviewScreen(
+                                state = dispatchReadinessState,
+                                tenantId = connectedRoute?.authority?.tenantId ?: "",
+                                workspaceId = connectedRoute?.authority?.workspaceId ?: "",
+                                exceptionsOnly = connectedRoute?.entryKey == "operations.exceptions",
+                                onBack = ::closeConnectedOperation,
+                                onRefresh = dispatchReadinessViewModel::refresh,
+                                onOpenOwningWork = { fulfillmentId ->
+                                    val entry = CONNECTED_OPERATIONS.single { it.key == "dispatch.readiness" }
+                                    ConnectedOperationsNavigation.open(entry, state, accessState, warehouseState)?.let { route ->
+                                        connectedRoute = route
+                                        dispatchReadinessViewModel.selectFulfillment(fulfillmentId)
+                                    }
+                                }
+                            )
                             "commercial.request" -> FieldRequestScreen(fieldRequestState, ::closeConnectedOperation, fieldRequestViewModel)
                             "driver.deliveries" -> DriverDeliveryScreen(
                                 state = driverDeliveryState, onBack = ::closeConnectedOperation,
@@ -1044,6 +1060,8 @@ private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHi
 
 
 private val CONNECTED_OPERATIONS = listOf(
+    ConnectedOperationEntry("operations.overview", "Vista operativa", setOf("dispatch.read")),
+    ConnectedOperationEntry("operations.exceptions", "Trabajo bloqueado", setOf("dispatch.read")),
     ConnectedOperationEntry("commercial.request", "Preparar solicitud", setOf("client.read", "sales:read")),
     ConnectedOperationEntry("driver.deliveries", "Mis entregas", setOf("dispatch.read", "logistics:read")),
     ConnectedOperationEntry("commercial.catalog", "Catálogo comercial", setOf("catalog.read", "catalog:read")),
