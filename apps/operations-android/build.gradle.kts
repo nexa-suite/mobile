@@ -82,7 +82,10 @@ tasks.register("verifyAndroidArchitecture") {
                         check(listOf("POST", "PUT", "PATCH", "DELETE").none { method ->
                             it.contains("ProtectedMethod.$method")
                         }) { "Commercial catalog transport must remain read-only" }
-                        it.replace("/api/v1/catalog-items", "<commercial-catalog-read-route>")
+                        check(it.contains("/catalog-offers/")) {
+                            "Commercial prices must come from the customer-specific offer projection"
+                        }
+                        it.replace("/catalog-offers/", "<customer-catalog-offer-read-route>")
                     } else if (source.name == "NexaDispatchReadinessGateway.kt") {
                         check(it.contains("READINESS_PATH = \"/api/v1/dispatch-readiness\"")) {
                             "Dispatch readiness must use the canonical protected projection"
@@ -135,6 +138,14 @@ tasks.register("verifyAndroidArchitecture") {
                                 .all(it::contains)
                         ) { "Picking routes must remain canonical" }
                         it.replace("/api/v1/fulfillments", "<protected-picking-route>")
+                    } else if (source.name == "NexaStockTransferGateway.kt") {
+                        check(it.contains("INVENTORY_TRANSFERS_PATH = \"/api/v1/inventory/transfers\"")) {
+                            "Stock transfers must use the canonical inventory transfer route"
+                        }
+                        check(listOf("PUT", "PATCH", "DELETE").none { method ->
+                            it.contains("ProtectedMethod.$method")
+                        }) { "Stock transfer transport must not add unrelated mutations" }
+                        it.replace("/api/v1/inventory/transfers", "<protected-stock-transfer-route>")
                     } else if (source.name == "NexaDispositionGateway.kt") {
                         check(it.contains("INVENTORY_LOTS_PATH = \"/api/v1/inventory/lots\"")) {
                             "Disposition must use current lot reads and typed dispositions"
