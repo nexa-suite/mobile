@@ -512,6 +512,40 @@ class ProtectedCallExecutorTest {
         }
     }
 
+    @Test
+    fun protectedDocumentDownloadPreservesBinaryThroughUnauthorizedReplay() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            val bytes = byteArrayOf(0, 1, -1, 10, 37, 80, 68, 70)
+            server.enqueue(MockResponse().setResponseCode(401))
+            server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(bytes))
+                .addHeader("Content-Type", "application/pdf").addHeader("X-Content-SHA256", "checksum"))
+            val endpoint = ApiEndpoint(server.url("/").toString())
+            val executor = ProtectedCallExecutor(endpoint, ApiHttpClient.create(endpoint), FakeSource())
+            val result = executor.execute(ProtectedRequest(ProtectedMethod.GET,
+                "/api/v1/business-documents/00000000-0000-0000-0000-000000000001/downloads", binaryResponse = true))
+                as ProtectedResult.Success
+            org.junit.Assert.assertArrayEquals(bytes, result.bytes)
+            assertNull(result.body); assertEquals("application/pdf", result.contentType)
+            assertEquals("checksum", result.checksumSha256)
+            assertEquals(server.takeRequest().path, server.takeRequest().path)
+        }
+    }
+
+    @Test
+    fun oversizedProtectedDocumentReturnsFailure() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse().setResponseCode(200)
+                .setBody(Buffer().write(ByteArray(8 * 1024 * 1024 + 1))))
+            val endpoint = ApiEndpoint(server.url("/").toString())
+            val executor = ProtectedCallExecutor(endpoint, ApiHttpClient.create(endpoint), FakeSource())
+            val result = executor.execute(ProtectedRequest(ProtectedMethod.GET,
+                "/api/v1/business-documents/00000000-0000-0000-0000-000000000001/downloads", binaryResponse = true))
+            assertTrue(result is ProtectedResult.Failure)
+        }
+    }
+
     private class FakeSource : AccessTokenSource {
         private val state = MutableStateFlow<SessionState>(SessionState.Active)
         override val sessionState: StateFlow<SessionState> = state
