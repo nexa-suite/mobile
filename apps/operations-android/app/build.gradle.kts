@@ -114,6 +114,7 @@ dependencies {
     implementation(libs.serialization.json)
     ksp(libs.hilt.compiler)
     testImplementation(libs.junit)
+    testImplementation(libs.coroutines.test)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.runner)
