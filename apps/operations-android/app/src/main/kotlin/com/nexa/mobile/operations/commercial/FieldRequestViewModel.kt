@@ -18,7 +18,7 @@ class FieldRequestViewModel(private val gateway: FieldRequestGateway, private va
     private var generation = 0L
     private val mutex = Mutex()
     fun deactivate() { generation++; authority = null; mutableState.value = FieldRequestState() }
-    fun activate(value: CommercialAuthority) {
+    fun activate(value: CommercialAuthority, requestedCustomerId: String? = null) {
         deactivate(); authority = value.copy(permissions = value.permissions.toSet())
         val epoch = generation
         viewModelScope.launch { mutex.withLock {
@@ -27,7 +27,16 @@ class FieldRequestViewModel(private val gateway: FieldRequestGateway, private va
             mutableState.value = when (loaded) {
                 FieldRequestRead.Unavailable -> FieldRequestState(status = FieldRequestStatus.MetadataUnavailable)
                 is FieldRequestRead.Available -> {
-                    val record = loaded.record
+                    val prior = loaded.record
+                    val record = if (requestedCustomerId != null && prior.intent == null && prior.draft.lines.isEmpty()) {
+                        val selected = prior.copy(draft = prior.draft.copy(customerId = requestedCustomerId, customerVersion = null))
+                        if (!store.save(value, selected)) {
+                            mutableState.value = FieldRequestState(status = FieldRequestStatus.MetadataUnavailable)
+                            return@withLock
+                        }
+                        selected
+                    } else prior
+                    if (!current(value, epoch)) return@withLock
                     FieldRequestState(record, when (record.intent?.outcome) {
                         "Confirmed" -> FieldRequestStatus.Confirmed
                         "Conflict" -> FieldRequestStatus.Conflict
