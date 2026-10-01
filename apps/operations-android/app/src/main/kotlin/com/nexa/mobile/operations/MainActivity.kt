@@ -29,6 +29,9 @@ import com.nexa.mobile.operations.feature.access.PermissionHint
 import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
 import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
 import com.nexa.mobile.operations.feature.warehouse.ConfirmedReceivingProduct
+import com.nexa.mobile.operations.commercial.CommercialAuthority
+import com.nexa.mobile.operations.commercial.CustomerSearchScreen
+import com.nexa.mobile.operations.commercial.CustomerSearchViewModel
 import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityContext
 import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityIdentity
 import com.nexa.mobile.operations.feature.dispatch.DispatchReadinessScreen
@@ -77,6 +80,8 @@ class MainActivity : ComponentActivity() {
     }
     @Inject internal lateinit var dispositionFactory: DispositionViewModelFactory
     private val dispositionViewModel: DispositionViewModel by viewModels { dispositionFactory }
+    @Inject internal lateinit var customerSearchFactory: CustomerSearchViewModelFactory
+    private val customerSearchViewModel: CustomerSearchViewModel by viewModels { customerSearchFactory }
     @Inject internal lateinit var temperatureEvidenceBindings: TemperatureEvidenceGatewayBindings
     private val temperatureEvidenceViewModel: TemperatureEvidenceViewModel by viewModels {
         temperatureEvidenceBindings.viewModelFactory()
@@ -165,6 +170,7 @@ class MainActivity : ComponentActivity() {
                 val accessState = accessViewModel.state.collectAsStateWithLifecycle().value
                 val warehouseState = warehouseViewModel.state.collectAsStateWithLifecycle().value
                 val scannerState = scannerViewModel.state.collectAsStateWithLifecycle().value
+                val customerSearchState by customerSearchViewModel.state.collectAsStateWithLifecycle()
                 val temperatureEvidenceState by temperatureEvidenceViewModel.state.collectAsStateWithLifecycle()
                 val dispatchReadinessState by dispatchReadinessViewModel.state.collectAsStateWithLifecycle()
                 val dispositionState by dispositionViewModel.state.collectAsStateWithLifecycle()
@@ -456,6 +462,12 @@ class MainActivity : ComponentActivity() {
                                 connectedRoute = route
                                 val authority = route.authority
                                 when (entry.key) {
+                                    "commercial.customers" -> customerSearchViewModel.activate(
+                                        CommercialAuthority(
+                                            authority.userId, authority.tenantId, authority.workspaceId,
+                                            authority.membershipId, authority.permissions, route.authorityEpoch
+                                        )
+                                    )
                                     "warehouse.temperature" -> temperatureEvidenceViewModel.activate(
                                         TemperatureEvidenceAuthority(
                                             authority.userId, authority.tenantId, authority.workspaceId,
@@ -482,6 +494,16 @@ class MainActivity : ComponentActivity() {
                     },
                     connectedOperationContent = {
                         when (connectedRoute?.entryKey) {
+                            "commercial.customers" -> CustomerSearchScreen(
+                                state = customerSearchState,
+                                onBack = ::closeConnectedOperation,
+                                onQueryChanged = customerSearchViewModel::queryChanged,
+                                onSearch = customerSearchViewModel::search,
+                                onSelectCustomer = customerSearchViewModel::selectCustomer,
+                                onPreviousPage = customerSearchViewModel::previousPage,
+                                onNextPage = customerSearchViewModel::nextPage,
+                                onRouteClosed = customerSearchViewModel::deactivate
+                            )
                             "warehouse.temperature" -> TemperatureEvidenceScreen(
                                 state = temperatureEvidenceState,
                                 onBack = ::closeConnectedOperation,
@@ -769,6 +791,7 @@ class MainActivity : ComponentActivity() {
         dispositionViewModel.deactivate()
         dispatchReadinessViewModel.deactivate()
         temperatureEvidenceViewModel.deactivate()
+        customerSearchViewModel.deactivate()
     }
 
     private fun invalidateProtectedContentForForegroundReturn() {
@@ -852,6 +875,7 @@ private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHi
 
 
 private val CONNECTED_OPERATIONS = listOf(
+    ConnectedOperationEntry("commercial.customers", "Clientes y compradores", setOf("sales.read")),
     ConnectedOperationEntry("warehouse.temperature", "Registrar temperatura", setOf("inventory.receive")),
     ConnectedOperationEntry("dispatch.readiness", "Preparación de despacho", setOf("dispatch.read")),
     ConnectedOperationEntry(
