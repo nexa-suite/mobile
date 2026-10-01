@@ -13,7 +13,7 @@ class NexaCommercialCatalogGateway(private val calls: ProtectedCallExecutor) {
         if (runCatching { java.util.UUID.fromString(customerId) }.isFailure ||
             quantity.toBigDecimalOrNull()?.signum() != 1) return CommercialCatalogNetworkResult.Unavailable
         if (!Regex("(?i)CAT-[A-Z0-9-]{1,63}").matches(id)) return CommercialCatalogNetworkResult.Unavailable
-        return when (val result = calls.execute(ProtectedRequest(ProtectedMethod.GET, "$COMMERCIAL_CATALOG_PATH/$customerId/catalog-offers/$id?quantity=$quantity"))) {
+        return when (val result = calls.execute(ProtectedRequest(ProtectedMethod.GET, "$COMMERCIAL_CATALOG_PATH/$customerId/catalog-offers/$id?quantity=${quantity.toBigDecimal().toPlainString()}"))) {
             is ProtectedResult.Success -> try {
                 val quote = commercialCatalogJson.decodeFromString<CustomerCatalogOfferWire>(result.body ?: "")
                 if (quote.clientAccountId != customerId ||
