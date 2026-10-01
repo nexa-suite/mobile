@@ -2,6 +2,10 @@ package com.nexa.mobile.operations.core.network
 
 import com.nexa.mobile.operations.core.network.FailureKind
 import java.math.BigDecimal
+import java.io.File
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -14,6 +18,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
 private const val DRIVER_DELIVERIES_PATH = "/api/v1/driver/deliveries"
+private const val BUSINESS_EVIDENCE_PATH = "/api/v1/business-document-evidence"
 private val driverDeliveryJson = Json { ignoreUnknownKeys = true }
 private val driverUuidPattern =
     Regex("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
@@ -72,6 +77,30 @@ data class DriverDeliveryArrivalFactProjection(
     val arrivedAt: String
 )
 
+data class DriverProofOfDeliveryProjection(
+    val id: String,
+    val deliveryId: String,
+    val attemptId: String,
+    val status: String,
+    val actorMembershipId: String,
+    val receiverName: String,
+    val capturedAt: String,
+    val photoEvidenceObjectId: String?,
+    val signatureEvidenceObjectId: String?,
+    val deliveryVersion: Long,
+    val replayed: Boolean
+)
+
+data class DriverBusinessEvidenceProjection(
+    val id: String,
+    val subjectType: String,
+    val subjectId: String,
+    val lifecycleStatus: String,
+    val declaredContentType: String,
+    val checksumSha256: String?,
+    val byteSize: Long
+)
+
 data class DriverDeliveryProjection(
     val id: String,
     val fulfillmentId: String?,
@@ -97,6 +126,10 @@ sealed interface DriverDeliveryNetworkOutcome {
     ) : DriverDeliveryNetworkOutcome
     data class OutcomeRecorded(val value: DriverDeliveryOutcomeProjection) : DriverDeliveryNetworkOutcome
     data class ArrivalRecorded(val value: DriverDeliveryArrivalProjection) : DriverDeliveryNetworkOutcome
+    data class ProofCreated(val value: DriverProofOfDeliveryProjection) : DriverDeliveryNetworkOutcome
+    data class ProofEvidenceUploaded(val value: DriverBusinessEvidenceProjection) : DriverDeliveryNetworkOutcome
+    data class ProofEvidenceStatus(val value: DriverBusinessEvidenceProjection) : DriverDeliveryNetworkOutcome
+    data class ProofEvidenceAttached(val value: DriverProofOfDeliveryProjection) : DriverDeliveryNetworkOutcome
     data class Rejected(val code: String?) : DriverDeliveryNetworkOutcome
     data object NotFound : DriverDeliveryNetworkOutcome
     data object StaleVersion : DriverDeliveryNetworkOutcome
@@ -294,6 +327,142 @@ class NexaDriverDeliveryGateway(private val protectedCalls: ProtectedCallExecuto
         }
     }
 
+    suspend fun createProofOfDelivery(
+        deliveryId: String,
+        attemptId: String,
+        expectedVersion: Long,
+        idempotencyKey: String,
+        frozenBody: String
+    ): DriverDeliveryNetworkOutcome {
+        if (!driverUuidPattern.matches(deliveryId) || !driverUuidPattern.matches(attemptId) ||
+            expectedVersion < 0 || idempotencyKey.isBlank() || idempotencyKey.length > 160 || frozenBody.isBlank()
+        ) return DriverDeliveryNetworkOutcome.ServiceUnavailable
+        return when (val result = protectedCalls.execute(
+            ProtectedRequest(
+                ProtectedMethod.POST,
+                "$DRIVER_DELIVERIES_PATH/$deliveryId/attempts/$attemptId/proof-of-delivery",
+                frozenBody,
+                idempotencyKey,
+                "\"$expectedVersion\""
+            )
+        )) {
+            is ProtectedResult.Failure -> result.error.toMutationOutcome()
+            is ProtectedResult.Success -> {
+                if (result.status !in setOf(200, 201)) return DriverDeliveryNetworkOutcome.UnknownOutcome
+                val proof = result.body.toProofProjection() ?: return DriverDeliveryNetworkOutcome.UnknownOutcome
+                val replayed = result.status == 200
+                if (proof.deliveryId != deliveryId || proof.attemptId != attemptId ||
+                    proof.status != "PENDING" || proof.photoEvidenceObjectId != null ||
+                    proof.signatureEvidenceObjectId != null || proof.deliveryVersion <= expectedVersion ||
+                    proof.replayed != replayed || result.etag.toVersion() != proof.deliveryVersion
+                ) DriverDeliveryNetworkOutcome.UnknownOutcome
+                else DriverDeliveryNetworkOutcome.ProofCreated(proof)
+            }
+        }
+    }
+
+    suspend fun uploadProofEvidence(
+        podId: String,
+        idempotencyKey: String,
+        file: File,
+        originalFilename: String,
+        declaredContentType: String,
+        byteSize: Long,
+        checksumSha256: String
+    ): DriverDeliveryNetworkOutcome {
+        if (!driverUuidPattern.matches(podId) || idempotencyKey.isBlank() || idempotencyKey.length > 160 ||
+            !file.isFile || file.length() != byteSize || byteSize !in 1..MAX_EVIDENCE_BYTES ||
+            declaredContentType !in ALLOWED_EVIDENCE_TYPES ||
+            !checksumSha256.matches(Regex("[0-9a-f]{64}")) ||
+            originalFilename.isBlank() || originalFilename.length > 255 ||
+            originalFilename.any { it == '\r' || it == '\n' || it == '/' || it == '\\' }
+        ) return DriverDeliveryNetworkOutcome.ServiceUnavailable
+        val body = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("subjectType", "PROOF_OF_DELIVERY")
+            .addFormDataPart("subjectId", podId)
+            .addFormDataPart(
+                "file",
+                originalFilename,
+                file.asRequestBody(declaredContentType.toMediaType())
+            )
+            .build()
+        return when (val result = protectedCalls.execute(
+            ProtectedRequest(
+                method = ProtectedMethod.POST,
+                path = BUSINESS_EVIDENCE_PATH,
+                idempotencyKey = idempotencyKey,
+                requestBody = body
+            )
+        )) {
+            is ProtectedResult.Failure -> result.error.toMutationOutcome()
+            is ProtectedResult.Success -> {
+                if (result.status !in setOf(200, 201)) return DriverDeliveryNetworkOutcome.UnknownOutcome
+                val evidence = result.body.toEvidenceProjection()
+                    ?: return DriverDeliveryNetworkOutcome.UnknownOutcome
+                if (evidence.subjectType != "PROOF_OF_DELIVERY" || evidence.subjectId != podId ||
+                    evidence.declaredContentType != declaredContentType || evidence.byteSize != byteSize
+                ) return DriverDeliveryNetworkOutcome.UnknownOutcome
+                if (evidence.checksumSha256 != null && evidence.checksumSha256 != checksumSha256) {
+                    return DriverDeliveryNetworkOutcome.Rejected("IDEMPOTENCY_PAYLOAD_CONFLICT")
+                }
+                DriverDeliveryNetworkOutcome.ProofEvidenceUploaded(evidence)
+            }
+        }
+    }
+
+    suspend fun proofEvidence(evidenceId: String): DriverDeliveryNetworkOutcome {
+        if (!driverUuidPattern.matches(evidenceId)) return DriverDeliveryNetworkOutcome.ServiceUnavailable
+        return when (val result = protectedCalls.execute(
+            ProtectedRequest(ProtectedMethod.GET, "$BUSINESS_EVIDENCE_PATH/$evidenceId")
+        )) {
+            is ProtectedResult.Failure -> result.error.toReadOutcome()
+            is ProtectedResult.Success -> {
+                val evidence = result.body.toEvidenceProjection()
+                    ?: return DriverDeliveryNetworkOutcome.ServiceUnavailable
+                if (evidence.id != evidenceId || evidence.subjectType != "PROOF_OF_DELIVERY") {
+                    DriverDeliveryNetworkOutcome.ServiceUnavailable
+                } else DriverDeliveryNetworkOutcome.ProofEvidenceStatus(evidence)
+            }
+        }
+    }
+
+    suspend fun attachProofEvidence(
+        deliveryId: String,
+        attemptId: String,
+        podId: String,
+        expectedVersion: Long,
+        idempotencyKey: String,
+        frozenBody: String
+    ): DriverDeliveryNetworkOutcome {
+        if (!driverUuidPattern.matches(deliveryId) || !driverUuidPattern.matches(attemptId) ||
+            !driverUuidPattern.matches(podId) || expectedVersion < 0 || idempotencyKey.isBlank() ||
+            idempotencyKey.length > 160 || frozenBody.isBlank()
+        ) return DriverDeliveryNetworkOutcome.ServiceUnavailable
+        return when (val result = protectedCalls.execute(
+            ProtectedRequest(
+                ProtectedMethod.POST,
+                "$DRIVER_DELIVERIES_PATH/$deliveryId/attempts/$attemptId/proof-of-delivery/$podId/evidence",
+                frozenBody,
+                idempotencyKey,
+                "\"$expectedVersion\""
+            )
+        )) {
+            is ProtectedResult.Failure -> result.error.toMutationOutcome()
+            is ProtectedResult.Success -> {
+                if (result.status !in setOf(200, 201)) return DriverDeliveryNetworkOutcome.UnknownOutcome
+                val proof = result.body.toProofProjection() ?: return DriverDeliveryNetworkOutcome.UnknownOutcome
+                val replayed = result.status == 200
+                if (proof.id != podId || proof.deliveryId != deliveryId || proof.attemptId != attemptId ||
+                    proof.status != "CAPTURED" || proof.deliveryVersion < expectedVersion ||
+                    (!replayed && proof.deliveryVersion <= expectedVersion) || proof.replayed != replayed ||
+                    result.etag.toVersion() != proof.deliveryVersion
+                ) DriverDeliveryNetworkOutcome.UnknownOutcome
+                else DriverDeliveryNetworkOutcome.ProofEvidenceAttached(proof)
+            }
+        }
+    }
+
     private fun String?.toDeliveryList(): List<DriverDeliveryProjection>? = try {
         val elements = this?.let(driverDeliveryJson::parseToJsonElement)?.jsonArray ?: return null
         elements.map { (it as? JsonObject)?.toProjection() ?: return null }
@@ -476,6 +645,38 @@ class NexaDriverDeliveryGateway(private val protectedCalls: ProtectedCallExecuto
         null
     }
 
+    private fun String?.toProofProjection(): DriverProofOfDeliveryProjection? = try {
+        val root = this.toObject() ?: return null
+        val id = root.requiredText("id")?.takeIf(driverUuidPattern::matches) ?: return null
+        val deliveryId = root.requiredText("deliveryId")?.takeIf(driverUuidPattern::matches) ?: return null
+        val attemptId = root.requiredText("attemptId")?.takeIf(driverUuidPattern::matches) ?: return null
+        val status = root.requiredText("status") ?: return null
+        val actor = root.requiredText("actorMembershipId")?.takeIf(driverUuidPattern::matches) ?: return null
+        val receiver = root.requiredText("receiverName") ?: return null
+        val capturedAt = root.requiredText("capturedAt") ?: return null
+        val photo = root.optionalUuid("photoEvidenceObjectId") ?: if (root["photoEvidenceObjectId"] == JsonNull || root["photoEvidenceObjectId"] == null) null else return null
+        val signature = root.optionalUuid("signatureEvidenceObjectId") ?: if (root["signatureEvidenceObjectId"] == JsonNull || root["signatureEvidenceObjectId"] == null) null else return null
+        val version = root.requiredLong("deliveryVersion")?.takeIf { it >= 0 } ?: return null
+        val replayed = root["replayed"]?.jsonPrimitive?.booleanOrNull ?: return null
+        DriverProofOfDeliveryProjection(id, deliveryId, attemptId, status, actor, receiver, capturedAt,
+            photo, signature, version, replayed)
+    } catch (_: Exception) { null }
+
+    private fun String?.toEvidenceProjection(): DriverBusinessEvidenceProjection? = try {
+        val root = this.toObject() ?: return null
+        val id = root.requiredText("id")?.takeIf(driverUuidPattern::matches) ?: return null
+        val subjectType = root.requiredText("subjectType") ?: return null
+        val subjectId = root.requiredText("subjectId")?.takeIf(driverUuidPattern::matches) ?: return null
+        val lifecycleStatus = root.requiredText("lifecycleStatus") ?: return null
+        val contentType = root.requiredText("declaredContentType") ?: return null
+        val checksum = root.optionalText("checksumSha256")
+        if (checksum != null && !checksum.matches(Regex("[0-9a-f]{64}"))) return null
+        val size = root.requiredLong("byteSize")?.takeIf { it >= 0 } ?: return null
+        DriverBusinessEvidenceProjection(id, subjectType, subjectId, lifecycleStatus, contentType, checksum, size)
+    } catch (_: Exception) { null }
+
+    private fun JsonObject.optionalUuid(key: String): String? = optionalText(key)?.takeIf(driverUuidPattern::matches)
+
     private fun JsonObject.toArrivalFact(): DriverDeliveryArrivalFactProjection? = try {
         val id = requiredText("id")?.takeIf(driverUuidPattern::matches) ?: return null
         val attemptId = requiredText("attemptId")?.takeIf(driverUuidPattern::matches) ?: return null
@@ -535,5 +736,7 @@ class NexaDriverDeliveryGateway(private val protectedCalls: ProtectedCallExecuto
 
     private companion object {
         const val ACCESS_CONTEXT_INVALID = "ACCESS_CONTEXT_INVALID"
+        const val MAX_EVIDENCE_BYTES = 10L * 1024L * 1024L
+        val ALLOWED_EVIDENCE_TYPES = setOf("image/jpeg", "image/png", "image/webp")
     }
 }

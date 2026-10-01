@@ -23,7 +23,7 @@ class DriverDeliveryViewModelTest {
     fun startRefreshesCurrentDeliveryAndShowsOnlyConfirmedAttemptFacts() = runTest {
         val gateway = FakeDriverDeliveryGateway()
         val metadata = FakeDriverAttemptMetadataStore()
-        val viewModel = DriverDeliveryViewModel(gateway, metadata) { "start-key" }
+        val viewModel = DriverDeliveryViewModel(gateway, metadata, keyFactory = { "start-key" })
         viewModel.activate(AUTHORITY)
         advanceUntilIdle()
         viewModel.selectDelivery(DELIVERY_ID)
@@ -72,8 +72,9 @@ class DriverDeliveryViewModelTest {
         }
         val viewModel = DriverDeliveryViewModel(
             gateway,
-            FakeDriverAttemptMetadataStore()
-        ) { "stable-start-key" }
+            FakeDriverAttemptMetadataStore(),
+            keyFactory = { "stable-start-key" }
+        )
         activateAndSelect(viewModel)
 
         viewModel.beginSelectedDelivery()
@@ -99,8 +100,9 @@ class DriverDeliveryViewModelTest {
         val gateway = FakeDriverDeliveryGateway()
         val viewModel = DriverDeliveryViewModel(
             gateway,
-            FakeDriverAttemptMetadataStore()
-        ) { "one-start-key" }
+            FakeDriverAttemptMetadataStore(),
+            keyFactory = { "one-start-key" }
+        )
         activateAndSelect(viewModel)
         val detailGate = CompletableDeferred<DriverDeliveryLoadResult>()
         gateway.detailBlock = { detailGate.await() }
@@ -126,8 +128,9 @@ class DriverDeliveryViewModelTest {
         val gateway = FakeDriverDeliveryGateway()
         val viewModel = DriverDeliveryViewModel(
             gateway,
-            FakeDriverAttemptMetadataStore()
-        ) { "late-key" }
+            FakeDriverAttemptMetadataStore(),
+            keyFactory = { "late-key" }
+        )
         activateAndSelect(viewModel)
         val startGate = CompletableDeferred<DriverAttemptStartResult>()
         gateway.startBlock = { _, _ -> startGate.await() }
@@ -182,10 +185,10 @@ class DriverDeliveryViewModelTest {
             writeResult = DriverAttemptMetadataWrite.Unavailable
         }
         var keys = 0
-        val viewModel = DriverDeliveryViewModel(gateway, metadata) {
+        val viewModel = DriverDeliveryViewModel(gateway, metadata, keyFactory = {
             keys++
             "durable-start-key"
-        }
+        })
         activateAndSelect(viewModel)
 
         viewModel.beginSelectedDelivery()
@@ -455,6 +458,126 @@ class DriverDeliveryViewModelTest {
         assertEquals(persisted.command, restoredGateway.outcomeCommands.single())
     }
 
+    @Test
+    fun proofCreationPersistsBeforePostAndUnknownOutcomeReplaysSameIdentity() = runTest {
+        val line = DriverDeliveryOutcomeLine(
+            FULFILLMENT_LINE_ID, SKU_ID, "CAT-100", BigDecimal("2"), BigDecimal.ZERO,
+            BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal("2"), "UNIT"
+        )
+        val delivered = activeDelivery(10).copy(
+            status = "DELIVERED",
+            outcomeLines = listOf(line.copy(deliveredQuantity = BigDecimal("2"), remainingQuantity = BigDecimal.ZERO))
+        )
+        val gateway = FakeDriverDeliveryGateway().apply {
+            listItems = listOf(activeDelivery(9).copy(outcomeLines = listOf(line)))
+            detailBlock = { DriverDeliveryLoadResult.DetailLoaded(activeDelivery(9).copy(outcomeLines = listOf(line))) }
+            outcomeBlock = { _, _ ->
+                listItems = listOf(delivered)
+                detailBlock = { DriverDeliveryLoadResult.DetailLoaded(delivered) }
+                DriverOutcomeResult.Recorded(
+                    DriverOutcomeSummary(ATTEMPT_ID, "DELIVERED", ARRIVED_AT, 10, false, emptyList())
+                )
+            }
+            proofCreateResults += DriverProofCreateResult.UnknownOutcome
+            proofCreateResults += DriverProofCreateResult.Created(
+                DriverProofSummary(
+                    PROOF_ID, DELIVERY_ID, ATTEMPT_ID, AUTHORITY.membershipId,
+                    "PENDING", "Receiver", ARRIVED_AT, null, null, 10
+                )
+            )
+        }
+        val proofMetadata = FakeDriverProofMetadataStore()
+        gateway.beforeProofCreate = { command ->
+            assertEquals(DriverProofIntentStage.CreatingProof, proofMetadata.stored?.stage)
+            assertTrue(proofMetadata.stored?.status in setOf(
+                DriverProofIntentStatus.Pending,
+                DriverProofIntentStatus.UnknownOutcome
+            ))
+            assertEquals("proof-stable-key", command.idempotencyKey)
+            assertEquals(10L, command.expectedVersion)
+        }
+        var keyIndex = 0
+        val viewModel = DriverDeliveryViewModel(
+            gateway,
+            FakeDriverAttemptMetadataStore(),
+            outcomeMetadataStore = FakeDriverOutcomeMetadataStore(),
+            timeFactory = { ARRIVED_AT },
+            keyFactory = { if (keyIndex++ == 0) "outcome-key" else "proof-stable-key" },
+            proofMetadataStore = proofMetadata
+        )
+        val proofAuthority = AUTHORITY.copy(permissions = setOf(
+            "dispatch.read", "dispatch.start_route", "document.upload", "document.read"
+        ))
+        viewModel.activate(proofAuthority)
+        advanceUntilIdle()
+        viewModel.selectDelivery(DELIVERY_ID)
+        advanceUntilIdle()
+
+        viewModel.recordOutcome(DriverOutcomeKind.DELIVERED)
+        advanceUntilIdle()
+        assertEquals(DriverOutcomeCommandStatus.Recorded, viewModel.state.value.outcomeCommandStatus)
+
+        viewModel.createProof("Receiver")
+        advanceUntilIdle()
+        assertEquals(DriverProofCommandStatus.UnknownOutcome, viewModel.state.value.proofCommandStatus)
+        assertEquals(DriverProofIntentStatus.UnknownOutcome, proofMetadata.stored?.status)
+        assertEquals(1, gateway.proofCreateCommands.size)
+
+        viewModel.retryUnknownProof()
+        advanceUntilIdle()
+
+        assertEquals(2, gateway.proofCreateCommands.size)
+        assertEquals(gateway.proofCreateCommands.first(), gateway.proofCreateCommands.last())
+        assertEquals(DriverProofCommandStatus.AwaitingEvidenceSelection, viewModel.state.value.proofCommandStatus)
+        assertEquals(PROOF_ID, viewModel.state.value.proofId)
+        assertEquals(DriverProofIntentStage.ProofCreated, proofMetadata.stored?.stage)
+    }
+
+    @Test
+    fun proofCreateStorageFailureBlocksPost() = runTest {
+        val line = DriverDeliveryOutcomeLine(
+            FULFILLMENT_LINE_ID, SKU_ID, "CAT-100", BigDecimal("2"), BigDecimal.ZERO,
+            BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal("2"), "UNIT"
+        )
+        val delivered = activeDelivery(10).copy(status = "DELIVERED", outcomeLines = listOf(line))
+        val gateway = FakeDriverDeliveryGateway().apply {
+            listItems = listOf(activeDelivery(9).copy(outcomeLines = listOf(line)))
+            detailBlock = { DriverDeliveryLoadResult.DetailLoaded(activeDelivery(9).copy(outcomeLines = listOf(line))) }
+            outcomeBlock = { _, _ ->
+                listItems = listOf(delivered)
+                detailBlock = { DriverDeliveryLoadResult.DetailLoaded(delivered) }
+                DriverOutcomeResult.Recorded(
+                    DriverOutcomeSummary(ATTEMPT_ID, "DELIVERED", ARRIVED_AT, 10, false, emptyList())
+                )
+            }
+        }
+        val metadata = FakeDriverProofMetadataStore().apply {
+            writeResult = DriverProofMetadataWrite.Unavailable
+        }
+        val viewModel = DriverDeliveryViewModel(
+            gateway,
+            FakeDriverAttemptMetadataStore(),
+            outcomeMetadataStore = FakeDriverOutcomeMetadataStore(),
+            timeFactory = { ARRIVED_AT },
+            keyFactory = { "same-test-key" },
+            proofMetadataStore = metadata
+        )
+        viewModel.activate(AUTHORITY.copy(permissions = setOf(
+            "dispatch.read", "dispatch.start_route", "document.upload"
+        )))
+        advanceUntilIdle()
+        viewModel.selectDelivery(DELIVERY_ID)
+        advanceUntilIdle()
+        viewModel.recordOutcome(DriverOutcomeKind.DELIVERED)
+        advanceUntilIdle()
+
+        viewModel.createProof("Receiver")
+        advanceUntilIdle()
+
+        assertTrue(gateway.proofCreateCommands.isEmpty())
+        assertEquals(DriverProofCommandStatus.PersistenceUnavailable, viewModel.state.value.proofCommandStatus)
+    }
+
     private suspend fun TestScope.activateAndSelect(viewModel: DriverDeliveryViewModel) {
         viewModel.activate(AUTHORITY)
         advanceUntilIdle()
@@ -471,7 +594,13 @@ class DriverDeliveryViewModelTest {
         val startResults = ArrayDeque<DriverAttemptStartResult>()
         val outcomeResults = ArrayDeque<DriverOutcomeResult>()
         val arrivalResults = ArrayDeque<DriverArrivalResult>()
+        val proofCreateCommands = mutableListOf<DriverProofCreateCommand>()
+        val proofCreateResults = ArrayDeque<DriverProofCreateResult>()
         var beforeOutcome: () -> Unit = {}
+        var beforeProofCreate: (DriverProofCreateCommand) -> Unit = {}
+        var outcomeBlock: suspend (DriverOutcomeCommand, DriverDeliveryAuthority) -> DriverOutcomeResult = { _, _ ->
+            outcomeResults.removeFirstOrNull() ?: DriverOutcomeResult.UnknownOutcome
+        }
         var arrivalBlock: suspend (DriverArrivalCommand, DriverDeliveryAuthority) -> DriverArrivalResult =
             { command, _ ->
                 arrivalCommands += command
@@ -523,7 +652,7 @@ class DriverDeliveryViewModelTest {
         ): DriverOutcomeResult {
             beforeOutcome()
             outcomeCommands += command
-            return outcomeResults.removeFirstOrNull() ?: DriverOutcomeResult.UnknownOutcome
+            return outcomeBlock(command, authority)
         }
 
         override suspend fun signalArrival(
@@ -531,6 +660,15 @@ class DriverDeliveryViewModelTest {
             authority: DriverDeliveryAuthority
         ): DriverArrivalResult = arrivalBlock(command, authority).also {
             if (command !in arrivalCommands) arrivalCommands += command
+        }
+
+        override suspend fun createProof(
+            command: DriverProofCreateCommand,
+            authority: DriverDeliveryAuthority
+        ): DriverProofCreateResult {
+            beforeProofCreate(command)
+            proofCreateCommands += command
+            return proofCreateResults.removeFirstOrNull() ?: DriverProofCreateResult.UnknownOutcome
         }
     }
 
@@ -652,10 +790,62 @@ class DriverDeliveryViewModelTest {
         }
     }
 
+    private class FakeDriverProofMetadataStore : DriverProofMetadataStore {
+        var stored: DriverProofIntentMetadata? = null
+        var writeResult: DriverProofMetadataWrite = DriverProofMetadataWrite.Saved
+
+        override suspend fun loadIntent(scope: DriverAttemptScopeIdentity): DriverProofMetadataRead {
+            val current = stored ?: return DriverProofMetadataRead.Available(null)
+            if (current.scope != scope) return DriverProofMetadataRead.Available(null)
+            if (current.status == DriverProofIntentStatus.Pending && current.stage in setOf(
+                    DriverProofIntentStage.CreatingProof,
+                    DriverProofIntentStage.UploadingEvidence,
+                    DriverProofIntentStage.AttachingEvidence
+                )
+            ) stored = current.copy(status = DriverProofIntentStatus.UnknownOutcome)
+            return DriverProofMetadataRead.Available(stored)
+        }
+
+        override suspend fun saveIntent(intent: DriverProofIntentMetadata): DriverProofMetadataWrite {
+            if (writeResult != DriverProofMetadataWrite.Saved) return writeResult
+            val current = stored
+            if (current != null && (current.scope != intent.scope || current.deliveryId != intent.deliveryId ||
+                    current.attemptId != intent.attemptId || current.createIdempotencyKey != intent.createIdempotencyKey ||
+                    (current.status == DriverProofIntentStatus.UnknownOutcome &&
+                        intent.status == DriverProofIntentStatus.Pending && current.stage == intent.stage))
+            ) return DriverProofMetadataWrite.Conflict
+            stored = intent
+            return DriverProofMetadataWrite.Saved
+        }
+
+        override suspend fun stageCandidate(
+            intent: DriverProofIntentMetadata,
+            candidate: DriverProofFileCandidate
+        ): DriverProofMetadataWrite = DriverProofMetadataWrite.Unavailable
+
+        override suspend fun loadCandidate(intent: DriverProofIntentMetadata): DriverProofFileCandidate? = null
+
+        override suspend fun clearCandidate(intent: DriverProofIntentMetadata): Boolean = true
+
+        override suspend fun clearIntent(
+            scope: DriverAttemptScopeIdentity,
+            createIdempotencyKey: String
+        ): DriverProofMetadataWrite {
+            if (writeResult != DriverProofMetadataWrite.Saved) return writeResult
+            val current = stored ?: return DriverProofMetadataWrite.Saved
+            if (current.scope != scope || current.createIdempotencyKey != createIdempotencyKey) {
+                return DriverProofMetadataWrite.Stale
+            }
+            stored = null
+            return DriverProofMetadataWrite.Saved
+        }
+    }
+
     private companion object {
         const val DELIVERY_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413201"
         const val ATTEMPT_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413202"
         const val ARRIVAL_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413209"
+        const val PROOF_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413210"
         const val ARRIVED_AT = "2026-09-30T20:00:00Z"
         const val FULFILLMENT_LINE_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413207"
         const val SKU_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413208"

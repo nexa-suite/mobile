@@ -59,10 +59,28 @@ enum class DriverArrivalCommandStatus {
     StaleVersion
 }
 
+enum class DriverProofCommandStatus {
+    Idle,
+    CheckingCurrent,
+    PersistingIntent,
+    AwaitingEvidenceSelection,
+    ReadyToUploadReview,
+    Pending,
+    UnknownOutcome,
+    PersistenceUnavailable,
+    WaitingForScan,
+    EvidenceAvailable,
+    Captured,
+    Rejected,
+    StaleVersion
+}
+
 data class DriverDeliveryUiState(
     val authorityEpoch: Long = 0,
     val canRead: Boolean = false,
     val canStart: Boolean = false,
+    val canCaptureProof: Boolean = false,
+    val canReadProofEvidence: Boolean = false,
     val deliveries: List<DriverDeliverySnapshot> = emptyList(),
     val listStatus: DriverDeliveryLoadStatus = DriverDeliveryLoadStatus.NotRequested,
     val selectedDelivery: DriverDeliverySnapshot? = null,
@@ -77,7 +95,16 @@ data class DriverDeliveryUiState(
     val arrivalCommandStatus: DriverArrivalCommandStatus = DriverArrivalCommandStatus.Idle,
     val hasRecoverableArrival: Boolean = false,
     val arrivalSummary: DriverArrivalSummary? = null,
-    val arrivalRejectionCode: String? = null
+    val arrivalRejectionCode: String? = null,
+    val proofCommandStatus: DriverProofCommandStatus = DriverProofCommandStatus.Idle,
+    val proofId: String? = null,
+    val proofAttemptId: String? = null,
+    val proofEvidenceId: String? = null,
+    val proofEvidenceKind: DriverProofEvidenceKind? = null,
+    val proofSummary: DriverProofSummary? = null,
+    val proofEvidenceSummary: DriverProofEvidenceSummary? = null,
+    val hasRecoverableProof: Boolean = false,
+    val proofRejectionCode: String? = null
 ) {
     /** Destination leaves Nexa only after current assigned detail confirms an active attempt. */
     val authorizedDirectionsDestination: String?
@@ -101,7 +128,8 @@ class DriverDeliveryViewModel(
     private val outcomeMetadataStore: DriverOutcomeMetadataStore? = null,
     private val arrivalMetadataStore: DriverArrivalMetadataStore? = null,
     private val timeFactory: () -> String = { Instant.now().toString() },
-    private val keyFactory: () -> String = { UUID.randomUUID().toString() }
+    private val keyFactory: () -> String = { UUID.randomUUID().toString() },
+    private val proofMetadataStore: DriverProofMetadataStore? = null
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(DriverDeliveryUiState())
     val state = mutableState.asStateFlow()
@@ -114,6 +142,8 @@ class DriverDeliveryViewModel(
     private var pendingOutcomePersisted = false
     private var pendingArrival: DriverArrivalCommand? = null
     private var pendingArrivalPersisted = false
+    private var pendingProof: DriverProofIntentMetadata? = null
+    private var pendingProofPersisted = false
 
     fun activate(currentAuthority: DriverDeliveryAuthority) {
         generation++
@@ -125,10 +155,14 @@ class DriverDeliveryViewModel(
         pendingOutcomePersisted = false
         pendingArrival = null
         pendingArrivalPersisted = false
+        pendingProof = null
+        pendingProofPersisted = false
         mutableState.value = DriverDeliveryUiState(
             authorityEpoch = currentAuthority.authorityEpoch,
             canRead = currentAuthority.canRead,
             canStart = currentAuthority.canStart,
+            canCaptureProof = currentAuthority.canCaptureProof,
+            canReadProofEvidence = currentAuthority.canReadProofEvidence,
             listStatus = if (currentAuthority.canRead) {
                 DriverDeliveryLoadStatus.Loading
             } else {
@@ -207,6 +241,47 @@ class DriverDeliveryViewModel(
 
                 DriverArrivalMetadataRead.Unavailable -> arrivalMetadataAvailable = false
             }
+            var proofMetadataAvailable = true
+            val loadedProof = safeProofMetadataLoad(currentAuthority.scopeIdentity)
+            if (!isCurrent(requestGeneration, currentAuthority)) return@launch
+            when (loadedProof) {
+                is DriverProofMetadataRead.Available -> {
+                    val intent = loadedProof.intent
+                    if (intent != null && intent.scope == currentAuthority.scopeIdentity) {
+                        val recovered = intent.copy(
+                            status = if (intent.stage in setOf(
+                                    DriverProofIntentStage.CreatingProof,
+                                    DriverProofIntentStage.UploadingEvidence,
+                                    DriverProofIntentStage.AttachingEvidence
+                                )
+                            ) DriverProofIntentStatus.UnknownOutcome else intent.status
+                        )
+                        pendingProof = recovered
+                        pendingProofPersisted = true
+                        val recoveredStatus = when (intent.stage) {
+                            DriverProofIntentStage.ProofCreated -> DriverProofCommandStatus.AwaitingEvidenceSelection
+                            DriverProofIntentStage.EvidenceReadyForReview -> DriverProofCommandStatus.ReadyToUploadReview
+                            DriverProofIntentStage.EvidenceAwaitingScan -> DriverProofCommandStatus.UnknownOutcome
+                            DriverProofIntentStage.Captured -> DriverProofCommandStatus.Captured
+                            else -> DriverProofCommandStatus.UnknownOutcome
+                        }
+                        mutableState.update {
+                            it.copy(
+                                proofCommandStatus = recoveredStatus,
+                                proofId = intent.proofId,
+                                proofAttemptId = intent.attemptId,
+                                proofEvidenceId = intent.evidenceId,
+                                proofEvidenceKind = intent.evidenceKind,
+                                hasRecoverableProof = intent.stage != DriverProofIntentStage.Captured
+                            )
+                        }
+                    } else if (intent != null) {
+                        proofMetadataAvailable = false
+                    }
+                }
+
+                DriverProofMetadataRead.Unavailable -> proofMetadataAvailable = false
+            }
             if (!metadataAvailable) {
                 mutableState.update {
                     it.copy(commandStatus = DriverDeliveryCommandStatus.PersistenceUnavailable)
@@ -220,6 +295,11 @@ class DriverDeliveryViewModel(
             if (arrivalMetadataStore != null && !arrivalMetadataAvailable) {
                 mutableState.update {
                     it.copy(arrivalCommandStatus = DriverArrivalCommandStatus.PersistenceUnavailable)
+                }
+            }
+            if (proofMetadataStore != null && !proofMetadataAvailable) {
+                mutableState.update {
+                    it.copy(proofCommandStatus = DriverProofCommandStatus.PersistenceUnavailable)
                 }
             }
             val result = safeLoad { gateway.assignedDeliveries(currentAuthority) }
@@ -237,6 +317,8 @@ class DriverDeliveryViewModel(
                                 result.items.firstOrNull { item -> item.id == command.deliveryId }
                             } ?: pendingArrival?.let { command ->
                                 result.items.firstOrNull { item -> item.id == command.deliveryId }
+                            } ?: pendingProof?.let { intent ->
+                                result.items.firstOrNull { item -> item.id == intent.deliveryId }
                             },
                             commandStatus = when {
                                 restored != null -> DriverDeliveryCommandStatus.UnknownOutcome
@@ -251,6 +333,25 @@ class DriverDeliveryViewModel(
 
                 else -> mutableState.update { it.copy(listStatus = result.toLoadStatus()) }
             }
+            val restoredProof = pendingProof
+            if (restoredProof != null) {
+                val proofDetail = safeLoad { gateway.delivery(restoredProof.deliveryId, currentAuthority) }
+                if (!isCurrent(requestGeneration, currentAuthority)) return@launch
+                val currentProofDelivery = (proofDetail as? DriverDeliveryLoadResult.DetailLoaded)?.item
+                if (currentProofDelivery != null && currentProofDelivery.id == restoredProof.deliveryId &&
+                    currentProofDelivery.status == "DELIVERED"
+                ) {
+                    replaceDelivery(currentProofDelivery)
+                } else {
+                    mutableState.update {
+                        it.copy(
+                            detailStatus = proofDetail.toLoadStatus(),
+                            proofCommandStatus = DriverProofCommandStatus.StaleVersion,
+                            proofRejectionCode = "DELIVERY_ATTEMPT_NOT_CURRENT"
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -263,6 +364,8 @@ class DriverDeliveryViewModel(
         pendingOutcomePersisted = false
         pendingArrival = null
         pendingArrivalPersisted = false
+        pendingProof = null
+        pendingProofPersisted = false
         mutableState.value = DriverDeliveryUiState()
     }
 
@@ -629,6 +732,718 @@ class DriverDeliveryViewModel(
                 it.copy(arrivalCommandStatus = DriverArrivalCommandStatus.PersistingIntent)
             }
             viewModelScope.launch { persistBeforeArrival(command, requestGeneration, currentAuthority) }
+        }
+    }
+
+    /** Creates a server-owned pending POD only after a final delivery outcome is confirmed. */
+    fun createProof(receiverName: String, notes: String? = null) {
+        val currentAuthority = authority ?: return
+        val currentState = mutableState.value
+        val selected = currentState.selectedDelivery ?: return
+        val outcome = currentState.outcomeSummary ?: return
+        val receiver = receiverName.trim().takeIf(String::isNotEmpty) ?: return
+        if (!currentAuthority.canCaptureProof || !currentAuthority.canRead || proofMetadataStore == null ||
+            currentState.detailStatus != DriverDeliveryLoadStatus.Ready || selected.status != "DELIVERED" ||
+            currentState.outcomeCommandStatus != DriverOutcomeCommandStatus.Recorded ||
+            currentState.proofCommandStatus in FROZEN_PROOF_COMMANDS || pendingProof != null
+        ) return
+        val note = notes?.trim()?.takeIf(String::isNotEmpty)
+        if (receiver.length > 255 || (note?.length ?: 0) > 2000) {
+            mutableState.update {
+                it.copy(proofCommandStatus = DriverProofCommandStatus.Rejected, proofRejectionCode = "POD_RECEIVER_REQUIRED")
+            }
+            return
+        }
+        val requestGeneration = generation
+        mutableState.update {
+            it.copy(proofCommandStatus = DriverProofCommandStatus.CheckingCurrent, proofRejectionCode = null)
+        }
+        viewModelScope.launch {
+            val currentResult = safeLoad { gateway.delivery(selected.id, currentAuthority) }
+            if (!isCurrent(requestGeneration, currentAuthority)) return@launch
+            val current = (currentResult as? DriverDeliveryLoadResult.DetailLoaded)?.item
+            if (current == null || current.status != "DELIVERED") {
+                mutableState.update {
+                    it.copy(
+                        detailStatus = currentResult.toLoadStatus(),
+                        proofCommandStatus = DriverProofCommandStatus.StaleVersion,
+                        proofRejectionCode = "POD_REQUIRES_FINAL_DELIVERY"
+                    )
+                }
+                return@launch
+            }
+            replaceDelivery(current)
+            val key = keyFactory().takeIf { it.isNotBlank() && it.length <= 160 }
+            val capturedAt = timeFactory()
+            val timestampValid = runCatching { Instant.parse(capturedAt) }.isSuccess
+            if (key == null || !timestampValid) {
+                mutableState.update {
+                    it.copy(
+                        proofCommandStatus = DriverProofCommandStatus.Rejected,
+                        proofRejectionCode = "POD_REQUEST_INVALID"
+                    )
+                }
+                return@launch
+            }
+            val body = frozenProofCreateBody(receiver, capturedAt, note)
+            val intent = DriverProofIntentMetadata(
+                scope = currentAuthority.scopeIdentity,
+                deliveryId = current.id,
+                attemptId = outcome.attemptId,
+                createExpectedVersion = current.version,
+                createIdempotencyKey = key,
+                createBody = body,
+                receiverName = receiver,
+                capturedAt = capturedAt,
+                notes = note,
+                stage = DriverProofIntentStage.CreatingProof,
+                status = DriverProofIntentStatus.Pending
+            )
+            pendingProof = intent
+            pendingProofPersisted = false
+            mutableState.update {
+                it.copy(
+                    proofCommandStatus = DriverProofCommandStatus.PersistingIntent,
+                    hasRecoverableProof = true,
+                    proofAttemptId = intent.attemptId,
+                    proofSummary = null,
+                    proofEvidenceSummary = null
+                )
+            }
+            persistBeforeProofCreate(intent, requestGeneration, currentAuthority)
+        }
+    }
+
+    /** Captures only route identity. The app launches GetContent after this returns. */
+    fun beginProofFileSelection(): DriverProofSelectionContext? {
+        val currentAuthority = authority ?: return null
+        val current = mutableState.value
+        val intent = pendingProof ?: return null
+        val proofId = intent.proofId ?: return null
+        val delivery = current.selectedDelivery ?: return null
+        if (!currentAuthority.canCaptureProof || current.detailStatus != DriverDeliveryLoadStatus.Ready ||
+            current.proofCommandStatus != DriverProofCommandStatus.AwaitingEvidenceSelection ||
+            intent.stage != DriverProofIntentStage.ProofCreated || delivery.id != intent.deliveryId ||
+            delivery.status != "DELIVERED" || intent.scope != currentAuthority.scopeIdentity
+        ) return null
+        return DriverProofSelectionContext(
+            authorityEpoch = currentAuthority.authorityEpoch,
+            scope = currentAuthority.scopeIdentity,
+            deliveryId = intent.deliveryId,
+            attemptId = intent.attemptId,
+            proofId = proofId
+        )
+    }
+
+    /** Stages a picker result for explicit review; this method never starts network work. */
+    fun acceptProofFileSelection(
+        context: DriverProofSelectionContext,
+        candidate: DriverProofFileCandidate,
+        kind: DriverProofEvidenceKind = DriverProofEvidenceKind.PHOTO
+    ) {
+        val currentAuthority = authority
+        val current = mutableState.value
+        val intent = pendingProof
+        if (currentAuthority == null || intent == null || proofMetadataStore == null ||
+            currentAuthority.scopeIdentity != context.scope || intent.scope != context.scope ||
+            intent.stage != DriverProofIntentStage.ProofCreated ||
+            intent.deliveryId != context.deliveryId || intent.attemptId != context.attemptId ||
+            intent.proofId != context.proofId || current.selectedDelivery?.id != context.deliveryId ||
+            current.proofId != context.proofId || current.detailStatus != DriverDeliveryLoadStatus.Ready ||
+            !currentAuthority.canCaptureProof
+        ) {
+            candidate.file.delete()
+            return
+        }
+        val key = keyFactory().takeIf { it.isNotBlank() && it.length <= 160 }
+        val fileToken = UUID.randomUUID().toString()
+        if (key == null) {
+            candidate.file.delete()
+            mutableState.update {
+                it.copy(proofCommandStatus = DriverProofCommandStatus.Rejected, proofRejectionCode = "IDEMPOTENCY_KEY_INVALID")
+            }
+            return
+        }
+        val staged = intent.copy(
+            stage = DriverProofIntentStage.EvidenceReadyForReview,
+            status = DriverProofIntentStatus.Pending,
+            evidenceKind = kind,
+            evidenceUploadKey = key,
+            candidateFileToken = fileToken,
+            candidateFilename = candidate.originalFilename,
+            candidateContentType = candidate.declaredContentType,
+            candidateByteSize = candidate.byteSize,
+            candidateChecksumSha256 = candidate.checksumSha256
+        )
+        pendingProof = staged
+        pendingProofPersisted = false
+        mutableState.update {
+            it.copy(proofCommandStatus = DriverProofCommandStatus.PersistingIntent, proofRejectionCode = null)
+        }
+        val requestGeneration = generation
+        viewModelScope.launch {
+            val saved = safeProofMetadataStage(staged, candidate)
+            candidate.file.delete()
+            if (!isCurrent(requestGeneration, currentAuthority)) return@launch
+            if (saved != DriverProofMetadataWrite.Saved) {
+                mutableState.update {
+                    it.copy(
+                        proofCommandStatus = DriverProofCommandStatus.PersistenceUnavailable,
+                        hasRecoverableProof = true
+                    )
+                }
+                return@launch
+            }
+            pendingProofPersisted = true
+            mutableState.update {
+                it.copy(
+                    proofCommandStatus = DriverProofCommandStatus.ReadyToUploadReview,
+                    hasRecoverableProof = true,
+                    proofId = staged.proofId,
+                    proofAttemptId = staged.attemptId,
+                    proofEvidenceKind = staged.evidenceKind
+                )
+            }
+        }
+    }
+
+    /** Upload is deliberately a separate user action after reactivation and review. */
+    fun uploadSelectedProofEvidence() {
+        val currentAuthority = authority ?: return
+        val current = mutableState.value
+        val intent = pendingProof ?: return
+        if (!currentAuthority.canCaptureProof || current.detailStatus != DriverDeliveryLoadStatus.Ready ||
+            current.selectedDelivery?.id != intent.deliveryId || current.selectedDelivery.status != "DELIVERED" ||
+            current.proofCommandStatus != DriverProofCommandStatus.ReadyToUploadReview ||
+            intent.scope != currentAuthority.scopeIdentity || intent.stage != DriverProofIntentStage.EvidenceReadyForReview ||
+            !pendingProofPersisted || intent.candidateFileToken == null || intent.evidenceKind == null ||
+            intent.evidenceUploadKey == null || proofMetadataStore == null
+        ) return
+        val requestGeneration = generation
+        val dispatchIntent = intent.copy(
+            stage = DriverProofIntentStage.UploadingEvidence,
+            status = DriverProofIntentStatus.Pending
+        )
+        pendingProof = dispatchIntent
+        mutableState.update { it.copy(proofCommandStatus = DriverProofCommandStatus.PersistingIntent) }
+        viewModelScope.launch {
+            val saved = safeProofMetadataWrite(dispatchIntent)
+            if (!isCurrent(requestGeneration, currentAuthority)) return@launch
+            if (saved != DriverProofMetadataWrite.Saved) {
+                mutableState.update { it.copy(proofCommandStatus = DriverProofCommandStatus.PersistenceUnavailable) }
+                return@launch
+            }
+            val candidate = safeProofCandidateLoad(dispatchIntent)
+            if (!isCurrent(requestGeneration, currentAuthority)) {
+                candidate?.file?.delete()
+                return@launch
+            }
+            if (candidate == null || candidate.checksumSha256 != dispatchIntent.candidateChecksumSha256) {
+                mutableState.update { it.copy(proofCommandStatus = DriverProofCommandStatus.PersistenceUnavailable) }
+                return@launch
+            }
+            mutableState.update { it.copy(proofCommandStatus = DriverProofCommandStatus.Pending) }
+            runProofUpload(dispatchIntent, candidate, requestGeneration, currentAuthority)
+        }
+    }
+
+    /** Replays only the exact durable stage; it never creates a replacement key or body. */
+    fun retryUnknownProof() {
+        val currentAuthority = authority ?: return
+        val intent = pendingProof ?: return
+        if (!currentAuthority.canCaptureProof || intent.scope != currentAuthority.scopeIdentity ||
+            !mutableState.value.hasRecoverableProof ||
+            mutableState.value.proofCommandStatus !in setOf(
+                DriverProofCommandStatus.UnknownOutcome,
+                DriverProofCommandStatus.PersistenceUnavailable
+            )
+        ) return
+        val requestGeneration = generation
+        when (intent.stage) {
+            DriverProofIntentStage.CreatingProof -> {
+                mutableState.update { it.copy(proofCommandStatus = DriverProofCommandStatus.Pending) }
+                viewModelScope.launch { runProofCreate(intent, requestGeneration, currentAuthority) }
+            }
+            DriverProofIntentStage.UploadingEvidence -> viewModelScope.launch {
+                val candidate = safeProofCandidateLoad(intent)
+                if (!isCurrent(requestGeneration, currentAuthority)) {
+                    candidate?.file?.delete()
+                    return@launch
+                }
+                if (candidate == null || candidate.checksumSha256 != intent.candidateChecksumSha256) {
+                    mutableState.update { it.copy(proofCommandStatus = DriverProofCommandStatus.PersistenceUnavailable) }
+                    return@launch
+                }
+                mutableState.update { it.copy(proofCommandStatus = DriverProofCommandStatus.Pending) }
+                runProofUpload(intent, candidate, requestGeneration, currentAuthority)
+            }
+            DriverProofIntentStage.AttachingEvidence -> viewModelScope.launch {
+                mutableState.update { it.copy(proofCommandStatus = DriverProofCommandStatus.Pending) }
+                runProofAttach(intent, requestGeneration, currentAuthority)
+            }
+            DriverProofIntentStage.EvidenceAwaitingScan -> refreshProofEvidence()
+            DriverProofIntentStage.ProofCreated -> mutableState.update {
+                it.copy(proofCommandStatus = DriverProofCommandStatus.AwaitingEvidenceSelection)
+            }
+            DriverProofIntentStage.EvidenceReadyForReview -> mutableState.update {
+                it.copy(proofCommandStatus = DriverProofCommandStatus.ReadyToUploadReview)
+            }
+            DriverProofIntentStage.Captured -> Unit
+        }
+    }
+
+    /** Checks current server evidence status; a cached quarantine status is never shown as current. */
+    fun refreshProofEvidence() {
+        val currentAuthority = authority ?: return
+        val intent = pendingProof ?: return
+        val evidenceId = intent.evidenceId ?: return
+        val proofId = intent.proofId ?: return
+        if (!currentAuthority.canReadProofEvidence || intent.scope != currentAuthority.scopeIdentity) return
+        val requestGeneration = generation
+        mutableState.update { it.copy(proofCommandStatus = DriverProofCommandStatus.CheckingCurrent) }
+        viewModelScope.launch {
+            val result = try {
+                gateway.proofEvidenceStatus(evidenceId, proofId, currentAuthority)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                DriverProofEvidenceStatusResult.ServiceUnavailable
+            }
+            if (!isCurrent(requestGeneration, currentAuthority)) return@launch
+            when (result) {
+                is DriverProofEvidenceStatusResult.Loaded -> {
+                    if (result.summary.subjectType != "PROOF_OF_DELIVERY" ||
+                        result.summary.subjectId != proofId || result.summary.evidenceId != evidenceId
+                    ) {
+                        proofStateRejected("EVIDENCE_SUBJECT_MISMATCH")
+                        return@launch
+                    }
+                    mutableState.update {
+                        it.copy(
+                            proofEvidenceSummary = result.summary,
+                            proofCommandStatus = when (result.summary.lifecycleStatus) {
+                                "AVAILABLE" -> DriverProofCommandStatus.EvidenceAvailable
+                                "REJECTED", "DELETED" -> DriverProofCommandStatus.Rejected
+                                else -> DriverProofCommandStatus.WaitingForScan
+                            },
+                            proofRejectionCode = result.summary.lifecycleStatus.takeIf { status ->
+                                status in setOf("REJECTED", "DELETED")
+                            }
+                        )
+                    }
+                }
+                DriverProofEvidenceStatusResult.NotFound -> proofStateRejected("EVIDENCE_NOT_FOUND")
+                DriverProofEvidenceStatusResult.PermissionDenied -> proofStateRejected("DOCUMENT_READ_REQUIRED")
+                DriverProofEvidenceStatusResult.ContextInvalidated -> proofStateRejected("ACCESS_CONTEXT_INVALID")
+                DriverProofEvidenceStatusResult.SessionInvalidated -> proofStateRejected("SESSION_INVALIDATED")
+                DriverProofEvidenceStatusResult.ServiceUnavailable -> proofStateRejected("EVIDENCE_STATUS_UNAVAILABLE")
+            }
+        }
+    }
+
+    /** Attaches only evidence whose current server projection is AVAILABLE. */
+    fun attachAvailableProofEvidence() {
+        val currentAuthority = authority ?: return
+        val intent = pendingProof ?: return
+        val evidence = mutableState.value.proofEvidenceSummary ?: return
+        val selected = mutableState.value.selectedDelivery ?: return
+        if (!currentAuthority.canCaptureProof || intent.scope != currentAuthority.scopeIdentity ||
+            mutableState.value.proofCommandStatus != DriverProofCommandStatus.EvidenceAvailable ||
+            evidence.lifecycleStatus != "AVAILABLE" || evidence.evidenceId != intent.evidenceId ||
+            selected.id != intent.deliveryId || mutableState.value.detailStatus != DriverDeliveryLoadStatus.Ready ||
+            intent.proofId == null || intent.evidenceKind == null || proofMetadataStore == null
+        ) return
+        val requestGeneration = generation
+        mutableState.update { it.copy(proofCommandStatus = DriverProofCommandStatus.CheckingCurrent) }
+        viewModelScope.launch {
+            val detail = safeLoad { gateway.delivery(intent.deliveryId, currentAuthority) }
+            if (!isCurrent(requestGeneration, currentAuthority)) return@launch
+            val current = (detail as? DriverDeliveryLoadResult.DetailLoaded)?.item
+            if (current == null || current.status != "DELIVERED") {
+                mutableState.update {
+                    it.copy(
+                        detailStatus = detail.toLoadStatus(),
+                        proofCommandStatus = DriverProofCommandStatus.StaleVersion,
+                        proofRejectionCode = "POD_REQUIRES_FINAL_DELIVERY"
+                    )
+                }
+                return@launch
+            }
+            replaceDelivery(current)
+            val key = keyFactory().takeIf { it.isNotBlank() && it.length <= 160 }
+            if (key == null) {
+                proofStateRejected("IDEMPOTENCY_KEY_INVALID")
+                return@launch
+            }
+            val body = frozenProofAttachBody(intent.evidenceKind, evidence.evidenceId)
+            val attachIntent = intent.copy(
+                stage = DriverProofIntentStage.AttachingEvidence,
+                status = DriverProofIntentStatus.Pending,
+                attachExpectedVersion = current.version,
+                attachKey = key,
+                attachBody = body
+            )
+            pendingProof = attachIntent
+            pendingProofPersisted = false
+            mutableState.update { it.copy(proofCommandStatus = DriverProofCommandStatus.PersistingIntent) }
+            val saved = safeProofMetadataWrite(attachIntent)
+            if (!isCurrent(requestGeneration, currentAuthority)) return@launch
+            if (saved != DriverProofMetadataWrite.Saved) {
+                mutableState.update { it.copy(proofCommandStatus = DriverProofCommandStatus.PersistenceUnavailable) }
+                return@launch
+            }
+            pendingProofPersisted = true
+            mutableState.update { it.copy(proofCommandStatus = DriverProofCommandStatus.Pending) }
+            runProofAttach(attachIntent, requestGeneration, currentAuthority)
+        }
+    }
+
+    private suspend fun persistBeforeProofCreate(
+        intent: DriverProofIntentMetadata,
+        requestGeneration: Long,
+        currentAuthority: DriverDeliveryAuthority
+    ) {
+        val saved = safeProofMetadataWrite(intent)
+        if (!isCurrent(requestGeneration, currentAuthority)) return
+        if (saved != DriverProofMetadataWrite.Saved) {
+            mutableState.update {
+                it.copy(proofCommandStatus = DriverProofCommandStatus.PersistenceUnavailable, hasRecoverableProof = true)
+            }
+            return
+        }
+        pendingProofPersisted = true
+        mutableState.update { it.copy(proofCommandStatus = DriverProofCommandStatus.Pending) }
+        runProofCreate(intent, requestGeneration, currentAuthority)
+    }
+
+    private suspend fun runProofCreate(
+        intent: DriverProofIntentMetadata,
+        requestGeneration: Long,
+        currentAuthority: DriverDeliveryAuthority
+    ) {
+        val command = DriverProofCreateCommand(
+            intent.deliveryId,
+            intent.attemptId,
+            intent.createExpectedVersion,
+            intent.createIdempotencyKey,
+            intent.createBody,
+            intent.receiverName,
+            intent.capturedAt
+        )
+        val result = try {
+            gateway.createProof(command, currentAuthority)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            DriverProofCreateResult.UnknownOutcome
+        }
+        if (!isCurrent(requestGeneration, currentAuthority)) return
+        when (result) {
+            is DriverProofCreateResult.Created -> {
+                val proof = result.summary
+                if (proof.deliveryId != intent.deliveryId || proof.attemptId != intent.attemptId ||
+                    proof.actorMembershipId != currentAuthority.membershipId ||
+                    proof.status !in setOf("PENDING", "CAPTURED")
+                ) {
+                    markProofUnknown(intent, requestGeneration, currentAuthority)
+                    return
+                }
+                if (proof.status == "CAPTURED") {
+                    clearProofIntentAfterSuccess(intent, proof, requestGeneration, currentAuthority)
+                    return
+                }
+                val updated = intent.copy(
+                    stage = DriverProofIntentStage.ProofCreated,
+                    status = DriverProofIntentStatus.Pending,
+                    proofId = proof.proofId,
+                    proofVersion = proof.deliveryVersion
+                )
+                val saved = safeProofMetadataWrite(updated)
+                if (!isCurrent(requestGeneration, currentAuthority)) return
+                if (saved != DriverProofMetadataWrite.Saved) {
+                    pendingProof = intent.copy(status = DriverProofIntentStatus.UnknownOutcome)
+                    mutableState.update {
+                        it.copy(
+                            proofCommandStatus = DriverProofCommandStatus.UnknownOutcome,
+                            hasRecoverableProof = true
+                        )
+                    }
+                    return
+                }
+                pendingProof = updated
+                pendingProofPersisted = true
+                mutableState.update {
+                    it.copy(
+                        proofCommandStatus = DriverProofCommandStatus.AwaitingEvidenceSelection,
+                        proofId = proof.proofId,
+                        proofAttemptId = proof.attemptId,
+                        proofSummary = proof,
+                        hasRecoverableProof = true
+                    )
+                }
+            }
+            is DriverProofCreateResult.Rejected -> finishProofRejected(
+                intent, result.code ?: "POD_CREATE_REJECTED", requestGeneration, currentAuthority
+            )
+            DriverProofCreateResult.StaleVersion -> finishProofRejected(
+                intent, "VERSION_CONFLICT", requestGeneration, currentAuthority, stale = true
+            )
+            DriverProofCreateResult.NotFound -> finishProofRejected(
+                intent, "DELIVERY_ATTEMPT_NOT_FOUND", requestGeneration, currentAuthority
+            )
+            DriverProofCreateResult.PermissionDenied -> markProofUnknown(intent, requestGeneration, currentAuthority, "PERMISSION_DENIED")
+            DriverProofCreateResult.ContextInvalidated -> markProofUnknown(intent, requestGeneration, currentAuthority, "ACCESS_CONTEXT_INVALID")
+            DriverProofCreateResult.SessionInvalidated -> markProofUnknown(intent, requestGeneration, currentAuthority, "SESSION_INVALIDATED")
+            DriverProofCreateResult.UnknownOutcome,
+            DriverProofCreateResult.ServiceUnavailable -> markProofUnknown(intent, requestGeneration, currentAuthority)
+        }
+    }
+
+    private suspend fun runProofUpload(
+        intent: DriverProofIntentMetadata,
+        candidate: DriverProofFileCandidate,
+        requestGeneration: Long,
+        currentAuthority: DriverDeliveryAuthority
+    ) {
+        try {
+            val verification = gateway.createProof(
+                DriverProofCreateCommand(
+                    intent.deliveryId, intent.attemptId, intent.createExpectedVersion,
+                    intent.createIdempotencyKey, intent.createBody, intent.receiverName, intent.capturedAt
+                ),
+                currentAuthority
+            )
+            if (!isCurrent(requestGeneration, currentAuthority)) return
+            val verified = (verification as? DriverProofCreateResult.Created)?.summary
+            if (verified == null || verified.proofId != intent.proofId ||
+                verified.deliveryId != intent.deliveryId || verified.attemptId != intent.attemptId ||
+                verified.actorMembershipId != currentAuthority.membershipId ||
+                verified.status != "PENDING"
+            ) {
+                markProofUnknown(intent, requestGeneration, currentAuthority, "POD_REVALIDATION_REQUIRED")
+                return
+            }
+            val uploadKey = intent.evidenceUploadKey ?: run {
+                markProofUnknown(intent, requestGeneration, currentAuthority, "PROOF_INTENT_INCOMPLETE")
+                return
+            }
+            val evidenceKind = intent.evidenceKind ?: run {
+                markProofUnknown(intent, requestGeneration, currentAuthority, "PROOF_INTENT_INCOMPLETE")
+                return
+            }
+            val result = try {
+                gateway.uploadProofEvidence(
+                    DriverProofUploadCommand(intent.deliveryId, intent.attemptId, intent.proofId!!,
+                        evidenceKind, uploadKey, candidate),
+                    currentAuthority
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                DriverProofUploadResult.UnknownOutcome
+            }
+            if (!isCurrent(requestGeneration, currentAuthority)) return
+            when (result) {
+                is DriverProofUploadResult.Uploaded -> {
+                    val evidence = result.summary
+                    if (evidence.checksumSha256 != intent.candidateChecksumSha256 ||
+                        evidence.byteSize != intent.candidateByteSize ||
+                        evidence.contentType != intent.candidateContentType
+                    ) {
+                        markProofUnknown(intent, requestGeneration, currentAuthority, "IDEMPOTENCY_PAYLOAD_CONFLICT")
+                        return
+                    }
+                    val updated = intent.copy(
+                        stage = DriverProofIntentStage.EvidenceAwaitingScan,
+                        status = DriverProofIntentStatus.Pending,
+                        evidenceId = evidence.evidenceId,
+                        candidateFileToken = null
+                    )
+                    val saved = safeProofMetadataWrite(updated)
+                    if (!isCurrent(requestGeneration, currentAuthority)) return
+                    if (saved != DriverProofMetadataWrite.Saved) {
+                        markProofUnknown(intent, requestGeneration, currentAuthority)
+                        return
+                    }
+                    safeProofCandidateClear(intent)
+                    pendingProof = updated
+                    pendingProofPersisted = true
+                    mutableState.update {
+                        it.copy(
+                            proofEvidenceId = evidence.evidenceId,
+                            proofEvidenceKind = evidenceKind,
+                            proofEvidenceSummary = evidence,
+                            proofCommandStatus = if (evidence.lifecycleStatus == "AVAILABLE") {
+                                DriverProofCommandStatus.EvidenceAvailable
+                            } else {
+                                DriverProofCommandStatus.WaitingForScan
+                            },
+                            hasRecoverableProof = true
+                        )
+                    }
+                }
+                is DriverProofUploadResult.Rejected -> markProofUnknown(
+                    intent, requestGeneration, currentAuthority, result.code ?: "EVIDENCE_UPLOAD_REJECTED"
+                )
+                DriverProofUploadResult.PermissionDenied -> markProofUnknown(intent, requestGeneration, currentAuthority, "PERMISSION_DENIED")
+                DriverProofUploadResult.ContextInvalidated -> markProofUnknown(intent, requestGeneration, currentAuthority, "ACCESS_CONTEXT_INVALID")
+                DriverProofUploadResult.SessionInvalidated -> markProofUnknown(intent, requestGeneration, currentAuthority, "SESSION_INVALIDATED")
+                DriverProofUploadResult.NotFound,
+                DriverProofUploadResult.UnknownOutcome,
+                DriverProofUploadResult.ServiceUnavailable -> markProofUnknown(intent, requestGeneration, currentAuthority)
+            }
+        } finally {
+            candidate.file.delete()
+        }
+    }
+
+    private suspend fun runProofAttach(
+        intent: DriverProofIntentMetadata,
+        requestGeneration: Long,
+        currentAuthority: DriverDeliveryAuthority
+    ) {
+        val proofId = intent.proofId ?: return markProofUnknown(intent, requestGeneration, currentAuthority)
+        val evidenceId = intent.evidenceId ?: return markProofUnknown(intent, requestGeneration, currentAuthority)
+        val kind = intent.evidenceKind ?: return markProofUnknown(intent, requestGeneration, currentAuthority)
+        val expectedVersion = intent.attachExpectedVersion ?: return markProofUnknown(intent, requestGeneration, currentAuthority)
+        val key = intent.attachKey ?: return markProofUnknown(intent, requestGeneration, currentAuthority)
+        val body = intent.attachBody ?: return markProofUnknown(intent, requestGeneration, currentAuthority)
+        val result = try {
+            gateway.attachProofEvidence(
+                DriverProofAttachCommand(intent.deliveryId, intent.attemptId, proofId, evidenceId,
+                    kind, expectedVersion, key, body),
+                currentAuthority
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            DriverProofAttachResult.UnknownOutcome
+        }
+        if (!isCurrent(requestGeneration, currentAuthority)) return
+        when (result) {
+            is DriverProofAttachResult.Attached -> {
+                val proof = result.summary
+                if (proof.proofId != proofId || proof.deliveryId != intent.deliveryId ||
+                    proof.attemptId != intent.attemptId || proof.actorMembershipId != currentAuthority.membershipId ||
+                    proof.status != "CAPTURED" ||
+                    (if (kind == DriverProofEvidenceKind.PHOTO) proof.photoEvidenceObjectId else proof.signatureEvidenceObjectId) != evidenceId
+                ) {
+                    markProofUnknown(intent, requestGeneration, currentAuthority)
+                } else {
+                    clearProofIntentAfterSuccess(intent, proof, requestGeneration, currentAuthority)
+                }
+            }
+            DriverProofAttachResult.StaleVersion -> {
+                val retained = intent.copy(
+                    stage = DriverProofIntentStage.EvidenceAwaitingScan,
+                    status = DriverProofIntentStatus.Pending,
+                    attachExpectedVersion = null,
+                    attachKey = null,
+                    attachBody = null
+                )
+                val saved = safeProofMetadataWrite(retained)
+                if (!isCurrent(requestGeneration, currentAuthority)) return
+                pendingProof = retained
+                mutableState.update {
+                    it.copy(
+                        proofCommandStatus = if (saved == DriverProofMetadataWrite.Saved) {
+                            DriverProofCommandStatus.StaleVersion
+                        } else DriverProofCommandStatus.PersistenceUnavailable,
+                        proofRejectionCode = "VERSION_CONFLICT"
+                    )
+                }
+            }
+            is DriverProofAttachResult.Rejected -> finishProofRejected(
+                intent, result.code ?: "POD_ATTACH_REJECTED", requestGeneration, currentAuthority
+            )
+            DriverProofAttachResult.NotFound -> finishProofRejected(intent, "POD_NOT_FOUND", requestGeneration, currentAuthority)
+            DriverProofAttachResult.PermissionDenied -> markProofUnknown(intent, requestGeneration, currentAuthority, "PERMISSION_DENIED")
+            DriverProofAttachResult.ContextInvalidated -> markProofUnknown(intent, requestGeneration, currentAuthority, "ACCESS_CONTEXT_INVALID")
+            DriverProofAttachResult.SessionInvalidated -> markProofUnknown(intent, requestGeneration, currentAuthority, "SESSION_INVALIDATED")
+            DriverProofAttachResult.UnknownOutcome,
+            DriverProofAttachResult.ServiceUnavailable -> markProofUnknown(intent, requestGeneration, currentAuthority)
+        }
+    }
+
+    private suspend fun markProofUnknown(
+        intent: DriverProofIntentMetadata,
+        requestGeneration: Long,
+        currentAuthority: DriverDeliveryAuthority,
+        rejection: String? = null
+    ) {
+        val unknown = intent.copy(status = DriverProofIntentStatus.UnknownOutcome)
+        safeProofMetadataWrite(unknown)
+        if (!isCurrent(requestGeneration, currentAuthority)) return
+        pendingProof = unknown
+        mutableState.update {
+            it.copy(
+                proofCommandStatus = DriverProofCommandStatus.UnknownOutcome,
+                hasRecoverableProof = true,
+                proofId = unknown.proofId,
+                proofAttemptId = unknown.attemptId,
+                proofEvidenceId = unknown.evidenceId,
+                proofEvidenceKind = unknown.evidenceKind,
+                proofRejectionCode = rejection
+            )
+        }
+    }
+
+    private suspend fun finishProofRejected(
+        intent: DriverProofIntentMetadata,
+        code: String,
+        requestGeneration: Long,
+        currentAuthority: DriverDeliveryAuthority,
+        stale: Boolean = false
+    ) {
+        val cleared = safeProofMetadataClear(currentAuthority.scopeIdentity, intent.createIdempotencyKey) ==
+            DriverProofMetadataWrite.Saved
+        if (!isCurrent(requestGeneration, currentAuthority)) return
+        if (cleared) {
+            safeProofCandidateClear(intent)
+            pendingProof = null
+            pendingProofPersisted = false
+        }
+        mutableState.update {
+            it.copy(
+                proofCommandStatus = when {
+                    !cleared -> DriverProofCommandStatus.PersistenceUnavailable
+                    stale -> DriverProofCommandStatus.StaleVersion
+                    else -> DriverProofCommandStatus.Rejected
+                },
+                hasRecoverableProof = !cleared,
+                proofRejectionCode = code
+            )
+        }
+    }
+
+    private suspend fun clearProofIntentAfterSuccess(
+        intent: DriverProofIntentMetadata,
+        proof: DriverProofSummary,
+        requestGeneration: Long,
+        currentAuthority: DriverDeliveryAuthority
+    ) {
+        val cleared = safeProofMetadataClear(currentAuthority.scopeIdentity, intent.createIdempotencyKey) ==
+            DriverProofMetadataWrite.Saved
+        if (!isCurrent(requestGeneration, currentAuthority)) return
+        safeProofCandidateClear(intent)
+        if (cleared) {
+            pendingProof = null
+            pendingProofPersisted = false
+        }
+        mutableState.update {
+            it.copy(
+                proofCommandStatus = if (cleared) DriverProofCommandStatus.Captured else DriverProofCommandStatus.PersistenceUnavailable,
+                proofId = proof.proofId,
+                proofAttemptId = proof.attemptId,
+                proofSummary = proof,
+                hasRecoverableProof = !cleared
+            )
+        }
+    }
+
+    private fun proofStateRejected(code: String) {
+        mutableState.update {
+            it.copy(proofCommandStatus = DriverProofCommandStatus.Rejected, proofRejectionCode = code)
         }
     }
 
@@ -1089,6 +1904,19 @@ class DriverDeliveryViewModel(
             "}"
     }
 
+    private fun frozenProofCreateBody(receiverName: String, capturedAt: String, notes: String?): String =
+        "{" +
+            "\"receiverName\":${quoteJson(receiverName)}," +
+            "\"capturedAt\":${quoteJson(capturedAt)}," +
+            "\"notes\":${notes?.let(::quoteJson) ?: "null"}" +
+            "}"
+
+    private fun frozenProofAttachBody(kind: DriverProofEvidenceKind, evidenceId: String): String =
+        "{" +
+            "\"kind\":${quoteJson(kind.name)}," +
+            "\"evidenceObjectId\":${quoteJson(evidenceId)}" +
+            "}"
+
     private fun quoteJson(value: String): String = buildString {
         append('"')
         value.forEach { character ->
@@ -1440,6 +2268,13 @@ class DriverDeliveryViewModel(
             DriverArrivalCommandStatus.UnknownOutcome,
             DriverArrivalCommandStatus.PersistenceUnavailable
         )
+        val FROZEN_PROOF_COMMANDS = setOf(
+            DriverProofCommandStatus.CheckingCurrent,
+            DriverProofCommandStatus.PersistingIntent,
+            DriverProofCommandStatus.Pending,
+            DriverProofCommandStatus.UnknownOutcome,
+            DriverProofCommandStatus.PersistenceUnavailable
+        )
     }
 
     private suspend fun safeMetadataLoad(
@@ -1544,5 +2379,65 @@ class DriverDeliveryViewModel(
         throw cancelled
     } catch (_: Exception) {
         DriverArrivalMetadataWrite.Unavailable
+    }
+
+    private suspend fun safeProofMetadataLoad(
+        scope: DriverAttemptScopeIdentity
+    ): DriverProofMetadataRead = try {
+        proofMetadataStore?.loadIntent(scope) ?: DriverProofMetadataRead.Unavailable
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        DriverProofMetadataRead.Unavailable
+    }
+
+    private suspend fun safeProofMetadataWrite(
+        intent: DriverProofIntentMetadata
+    ): DriverProofMetadataWrite = try {
+        proofMetadataStore?.saveIntent(intent) ?: DriverProofMetadataWrite.Unavailable
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        DriverProofMetadataWrite.Unavailable
+    }
+
+    private suspend fun safeProofMetadataStage(
+        intent: DriverProofIntentMetadata,
+        candidate: DriverProofFileCandidate
+    ): DriverProofMetadataWrite = try {
+        proofMetadataStore?.stageCandidate(intent, candidate) ?: DriverProofMetadataWrite.Unavailable
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        DriverProofMetadataWrite.Unavailable
+    }
+
+    private suspend fun safeProofCandidateLoad(
+        intent: DriverProofIntentMetadata
+    ): DriverProofFileCandidate? = try {
+        proofMetadataStore?.loadCandidate(intent)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        null
+    }
+
+    private suspend fun safeProofCandidateClear(intent: DriverProofIntentMetadata): Boolean = try {
+        proofMetadataStore?.clearCandidate(intent) ?: false
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        false
+    }
+
+    private suspend fun safeProofMetadataClear(
+        scope: DriverAttemptScopeIdentity,
+        createIdempotencyKey: String
+    ): DriverProofMetadataWrite = try {
+        proofMetadataStore?.clearIntent(scope, createIdempotencyKey) ?: DriverProofMetadataWrite.Unavailable
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        DriverProofMetadataWrite.Unavailable
     }
 }

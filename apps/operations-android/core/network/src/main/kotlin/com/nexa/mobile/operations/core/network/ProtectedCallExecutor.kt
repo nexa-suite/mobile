@@ -14,6 +14,7 @@ import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 
@@ -26,7 +27,8 @@ class ProtectedRequest(
     val payload: String? = null,
     val idempotencyKey: String? = null,
     val ifMatch: String? = null,
-    val binaryResponse: Boolean = false
+    val binaryResponse: Boolean = false,
+    val requestBody: RequestBody? = null
 ) {
     init {
         require(path.startsWith("/api/v1/") && "//" !in path && "://" !in path)
@@ -37,6 +39,8 @@ class ProtectedRequest(
         require(method != ProtectedMethod.GET || payload == null)
         require(!binaryResponse || method == ProtectedMethod.GET &&
             Regex("/api/v1/business-documents/[0-9a-fA-F-]{36}/downloads").matches(path))
+        require(payload == null || requestBody == null)
+        require(requestBody == null || method != ProtectedMethod.GET)
     }
 
     val isMutation: Boolean get() = method != ProtectedMethod.GET
@@ -144,7 +148,9 @@ class ProtectedCallExecutor(
         access: AccessTokenLease,
         url: String
     ): Exchange {
-        val body = if (command.isMutation) {
+        val body = if (command.isMutation && command.requestBody != null) {
+            command.requestBody
+        } else if (command.isMutation) {
             (command.payload ?: "").toRequestBody("application/json".toMediaType())
         } else {
             null

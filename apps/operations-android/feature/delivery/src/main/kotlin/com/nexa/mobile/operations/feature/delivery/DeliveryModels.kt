@@ -24,6 +24,12 @@ data class DriverDeliveryAuthority(
     val canStart: Boolean
         get() = permissions.any { it in DRIVER_START_PERMISSIONS }
 
+    val canCaptureProof: Boolean
+        get() = permissions.contains("dispatch.start_route") && permissions.contains("document.upload")
+
+    val canReadProofEvidence: Boolean
+        get() = permissions.contains("document.read")
+
     val scopeIdentity: DriverAttemptScopeIdentity
         get() = DriverAttemptScopeIdentity(userId, tenantId, workspaceId, membershipId)
 
@@ -342,6 +348,27 @@ interface DriverDeliveryGateway {
         command: DriverArrivalCommand,
         authority: DriverDeliveryAuthority
     ): DriverArrivalResult
+
+    suspend fun createProof(
+        command: DriverProofCreateCommand,
+        authority: DriverDeliveryAuthority
+    ): DriverProofCreateResult = DriverProofCreateResult.ServiceUnavailable
+
+    suspend fun uploadProofEvidence(
+        command: DriverProofUploadCommand,
+        authority: DriverDeliveryAuthority
+    ): DriverProofUploadResult = DriverProofUploadResult.ServiceUnavailable
+
+    suspend fun proofEvidenceStatus(
+        evidenceId: String,
+        proofId: String,
+        authority: DriverDeliveryAuthority
+    ): DriverProofEvidenceStatusResult = DriverProofEvidenceStatusResult.ServiceUnavailable
+
+    suspend fun attachProofEvidence(
+        command: DriverProofAttachCommand,
+        authority: DriverDeliveryAuthority
+    ): DriverProofAttachResult = DriverProofAttachResult.ServiceUnavailable
 }
 
 sealed interface DriverArrivalResult {
