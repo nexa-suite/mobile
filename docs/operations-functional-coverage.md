@@ -39,7 +39,7 @@ The work remains on `feature/w4-operations-mobile` and `feature/w4-api-capabilit
 | MOB-US-027 | Begin an assigned delivery | Implementation integrated; acceptance unverified |
 | MOB-US-028 | Open directions to the authorized delivery destination | Implementation integrated; acceptance unverified |
 | MOB-US-029 | Share a delivery location during an active delivery | Accepted Owner decision; backend contract gap / explicit deferred mechanism |
-| MOB-US-030 | Contact the buyer during delivery | Accepted Owner decision; backend contract gap / explicit deferred mechanism |
+| MOB-US-030 | Contact the buyer during delivery | Driver-to-Buyer communication excluded/deferred by the direct Owner correction. Sales/Buyer contextual chat is a separate authorized capability; it must not be exposed to Driver. |
 | MOB-US-031 | Record the delivery attempt outcome | Implementation integrated; acceptance unverified |
 | MOB-US-032 | Record a partial or rejected delivery and what remains | Implementation integrated; acceptance unverified |
 | MOB-US-033 | Preserve proof of delivery | Implementation integrated; acceptance unverified. Proof creation, private evidence staging, upload/scan and exact-subject attachment. Required-proof policy projection remains unavailable. |
