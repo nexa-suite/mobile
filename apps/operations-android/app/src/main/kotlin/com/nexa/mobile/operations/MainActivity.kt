@@ -616,7 +616,8 @@ class MainActivity : ComponentActivity() {
                                 onRetryIntentCleanup = stockTransferViewModel::retryIntentCleanup,
                                 onStartAnotherTransfer = stockTransferViewModel::startAnotherTransfer
                             )
-                            "commercial.visit" -> FieldVisitScreen(fieldVisitState, ::closeConnectedOperation, fieldVisitViewModel)
+                            "commercial.visit" -> FieldVisitScreen(fieldVisitState, ::closeConnectedOperation, fieldVisitViewModel,
+                                connectedRoute?.authority?.permissions?.any { it == "client.manage" || it == "sales:write" } == true)
                             "commercial.documents" -> BusinessDocumentsScreen(businessDocumentsState, ::closeConnectedOperation,
                                 businessDocumentsViewModel::refresh, businessDocumentsViewModel::previousPage,
                                 businessDocumentsViewModel::nextPage, businessDocumentsViewModel::open,
@@ -637,7 +638,17 @@ class MainActivity : ComponentActivity() {
                                 onSearch = commercialCatalogViewModel::search,
                                 onNextPage = commercialCatalogViewModel::nextPage,
                                 onSelectProduct = commercialCatalogViewModel::selectProduct,
-                                onRouteClosed = commercialCatalogViewModel::deactivate
+                                onRouteClosed = commercialCatalogViewModel::deactivate,
+                                onPrepareRequest = { customerId, productId ->
+                                    val entry = CONNECTED_OPERATIONS.single { it.key == "commercial.request" }
+                                    ConnectedOperationsNavigation.open(entry, state, accessState, warehouseState)?.let { route ->
+                                        closeConnectedOperation()
+                                        connectedRoute = route
+                                        val authority = route.authority
+                                        fieldRequestViewModel.activate(CommercialAuthority(authority.userId, authority.tenantId,
+                                            authority.workspaceId, authority.membershipId, authority.permissions, route.authorityEpoch), customerId, productId)
+                                    }
+                                }
                             )
                             "commercial.progress" -> CustomerProgressScreen(
                                 state = customerProgressState,
