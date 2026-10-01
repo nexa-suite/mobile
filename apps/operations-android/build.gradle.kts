@@ -75,6 +75,14 @@ tasks.register("verifyAndroidArchitecture") {
                             }
                         ) { "Catalog identification adapter must use protected reads only" }
                         it.replace("\"/api/v1/catalog-items\"", "\"<catalog-read-route>\"")
+                    } else if (source.name == "NexaDispatchReadinessGateway.kt") {
+                        check(it.contains("READINESS_PATH = \"/api/v1/dispatch-readiness\"")) {
+                            "Dispatch readiness must use the canonical protected projection"
+                        }
+                        check(listOf("POST", "PUT", "PATCH", "DELETE").none { method ->
+                            it.contains("ProtectedMethod.$method")
+                        }) { "Dispatch readiness transport must remain read-only" }
+                        it.replace("/api/v1/dispatch-readiness", "<dispatch-readiness-read-route>")
                     } else if (source.name == "NexaSkuIdentifierGateway.kt") {
                         check(it.contains("SKU_RESOLUTION_PATH = \"/api/v1/skus/resolve\"")) {
                             "SKU resolver route must remain the exact approved endpoint"
