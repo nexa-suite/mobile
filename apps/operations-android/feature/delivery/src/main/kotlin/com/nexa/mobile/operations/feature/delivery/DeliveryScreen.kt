@@ -22,6 +22,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -34,8 +38,10 @@ fun DriverDeliveryScreen(
     onRefresh: () -> Unit,
     onSelectDelivery: (String) -> Unit,
     onBeginDelivery: () -> Unit,
-    onRetryUnknownStart: () -> Unit
+    onRetryUnknownStart: () -> Unit,
+    onOpenDirections: (String) -> Boolean = { false }
 ) {
+    var navigationUnavailable by remember { mutableStateOf(false) }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
             modifier = Modifier
@@ -136,6 +142,22 @@ fun DriverDeliveryScreen(
                                     R.string.driver_delivery_active_attempt,
                                     attempt.attemptNumber
                                 )
+                            )
+                        }
+                    }
+                    val destination = state.authorizedDirectionsDestination
+                    if (destination == null) {
+                        Notice(stringResource(R.string.driver_delivery_directions_missing))
+                    } else {
+                        OutlinedButton(
+                            onClick = { navigationUnavailable = !onOpenDirections(destination) }
+                        ) {
+                            Text(stringResource(R.string.driver_delivery_directions_open))
+                        }
+                        if (navigationUnavailable) {
+                            Notice(
+                                stringResource(R.string.driver_delivery_directions_unavailable),
+                                isError = true
                             )
                         }
                     }

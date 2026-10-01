@@ -33,4 +33,7 @@
     <string name="driver_delivery_rejected_code">Nexa rechazó el inicio (%1$s).</string>
     <string name="driver_delivery_stale">La entrega cambió. Actualiza su detalle antes de comenzar.</string>
     <string name="driver_delivery_begin">Comenzar entrega</string>
+    <string name="driver_delivery_directions_open">Abrir indicaciones</string>
+    <string name="driver_delivery_directions_missing">No hay un destino autorizado disponible para abrir indicaciones.</string>
+    <string name="driver_delivery_directions_unavailable">No hay una aplicación de navegación disponible. El intento de entrega no cambió.</string>
 </resources>

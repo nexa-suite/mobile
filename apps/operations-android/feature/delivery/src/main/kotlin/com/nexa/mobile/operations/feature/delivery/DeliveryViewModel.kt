@@ -45,6 +45,17 @@ data class DriverDeliveryUiState(
     val hasRecoverableStart: Boolean = false,
     val rejectionCode: String? = null
 ) {
+    /** Destination leaves Nexa only after current assigned detail confirms an active attempt. */
+    val authorizedDirectionsDestination: String?
+        get() = if (canRead && detailStatus == DriverDeliveryLoadStatus.Ready) {
+            selectedDelivery?.takeIf { it.activeAttempt != null }
+                ?.destination
+                ?.trim()
+                ?.takeIf(String::isNotEmpty)
+        } else {
+            null
+        }
+
     override fun toString(): String =
         "DriverDeliveryUiState(epoch=$authorityEpoch, list=$listStatus, detail=$detailStatus, command=$commandStatus, items=${deliveries.size})"
 }
