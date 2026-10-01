@@ -1,5 +1,8 @@
 package com.nexa.mobile.operations
 
+import com.nexa.mobile.operations.feature.warehouse.StockTransferAuthority
+import com.nexa.mobile.operations.feature.warehouse.StockTransferViewModel
+import com.nexa.mobile.operations.feature.warehouse.StockTransferScreen
 import com.nexa.mobile.operations.commercial.FieldVisitViewModel
 import com.nexa.mobile.operations.commercial.FieldVisitScreen
 import com.nexa.mobile.operations.commercial.BusinessDocumentsViewModel
@@ -121,6 +124,8 @@ class MainActivity : ComponentActivity() {
     private val businessDocumentsViewModel: BusinessDocumentsViewModel by viewModels { businessDocumentsFactory }
     @Inject internal lateinit var fieldVisitFactory: FieldVisitViewModelFactory
     private val fieldVisitViewModel: FieldVisitViewModel by viewModels { fieldVisitFactory }
+    @Inject internal lateinit var stockTransferBindings: StockTransferGatewayBindings
+    private val stockTransferViewModel: StockTransferViewModel by viewModels { stockTransferBindings.viewModelFactory() }
     private var pendingDispositionLot by mutableStateOf<String?>(null)
     private var connectedRoute by mutableStateOf<ConnectedOperationRoute?>(null)
     private var pickingReference by mutableStateOf("")
@@ -209,6 +214,7 @@ class MainActivity : ComponentActivity() {
                 val customerProgressState by customerProgressViewModel.state.collectAsStateWithLifecycle()
                 val customerSearchState by customerSearchViewModel.state.collectAsStateWithLifecycle()
                 val temperatureEvidenceState by temperatureEvidenceViewModel.state.collectAsStateWithLifecycle()
+                val stockTransferState by stockTransferViewModel.state.collectAsStateWithLifecycle()
                 val fieldVisitState by fieldVisitViewModel.state.collectAsStateWithLifecycle()
                 val businessDocumentsState by businessDocumentsViewModel.state.collectAsStateWithLifecycle()
                 val fieldRequestState by fieldRequestViewModel.state.collectAsStateWithLifecycle()
@@ -507,6 +513,9 @@ class MainActivity : ComponentActivity() {
                                 connectedRoute = route
                                 val authority = route.authority
                                 when (entry.key) {
+                                    "warehouse.transfer" -> stockTransferViewModel.activate(StockTransferAuthority(
+                                        authority.userId, authority.tenantId, authority.workspaceId, authority.membershipId,
+                                        authority.permissions, route.authorityEpoch))
                                     "commercial.visit" -> fieldVisitViewModel.activate(CommercialAuthority(
                                         authority.userId, authority.tenantId, authority.workspaceId, authority.membershipId,
                                         authority.permissions, route.authorityEpoch))
@@ -578,6 +587,21 @@ class MainActivity : ComponentActivity() {
                                         dispatchReadinessViewModel.selectFulfillment(fulfillmentId)
                                     }
                                 }
+                            )
+                            "warehouse.transfer" -> StockTransferScreen(
+                                state = stockTransferState, onBack = ::closeConnectedOperation,
+                                onSelectSourceLot = stockTransferViewModel::selectSourceLot,
+                                onSelectDestinationWarehouse = stockTransferViewModel::selectDestinationWarehouse,
+                                onSelectDestinationZone = stockTransferViewModel::selectDestinationZone,
+                                onQuantityChanged = stockTransferViewModel::quantityChanged,
+                                onReasonChanged = stockTransferViewModel::reasonChanged,
+                                onReloadSourceLots = stockTransferViewModel::reloadSourceLots,
+                                onReloadWarehouses = stockTransferViewModel::reloadWarehouses,
+                                onReloadZones = stockTransferViewModel::reloadZones,
+                                onStartTransfer = stockTransferViewModel::startTransfer,
+                                onRetryUnknownOutcome = stockTransferViewModel::retryUnknownOutcome,
+                                onRetryIntentCleanup = stockTransferViewModel::retryIntentCleanup,
+                                onStartAnotherTransfer = stockTransferViewModel::startAnotherTransfer
                             )
                             "commercial.visit" -> FieldVisitScreen(fieldVisitState, ::closeConnectedOperation, fieldVisitViewModel)
                             "commercial.documents" -> BusinessDocumentsScreen(businessDocumentsState, ::closeConnectedOperation,
@@ -1001,6 +1025,7 @@ class MainActivity : ComponentActivity() {
         pendingDispositionLot = null
         connectedRoute = null
         dispositionViewModel.deactivate()
+        stockTransferViewModel.deactivate()
         fieldVisitViewModel.deactivate()
         businessDocumentsViewModel.deactivate()
         fieldRequestViewModel.deactivate()
@@ -1093,6 +1118,7 @@ private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHi
 
 
 private val CONNECTED_OPERATIONS = listOf(
+    ConnectedOperationEntry("warehouse.transfer", "Traslado interno", setOf("warehouse:write")),
     ConnectedOperationEntry("commercial.visit", "Visita al cliente", setOf("client.read", "sales:read")),
     ConnectedOperationEntry("commercial.documents", "Documentos del cliente", setOf("document.read")),
     ConnectedOperationEntry("operations.overview", "Vista operativa", setOf("dispatch.read")),
