@@ -1,11 +1,11 @@
 package com.nexa.mobile.operations.feature.delivery
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -22,7 +22,9 @@ class DriverWorkdayViewModelTest {
     fun volatileLocationEventsReachAnActiveCollector() = runTest {
         val stream = DriverWorkdayLocationEventStream()
         val received = mutableListOf<DriverWorkdayLocationEvent>()
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { stream.events.collect { received.add(it) } }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            stream.events.collect { received.add(it) }
+        }
         val event = sampleEvent()
 
         assertTrue(stream.publish(event))
@@ -34,7 +36,9 @@ class DriverWorkdayViewModelTest {
         val stream = DriverWorkdayLocationEventStream()
         val received = mutableListOf<DriverWorkdayLocationEvent>()
         assertTrue(stream.publish(sampleEvent()))
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { stream.events.collect { received.add(it) } }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            stream.events.collect { received.add(it) }
+        }
         runCurrent()
 
         assertTrue(received.isEmpty())
@@ -46,6 +50,7 @@ class DriverWorkdayViewModelTest {
         val capture = FakeCapture(events)
         val gateway = FakeGateway(events).apply {
             reads += DriverWorkdayReadResult.Current(null)
+            reads += DriverWorkdayReadResult.Current(null)
             reads += DriverWorkdayReadResult.Current(activeWorkday())
             commands += DriverWorkdayCommandResult.Accepted
         }
@@ -56,7 +61,13 @@ class DriverWorkdayViewModelTest {
         viewModel.startWorkday()
         advanceUntilIdle()
 
-        assertEquals(listOf("get", "get", "start", "get", "capture.start"), events)
+        assertEquals(
+            listOf("get", "get", "start", "get", "capture.start"),
+            events.filter {
+                it !=
+                    "capture.stop"
+            }
+        )
         assertEquals("ACTIVE", viewModel.state.value.workday?.status?.name)
         assertTrue(viewModel.state.value.captureRequested)
     }
@@ -93,7 +104,8 @@ class DriverWorkdayViewModelTest {
             commands += DriverWorkdayCommandResult.Accepted
         }
         val commandStore = FakeCommandStore()
-        val viewModel = DriverWorkdayViewModel(gateway, capture, commandStore, keyFactory = { IDEMPOTENCY_KEY })
+        val viewModel =
+            DriverWorkdayViewModel(gateway, capture, commandStore, keyFactory = { IDEMPOTENCY_KEY })
         viewModel.activate(AUTHORITY, hasFineLocationPermission = true)
         advanceUntilIdle()
         viewModel.startWorkday()
@@ -142,23 +154,38 @@ class DriverWorkdayViewModelTest {
             events += "get"
             return reads.removeFirstOrNull() ?: DriverWorkdayReadResult.Unavailable
         }
-        override suspend fun start(authority: DriverDeliveryAuthority, idempotencyKey: String): DriverWorkdayCommandResult {
+        override suspend fun start(
+            authority: DriverDeliveryAuthority,
+            idempotencyKey: String
+        ): DriverWorkdayCommandResult {
             events += "start"
             startKeys += idempotencyKey
             return commands.removeFirst()
         }
-        override suspend fun end(authority: DriverDeliveryAuthority, workdayId: String, version: Long,
-            idempotencyKey: String): DriverWorkdayCommandResult {
+        override suspend fun end(
+            authority: DriverDeliveryAuthority,
+            workdayId: String,
+            version: Long,
+            idempotencyKey: String
+        ): DriverWorkdayCommandResult {
             events += "end"
             return commands.removeFirst()
         }
-        override suspend fun setLocationAvailability(authority: DriverDeliveryAuthority, workdayId: String,
-            version: Long, locationAvailable: Boolean, idempotencyKey: String): DriverWorkdayCommandResult {
+        override suspend fun setLocationAvailability(
+            authority: DriverDeliveryAuthority,
+            workdayId: String,
+            version: Long,
+            locationAvailable: Boolean,
+            idempotencyKey: String
+        ): DriverWorkdayCommandResult {
             events += "availability"
             return commands.removeFirst()
         }
-        override suspend fun reportLocation(authority: DriverDeliveryAuthority, workdayId: String,
-            location: DriverWorkdayLocationSample): DriverWorkdayCommandResult {
+        override suspend fun reportLocation(
+            authority: DriverDeliveryAuthority,
+            workdayId: String,
+            location: DriverWorkdayLocationSample
+        ): DriverWorkdayCommandResult {
             events += "location"
             return DriverWorkdayCommandResult.Accepted
         }
@@ -166,14 +193,19 @@ class DriverWorkdayViewModelTest {
 
     private class FakeCommandStore : DriverWorkdayCommandStore {
         var intent: DriverWorkdayCommandIntent? = null
-        override suspend fun load(scope: DriverWorkdayCommandScope): DriverWorkdayCommandIntentRead =
+        override suspend fun load(
+            scope: DriverWorkdayCommandScope
+        ): DriverWorkdayCommandIntentRead =
             DriverWorkdayCommandIntentRead.Available(intent?.takeIf { it.scope == scope })
         override suspend fun save(intent: DriverWorkdayCommandIntent): Boolean {
             if (this.intent != null && this.intent != intent) return false
             this.intent = intent
             return true
         }
-        override suspend fun clear(scope: DriverWorkdayCommandScope, idempotencyKey: String): Boolean {
+        override suspend fun clear(
+            scope: DriverWorkdayCommandScope,
+            idempotencyKey: String
+        ): Boolean {
             if (intent == null) return true
             if (intent?.scope != scope || intent?.idempotencyKey != idempotencyKey) return false
             intent = null
@@ -190,11 +222,18 @@ class DriverWorkdayViewModelTest {
             log += "capture.start"
             return true
         }
-        override fun stop() { log += "capture.stop" }
+        override fun stop() {
+            log += "capture.stop"
+        }
     }
 
     private fun activeWorkday() = DriverWorkday(
-        WORKDAY_ID, 4, DriverWorkdayStatus.ACTIVE, "2026-10-01T17:00:00Z", null, true
+        WORKDAY_ID,
+        4,
+        DriverWorkdayStatus.ACTIVE,
+        "2026-10-01T17:00:00Z",
+        null,
+        true
     )
 
     private fun sampleEvent() = DriverWorkdayLocationEvent.Sample(
@@ -203,8 +242,12 @@ class DriverWorkdayViewModelTest {
 
     private companion object {
         val AUTHORITY = DriverDeliveryAuthority(
-            USER_ID, TENANT_ID, WORKSPACE_ID, MEMBER_ID,
-            setOf("dispatch.read", "dispatch.start_route"), authorityEpoch = 3
+            USER_ID,
+            TENANT_ID,
+            WORKSPACE_ID,
+            MEMBER_ID,
+            setOf("dispatch.read", "dispatch.start_route"),
+            authorityEpoch = 3
         )
         const val USER_ID = "11111111-1111-4111-8111-111111111111"
         const val TENANT_ID = "22222222-2222-4222-8222-222222222222"

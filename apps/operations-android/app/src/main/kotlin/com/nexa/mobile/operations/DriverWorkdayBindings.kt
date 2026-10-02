@@ -7,30 +7,31 @@ import androidx.lifecycle.ViewModelProvider
 import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
+import com.nexa.mobile.operations.core.auth.session.VerifiedSession
 import com.nexa.mobile.operations.core.local.scoped.AndroidScopedMetadataStore
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
-import com.nexa.mobile.operations.core.network.DriverWorkdayLocationCommand
-import com.nexa.mobile.operations.core.network.DriverWorkdayProjection
+import com.nexa.mobile.operations.core.network.DriverWorkdayLocationCommand as WorkdayLocationCommand
 import com.nexa.mobile.operations.core.network.DriverWorkdayNetworkResult
+import com.nexa.mobile.operations.core.network.DriverWorkdayProjection
 import com.nexa.mobile.operations.core.network.NexaDriverWorkdayGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryAuthority
 import com.nexa.mobile.operations.feature.delivery.DriverWorkday
-import com.nexa.mobile.operations.feature.delivery.DriverWorkdayCommandResult
 import com.nexa.mobile.operations.feature.delivery.DriverWorkdayCommandAction
 import com.nexa.mobile.operations.feature.delivery.DriverWorkdayCommandIntent
-import com.nexa.mobile.operations.feature.delivery.DriverWorkdayCommandIntentRead
+import com.nexa.mobile.operations.feature.delivery.DriverWorkdayCommandIntentRead as WorkdayCommandIntentRead
+import com.nexa.mobile.operations.feature.delivery.DriverWorkdayCommandResult
 import com.nexa.mobile.operations.feature.delivery.DriverWorkdayCommandScope
 import com.nexa.mobile.operations.feature.delivery.DriverWorkdayCommandStore
 import com.nexa.mobile.operations.feature.delivery.DriverWorkdayGateway
-import com.nexa.mobile.operations.feature.delivery.DriverWorkdayLocationCapture
-import com.nexa.mobile.operations.feature.delivery.DriverWorkdayLocationSample
+import com.nexa.mobile.operations.feature.delivery.DriverWorkdayLocationCapture as WorkdayLocationCapture
+import com.nexa.mobile.operations.feature.delivery.DriverWorkdayLocationEvent
+import com.nexa.mobile.operations.feature.delivery.DriverWorkdayLocationSample as WorkdayLocationSample
 import com.nexa.mobile.operations.feature.delivery.DriverWorkdayReadResult
 import com.nexa.mobile.operations.feature.delivery.DriverWorkdayStatus
 import com.nexa.mobile.operations.feature.delivery.DriverWorkdayViewModel
-import com.nexa.mobile.operations.feature.delivery.DriverWorkdayLocationEvent
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -69,7 +70,9 @@ internal class OperationsDriverWorkdayGateway @Inject constructor(
             is DriverWorkdayNetworkResult.Current -> DriverWorkdayReadResult.Current(
                 result.workday?.toFeature()
             )
+
             DriverWorkdayNetworkResult.PermissionDenied -> DriverWorkdayReadResult.PermissionDenied
+
             else -> DriverWorkdayReadResult.Unavailable
         }
     }
@@ -84,7 +87,9 @@ internal class OperationsDriverWorkdayGateway @Inject constructor(
         workdayId: String,
         version: Long,
         idempotencyKey: String
-    ): DriverWorkdayCommandResult = command(authority) { api.end(workdayId, version, idempotencyKey) }
+    ): DriverWorkdayCommandResult = command(authority) {
+        api.end(workdayId, version, idempotencyKey)
+    }
 
     override suspend fun setLocationAvailability(
         authority: DriverDeliveryAuthority,
@@ -99,13 +104,16 @@ internal class OperationsDriverWorkdayGateway @Inject constructor(
     override suspend fun reportLocation(
         authority: DriverDeliveryAuthority,
         workdayId: String,
-        location: DriverWorkdayLocationSample
+        location: WorkdayLocationSample
     ): DriverWorkdayCommandResult = command(authority) {
         api.reportLocation(
             workdayId,
-            DriverWorkdayLocationCommand(
-                location.sampleId, location.latitude, location.longitude,
-                location.accuracyMeters, location.capturedAt
+            WorkdayLocationCommand(
+                location.sampleId,
+                location.latitude,
+                location.longitude,
+                location.accuracyMeters,
+                location.capturedAt
             )
         )
     }
@@ -131,41 +139,77 @@ internal class OperationsDriverWorkdayGateway @Inject constructor(
         authority: DriverDeliveryAuthority,
         requiredPermissions: Set<String>
     ): Authorization {
-        if (sessions.sessionState.value != SessionState.Active) return Authorization.SessionInvalidated
+        if (sessions.sessionState.value !=
+            SessionState.Active
+        ) {
+            return Authorization.SessionInvalidated
+        }
         val lease = sessions.currentAccess() ?: return Authorization.SessionInvalidated
         val verified = sessions.verifiedSession.value ?: return Authorization.ContextInvalidated
         if (!verified.matches(authority)) return Authorization.ContextInvalidated
-        if (authority.permissions.none { it in requiredPermissions }) return Authorization.PermissionDenied
+        if (authority.permissions.none {
+                it in requiredPermissions
+            }
+        ) {
+            return Authorization.PermissionDenied
+        }
         return Authorization.Current(lease)
     }
 
-    private suspend fun currentAfter(authority: DriverDeliveryAuthority, lease: AccessTokenLease): Boolean =
-        sessions.sessionState.value == SessionState.Active && sessions.isEpochCurrent(lease.epoch) &&
-            sessions.verifiedSession.value?.matches(authority) == true
+    private suspend fun currentAfter(
+        authority: DriverDeliveryAuthority,
+        lease: AccessTokenLease
+    ): Boolean = sessions.sessionState.value == SessionState.Active && sessions.isEpochCurrent(
+        lease.epoch
+    ) &&
+        sessions.verifiedSession.value?.matches(authority) == true
 
     private suspend fun authorityDriftRead(): DriverWorkdayReadResult =
-        if (sessions.sessionState.value != SessionState.Active) DriverWorkdayReadResult.SessionInvalidated
-        else DriverWorkdayReadResult.ContextInvalidated
+        if (sessions.sessionState.value !=
+            SessionState.Active
+        ) {
+            DriverWorkdayReadResult.SessionInvalidated
+        } else {
+            DriverWorkdayReadResult.ContextInvalidated
+        }
 
     private suspend fun authorityDriftCommand(): DriverWorkdayCommandResult =
-        if (sessions.sessionState.value != SessionState.Active) DriverWorkdayCommandResult.SessionInvalidated
-        else DriverWorkdayCommandResult.ContextInvalidated
+        if (sessions.sessionState.value !=
+            SessionState.Active
+        ) {
+            DriverWorkdayCommandResult.SessionInvalidated
+        } else {
+            DriverWorkdayCommandResult.ContextInvalidated
+        }
 
     private fun DriverWorkdayProjection.toFeature() = DriverWorkday(
-        id, version, DriverWorkdayStatus.valueOf(status), startedAt, endedAt, locationAvailable
+        id,
+        version,
+        DriverWorkdayStatus.valueOf(status),
+        startedAt,
+        endedAt,
+        locationAvailable
     )
 
-    private fun DriverWorkdayNetworkResult.toCommandResult(): DriverWorkdayCommandResult = when (this) {
-        DriverWorkdayNetworkResult.Accepted, is DriverWorkdayNetworkResult.LocationAccepted ->
-            DriverWorkdayCommandResult.Accepted
-        is DriverWorkdayNetworkResult.Rejected -> DriverWorkdayCommandResult.Rejected(code)
-        DriverWorkdayNetworkResult.NotFound -> DriverWorkdayCommandResult.NotFound
-        DriverWorkdayNetworkResult.StaleVersion -> DriverWorkdayCommandResult.StaleVersion
-        DriverWorkdayNetworkResult.UnknownOutcome -> DriverWorkdayCommandResult.UnknownOutcome
-        DriverWorkdayNetworkResult.PermissionDenied -> DriverWorkdayCommandResult.PermissionDenied
-        DriverWorkdayNetworkResult.Unavailable, is DriverWorkdayNetworkResult.Current ->
-            DriverWorkdayCommandResult.Unavailable
-    }
+    private fun DriverWorkdayNetworkResult.toCommandResult(): DriverWorkdayCommandResult =
+        when (this) {
+            DriverWorkdayNetworkResult.Accepted, is DriverWorkdayNetworkResult.LocationAccepted ->
+                DriverWorkdayCommandResult.Accepted
+
+            is DriverWorkdayNetworkResult.Rejected -> DriverWorkdayCommandResult.Rejected(code)
+
+            DriverWorkdayNetworkResult.NotFound -> DriverWorkdayCommandResult.NotFound
+
+            DriverWorkdayNetworkResult.StaleVersion -> DriverWorkdayCommandResult.StaleVersion
+
+            DriverWorkdayNetworkResult.UnknownOutcome -> DriverWorkdayCommandResult.UnknownOutcome
+
+            DriverWorkdayNetworkResult.PermissionDenied ->
+                DriverWorkdayCommandResult.PermissionDenied
+
+            DriverWorkdayNetworkResult.Unavailable, is DriverWorkdayNetworkResult.Current ->
+                DriverWorkdayCommandResult.Unavailable
+        }
 
     private fun Authorization.toReadResult(): DriverWorkdayReadResult = when (this) {
         Authorization.PermissionDenied -> DriverWorkdayReadResult.PermissionDenied
@@ -180,6 +224,11 @@ internal class OperationsDriverWorkdayGateway @Inject constructor(
         Authorization.SessionInvalidated -> DriverWorkdayCommandResult.SessionInvalidated
         is Authorization.Current -> error("current authorization must be executed")
     }
+
+    private fun VerifiedSession.matches(authority: DriverDeliveryAuthority): Boolean =
+        hasAuthorizedContext && userId == authority.userId && tenantId == authority.tenantId &&
+            workspaceId == authority.workspaceId && membershipId == authority.membershipId &&
+            permissions == authority.permissions
 
     private sealed interface Authorization {
         data class Current(val lease: AccessTokenLease) : Authorization
@@ -197,7 +246,7 @@ internal class OperationsDriverWorkdayGateway @Inject constructor(
 @Singleton
 internal class OperationsDriverLocationCapture @Inject constructor(
     @ApplicationContext private val context: Context
-) : DriverWorkdayLocationCapture {
+) : WorkdayLocationCapture {
     override val events: Flow<DriverWorkdayLocationEvent> = DriverLocationEvents.events
     private var activeWorkdayId: String? = null
 
@@ -230,24 +279,35 @@ internal class OperationsDriverLocationCapture @Inject constructor(
 internal class OperationsDriverWorkdayCommandStore @Inject constructor(
     @ApplicationContext context: Context
 ) : DriverWorkdayCommandStore {
-    private val local = AndroidScopedMetadataStore(context, ScopedMetadataPurpose.DriverWorkdayCommand)
+    private val local =
+        AndroidScopedMetadataStore(context, ScopedMetadataPurpose.DriverWorkdayCommand)
     private val mutex = Mutex()
 
-    override suspend fun load(scope: DriverWorkdayCommandScope): DriverWorkdayCommandIntentRead = mutex.withLock {
-        when (val stored = local.load(scope.toLocal())) {
-            ScopedMetadataRead.Unavailable -> DriverWorkdayCommandIntentRead.Unavailable
-            is ScopedMetadataRead.Value -> {
-                val payload = stored.payload ?: return@withLock DriverWorkdayCommandIntentRead.Available(null)
-                val intent = decode(payload) ?: return@withLock DriverWorkdayCommandIntentRead.Unavailable
-                if (intent.scope != scope) DriverWorkdayCommandIntentRead.Unavailable
-                else DriverWorkdayCommandIntentRead.Available(intent)
+    override suspend fun load(scope: DriverWorkdayCommandScope): WorkdayCommandIntentRead =
+        mutex.withLock {
+            when (val stored = local.load(scope.toLocal())) {
+                ScopedMetadataRead.Unavailable -> WorkdayCommandIntentRead.Unavailable
+
+                is ScopedMetadataRead.Value -> {
+                    val payload =
+                        stored.payload
+                            ?: return@withLock WorkdayCommandIntentRead.Available(null)
+                    val intent =
+                        decode(payload)
+                            ?: return@withLock WorkdayCommandIntentRead.Unavailable
+                    if (intent.scope != scope) {
+                        WorkdayCommandIntentRead.Unavailable
+                    } else {
+                        WorkdayCommandIntentRead.Available(intent)
+                    }
+                }
             }
         }
-    }
 
     override suspend fun save(intent: DriverWorkdayCommandIntent): Boolean = mutex.withLock {
         when (val stored = local.load(intent.scope.toLocal())) {
             ScopedMetadataRead.Unavailable -> false
+
             is ScopedMetadataRead.Value -> {
                 val encoded = encode(intent)
                 when {
@@ -259,44 +319,86 @@ internal class OperationsDriverWorkdayCommandStore @Inject constructor(
         }
     }
 
-    override suspend fun clear(scope: DriverWorkdayCommandScope, idempotencyKey: String): Boolean = mutex.withLock {
-        when (val stored = local.load(scope.toLocal())) {
-            ScopedMetadataRead.Unavailable -> false
-            is ScopedMetadataRead.Value -> {
-                val payload = stored.payload ?: return@withLock true
-                val intent = decode(payload) ?: return@withLock false
-                if (intent.scope != scope || intent.idempotencyKey != idempotencyKey) false
-                else local.clear(scope.toLocal())
+    override suspend fun clear(scope: DriverWorkdayCommandScope, idempotencyKey: String): Boolean =
+        mutex.withLock {
+            when (val stored = local.load(scope.toLocal())) {
+                ScopedMetadataRead.Unavailable -> false
+
+                is ScopedMetadataRead.Value -> {
+                    val payload = stored.payload ?: return@withLock true
+                    val intent = decode(payload) ?: return@withLock false
+                    if (intent.scope != scope || intent.idempotencyKey != idempotencyKey) {
+                        false
+                    } else {
+                        local.clear(scope.toLocal())
+                    }
+                }
             }
         }
-    }
 
-    private fun DriverWorkdayCommandScope.toLocal() = ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
+    private fun DriverWorkdayCommandScope.toLocal() =
+        ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
 
-    private fun encode(intent: DriverWorkdayCommandIntent): String = JsonObject(mapOf(
-        "schema" to JsonPrimitive(1),
-        "action" to JsonPrimitive(intent.action.name),
-        "workdayId" to (intent.workdayId?.let { JsonPrimitive(it) } ?: JsonNull),
-        "expectedVersion" to (intent.expectedVersion?.let { JsonPrimitive(it) } ?: JsonNull),
-        "locationAvailable" to (intent.locationAvailable?.let { JsonPrimitive(it) } ?: JsonNull),
-        "idempotencyKey" to JsonPrimitive(intent.idempotencyKey),
-        "initiatedAt" to JsonPrimitive(intent.initiatedAt),
-        "userId" to JsonPrimitive(intent.scope.userId),
-        "tenantId" to JsonPrimitive(intent.scope.tenantId),
-        "workspaceId" to JsonPrimitive(intent.scope.workspaceId),
-        "membershipId" to JsonPrimitive(intent.scope.membershipId)
-    )).toString()
+    private fun encode(intent: DriverWorkdayCommandIntent): String = JsonObject(
+        mapOf(
+            "schema" to JsonPrimitive(1),
+            "action" to JsonPrimitive(intent.action.name),
+            "workdayId" to (intent.workdayId?.let { JsonPrimitive(it) } ?: JsonNull),
+            "expectedVersion" to (intent.expectedVersion?.let { JsonPrimitive(it) } ?: JsonNull),
+            "locationAvailable" to (
+                intent.locationAvailable?.let {
+                    JsonPrimitive(it)
+                } ?: JsonNull
+                ),
+            "idempotencyKey" to JsonPrimitive(intent.idempotencyKey),
+            "initiatedAt" to JsonPrimitive(intent.initiatedAt),
+            "userId" to JsonPrimitive(intent.scope.userId),
+            "tenantId" to JsonPrimitive(intent.scope.tenantId),
+            "workspaceId" to JsonPrimitive(intent.scope.workspaceId),
+            "membershipId" to JsonPrimitive(intent.scope.membershipId)
+        )
+    ).toString()
 
     private fun decode(payload: String): DriverWorkdayCommandIntent? = try {
         val root = Json.parseToJsonElement(payload).jsonObject
         require(root["schema"]?.jsonPrimitive?.longOrNull == 1L)
-        fun text(key: String): String = root[key]?.jsonPrimitive?.content?.also { require(it.isNotBlank()) }
-            ?: error("missing $key")
-        fun nullableText(key: String): String? = root[key]?.let { if (it == JsonNull) null else it.jsonPrimitive.content }
-        fun nullableLong(key: String): Long? = root[key]?.let { if (it == JsonNull) null else it.jsonPrimitive.longOrNull }
-        fun nullableBoolean(key: String): Boolean? = root[key]?.let { if (it == JsonNull) null else it.jsonPrimitive.booleanOrNull }
+        fun text(key: String): String =
+            root[key]?.jsonPrimitive?.content?.also { require(it.isNotBlank()) }
+                ?: error("missing $key")
+        fun nullableText(key: String): String? = root[key]?.let {
+            if (it ==
+                JsonNull
+            ) {
+                null
+            } else {
+                it.jsonPrimitive.content
+            }
+        }
+        fun nullableLong(key: String): Long? = root[key]?.let {
+            if (it ==
+                JsonNull
+            ) {
+                null
+            } else {
+                it.jsonPrimitive.longOrNull
+            }
+        }
+        fun nullableBoolean(key: String): Boolean? = root[key]?.let {
+            if (it ==
+                JsonNull
+            ) {
+                null
+            } else {
+                it.jsonPrimitive.booleanOrNull
+            }
+        }
         DriverWorkdayCommandIntent(
-            scope = DriverWorkdayCommandScope(text("userId"), text("tenantId"), text("workspaceId"), text("membershipId")),
+            scope = DriverWorkdayCommandScope(
+                text("userId"),
+                text("tenantId"),
+                text("workspaceId"),
+                text("membershipId")
+            ),
             action = DriverWorkdayCommandAction.valueOf(text("action")),
             workdayId = nullableText("workdayId"),
             expectedVersion = nullableLong("expectedVersion"),
@@ -304,7 +406,9 @@ internal class OperationsDriverWorkdayCommandStore @Inject constructor(
             idempotencyKey = text("idempotencyKey"),
             initiatedAt = text("initiatedAt")
         )
-    } catch (_: Exception) { null }
+    } catch (_: Exception) {
+        null
+    }
 }
 
 internal class DriverWorkdayBindings @Inject constructor(

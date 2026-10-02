@@ -6,15 +6,20 @@ import androidx.lifecycle.viewModelScope
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
-enum class DriverWorkdayStatus { ACTIVE, LOCATION_UNAVAILABLE, CLOSED }
+enum class DriverWorkdayStatus {
+    ACTIVE,
+    LOCATION_UNAVAILABLE,
+    CLOSED
+}
 
 @Immutable
 data class DriverWorkday(
@@ -82,7 +87,10 @@ sealed interface DriverWorkdayCommandResult {
 
 interface DriverWorkdayGateway {
     suspend fun current(authority: DriverDeliveryAuthority): DriverWorkdayReadResult
-    suspend fun start(authority: DriverDeliveryAuthority, idempotencyKey: String): DriverWorkdayCommandResult
+    suspend fun start(
+        authority: DriverDeliveryAuthority,
+        idempotencyKey: String
+    ): DriverWorkdayCommandResult
     suspend fun end(
         authority: DriverDeliveryAuthority,
         workdayId: String,
@@ -103,7 +111,11 @@ interface DriverWorkdayGateway {
     ): DriverWorkdayCommandResult
 }
 
-enum class DriverWorkdayCommandAction { START, SET_LOCATION_AVAILABILITY, END }
+enum class DriverWorkdayCommandAction {
+    START,
+    SET_LOCATION_AVAILABILITY,
+    END
+}
 
 @Immutable
 data class DriverWorkdayCommandScope(
@@ -112,7 +124,9 @@ data class DriverWorkdayCommandScope(
     val workspaceId: String,
     val membershipId: String
 ) {
-    init { require(listOf(userId, tenantId, workspaceId, membershipId).all(String::isNotBlank)) }
+    init {
+        require(listOf(userId, tenantId, workspaceId, membershipId).all(String::isNotBlank))
+    }
 }
 
 @Immutable
@@ -129,10 +143,18 @@ data class DriverWorkdayCommandIntent(
         require(idempotencyKey.isNotBlank() && idempotencyKey.length <= 160)
         require(runCatching { Instant.parse(initiatedAt) }.isSuccess)
         when (action) {
-            DriverWorkdayCommandAction.START -> require(workdayId == null && expectedVersion == null && locationAvailable == true)
-            DriverWorkdayCommandAction.END -> require(workdayId != null && expectedVersion != null && expectedVersion >= 0 && locationAvailable == null)
+            DriverWorkdayCommandAction.START -> require(
+                workdayId == null && expectedVersion == null && locationAvailable == true
+            )
+
+            DriverWorkdayCommandAction.END -> require(
+                workdayId != null && expectedVersion != null && expectedVersion >= 0 &&
+                    locationAvailable == null
+            )
+
             DriverWorkdayCommandAction.SET_LOCATION_AVAILABILITY -> require(
-                workdayId != null && expectedVersion != null && expectedVersion >= 0 && locationAvailable != null
+                workdayId != null && expectedVersion != null && expectedVersion >= 0 &&
+                    locationAvailable != null
             )
         }
     }
@@ -213,9 +235,13 @@ class DriverWorkdayViewModel(
                     commandStoreAvailable = true
                     mutableState.value = mutableState.value.copy(pendingCommand = stored.intent)
                 }
+
                 DriverWorkdayCommandIntentRead.Unavailable -> {
                     commandStoreAvailable = false
-                    mutableState.value = mutableState.value.copy(notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE)
+                    mutableState.value =
+                        mutableState.value.copy(
+                            notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
+                        )
                 }
             }
             refresh()
@@ -228,8 +254,11 @@ class DriverWorkdayViewModel(
         viewModelScope.launch {
             mutableState.value = mutableState.value.copy(
                 loading = true,
-                notice = if (commandStoreAvailable) DriverWorkdayNotice.NONE
-                    else DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
+                notice = if (commandStoreAvailable) {
+                    DriverWorkdayNotice.NONE
+                } else {
+                    DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
+                }
             )
             val result = gateway.current(currentAuthority)
             if (!isCurrent(currentAuthority, requestGeneration)) return@launch
@@ -238,19 +267,36 @@ class DriverWorkdayViewModel(
                     val day = result.workday
                     mutableState.value = mutableState.value.copy(workday = day, loading = false)
                     val pending = mutableState.value.pendingCommand
-                    if (pending != null && pendingSatisfied(pending, day)) clearPending(pending)
-                    if (mutableState.value.pendingCommand == null) reconcileCapture(currentAuthority, day)
-                    else stopCapture()
+                    if (pending != null && intentSatisfied(pending, day)) clearPending(pending)
+                    if (mutableState.value.pendingCommand ==
+                        null
+                    ) {
+                        reconcileCapture(currentAuthority, day)
+                    } else {
+                        stopCapture()
+                    }
                 }
+
                 DriverWorkdayReadResult.Unavailable -> {
                     stopCapture()
                     mutableState.value = mutableState.value.copy(
-                        workday = null, loading = false, notice = DriverWorkdayNotice.CURRENT_UNAVAILABLE
+                        workday = null,
+                        loading = false,
+                        notice = DriverWorkdayNotice.CURRENT_UNAVAILABLE
                     )
                 }
-                DriverWorkdayReadResult.PermissionDenied -> failRead(DriverWorkdayNotice.PERMISSION_DENIED)
-                DriverWorkdayReadResult.ContextInvalidated -> invalidate(DriverWorkdayNotice.CONTEXT_INVALIDATED)
-                DriverWorkdayReadResult.SessionInvalidated -> invalidate(DriverWorkdayNotice.SESSION_INVALIDATED)
+
+                DriverWorkdayReadResult.PermissionDenied -> failRead(
+                    DriverWorkdayNotice.PERMISSION_DENIED
+                )
+
+                DriverWorkdayReadResult.ContextInvalidated -> invalidate(
+                    DriverWorkdayNotice.CONTEXT_INVALIDATED
+                )
+
+                DriverWorkdayReadResult.SessionInvalidated -> invalidate(
+                    DriverWorkdayNotice.SESSION_INVALIDATED
+                )
             }
         }
     }
@@ -258,46 +304,65 @@ class DriverWorkdayViewModel(
     fun startWorkday() {
         val currentAuthority = authority ?: return
         if (!currentAuthority.canWriteWorkday()) {
-            mutableState.value = mutableState.value.copy(notice = DriverWorkdayNotice.PERMISSION_DENIED)
+            mutableState.value =
+                mutableState.value.copy(notice = DriverWorkdayNotice.PERMISSION_DENIED)
             return
         }
         if (mutableState.value.pendingCommand != null) {
-            mutableState.value = mutableState.value.copy(notice = DriverWorkdayNotice.UNKNOWN_COMMAND_PENDING)
+            mutableState.value =
+                mutableState.value.copy(notice = DriverWorkdayNotice.UNKNOWN_COMMAND_PENDING)
             return
         }
         if (!commandStoreAvailable) {
-            mutableState.value = mutableState.value.copy(notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE)
+            mutableState.value =
+                mutableState.value.copy(notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE)
             return
         }
         if (!fineLocationPermission) {
-            mutableState.value = mutableState.value.copy(notice = DriverWorkdayNotice.LOCATION_PERMISSION_REQUIRED)
+            mutableState.value =
+                mutableState.value.copy(notice = DriverWorkdayNotice.LOCATION_PERMISSION_REQUIRED)
             return
         }
         val requestGeneration = ++operationGeneration
         viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(commandPending = true, notice = DriverWorkdayNotice.NONE)
+            mutableState.value =
+                mutableState.value.copy(commandPending = true, notice = DriverWorkdayNotice.NONE)
             val current = gateway.current(currentAuthority)
             if (!isCurrent(currentAuthority, requestGeneration)) return@launch
             when (current) {
                 is DriverWorkdayReadResult.Current -> {
-                    if (current.workday != null && current.workday.status != DriverWorkdayStatus.CLOSED) {
-                        mutableState.value = mutableState.value.copy(workday = current.workday, commandPending = false)
+                    if (current.workday != null &&
+                        current.workday.status != DriverWorkdayStatus.CLOSED
+                    ) {
+                        mutableState.value =
+                            mutableState.value.copy(
+                                workday = current.workday,
+                                commandPending = false
+                            )
                         reconcileCapture(currentAuthority, current.workday)
                         return@launch
                     }
                 }
+
                 DriverWorkdayReadResult.Unavailable -> {
-                    mutableState.value = mutableState.value.copy(commandPending = false, notice = DriverWorkdayNotice.CURRENT_UNAVAILABLE)
+                    mutableState.value =
+                        mutableState.value.copy(
+                            commandPending = false,
+                            notice = DriverWorkdayNotice.CURRENT_UNAVAILABLE
+                        )
                     return@launch
                 }
+
                 DriverWorkdayReadResult.PermissionDenied -> {
                     failCommand(DriverWorkdayNotice.PERMISSION_DENIED)
                     return@launch
                 }
+
                 DriverWorkdayReadResult.ContextInvalidated -> {
                     invalidate(DriverWorkdayNotice.CONTEXT_INVALIDATED)
                     return@launch
                 }
+
                 DriverWorkdayReadResult.SessionInvalidated -> {
                     invalidate(DriverWorkdayNotice.SESSION_INVALIDATED)
                     return@launch
@@ -316,7 +381,8 @@ class DriverWorkdayViewModel(
             if (!commandStore.save(intent)) {
                 commandStoreAvailable = false
                 mutableState.value = mutableState.value.copy(
-                    commandPending = false, notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
+                    commandPending = false,
+                    notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
                 )
                 return@launch
             }
@@ -328,13 +394,17 @@ class DriverWorkdayViewModel(
             if (!isCurrent(currentAuthority, requestGeneration)) return@launch
             when (refreshed) {
                 is DriverWorkdayReadResult.Current -> {
-                    if (intentSatisfied(intent, refreshed.workday) || command != DriverWorkdayCommandResult.UnknownOutcome) {
+                    if (intentSatisfied(intent, refreshed.workday) ||
+                        command != DriverWorkdayCommandResult.UnknownOutcome
+                    ) {
                         clearPending(intent)
                     }
                     mutableState.value = mutableState.value.copy(
                         workday = refreshed.workday,
                         commandPending = false,
-                        notice = if (!commandStoreAvailable && mutableState.value.pendingCommand != null) {
+                        notice = if (!commandStoreAvailable &&
+                            mutableState.value.pendingCommand != null
+                        ) {
                             DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
                         } else if (refreshed.workday?.status == DriverWorkdayStatus.ACTIVE) {
                             DriverWorkdayNotice.NONE
@@ -344,18 +414,35 @@ class DriverWorkdayViewModel(
                             command.noticeForStart()
                         }
                     )
-                    if (mutableState.value.pendingCommand == null) reconcileCapture(currentAuthority, refreshed.workday)
-                    else stopCapture()
+                    if (mutableState.value.pendingCommand ==
+                        null
+                    ) {
+                        reconcileCapture(currentAuthority, refreshed.workday)
+                    } else {
+                        stopCapture()
+                    }
                 }
+
                 DriverWorkdayReadResult.Unavailable -> {
                     stopCapture()
                     mutableState.value = mutableState.value.copy(
-                        workday = null, commandPending = false, notice = DriverWorkdayNotice.CURRENT_UNAVAILABLE
+                        workday = null,
+                        commandPending = false,
+                        notice = DriverWorkdayNotice.CURRENT_UNAVAILABLE
                     )
                 }
-                DriverWorkdayReadResult.PermissionDenied -> failCommand(DriverWorkdayNotice.PERMISSION_DENIED)
-                DriverWorkdayReadResult.ContextInvalidated -> invalidate(DriverWorkdayNotice.CONTEXT_INVALIDATED)
-                DriverWorkdayReadResult.SessionInvalidated -> invalidate(DriverWorkdayNotice.SESSION_INVALIDATED)
+
+                DriverWorkdayReadResult.PermissionDenied -> failCommand(
+                    DriverWorkdayNotice.PERMISSION_DENIED
+                )
+
+                DriverWorkdayReadResult.ContextInvalidated -> invalidate(
+                    DriverWorkdayNotice.CONTEXT_INVALIDATED
+                )
+
+                DriverWorkdayReadResult.SessionInvalidated -> invalidate(
+                    DriverWorkdayNotice.SESSION_INVALIDATED
+                )
             }
         }
     }
@@ -367,21 +454,28 @@ class DriverWorkdayViewModel(
     private fun changeLocationAvailability(available: Boolean) {
         val currentAuthority = authority ?: return
         if (mutableState.value.pendingCommand != null) {
-            mutableState.value = mutableState.value.copy(notice = DriverWorkdayNotice.UNKNOWN_COMMAND_PENDING)
+            mutableState.value =
+                mutableState.value.copy(notice = DriverWorkdayNotice.UNKNOWN_COMMAND_PENDING)
             return
         }
         if (!commandStoreAvailable) {
-            mutableState.value = mutableState.value.copy(notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE)
+            mutableState.value =
+                mutableState.value.copy(notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE)
             return
         }
         val day = mutableState.value.workday ?: return
         if (available && !currentAuthority.canWriteWorkday()) {
-            mutableState.value = mutableState.value.copy(notice = DriverWorkdayNotice.PERMISSION_DENIED)
+            mutableState.value =
+                mutableState.value.copy(notice = DriverWorkdayNotice.PERMISSION_DENIED)
             return
         }
         if (day.status == DriverWorkdayStatus.CLOSED || (available && !fineLocationPermission)) {
             mutableState.value = mutableState.value.copy(
-                notice = if (available) DriverWorkdayNotice.LOCATION_PERMISSION_REQUIRED else DriverWorkdayNotice.NONE
+                notice = if (available) {
+                    DriverWorkdayNotice.LOCATION_PERMISSION_REQUIRED
+                } else {
+                    DriverWorkdayNotice.NONE
+                }
             )
             return
         }
@@ -390,7 +484,8 @@ class DriverWorkdayViewModel(
         val requestGeneration = ++operationGeneration
         if (!available) stopCapture()
         viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(commandPending = true, notice = DriverWorkdayNotice.NONE)
+            mutableState.value =
+                mutableState.value.copy(commandPending = true, notice = DriverWorkdayNotice.NONE)
             val intent = DriverWorkdayCommandIntent(
                 scope = currentAuthority.commandScope(),
                 action = DriverWorkdayCommandAction.SET_LOCATION_AVAILABILITY,
@@ -404,13 +499,18 @@ class DriverWorkdayViewModel(
                 availabilityChangeInFlight = null
                 commandStoreAvailable = false
                 mutableState.value = mutableState.value.copy(
-                    commandPending = false, notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
+                    commandPending = false,
+                    notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
                 )
                 return@launch
             }
             mutableState.value = mutableState.value.copy(pendingCommand = intent)
             val command = gateway.setLocationAvailability(
-                currentAuthority, day.id, day.version, available, intent.idempotencyKey
+                currentAuthority,
+                day.id,
+                day.version,
+                available,
+                intent.idempotencyKey
             )
             if (!isCurrent(currentAuthority, requestGeneration)) return@launch
             val refreshed = gateway.current(currentAuthority)
@@ -418,38 +518,76 @@ class DriverWorkdayViewModel(
             availabilityChangeInFlight = null
             when (refreshed) {
                 is DriverWorkdayReadResult.Current -> {
-                    if (intentSatisfied(intent, refreshed.workday) || command != DriverWorkdayCommandResult.UnknownOutcome) {
+                    if (intentSatisfied(intent, refreshed.workday) ||
+                        command != DriverWorkdayCommandResult.UnknownOutcome
+                    ) {
                         clearPending(intent)
                     }
                     mutableState.value = mutableState.value.copy(
                         workday = refreshed.workday,
                         commandPending = false,
-                        notice = if (!commandStoreAvailable && mutableState.value.pendingCommand != null) {
+                        notice = if (!commandStoreAvailable &&
+                            mutableState.value.pendingCommand != null
+                        ) {
                             DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
-                        } else when (command) {
-                            DriverWorkdayCommandResult.Accepted -> DriverWorkdayNotice.NONE
-                            DriverWorkdayCommandResult.StaleVersion -> DriverWorkdayNotice.STALE_WORKDAY
-                            DriverWorkdayCommandResult.UnknownOutcome -> if (mutableState.value.pendingCommand != null)
-                                DriverWorkdayNotice.AVAILABILITY_UNKNOWN else DriverWorkdayNotice.NONE
-                            DriverWorkdayCommandResult.PermissionDenied -> DriverWorkdayNotice.PERMISSION_DENIED
-                            DriverWorkdayCommandResult.ContextInvalidated -> DriverWorkdayNotice.CONTEXT_INVALIDATED
-                            DriverWorkdayCommandResult.SessionInvalidated -> DriverWorkdayNotice.SESSION_INVALIDATED
-                            else -> DriverWorkdayNotice.COMMAND_REJECTED
+                        } else {
+                            when (command) {
+                                DriverWorkdayCommandResult.Accepted -> DriverWorkdayNotice.NONE
+
+                                DriverWorkdayCommandResult.StaleVersion ->
+                                    DriverWorkdayNotice.STALE_WORKDAY
+
+                                DriverWorkdayCommandResult.UnknownOutcome ->
+                                    if (mutableState.value.pendingCommand !=
+                                        null
+                                    ) {
+                                        DriverWorkdayNotice.AVAILABILITY_UNKNOWN
+                                    } else {
+                                        DriverWorkdayNotice.NONE
+                                    }
+
+                                DriverWorkdayCommandResult.PermissionDenied ->
+                                    DriverWorkdayNotice.PERMISSION_DENIED
+
+                                DriverWorkdayCommandResult.ContextInvalidated ->
+                                    DriverWorkdayNotice.CONTEXT_INVALIDATED
+
+                                DriverWorkdayCommandResult.SessionInvalidated ->
+                                    DriverWorkdayNotice.SESSION_INVALIDATED
+
+                                else -> DriverWorkdayNotice.COMMAND_REJECTED
+                            }
                         }
                     )
-                    if (mutableState.value.pendingCommand == null) reconcileCapture(currentAuthority, refreshed.workday)
-                    else stopCapture()
+                    if (mutableState.value.pendingCommand ==
+                        null
+                    ) {
+                        reconcileCapture(currentAuthority, refreshed.workday)
+                    } else {
+                        stopCapture()
+                    }
                 }
+
                 DriverWorkdayReadResult.Unavailable -> {
                     stopCapture()
                     mutableState.value = mutableState.value.copy(
-                        commandPending = false, captureRequested = false,
+                        commandPending = false,
+                        captureRequested = false,
                         notice = DriverWorkdayNotice.CURRENT_UNAVAILABLE
                     )
                 }
-                DriverWorkdayReadResult.PermissionDenied -> failCommand(DriverWorkdayNotice.PERMISSION_DENIED)
-                DriverWorkdayReadResult.ContextInvalidated -> invalidate(DriverWorkdayNotice.CONTEXT_INVALIDATED)
-                DriverWorkdayReadResult.SessionInvalidated -> invalidate(DriverWorkdayNotice.SESSION_INVALIDATED)
+
+                DriverWorkdayReadResult.PermissionDenied -> failCommand(
+                    DriverWorkdayNotice.PERMISSION_DENIED
+                )
+
+                DriverWorkdayReadResult.ContextInvalidated -> invalidate(
+                    DriverWorkdayNotice.CONTEXT_INVALIDATED
+                )
+
+                DriverWorkdayReadResult.SessionInvalidated -> invalidate(
+                    DriverWorkdayNotice.SESSION_INVALIDATED
+                )
             }
         }
     }
@@ -458,15 +596,18 @@ class DriverWorkdayViewModel(
         val currentAuthority = authority ?: return
         val day = mutableState.value.workday ?: return
         if (!currentAuthority.canWriteWorkday()) {
-            mutableState.value = mutableState.value.copy(notice = DriverWorkdayNotice.PERMISSION_DENIED)
+            mutableState.value =
+                mutableState.value.copy(notice = DriverWorkdayNotice.PERMISSION_DENIED)
             return
         }
         if (mutableState.value.pendingCommand != null) {
-            mutableState.value = mutableState.value.copy(notice = DriverWorkdayNotice.UNKNOWN_COMMAND_PENDING)
+            mutableState.value =
+                mutableState.value.copy(notice = DriverWorkdayNotice.UNKNOWN_COMMAND_PENDING)
             return
         }
         if (!commandStoreAvailable) {
-            mutableState.value = mutableState.value.copy(notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE)
+            mutableState.value =
+                mutableState.value.copy(notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE)
             return
         }
         if (day.status == DriverWorkdayStatus.CLOSED) return
@@ -474,7 +615,8 @@ class DriverWorkdayViewModel(
         stopCapture()
         val requestGeneration = ++operationGeneration
         viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(commandPending = true, captureRequested = false)
+            mutableState.value =
+                mutableState.value.copy(commandPending = true, captureRequested = false)
             val intent = DriverWorkdayCommandIntent(
                 scope = currentAuthority.commandScope(),
                 action = DriverWorkdayCommandAction.END,
@@ -497,20 +639,39 @@ class DriverWorkdayViewModel(
                     clearPending(intent)
                     mutableState.value = mutableState.value.copy(
                         commandPending = false,
-                        notice = if (!commandStoreAvailable && mutableState.value.pendingCommand != null) {
+                        notice = if (!commandStoreAvailable &&
+                            mutableState.value.pendingCommand != null
+                        ) {
                             DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
-                        } else DriverWorkdayNotice.END_PENDING_CONFIRMATION
+                        } else {
+                            DriverWorkdayNotice.END_PENDING_CONFIRMATION
+                        }
                     )
                 }
+
                 DriverWorkdayCommandResult.UnknownOutcome -> {
                     mutableState.value = mutableState.value.copy(
-                        commandPending = false, notice = DriverWorkdayNotice.UNKNOWN_COMMAND_PENDING
+                        commandPending = false,
+                        notice = DriverWorkdayNotice.UNKNOWN_COMMAND_PENDING
                     )
                 }
-                DriverWorkdayCommandResult.StaleVersion -> failCommand(DriverWorkdayNotice.STALE_WORKDAY)
-                DriverWorkdayCommandResult.PermissionDenied -> failCommand(DriverWorkdayNotice.PERMISSION_DENIED)
-                DriverWorkdayCommandResult.ContextInvalidated -> invalidate(DriverWorkdayNotice.CONTEXT_INVALIDATED)
-                DriverWorkdayCommandResult.SessionInvalidated -> invalidate(DriverWorkdayNotice.SESSION_INVALIDATED)
+
+                DriverWorkdayCommandResult.StaleVersion -> failCommand(
+                    DriverWorkdayNotice.STALE_WORKDAY
+                )
+
+                DriverWorkdayCommandResult.PermissionDenied -> failCommand(
+                    DriverWorkdayNotice.PERMISSION_DENIED
+                )
+
+                DriverWorkdayCommandResult.ContextInvalidated -> invalidate(
+                    DriverWorkdayNotice.CONTEXT_INVALIDATED
+                )
+
+                DriverWorkdayCommandResult.SessionInvalidated -> invalidate(
+                    DriverWorkdayNotice.SESSION_INVALIDATED
+                )
+
                 else -> failCommand(DriverWorkdayNotice.COMMAND_REJECTED)
             }
         }
@@ -532,12 +693,14 @@ class DriverWorkdayViewModel(
         val currentAuthority = authority ?: return
         val intent = mutableState.value.pendingCommand ?: return
         if (!commandStoreAvailable || intent.scope != currentAuthority.commandScope()) {
-            mutableState.value = mutableState.value.copy(notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE)
+            mutableState.value =
+                mutableState.value.copy(notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE)
             return
         }
         val requestGeneration = ++operationGeneration
         viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(commandPending = true, notice = DriverWorkdayNotice.NONE)
+            mutableState.value =
+                mutableState.value.copy(commandPending = true, notice = DriverWorkdayNotice.NONE)
             when (val current = gateway.current(currentAuthority)) {
                 is DriverWorkdayReadResult.Current -> {
                     if (!isCurrent(currentAuthority, requestGeneration)) return@launch
@@ -546,36 +709,63 @@ class DriverWorkdayViewModel(
                         mutableState.value = mutableState.value.copy(
                             workday = current.workday,
                             commandPending = false,
-                            notice = if (!commandStoreAvailable && mutableState.value.pendingCommand != null) {
+                            notice = if (!commandStoreAvailable &&
+                                mutableState.value.pendingCommand != null
+                            ) {
                                 DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
-                            } else DriverWorkdayNotice.NONE
+                            } else {
+                                DriverWorkdayNotice.NONE
+                            }
                         )
-                        if (mutableState.value.pendingCommand == null) reconcileCapture(currentAuthority, current.workday)
+                        if (mutableState.value.pendingCommand ==
+                            null
+                        ) {
+                            reconcileCapture(currentAuthority, current.workday)
+                        }
                         return@launch
                     }
                     if (intent.action != DriverWorkdayCommandAction.START &&
-                        (current.workday?.id != intent.workdayId || current.workday.version != intent.expectedVersion)
+                        (
+                            current.workday?.id != intent.workdayId ||
+                                current.workday?.version != intent.expectedVersion
+                            )
                     ) {
                         clearPending(intent)
                         mutableState.value = mutableState.value.copy(
                             workday = current.workday,
                             commandPending = false,
-                            notice = if (!commandStoreAvailable && mutableState.value.pendingCommand != null) {
+                            notice = if (!commandStoreAvailable &&
+                                mutableState.value.pendingCommand != null
+                            ) {
                                 DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
-                            } else DriverWorkdayNotice.STALE_WORKDAY
+                            } else {
+                                DriverWorkdayNotice.STALE_WORKDAY
+                            }
                         )
                         return@launch
                     }
                     if (intent.action == DriverWorkdayCommandAction.END) stopCapture()
                     val result = when (intent.action) {
-                        DriverWorkdayCommandAction.START -> gateway.start(currentAuthority, intent.idempotencyKey)
+                        DriverWorkdayCommandAction.START -> gateway.start(
+                            currentAuthority,
+                            intent.idempotencyKey
+                        )
+
                         DriverWorkdayCommandAction.END -> gateway.end(
-                            currentAuthority, intent.workdayId!!, intent.expectedVersion!!, intent.idempotencyKey
+                            currentAuthority,
+                            intent.workdayId!!,
+                            intent.expectedVersion!!,
+                            intent.idempotencyKey
                         )
-                        DriverWorkdayCommandAction.SET_LOCATION_AVAILABILITY -> gateway.setLocationAvailability(
-                            currentAuthority, intent.workdayId!!, intent.expectedVersion!!,
-                            intent.locationAvailable!!, intent.idempotencyKey
-                        )
+
+                        DriverWorkdayCommandAction.SET_LOCATION_AVAILABILITY ->
+                            gateway.setLocationAvailability(
+                                currentAuthority,
+                                intent.workdayId!!,
+                                intent.expectedVersion!!,
+                                intent.locationAvailable!!,
+                                intent.idempotencyKey
+                            )
                     }
                     if (!isCurrent(currentAuthority, requestGeneration)) return@launch
                     if (intent.action == DriverWorkdayCommandAction.END) {
@@ -583,13 +773,23 @@ class DriverWorkdayViewModel(
                         mutableState.value = mutableState.value.copy(
                             workday = current.workday,
                             commandPending = false,
-                            notice = if (!commandStoreAvailable && mutableState.value.pendingCommand != null) {
+                            notice = if (!commandStoreAvailable &&
+                                mutableState.value.pendingCommand != null
+                            ) {
                                 DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
-                            } else when (result) {
-                                DriverWorkdayCommandResult.Accepted -> DriverWorkdayNotice.END_PENDING_CONFIRMATION
-                                DriverWorkdayCommandResult.UnknownOutcome -> DriverWorkdayNotice.UNKNOWN_COMMAND_PENDING
-                                DriverWorkdayCommandResult.StaleVersion -> DriverWorkdayNotice.STALE_WORKDAY
-                                else -> DriverWorkdayNotice.COMMAND_REJECTED
+                            } else {
+                                when (result) {
+                                    DriverWorkdayCommandResult.Accepted ->
+                                        DriverWorkdayNotice.END_PENDING_CONFIRMATION
+
+                                    DriverWorkdayCommandResult.UnknownOutcome ->
+                                        DriverWorkdayNotice.UNKNOWN_COMMAND_PENDING
+
+                                    DriverWorkdayCommandResult.StaleVersion ->
+                                        DriverWorkdayNotice.STALE_WORKDAY
+
+                                    else -> DriverWorkdayNotice.COMMAND_REJECTED
+                                }
                             }
                         )
                         return@launch
@@ -598,28 +798,44 @@ class DriverWorkdayViewModel(
                     if (!isCurrent(currentAuthority, requestGeneration)) return@launch
                     when (refreshed) {
                         is DriverWorkdayReadResult.Current -> {
-                            if (intentSatisfied(intent, refreshed.workday) || result != DriverWorkdayCommandResult.UnknownOutcome) {
+                            if (intentSatisfied(intent, refreshed.workday) ||
+                                result != DriverWorkdayCommandResult.UnknownOutcome
+                            ) {
                                 clearPending(intent)
                             }
-                        mutableState.value = mutableState.value.copy(
-                            workday = refreshed.workday,
-                            commandPending = false,
-                            notice = if (!commandStoreAvailable && mutableState.value.pendingCommand != null) {
-                                DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
-                            } else if (mutableState.value.pendingCommand != null)
-                                DriverWorkdayNotice.UNKNOWN_COMMAND_PENDING else DriverWorkdayNotice.NONE
+                            mutableState.value = mutableState.value.copy(
+                                workday = refreshed.workday,
+                                commandPending = false,
+                                notice = if (!commandStoreAvailable &&
+                                    mutableState.value.pendingCommand != null
+                                ) {
+                                    DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
+                                } else if (mutableState.value.pendingCommand != null) {
+                                    DriverWorkdayNotice.UNKNOWN_COMMAND_PENDING
+                                } else {
+                                    DriverWorkdayNotice.NONE
+                                }
                             )
-                            if (mutableState.value.pendingCommand == null) reconcileCapture(currentAuthority, refreshed.workday)
-                            else stopCapture()
+                            if (mutableState.value.pendingCommand ==
+                                null
+                            ) {
+                                reconcileCapture(currentAuthority, refreshed.workday)
+                            } else {
+                                stopCapture()
+                            }
                         }
+
                         else -> {
                             stopCapture()
                             mutableState.value = mutableState.value.copy(
-                                workday = null, commandPending = false, notice = DriverWorkdayNotice.CURRENT_UNAVAILABLE
+                                workday = null,
+                                commandPending = false,
+                                notice = DriverWorkdayNotice.CURRENT_UNAVAILABLE
                             )
                         }
                     }
                 }
+
                 else -> {
                     stopCapture()
                     mutableState.value = mutableState.value.copy(
@@ -650,18 +866,29 @@ class DriverWorkdayViewModel(
         mutableState.value = DriverWorkdayUiState(notice = notice)
     }
 
-    private suspend fun reconcileCapture(currentAuthority: DriverDeliveryAuthority, day: DriverWorkday?) {
-        if (day == null || day.status != DriverWorkdayStatus.ACTIVE || !day.locationAvailable || !fineLocationPermission) {
+    private suspend fun reconcileCapture(
+        currentAuthority: DriverDeliveryAuthority,
+        day: DriverWorkday?
+    ) {
+        if (day == null || day.status != DriverWorkdayStatus.ACTIVE || !day.locationAvailable ||
+            !fineLocationPermission
+        ) {
             stopCapture()
-            if (day != null && day.status == DriverWorkdayStatus.ACTIVE && day.locationAvailable && !fineLocationPermission) {
-                mutableState.value = mutableState.value.copy(notice = DriverWorkdayNotice.LOCATION_PERMISSION_REQUIRED)
+            if (day != null && day.status == DriverWorkdayStatus.ACTIVE && day.locationAvailable &&
+                !fineLocationPermission
+            ) {
+                mutableState.value =
+                    mutableState.value.copy(
+                        notice = DriverWorkdayNotice.LOCATION_PERMISSION_REQUIRED
+                    )
                 changeLocationAvailability(false)
             }
             return
         }
         if (!currentAuthority.canWriteWorkday()) {
             stopCapture()
-            mutableState.value = mutableState.value.copy(notice = DriverWorkdayNotice.PERMISSION_DENIED)
+            mutableState.value =
+                mutableState.value.copy(notice = DriverWorkdayNotice.PERMISSION_DENIED)
             return
         }
         if (capturingWorkdayId == day.id && captureJob?.isActive == true) return
@@ -670,18 +897,27 @@ class DriverWorkdayViewModel(
             capture.events.collect { event ->
                 when (event) {
                     is DriverWorkdayLocationEvent.Sample -> {
-                        if (authority == currentAuthority && mutableState.value.workday?.id == day.id &&
+                        if (authority == currentAuthority &&
+                            mutableState.value.workday?.id == day.id &&
                             mutableState.value.workday?.status == DriverWorkdayStatus.ACTIVE
                         ) {
                             val location = event.value
                             val sent = gateway.reportLocation(currentAuthority, day.id, location)
                             if (sent is DriverWorkdayCommandResult.Accepted) {
-                                mutableState.value = mutableState.value.copy(lastSampleAt = location.capturedAt)
+                                mutableState.value =
+                                    mutableState.value.copy(lastSampleAt = location.capturedAt)
                             } else if (sent == DriverWorkdayCommandResult.ContextInvalidated ||
                                 sent == DriverWorkdayCommandResult.SessionInvalidated
                             ) {
-                                invalidate(if (sent == DriverWorkdayCommandResult.ContextInvalidated)
-                                    DriverWorkdayNotice.CONTEXT_INVALIDATED else DriverWorkdayNotice.SESSION_INVALIDATED)
+                                invalidate(
+                                    if (sent ==
+                                        DriverWorkdayCommandResult.ContextInvalidated
+                                    ) {
+                                        DriverWorkdayNotice.CONTEXT_INVALIDATED
+                                    } else {
+                                        DriverWorkdayNotice.SESSION_INVALIDATED
+                                    }
+                                )
                             } else {
                                 // Stop immediately after a failed/ambiguous coordinate write. A new GET is
                                 // the only path that may authorize capture again; the sample is discarded.
@@ -690,8 +926,12 @@ class DriverWorkdayViewModel(
                             }
                         }
                     }
+
                     DriverWorkdayLocationEvent.PermissionUnavailable,
-                    DriverWorkdayLocationEvent.ProviderUnavailable -> onLocationSourceUnavailable(currentAuthority, day)
+                    DriverWorkdayLocationEvent.ProviderUnavailable -> onLocationSourceUnavailable(
+                        currentAuthority,
+                        day
+                    )
                 }
             }
         }
@@ -699,19 +939,27 @@ class DriverWorkdayViewModel(
         capturingWorkdayId = if (requested) day.id else null
         mutableState.value = mutableState.value.copy(
             captureRequested = requested,
-            notice = if (requested) DriverWorkdayNotice.NONE else DriverWorkdayNotice.LOCATION_UNAVAILABLE
+            notice = if (requested) {
+                DriverWorkdayNotice.NONE
+            } else {
+                DriverWorkdayNotice.LOCATION_UNAVAILABLE
+            }
         )
         if (!requested) onLocationSourceUnavailable(currentAuthority, day)
     }
 
-    private fun onLocationSourceUnavailable(currentAuthority: DriverDeliveryAuthority, day: DriverWorkday) {
+    private fun onLocationSourceUnavailable(
+        currentAuthority: DriverDeliveryAuthority,
+        day: DriverWorkday
+    ) {
         if (authority != currentAuthority || mutableState.value.workday?.id != day.id) return
         stopCapture()
         if (day.locationAvailable && day.status == DriverWorkdayStatus.ACTIVE) {
             changeLocationAvailability(false)
         } else {
             mutableState.value = mutableState.value.copy(
-                captureRequested = false, notice = DriverWorkdayNotice.LOCATION_UNAVAILABLE
+                captureRequested = false,
+                notice = DriverWorkdayNotice.LOCATION_UNAVAILABLE
             )
         }
     }
@@ -728,7 +976,8 @@ class DriverWorkdayViewModel(
 
     private fun failRead(notice: DriverWorkdayNotice) {
         stopCapture()
-        mutableState.value = mutableState.value.copy(loading = false, workday = null, notice = notice)
+        mutableState.value =
+            mutableState.value.copy(loading = false, workday = null, notice = notice)
     }
 
     private fun failCommand(notice: DriverWorkdayNotice) {
@@ -739,12 +988,20 @@ class DriverWorkdayViewModel(
     private fun isCurrent(currentAuthority: DriverDeliveryAuthority, generation: Long): Boolean =
         authority == currentAuthority && operationGeneration == generation
 
-    private fun intentSatisfied(intent: DriverWorkdayCommandIntent, day: DriverWorkday?): Boolean = when (intent.action) {
-        DriverWorkdayCommandAction.START -> day != null && day.status != DriverWorkdayStatus.CLOSED
-        DriverWorkdayCommandAction.END -> day == null || day.status == DriverWorkdayStatus.CLOSED
-        DriverWorkdayCommandAction.SET_LOCATION_AVAILABILITY ->
-            day?.id == intent.workdayId && day.locationAvailable == intent.locationAvailable
-    }
+    private fun intentSatisfied(intent: DriverWorkdayCommandIntent, day: DriverWorkday?): Boolean =
+        when (intent.action) {
+            DriverWorkdayCommandAction.START ->
+                day != null &&
+                    day.status != DriverWorkdayStatus.CLOSED
+
+            DriverWorkdayCommandAction.END ->
+                day == null ||
+                    day.status == DriverWorkdayStatus.CLOSED
+
+            DriverWorkdayCommandAction.SET_LOCATION_AVAILABILITY ->
+                day != null && day.id == intent.workdayId &&
+                    day.locationAvailable == intent.locationAvailable
+        }
 
     private suspend fun clearPending(intent: DriverWorkdayCommandIntent) {
         if (commandStore.clear(intent.scope, intent.idempotencyKey)) {
@@ -753,7 +1010,8 @@ class DriverWorkdayViewModel(
             }
         } else {
             commandStoreAvailable = false
-            mutableState.value = mutableState.value.copy(notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE)
+            mutableState.value =
+                mutableState.value.copy(notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE)
         }
     }
 
@@ -769,13 +1027,17 @@ class DriverWorkdayViewModel(
 
     private fun DriverDeliveryAuthority.sameContext(other: DriverDeliveryAuthority): Boolean =
         userId == other.userId && tenantId == other.tenantId && workspaceId == other.workspaceId &&
-            membershipId == other.membershipId && permissions == other.permissions && authorityEpoch == other.authorityEpoch
+            membershipId == other.membershipId && permissions == other.permissions &&
+            authorityEpoch == other.authorityEpoch
 
     private fun DriverDeliveryAuthority.canWriteWorkday(): Boolean =
         "dispatch.start_route" in permissions
 
     private fun DriverDeliveryAuthority.commandScope() = DriverWorkdayCommandScope(
-        userId, tenantId, workspaceId, membershipId
+        userId,
+        tenantId,
+        workspaceId,
+        membershipId
     )
 
     override fun onCleared() {

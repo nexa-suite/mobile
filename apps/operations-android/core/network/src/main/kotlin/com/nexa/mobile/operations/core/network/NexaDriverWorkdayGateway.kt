@@ -1,9 +1,10 @@
 package com.nexa.mobile.operations.core.network
 
-import java.time.Instant
 import java.time.Duration
+import java.time.Instant
 import java.util.UUID
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -43,7 +44,8 @@ data class DriverWorkdayLocationCommand(
 
 sealed interface DriverWorkdayNetworkResult {
     data class Current(val workday: DriverWorkdayProjection?) : DriverWorkdayNetworkResult
-    data class LocationAccepted(val location: DriverWorkdayLocationProjection) : DriverWorkdayNetworkResult
+    data class LocationAccepted(val location: DriverWorkdayLocationProjection) :
+        DriverWorkdayNetworkResult
     data object Accepted : DriverWorkdayNetworkResult
     data class Rejected(val code: String?) : DriverWorkdayNetworkResult
     data object NotFound : DriverWorkdayNetworkResult
@@ -56,9 +58,12 @@ sealed interface DriverWorkdayNetworkResult {
 /** Current workday and ephemeral location stream; location samples are never staged locally. */
 class NexaDriverWorkdayGateway(private val calls: ProtectedCallExecutor) {
     suspend fun current(): DriverWorkdayNetworkResult = when (
-        val result = calls.execute(ProtectedRequest(ProtectedMethod.GET, "$DRIVER_WORKDAY_PATH/current"))
+        val result = calls.execute(
+            ProtectedRequest(ProtectedMethod.GET, "$DRIVER_WORKDAY_PATH/current")
+        )
     ) {
         is ProtectedResult.Failure -> result.error.toWorkdayResult()
+
         is ProtectedResult.Success -> {
             if (result.status == 204 && result.body.isNullOrBlank()) {
                 DriverWorkdayNetworkResult.Current(null)
@@ -86,7 +91,11 @@ class NexaDriverWorkdayGateway(private val calls: ProtectedCallExecutor) {
         )
     }
 
-    suspend fun end(workdayId: String, version: Long, idempotencyKey: String): DriverWorkdayNetworkResult {
+    suspend fun end(
+        workdayId: String,
+        version: Long,
+        idempotencyKey: String
+    ): DriverWorkdayNetworkResult {
         if (!validId(workdayId) || version < 0 || !validKey(idempotencyKey)) {
             return DriverWorkdayNetworkResult.Unavailable
         }
@@ -113,7 +122,9 @@ class NexaDriverWorkdayGateway(private val calls: ProtectedCallExecutor) {
             ProtectedRequest(
                 method = ProtectedMethod.POST,
                 path = "$DRIVER_WORKDAY_PATH/$workdayId/location-availability",
-                payload = JsonObject(mapOf("locationAvailable" to JsonPrimitive(locationAvailable))).toString(),
+                payload = JsonObject(
+                    mapOf("locationAvailable" to JsonPrimitive(locationAvailable))
+                ).toString(),
                 idempotencyKey = idempotencyKey,
                 ifMatch = version.etag()
             )
@@ -128,7 +139,9 @@ class NexaDriverWorkdayGateway(private val calls: ProtectedCallExecutor) {
             location.latitude !in -90.0..90.0 || location.longitude !in -180.0..180.0 ||
             !location.accuracyMeters.isFinite() || location.accuracyMeters !in 0.0..100_000.0 ||
             !validInstant(location.capturedAt)
-        ) return DriverWorkdayNetworkResult.Unavailable
+        ) {
+            return DriverWorkdayNetworkResult.Unavailable
+        }
         val payload = JsonObject(
             mapOf(
                 "sampleId" to JsonPrimitive(location.sampleId),
@@ -148,26 +161,34 @@ class NexaDriverWorkdayGateway(private val calls: ProtectedCallExecutor) {
             )
         ) {
             is ProtectedResult.Failure -> result.error.toWorkdayResult()
+
             is ProtectedResult.Success -> {
                 val accepted = result.body?.toLocationProjection()
                     ?: return DriverWorkdayNetworkResult.UnknownOutcome
                 if (result.status !in setOf(200, 201) || accepted.sampleId != location.sampleId ||
-                    accepted.latitude != location.latitude || accepted.longitude != location.longitude ||
-                    accepted.accuracyMeters != location.accuracyMeters || accepted.capturedAt != location.capturedAt
-                ) DriverWorkdayNetworkResult.UnknownOutcome
-                else DriverWorkdayNetworkResult.LocationAccepted(accepted)
+                    accepted.latitude != location.latitude ||
+                    accepted.longitude != location.longitude ||
+                    accepted.accuracyMeters != location.accuracyMeters ||
+                    accepted.capturedAt != location.capturedAt
+                ) {
+                    DriverWorkdayNetworkResult.UnknownOutcome
+                } else {
+                    DriverWorkdayNetworkResult.LocationAccepted(accepted)
+                }
             }
         }
     }
 
-    private suspend fun mutate(request: ProtectedRequest): DriverWorkdayNetworkResult = when (val result = calls.execute(request)) {
-        is ProtectedResult.Failure -> result.error.toWorkdayResult()
-        is ProtectedResult.Success -> if (result.status in setOf(200, 201, 204)) {
-            DriverWorkdayNetworkResult.Accepted
-        } else {
-            DriverWorkdayNetworkResult.UnknownOutcome
+    private suspend fun mutate(request: ProtectedRequest): DriverWorkdayNetworkResult =
+        when (val result = calls.execute(request)) {
+            is ProtectedResult.Failure -> result.error.toWorkdayResult()
+
+            is ProtectedResult.Success -> if (result.status in setOf(200, 201, 204)) {
+                DriverWorkdayNetworkResult.Accepted
+            } else {
+                DriverWorkdayNetworkResult.UnknownOutcome
+            }
         }
-    }
 }
 
 private fun String.toWorkdayProjection(): DriverWorkdayProjection? {
@@ -177,14 +198,18 @@ private fun String.toWorkdayProjection(): DriverWorkdayProjection? {
         val version = row["version"]?.jsonPrimitive?.longOrNull ?: return null
         val status = row["status"]?.jsonPrimitive?.content ?: return null
         val startedAt = row["startedAt"]?.jsonPrimitive?.content ?: return null
-        val endedAt = row["endedAt"]?.jsonPrimitive?.content
-        val locationAvailable = row["locationAvailable"]?.jsonPrimitive?.booleanOrNull ?: return null
-        if (!validId(id) || version < 0 || status !in setOf("ACTIVE", "LOCATION_UNAVAILABLE", "CLOSED") ||
+        val endedAt = row["endedAt"]?.takeUnless { it is JsonNull }?.jsonPrimitive?.content
+        val locationAvailable =
+            row["locationAvailable"]?.jsonPrimitive?.booleanOrNull ?: return null
+        if (!validId(id) || version < 0 ||
+            status !in setOf("ACTIVE", "LOCATION_UNAVAILABLE", "CLOSED") ||
             !validInstant(startedAt) || (endedAt != null && !validInstant(endedAt)) ||
             (status == "CLOSED") != (endedAt != null) ||
             (status == "ACTIVE" && !locationAvailable) ||
             (status == "LOCATION_UNAVAILABLE" && locationAvailable)
-        ) return null
+        ) {
+            return null
+        }
         DriverWorkdayProjection(id, version, status, startedAt, endedAt, locationAvailable)
     } catch (_: Exception) {
         null
@@ -206,8 +231,17 @@ private fun String.toLocationProjection(): DriverWorkdayLocationProjection? {
             Duration.between(Instant.parse(capturedAt), Instant.parse(expiresAt)).let {
                 it.isNegative || it.isZero || it > Duration.ofHours(24)
             }
-        ) return null
-        DriverWorkdayLocationProjection(sampleId, latitude, longitude, accuracy, capturedAt, expiresAt)
+        ) {
+            return null
+        }
+        DriverWorkdayLocationProjection(
+            sampleId,
+            latitude,
+            longitude,
+            accuracy,
+            capturedAt,
+            expiresAt
+        )
     } catch (_: Exception) {
         null
     }
@@ -215,16 +249,24 @@ private fun String.toLocationProjection(): DriverWorkdayLocationProjection? {
 
 private fun ClientFailure.toWorkdayResult(): DriverWorkdayNetworkResult = when {
     httpStatus == 404 -> DriverWorkdayNetworkResult.NotFound
+
     kind == FailureKind.StaleState || httpStatus == 412 -> DriverWorkdayNetworkResult.StaleVersion
+
     kind == FailureKind.AuthorizationFailure || kind == FailureKind.AuthenticationRequired ->
         DriverWorkdayNetworkResult.PermissionDenied
+
     kind == FailureKind.UnknownOutcome || kind == FailureKind.RetryableServerFailure ->
         DriverWorkdayNetworkResult.UnknownOutcome
+
     kind == FailureKind.BusinessConflict -> DriverWorkdayNetworkResult.Rejected(problemCode)
+
     else -> DriverWorkdayNetworkResult.Unavailable
 }
 
 private fun Long.etag(): String = "\"$this\""
 private fun validKey(value: String): Boolean = value.isNotBlank() && value.length <= 160
-private fun validId(value: String): Boolean = runCatching { UUID.fromString(value).toString() == value.lowercase() }.getOrDefault(false)
+private fun validId(value: String): Boolean = runCatching {
+    UUID.fromString(value).toString() ==
+        value.lowercase()
+}.getOrDefault(false)
 private fun validInstant(value: String): Boolean = runCatching { Instant.parse(value) }.isSuccess

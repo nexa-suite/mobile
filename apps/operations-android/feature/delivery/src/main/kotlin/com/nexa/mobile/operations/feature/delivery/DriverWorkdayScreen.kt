@@ -35,32 +35,58 @@ fun DriverWorkdayScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         OutlinedButton(onClick = onBack) { Text(stringResource(R.string.driver_workday_back)) }
-        Text(stringResource(R.string.driver_workday_title), style = MaterialTheme.typography.headlineSmall)
-        Text(stringResource(R.string.driver_workday_privacy_note), style = MaterialTheme.typography.bodyMedium)
+        Text(
+            stringResource(R.string.driver_workday_title),
+            style = MaterialTheme.typography.headlineSmall
+        )
+        Text(
+            stringResource(R.string.driver_workday_privacy_note),
+            style = MaterialTheme.typography.bodyMedium
+        )
         Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 when {
                     state.loading -> Text(stringResource(R.string.driver_workday_loading))
+
                     state.workday == null -> Text(stringResource(R.string.driver_workday_no_active))
+
                     state.workday.status == DriverWorkdayStatus.CLOSED -> Text(
                         stringResource(
                             R.string.driver_workday_closed,
                             (state.workday.endedAt ?: state.workday.startedAt).displayTime()
                         )
                     )
+
                     state.workday.locationAvailable && state.captureRequested -> Text(
-                        stringResource(R.string.driver_workday_active_tracking, state.workday.startedAt.displayTime())
+                        stringResource(
+                            R.string.driver_workday_active_tracking,
+                            state.workday.startedAt.displayTime()
+                        )
                     )
+
                     state.workday.locationAvailable -> Text(
-                        stringResource(R.string.driver_workday_active_starting, state.workday.startedAt.displayTime())
+                        stringResource(
+                            R.string.driver_workday_active_starting,
+                            state.workday.startedAt.displayTime()
+                        )
                     )
+
                     else -> Text(stringResource(R.string.driver_workday_active_without_location))
                 }
-                state.lastSampleAt?.let { Text(stringResource(R.string.driver_workday_last_sample, it.displayTime())) }
+                state.lastSampleAt?.let {
+                    Text(stringResource(R.string.driver_workday_last_sample, it.displayTime()))
+                }
             }
         }
-        if (state.pendingCommand == null || state.notice == DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE) {
-            noticeText(state.notice)?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
+        if (state.pendingCommand == null ||
+            state.notice == DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
+        ) {
+            noticeText(state.notice)?.let {
+                Text(stringResource(it), color = MaterialTheme.colorScheme.error)
+            }
         }
         if (state.commandPending) Text(stringResource(R.string.driver_workday_command_pending))
         if (state.pendingCommand != null) {
@@ -69,15 +95,18 @@ fun DriverWorkdayScreen(
                 Text(stringResource(R.string.driver_workday_retry_pending))
             }
         }
-        val actionEnabled = !state.loading && !state.commandPending && state.pendingCommand == null &&
-            state.notice != DriverWorkdayNotice.END_PENDING_CONFIRMATION &&
-            state.notice != DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
+        val actionEnabled =
+            !state.loading && !state.commandPending && state.pendingCommand == null &&
+                state.notice != DriverWorkdayNotice.END_PENDING_CONFIRMATION &&
+                state.notice != DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
         if (state.workday == null || state.workday.status == DriverWorkdayStatus.CLOSED) {
             Button(onClick = onStart, enabled = actionEnabled && !state.loading) {
                 Text(stringResource(R.string.driver_workday_start))
             }
         } else {
-            if (state.workday.status == DriverWorkdayStatus.LOCATION_UNAVAILABLE || !state.workday.locationAvailable) {
+            if (state.workday.status == DriverWorkdayStatus.LOCATION_UNAVAILABLE ||
+                !state.workday.locationAvailable
+            ) {
                 Button(onClick = onEnableLocation, enabled = actionEnabled) {
                     Text(stringResource(R.string.driver_workday_enable_location))
                 }

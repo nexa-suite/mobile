@@ -19,14 +19,14 @@ import android.os.Build
 import android.os.IBinder
 import android.os.Looper
 import com.nexa.mobile.operations.feature.delivery.DriverWorkdayLocationEvent
-import com.nexa.mobile.operations.feature.delivery.DriverWorkdayLocationEventStream
-import com.nexa.mobile.operations.feature.delivery.DriverWorkdayLocationSample
+import com.nexa.mobile.operations.feature.delivery.DriverWorkdayLocationEventStream as WorkdayLocationEventStream
+import com.nexa.mobile.operations.feature.delivery.DriverWorkdayLocationSample as WorkdayLocationSample
 import com.nexa.mobile.operations.feature.delivery.R as DeliveryR
 import java.time.Instant
 import java.util.UUID
 
 internal object DriverLocationEvents {
-    private val stream = DriverWorkdayLocationEventStream()
+    private val stream = WorkdayLocationEventStream()
     val events = stream.events
 
     fun publish(event: DriverWorkdayLocationEvent) {
@@ -74,22 +74,20 @@ class DriverLocationTrackingService : Service() {
 
     private fun startForegroundLocationNotification() {
         val notifications = getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            notifications.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, getString(DeliveryR.string.driver_workday_notification_channel), NotificationManager.IMPORTANCE_LOW)
+        notifications.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_ID,
+                getString(DeliveryR.string.driver_workday_notification_channel),
+                NotificationManager.IMPORTANCE_LOW
             )
-        }
+        )
         val openApp = PendingIntent.getActivity(
             this,
             0,
             Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, CHANNEL_ID)
-        } else {
-            Notification.Builder(this)
-        }
+        val builder = Notification.Builder(this, CHANNEL_ID)
         val notification = builder
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setContentTitle(getString(DeliveryR.string.driver_workday_notification_title))
@@ -98,15 +96,17 @@ class DriverLocationTrackingService : Service() {
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE)
             .build()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
+        startForeground(
+            NOTIFICATION_ID,
+            notification,
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        )
     }
 
     private fun beginLocationUpdates() {
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
             DriverLocationEvents.publish(DriverWorkdayLocationEvent.PermissionUnavailable)
             stopSelf()
             return
@@ -136,8 +136,13 @@ class DriverLocationTrackingService : Service() {
         listener = activeListener
         try {
             providers.forEach { provider ->
-                locationManager.requestLocationUpdates(provider, LOCATION_INTERVAL_MILLIS, LOCATION_DISTANCE_METERS,
-                    activeListener, Looper.getMainLooper())
+                locationManager.requestLocationUpdates(
+                    provider,
+                    LOCATION_INTERVAL_MILLIS,
+                    LOCATION_DISTANCE_METERS,
+                    activeListener,
+                    Looper.getMainLooper()
+                )
             }
             val filter = IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -162,10 +167,12 @@ class DriverLocationTrackingService : Service() {
             !location.latitude.isFinite() || !location.longitude.isFinite() ||
             !location.accuracy.isFinite() || location.accuracy < 0f ||
             location.time <= 0L || ageMillis !in 0..MAX_SAMPLE_AGE_MILLIS
-        ) return
+        ) {
+            return
+        }
         DriverLocationEvents.publish(
             DriverWorkdayLocationEvent.Sample(
-                DriverWorkdayLocationSample(
+                WorkdayLocationSample(
                     sampleId = UUID.randomUUID().toString(),
                     latitude = location.latitude,
                     longitude = location.longitude,

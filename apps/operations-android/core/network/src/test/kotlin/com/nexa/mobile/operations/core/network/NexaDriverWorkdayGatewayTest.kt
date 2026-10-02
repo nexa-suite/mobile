@@ -23,11 +23,18 @@ class NexaDriverWorkdayGatewayTest {
             assertEquals(DriverWorkdayNetworkResult.Current(null), api.current())
             assertEquals("/api/v1/driver/workdays/current", server.takeRequest().path)
 
-            server.enqueue(MockResponse().setResponseCode(200).setHeader("ETag", "\"4\"").setBody(workday()))
-            assertEquals("ACTIVE", (api.current() as DriverWorkdayNetworkResult.Current).workday?.status)
+            server.enqueue(
+                MockResponse().setResponseCode(200).setHeader("ETag", "\"4\"").setBody(workday())
+            )
+            assertEquals(
+                "ACTIVE",
+                (api.current() as DriverWorkdayNetworkResult.Current).workday?.status
+            )
             server.takeRequest()
 
-            server.enqueue(MockResponse().setResponseCode(200).setHeader("ETag", "W/\"4\"").setBody(workday()))
+            server.enqueue(
+                MockResponse().setResponseCode(200).setHeader("ETag", "W/\"4\"").setBody(workday())
+            )
             assertTrue(api.current() is DriverWorkdayNetworkResult.Unavailable)
         }
     }
@@ -52,7 +59,10 @@ class NexaDriverWorkdayGatewayTest {
         MockWebServer().use { server ->
             server.start()
             server.enqueue(MockResponse().setResponseCode(204))
-            assertEquals(DriverWorkdayNetworkResult.Accepted, gateway(server).end(WORKDAY, 4, "end-key"))
+            assertEquals(
+                DriverWorkdayNetworkResult.Accepted,
+                gateway(server).end(WORKDAY, 4, "end-key")
+            )
             val end = server.takeRequest()
             assertEquals("/api/v1/driver/workdays/$WORKDAY/ends", end.path)
             assertEquals("\"4\"", end.getHeader("If-Match"))
@@ -60,10 +70,15 @@ class NexaDriverWorkdayGatewayTest {
             assertEquals(0L, end.body.size)
 
             server.enqueue(MockResponse().setResponseCode(200))
-            assertEquals(DriverWorkdayNetworkResult.Accepted,
-                gateway(server).setLocationAvailability(WORKDAY, 5, false, "availability-key"))
+            assertEquals(
+                DriverWorkdayNetworkResult.Accepted,
+                gateway(server).setLocationAvailability(WORKDAY, 5, false, "availability-key")
+            )
             val availability = server.takeRequest()
-            assertEquals("/api/v1/driver/workdays/$WORKDAY/location-availability", availability.path)
+            assertEquals(
+                "/api/v1/driver/workdays/$WORKDAY/location-availability",
+                availability.path
+            )
             assertEquals("\"5\"", availability.getHeader("If-Match"))
             assertEquals("availability-key", availability.getHeader("Idempotency-Key"))
             assertEquals("{\"locationAvailable\":false}", availability.body.readUtf8())
@@ -75,8 +90,11 @@ class NexaDriverWorkdayGatewayTest {
         MockWebServer().use { server ->
             server.start()
             server.enqueue(MockResponse().setResponseCode(201).setBody(locationResponse()))
-            val sample = DriverWorkdayLocationCommand(SAMPLE, -12.05, -77.04, 9.5, "2026-10-01T17:30:00Z")
-            val accepted = gateway(server).reportLocation(WORKDAY, sample) as DriverWorkdayNetworkResult.LocationAccepted
+            val sample =
+                DriverWorkdayLocationCommand(SAMPLE, -12.05, -77.04, 9.5, "2026-10-01T17:30:00Z")
+            val accepted = gateway(
+                server
+            ).reportLocation(WORKDAY, sample) as DriverWorkdayNetworkResult.LocationAccepted
             assertEquals("2026-10-02T17:30:00Z", accepted.location.expiresAt)
             val request = server.takeRequest()
             assertEquals("/api/v1/driver/workdays/$WORKDAY/locations", request.path)
@@ -86,13 +104,27 @@ class NexaDriverWorkdayGatewayTest {
             assertTrue(body.contains("\"capturedAt\":\"2026-10-01T17:30:00Z\""))
             assertFalse(body.contains("expiresAt"))
 
-            server.enqueue(MockResponse().setResponseCode(201).setBody(locationResponse().replace(",\"expiresAt\":\"2026-10-02T17:30:00Z\"", "")))
-            assertTrue(gateway(server).reportLocation(WORKDAY, sample) is DriverWorkdayNetworkResult.UnknownOutcome)
+            server.enqueue(
+                MockResponse().setResponseCode(
+                    201
+                ).setBody(locationResponse().replace(",\"expiresAt\":\"2026-10-02T17:30:00Z\"", ""))
+            )
+            assertTrue(
+                gateway(
+                    server
+                ).reportLocation(WORKDAY, sample) is DriverWorkdayNetworkResult.UnknownOutcome
+            )
 
-            server.enqueue(MockResponse().setResponseCode(201).setBody(
-                locationResponse().replace("2026-10-02T17:30:00Z", "2026-10-02T17:30:01Z")
-            ))
-            assertTrue(gateway(server).reportLocation(WORKDAY, sample) is DriverWorkdayNetworkResult.UnknownOutcome)
+            server.enqueue(
+                MockResponse().setResponseCode(201).setBody(
+                    locationResponse().replace("2026-10-02T17:30:00Z", "2026-10-02T17:30:01Z")
+                )
+            )
+            assertTrue(
+                gateway(
+                    server
+                ).reportLocation(WORKDAY, sample) is DriverWorkdayNetworkResult.UnknownOutcome
+            )
         }
     }
 
@@ -101,12 +133,17 @@ class NexaDriverWorkdayGatewayTest {
         MockWebServer().use { server ->
             server.start()
             server.enqueue(MockResponse().setResponseCode(412))
-            assertEquals(DriverWorkdayNetworkResult.StaleVersion,
-                gateway(server).setLocationAvailability(WORKDAY, 4, false, "stale-key"))
+            assertEquals(
+                DriverWorkdayNetworkResult.StaleVersion,
+                gateway(server).setLocationAvailability(WORKDAY, 4, false, "stale-key")
+            )
             server.takeRequest()
 
             server.enqueue(MockResponse().setResponseCode(503))
-            assertEquals(DriverWorkdayNetworkResult.UnknownOutcome, gateway(server).end(WORKDAY, 4, "unknown-key"))
+            assertEquals(
+                DriverWorkdayNetworkResult.UnknownOutcome,
+                gateway(server).end(WORKDAY, 4, "unknown-key")
+            )
             server.takeRequest()
             assertEquals(2, server.requestCount)
         }
@@ -120,15 +157,19 @@ class NexaDriverWorkdayGatewayTest {
         )
     )
 
-    private fun workday() = """{"id":"$WORKDAY","version":4,"status":"ACTIVE","startedAt":"2026-10-01T17:00:00Z","endedAt":null,"locationAvailable":true}"""
-    private fun locationResponse() = """{"sampleId":"$SAMPLE","latitude":-12.05,"longitude":-77.04,"accuracyMeters":9.5,"capturedAt":"2026-10-01T17:30:00Z","expiresAt":"2026-10-02T17:30:00Z"}"""
+    private fun workday() =
+        """{"id":"$WORKDAY","version":4,"status":"ACTIVE","startedAt":"2026-10-01T17:00:00Z","endedAt":null,"locationAvailable":true}"""
+    private fun locationResponse() =
+        """{"sampleId":"$SAMPLE","latitude":-12.05,"longitude":-77.04,"accuracyMeters":9.5,"capturedAt":"2026-10-01T17:30:00Z","expiresAt":"2026-10-02T17:30:00Z"}"""
 
     private class FakeTokens : AccessTokenSource {
         override val sessionState: StateFlow<SessionState> = MutableStateFlow(SessionState.Active)
         private val lease = AccessTokenLease("session-1", generation = 1, epoch = 1)
         override suspend fun currentAccess(): AccessTokenLease = lease
         override suspend fun isEpochCurrent(epoch: Long): Boolean = lease.epoch == epoch
-        override suspend fun recoverAfterUnauthorized(observed: AccessTokenLease): AccessTokenLease? = null
+        override suspend fun recoverAfterUnauthorized(
+            observed: AccessTokenLease
+        ): AccessTokenLease? = null
         override suspend fun rejectCurrentAccess(observed: AccessTokenLease) = Unit
     }
 
