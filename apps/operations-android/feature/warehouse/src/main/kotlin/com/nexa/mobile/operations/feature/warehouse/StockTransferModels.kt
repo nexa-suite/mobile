@@ -109,10 +109,15 @@ data class StockTransferRequest(
         require(quantity.matches(DECIMAL_LEXEME))
         val decimal = BigDecimal(quantity)
         require(decimal.signum() > 0)
-        require(sourceLotId.isNotBlank() && sourceWarehouseId.isNotBlank() && sourceZoneId.isNotBlank())
+        require(
+            sourceLotId.isNotBlank() && sourceWarehouseId.isNotBlank() && sourceZoneId.isNotBlank()
+        )
         require(destinationWarehouseId.isNotBlank() && destinationZoneId.isNotBlank())
         require(!skuId.isNullOrBlank() || !catalogItemId.isNullOrBlank())
-        require(unit.isNotBlank() && reason.isNotBlank() && reason == reason.trim() && reason.length <= 2_000)
+        require(
+            unit.isNotBlank() && reason.isNotBlank() && reason == reason.trim() &&
+                reason.length <= 2_000
+        )
         return buildString {
             append("{\"sourceLotId\":").append(sourceLotId.jsonString())
             append(",\"sourceWarehouseId\":").append(sourceWarehouseId.jsonString())
@@ -135,12 +140,19 @@ data class StockTransferRequest(
         for (character in this@jsonString) {
             when (character) {
                 '"' -> append("\\\"")
+
                 '\\' -> append("\\\\")
+
                 '\b' -> append("\\b")
+
                 '\u000C' -> append("\\f")
+
                 '\n' -> append("\\n")
+
                 '\r' -> append("\\r")
+
                 '\t' -> append("\\t")
+
                 else -> if (character.code < 0x20) {
                     append("\\u%04x".format(character.code))
                 } else {
@@ -251,5 +263,8 @@ interface StockTransferMetadataStore {
         scope: StockTransferScope,
         idempotencyKey: String
     ): TransferMetadataWrite
-    suspend fun clearIntent(scope: StockTransferScope, idempotencyKey: String): TransferMetadataWrite
+    suspend fun clearIntent(
+        scope: StockTransferScope,
+        idempotencyKey: String
+    ): TransferMetadataWrite
 }

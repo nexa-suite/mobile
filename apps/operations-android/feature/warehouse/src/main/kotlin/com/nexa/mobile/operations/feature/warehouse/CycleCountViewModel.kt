@@ -67,14 +67,22 @@ class CycleCountViewModel(
 
     fun selectLot(lotId: String) {
         val current = mutableState.value
-        if (current.isFrozen || (current.recordedCount?.status == REQUESTED_STATUS && current.appliedCorrection == null)) return
+        if (current.isFrozen ||
+            (current.recordedCount?.status == REQUESTED_STATUS && current.appliedCorrection == null)
+        ) {
+            return
+        }
         if (current.lots.none { it.id == lotId }) return
         updateDraft(selectedLotId = lotId, observedQuantityText = current.observedQuantityText)
     }
 
     fun observeQuantityChanged(value: String) {
         val current = mutableState.value
-        if (current.isFrozen || (current.recordedCount?.status == REQUESTED_STATUS && current.appliedCorrection == null)) return
+        if (current.isFrozen ||
+            (current.recordedCount?.status == REQUESTED_STATUS && current.appliedCorrection == null)
+        ) {
+            return
+        }
         updateDraft(selectedLotId = current.selectedLotId, observedQuantityText = value)
     }
 
@@ -105,9 +113,17 @@ class CycleCountViewModel(
         val authority = activeAuthority ?: return
         val current = mutableState.value
         val intent = current.frozenCountIntent ?: return
-        if (!current.metadataAvailable || !current.canWriteCounts || intent.scope != authority.scope) return
+        if (!current.metadataAvailable || !current.canWriteCounts ||
+            intent.scope != authority.scope
+        ) {
+            return
+        }
         if (current.countCommand !in RETRYABLE_COMMAND_STATES) return
-        dispatchCount(intent.copy(status = CycleCountIntentStatus.UnknownOutcome), authority, activation)
+        dispatchCount(
+            intent.copy(status = CycleCountIntentStatus.UnknownOutcome),
+            authority,
+            activation
+        )
     }
 
     /** Explicitly applies a server-recorded variance with the count's exact captured lot version. */
@@ -117,7 +133,9 @@ class CycleCountViewModel(
         val count = current.recordedCount ?: return
         if (!current.canApplyCorrection || count.status != REQUESTED_STATUS ||
             !authority.permissions.containsAll(CORRECTION_PERMISSIONS)
-        ) return
+        ) {
+            return
+        }
         val intent = CycleCountCorrectionIntent(
             scope = authority.scope,
             idempotencyKey = UUID.randomUUID().toString(),
@@ -133,9 +151,17 @@ class CycleCountViewModel(
         val authority = activeAuthority ?: return
         val current = mutableState.value
         val intent = current.frozenCorrectionIntent ?: return
-        if (!current.metadataAvailable || !current.canApplyInventoryCorrection || intent.scope != authority.scope) return
+        if (!current.metadataAvailable || !current.canApplyInventoryCorrection ||
+            intent.scope != authority.scope
+        ) {
+            return
+        }
         if (current.correctionCommand !in RETRYABLE_COMMAND_STATES) return
-        dispatchCorrection(intent.copy(status = CycleCountIntentStatus.UnknownOutcome), authority, activation)
+        dispatchCorrection(
+            intent.copy(status = CycleCountIntentStatus.UnknownOutcome),
+            authority,
+            activation
+        )
     }
 
     /** Discards a definitively stale count snapshot, then reads current server lots again. */
@@ -143,11 +169,16 @@ class CycleCountViewModel(
         val authority = activeAuthority ?: return
         val current = mutableState.value
         val count = current.recordedCount ?: return
-        if (current.notice != CycleCountNotice.StaleCount || current.correctionCommand != CycleCountCommandStatus.PreconditionFailed) return
+        if (current.notice != CycleCountNotice.StaleCount ||
+            current.correctionCommand != CycleCountCommandStatus.PreconditionFailed
+        ) {
+            return
+        }
         val currentActivation = activation
         viewModelScope.launch {
             if (!isCurrent(authority, currentActivation)) return@launch
-            val result = safeMetadataWrite { metadataStore.clearStaleCount(authority.scope, count.id) }
+            val result =
+                safeMetadataWrite { metadataStore.clearStaleCount(authority.scope, count.id) }
             if (!isCurrent(authority, currentActivation)) return@launch
             if (result != CycleCountMetadataWrite.Saved) {
                 mutableState.value = mutableState.value.copy(
@@ -174,10 +205,14 @@ class CycleCountViewModel(
     private fun updateDraft(selectedLotId: String?, observedQuantityText: String) {
         val authority = activeAuthority ?: return
         val current = mutableState.value
-        if (!current.metadataAvailable || current.frozenCountIntent != null || current.frozenCorrectionIntent != null) {
+        if (!current.metadataAvailable || current.frozenCountIntent != null ||
+            current.frozenCorrectionIntent != null
+        ) {
             return
         }
-        val changed = selectedLotId != current.selectedLotId || observedQuantityText != current.observedQuantityText
+        val changed =
+            selectedLotId != current.selectedLotId ||
+                observedQuantityText != current.observedQuantityText
         if (!changed) return
         val nextCount = CycleCountCommandStatus.Editing
         val next = current.copy(
@@ -206,6 +241,7 @@ class CycleCountViewModel(
             if (!isCurrent(authority, currentActivation) || revision != draftRevision) return@launch
             mutableState.value = when (outcome) {
                 CycleCountMetadataWrite.Saved -> mutableState.value.copy(metadataAvailable = true)
+
                 CycleCountMetadataWrite.Unavailable -> mutableState.value.copy(
                     metadataAvailable = false,
                     notice = CycleCountNotice.MetadataUnavailable
@@ -228,6 +264,7 @@ class CycleCountViewModel(
                 metadataAvailable = false,
                 notice = CycleCountNotice.MetadataUnavailable
             )
+
             is CycleCountMetadataRead.Available -> {
                 val work = loaded.value
                 if (work == null) {
@@ -241,13 +278,28 @@ class CycleCountViewModel(
                     )
                     return
                 }
-                val countIntent = work.countIntent?.copy(status = CycleCountIntentStatus.UnknownOutcome)
-                val correctionIntent = work.correctionIntent?.copy(status = CycleCountIntentStatus.UnknownOutcome)
-                if (countIntent != null && work.countIntent?.status == CycleCountIntentStatus.Pending) {
-                    safeMetadataWrite { metadataStore.markCountUnknown(authority.scope, countIntent.idempotencyKey) }
+                val countIntent = work.countIntent?.copy(
+                    status = CycleCountIntentStatus.UnknownOutcome
+                )
+                val correctionIntent = work.correctionIntent?.copy(
+                    status = CycleCountIntentStatus.UnknownOutcome
+                )
+                if (countIntent != null &&
+                    work.countIntent?.status == CycleCountIntentStatus.Pending
+                ) {
+                    safeMetadataWrite {
+                        metadataStore.markCountUnknown(authority.scope, countIntent.idempotencyKey)
+                    }
                 }
-                if (correctionIntent != null && work.correctionIntent?.status == CycleCountIntentStatus.Pending) {
-                    safeMetadataWrite { metadataStore.markCorrectionUnknown(authority.scope, correctionIntent.idempotencyKey) }
+                if (correctionIntent != null &&
+                    work.correctionIntent?.status == CycleCountIntentStatus.Pending
+                ) {
+                    safeMetadataWrite {
+                        metadataStore.markCorrectionUnknown(
+                            authority.scope,
+                            correctionIntent.idempotencyKey
+                        )
+                    }
                 }
                 if (!isCurrent(authority, expectedActivation)) return
                 mutableState.value = mutableState.value.copy(
@@ -273,7 +325,11 @@ class CycleCountViewModel(
         }
     }
 
-    private fun persistAndRecord(intent: CycleCountIntent, authority: CycleCountAuthority, expectedActivation: Long) {
+    private fun persistAndRecord(
+        intent: CycleCountIntent,
+        authority: CycleCountAuthority,
+        expectedActivation: Long
+    ) {
         mutableState.value = mutableState.value.copy(
             countCommand = CycleCountCommandStatus.PersistingIntent,
             frozenCountIntent = intent,
@@ -291,13 +347,22 @@ class CycleCountViewModel(
                 )
                 return@launch
             }
-            mutableState.value = mutableState.value.copy(countCommand = CycleCountCommandStatus.Pending)
+            mutableState.value =
+                mutableState.value.copy(countCommand = CycleCountCommandStatus.Pending)
             dispatchCount(intent, authority, expectedActivation)
         }
     }
 
-    private fun dispatchCount(intent: CycleCountIntent, authority: CycleCountAuthority, expectedActivation: Long) {
-        if (!authority.permissions.contains(WRITE_PERMISSION) || intent.scope != authority.scope) return
+    private fun dispatchCount(
+        intent: CycleCountIntent,
+        authority: CycleCountAuthority,
+        expectedActivation: Long
+    ) {
+        if (!authority.permissions.contains(WRITE_PERMISSION) ||
+            intent.scope != authority.scope
+        ) {
+            return
+        }
         mutableState.value = mutableState.value.copy(
             countCommand = CycleCountCommandStatus.Pending,
             frozenCountIntent = intent,
@@ -329,7 +394,11 @@ class CycleCountViewModel(
                     return
                 }
                 val persisted = safeMetadataWrite {
-                    metadataStore.completeCount(authority.scope, intent.idempotencyKey, result.count)
+                    metadataStore.completeCount(
+                        authority.scope,
+                        intent.idempotencyKey,
+                        result.count
+                    )
                 }
                 if (!isCurrent(authority, expectedActivation)) return
                 if (persisted != CycleCountMetadataWrite.Saved) {
@@ -343,49 +412,105 @@ class CycleCountViewModel(
                     correctionCommand = CycleCountCommandStatus.Editing,
                     frozenCorrectionIntent = null,
                     appliedCorrection = null,
-                    notice = if (result.count.status == RECORDED_STATUS) CycleCountNotice.CountMatchesStock else null
+                    notice = if (result.count.status ==
+                        RECORDED_STATUS
+                    ) {
+                        CycleCountNotice.CountMatchesStock
+                    } else {
+                        null
+                    }
                 )
             }
+
             is CycleCountResult.Applied -> markCountUnknown(intent, authority, expectedActivation)
+
             CycleCountResult.UnknownOutcome, CycleCountResult.NetworkUnavailable,
-            CycleCountResult.ServiceUnavailable -> markCountUnknown(intent, authority, expectedActivation)
+            CycleCountResult.ServiceUnavailable -> markCountUnknown(
+                intent,
+                authority,
+                expectedActivation
+            )
+
             CycleCountResult.PreconditionFailed -> {
-                val cleared = safeMetadataWrite { metadataStore.clearCountIntent(authority.scope, intent.idempotencyKey) }
+                val cleared =
+                    safeMetadataWrite {
+                        metadataStore.clearCountIntent(authority.scope, intent.idempotencyKey)
+                    }
                 if (!isCurrent(authority, expectedActivation)) return
                 mutableState.value = mutableState.value.copy(
-                    countCommand = if (cleared == CycleCountMetadataWrite.Saved) CycleCountCommandStatus.Editing
-                    else CycleCountCommandStatus.PreconditionFailed,
-                    frozenCountIntent = if (cleared == CycleCountMetadataWrite.Saved) null else intent,
+                    countCommand = if (cleared ==
+                        CycleCountMetadataWrite.Saved
+                    ) {
+                        CycleCountCommandStatus.Editing
+                    } else {
+                        CycleCountCommandStatus.PreconditionFailed
+                    },
+                    frozenCountIntent = if (cleared ==
+                        CycleCountMetadataWrite.Saved
+                    ) {
+                        null
+                    } else {
+                        intent
+                    },
                     metadataAvailable = cleared == CycleCountMetadataWrite.Saved,
-                    notice = if (cleared == CycleCountMetadataWrite.Saved) CycleCountNotice.PreconditionFailed
-                    else CycleCountNotice.MetadataUnavailable
+                    notice = if (cleared ==
+                        CycleCountMetadataWrite.Saved
+                    ) {
+                        CycleCountNotice.PreconditionFailed
+                    } else {
+                        CycleCountNotice.MetadataUnavailable
+                    }
                 )
                 if (cleared == CycleCountMetadataWrite.Saved) reloadLots()
             }
+
             is CycleCountResult.Rejected -> {
-                val cleared = safeMetadataWrite { metadataStore.clearCountIntent(authority.scope, intent.idempotencyKey) }
+                val cleared =
+                    safeMetadataWrite {
+                        metadataStore.clearCountIntent(authority.scope, intent.idempotencyKey)
+                    }
                 if (!isCurrent(authority, expectedActivation)) return
                 mutableState.value = mutableState.value.copy(
-                    countCommand = if (cleared == CycleCountMetadataWrite.Saved) CycleCountCommandStatus.Editing
-                    else CycleCountCommandStatus.Rejected,
-                    frozenCountIntent = if (cleared == CycleCountMetadataWrite.Saved) null else intent,
+                    countCommand = if (cleared ==
+                        CycleCountMetadataWrite.Saved
+                    ) {
+                        CycleCountCommandStatus.Editing
+                    } else {
+                        CycleCountCommandStatus.Rejected
+                    },
+                    frozenCountIntent = if (cleared ==
+                        CycleCountMetadataWrite.Saved
+                    ) {
+                        null
+                    } else {
+                        intent
+                    },
                     metadataAvailable = cleared == CycleCountMetadataWrite.Saved,
-                    notice = if (cleared == CycleCountMetadataWrite.Saved) CycleCountNotice.InvalidQuantity
-                    else CycleCountNotice.MetadataUnavailable
+                    notice = if (cleared ==
+                        CycleCountMetadataWrite.Saved
+                    ) {
+                        CycleCountNotice.InvalidQuantity
+                    } else {
+                        CycleCountNotice.MetadataUnavailable
+                    }
                 )
             }
+
             CycleCountResult.Conflict -> mutableState.value = mutableState.value.copy(
                 countCommand = CycleCountCommandStatus.Conflict,
                 notice = CycleCountNotice.Conflict
             )
+
             CycleCountResult.PermissionDenied -> mutableState.value = mutableState.value.copy(
                 countCommand = CycleCountCommandStatus.PermissionDenied,
                 notice = CycleCountNotice.PermissionDenied
             )
+
             CycleCountResult.ContextInvalidated -> mutableState.value = mutableState.value.copy(
                 countCommand = CycleCountCommandStatus.ContextInvalidated,
                 notice = CycleCountNotice.ContextInvalidated
             )
+
             CycleCountResult.SessionInvalidated -> mutableState.value = mutableState.value.copy(
                 countCommand = CycleCountCommandStatus.SessionInvalidated,
                 notice = CycleCountNotice.SessionInvalidated
@@ -398,14 +523,22 @@ class CycleCountViewModel(
         authority: CycleCountAuthority,
         expectedActivation: Long
     ) {
-        val persisted = safeMetadataWrite { metadataStore.markCountUnknown(authority.scope, intent.idempotencyKey) }
+        val persisted =
+            safeMetadataWrite {
+                metadataStore.markCountUnknown(authority.scope, intent.idempotencyKey)
+            }
         if (!isCurrent(authority, expectedActivation)) return
         mutableState.value = mutableState.value.copy(
             countCommand = CycleCountCommandStatus.UnknownOutcome,
             frozenCountIntent = intent.copy(status = CycleCountIntentStatus.UnknownOutcome),
             metadataAvailable = persisted == CycleCountMetadataWrite.Saved,
-            notice = if (persisted == CycleCountMetadataWrite.Saved) CycleCountNotice.NetworkUnavailable
-            else CycleCountNotice.MetadataUnavailable
+            notice = if (persisted ==
+                CycleCountMetadataWrite.Saved
+            ) {
+                CycleCountNotice.NetworkUnavailable
+            } else {
+                CycleCountNotice.MetadataUnavailable
+            }
         )
     }
 
@@ -431,7 +564,8 @@ class CycleCountViewModel(
                 )
                 return@launch
             }
-            mutableState.value = mutableState.value.copy(correctionCommand = CycleCountCommandStatus.Pending)
+            mutableState.value =
+                mutableState.value.copy(correctionCommand = CycleCountCommandStatus.Pending)
             dispatchCorrection(intent, authority, expectedActivation)
         }
     }
@@ -441,7 +575,11 @@ class CycleCountViewModel(
         authority: CycleCountAuthority,
         expectedActivation: Long
     ) {
-        if (!authority.permissions.containsAll(CORRECTION_PERMISSIONS) || intent.scope != authority.scope) return
+        if (!authority.permissions.containsAll(CORRECTION_PERMISSIONS) ||
+            intent.scope != authority.scope
+        ) {
+            return
+        }
         mutableState.value = mutableState.value.copy(
             correctionCommand = CycleCountCommandStatus.Pending,
             frozenCorrectionIntent = intent,
@@ -473,7 +611,11 @@ class CycleCountViewModel(
                     return
                 }
                 val persisted = safeMetadataWrite {
-                    metadataStore.completeCorrection(authority.scope, intent.idempotencyKey, result.correction)
+                    metadataStore.completeCorrection(
+                        authority.scope,
+                        intent.idempotencyKey,
+                        result.correction
+                    )
                 }
                 if (!isCurrent(authority, expectedActivation)) return
                 if (persisted != CycleCountMetadataWrite.Saved) {
@@ -488,50 +630,93 @@ class CycleCountViewModel(
                 )
                 reloadLots()
             }
-            is CycleCountResult.Recorded -> markCorrectionUnknown(intent, authority, expectedActivation)
+
+            is CycleCountResult.Recorded -> markCorrectionUnknown(
+                intent,
+                authority,
+                expectedActivation
+            )
+
             CycleCountResult.UnknownOutcome, CycleCountResult.NetworkUnavailable,
-            CycleCountResult.ServiceUnavailable -> markCorrectionUnknown(intent, authority, expectedActivation)
+            CycleCountResult.ServiceUnavailable -> markCorrectionUnknown(
+                intent,
+                authority,
+                expectedActivation
+            )
+
             CycleCountResult.PreconditionFailed -> {
                 val cleared = safeMetadataWrite {
                     metadataStore.clearCorrectionIntent(authority.scope, intent.idempotencyKey)
                 }
                 if (!isCurrent(authority, expectedActivation)) return
                 mutableState.value = mutableState.value.copy(
-                    correctionCommand = if (cleared == CycleCountMetadataWrite.Saved) CycleCountCommandStatus.PreconditionFailed
-                    else CycleCountCommandStatus.UnknownOutcome,
-                    frozenCorrectionIntent = if (cleared == CycleCountMetadataWrite.Saved) null
-                    else intent.copy(status = CycleCountIntentStatus.UnknownOutcome),
+                    correctionCommand = if (cleared ==
+                        CycleCountMetadataWrite.Saved
+                    ) {
+                        CycleCountCommandStatus.PreconditionFailed
+                    } else {
+                        CycleCountCommandStatus.UnknownOutcome
+                    },
+                    frozenCorrectionIntent = if (cleared == CycleCountMetadataWrite.Saved) {
+                        null
+                    } else {
+                        intent.copy(status = CycleCountIntentStatus.UnknownOutcome)
+                    },
                     metadataAvailable = cleared == CycleCountMetadataWrite.Saved,
-                    notice = if (cleared == CycleCountMetadataWrite.Saved) CycleCountNotice.StaleCount
-                    else CycleCountNotice.MetadataUnavailable
+                    notice = if (cleared ==
+                        CycleCountMetadataWrite.Saved
+                    ) {
+                        CycleCountNotice.StaleCount
+                    } else {
+                        CycleCountNotice.MetadataUnavailable
+                    }
                 )
             }
+
             is CycleCountResult.Rejected -> {
                 val cleared = safeMetadataWrite {
                     metadataStore.clearCorrectionIntent(authority.scope, intent.idempotencyKey)
                 }
                 if (!isCurrent(authority, expectedActivation)) return
                 mutableState.value = mutableState.value.copy(
-                    correctionCommand = if (cleared == CycleCountMetadataWrite.Saved) CycleCountCommandStatus.Editing
-                    else CycleCountCommandStatus.Rejected,
-                    frozenCorrectionIntent = if (cleared == CycleCountMetadataWrite.Saved) null else intent,
+                    correctionCommand = if (cleared ==
+                        CycleCountMetadataWrite.Saved
+                    ) {
+                        CycleCountCommandStatus.Editing
+                    } else {
+                        CycleCountCommandStatus.Rejected
+                    },
+                    frozenCorrectionIntent = if (cleared ==
+                        CycleCountMetadataWrite.Saved
+                    ) {
+                        null
+                    } else {
+                        intent
+                    },
                     metadataAvailable = cleared == CycleCountMetadataWrite.Saved,
-                    notice = if (cleared == CycleCountMetadataWrite.Saved) CycleCountNotice.Conflict
-                    else CycleCountNotice.MetadataUnavailable
+                    notice = if (cleared == CycleCountMetadataWrite.Saved) {
+                        CycleCountNotice.Conflict
+                    } else {
+                        CycleCountNotice.MetadataUnavailable
+                    }
                 )
             }
+
             CycleCountResult.Conflict -> mutableState.value = mutableState.value.copy(
                 correctionCommand = CycleCountCommandStatus.Conflict,
                 notice = CycleCountNotice.Conflict
             )
+
             CycleCountResult.PermissionDenied -> mutableState.value = mutableState.value.copy(
                 correctionCommand = CycleCountCommandStatus.PermissionDenied,
                 notice = CycleCountNotice.PermissionDenied
             )
+
             CycleCountResult.ContextInvalidated -> mutableState.value = mutableState.value.copy(
                 correctionCommand = CycleCountCommandStatus.ContextInvalidated,
                 notice = CycleCountNotice.ContextInvalidated
             )
+
             CycleCountResult.SessionInvalidated -> mutableState.value = mutableState.value.copy(
                 correctionCommand = CycleCountCommandStatus.SessionInvalidated,
                 notice = CycleCountNotice.SessionInvalidated
@@ -552,12 +737,22 @@ class CycleCountViewModel(
             correctionCommand = CycleCountCommandStatus.UnknownOutcome,
             frozenCorrectionIntent = intent.copy(status = CycleCountIntentStatus.UnknownOutcome),
             metadataAvailable = persisted == CycleCountMetadataWrite.Saved,
-            notice = if (persisted == CycleCountMetadataWrite.Saved) CycleCountNotice.NetworkUnavailable
-            else CycleCountNotice.MetadataUnavailable
+            notice = if (persisted ==
+                CycleCountMetadataWrite.Saved
+            ) {
+                CycleCountNotice.NetworkUnavailable
+            } else {
+                CycleCountNotice.MetadataUnavailable
+            }
         )
     }
 
-    private fun loadLotsPage(authority: CycleCountAuthority, expectedActivation: Long, page: Int, replace: Boolean) {
+    private fun loadLotsPage(
+        authority: CycleCountAuthority,
+        expectedActivation: Long,
+        page: Int,
+        replace: Boolean
+    ) {
         lotJob?.cancel()
         mutableState.value = mutableState.value.copy(
             lotLookup = CycleCountLookupStatus.Loading,
@@ -579,26 +774,53 @@ class CycleCountViewModel(
             val latest = mutableState.value
             mutableState.value = when (result) {
                 is CycleCountLookupResult.Lots -> {
-                    val merged = if (replace) result.items else (latest.lots + result.items).distinctBy(CycleCountLot::id)
+                    val merged = if (replace) {
+                        result.items
+                    } else {
+                        (latest.lots + result.items).distinctBy(
+                            CycleCountLot::id
+                        )
+                    }
                     latest.copy(
                         lots = merged,
                         lotPage = result.page,
                         lotTotal = result.total,
-                        lotLookup = if (merged.isEmpty()) CycleCountLookupStatus.Empty else CycleCountLookupStatus.Ready,
+                        lotLookup = if (merged.isEmpty()) {
+                            CycleCountLookupStatus.Empty
+                        } else {
+                            CycleCountLookupStatus.Ready
+                        },
                         selectedLotId = latest.selectedLotId,
                         notice = latest.notice
                     )
                 }
-                CycleCountLookupResult.NetworkUnavailable -> latest.copy(lotLookup = CycleCountLookupStatus.NetworkUnavailable)
-                CycleCountLookupResult.ServiceUnavailable -> latest.copy(lotLookup = CycleCountLookupStatus.ServiceUnavailable)
-                CycleCountLookupResult.PermissionDenied -> latest.copy(lotLookup = CycleCountLookupStatus.PermissionDenied)
-                CycleCountLookupResult.ContextInvalidated -> latest.copy(lotLookup = CycleCountLookupStatus.ContextInvalidated)
-                CycleCountLookupResult.SessionInvalidated -> latest.copy(lotLookup = CycleCountLookupStatus.SessionInvalidated)
+
+                CycleCountLookupResult.NetworkUnavailable -> latest.copy(
+                    lotLookup = CycleCountLookupStatus.NetworkUnavailable
+                )
+
+                CycleCountLookupResult.ServiceUnavailable -> latest.copy(
+                    lotLookup = CycleCountLookupStatus.ServiceUnavailable
+                )
+
+                CycleCountLookupResult.PermissionDenied -> latest.copy(
+                    lotLookup = CycleCountLookupStatus.PermissionDenied
+                )
+
+                CycleCountLookupResult.ContextInvalidated -> latest.copy(
+                    lotLookup = CycleCountLookupStatus.ContextInvalidated
+                )
+
+                CycleCountLookupResult.SessionInvalidated -> latest.copy(
+                    lotLookup = CycleCountLookupStatus.SessionInvalidated
+                )
             }
         }
     }
 
-    private suspend fun safeMetadataWrite(block: suspend () -> CycleCountMetadataWrite): CycleCountMetadataWrite = try {
+    private suspend fun safeMetadataWrite(
+        block: suspend () -> CycleCountMetadataWrite
+    ): CycleCountMetadataWrite = try {
         block()
     } catch (cancelled: CancellationException) {
         throw cancelled
@@ -606,36 +828,74 @@ class CycleCountViewModel(
         CycleCountMetadataWrite.Unavailable
     }
 
-    private suspend fun isCurrent(authority: CycleCountAuthority, expectedActivation: Long): Boolean =
-        activation == expectedActivation && activeAuthority == authority
+    private suspend fun isCurrent(
+        authority: CycleCountAuthority,
+        expectedActivation: Long
+    ): Boolean = activation == expectedActivation && activeAuthority == authority
 
     private fun CycleCountStoredWork.isValid(): Boolean {
         val intentQuantity = countIntent?.observedQuantityText?.toBigDecimalOrNull()
         return observedQuantityText.length <= 64 &&
-            (observedQuantityText.isEmpty() || observedQuantityText.toBigDecimalOrNull()?.isValidStockQuantity() == true) &&
-            (countIntent == null || (countIntent.scope == scope && countIntent.lot.id.isUuid() &&
-                intentQuantity?.isValidStockQuantity() == true &&
-                countIntent.frozenBody == countBody(requireNotNull(intentQuantity), countIntent.lot.unit))) &&
-            (recordedCount == null || (recordedCount.lotId.isUuid() && recordedCount.actorMembershipId.isUuid())) &&
-            (correctionIntent == null || (correctionIntent.scope == scope && correctionIntent.count.id.isUuid())) &&
-            (appliedCorrection == null || (appliedCorrection.lotId.isUuid() && appliedCorrection.actorMembershipId.isUuid()))
+            (
+                observedQuantityText.isEmpty() ||
+                    observedQuantityText.toBigDecimalOrNull()?.isValidStockQuantity() == true
+                ) &&
+            (
+                countIntent == null || (
+                    countIntent.scope == scope && countIntent.lot.id.isUuid() &&
+                        intentQuantity?.isValidStockQuantity() == true &&
+                        countIntent.frozenBody ==
+                        countBody(requireNotNull(intentQuantity), countIntent.lot.unit)
+                    )
+                ) &&
+            (
+                recordedCount == null ||
+                    (recordedCount.lotId.isUuid() && recordedCount.actorMembershipId.isUuid())
+                ) &&
+            (
+                correctionIntent == null ||
+                    (correctionIntent.scope == scope && correctionIntent.count.id.isUuid())
+                ) &&
+            (
+                appliedCorrection == null ||
+                    (
+                        appliedCorrection.lotId.isUuid() &&
+                            appliedCorrection.actorMembershipId.isUuid()
+                        )
+                )
     }
 
     private fun CycleCountRecord.matches(intent: CycleCountIntent): Boolean =
-        lotId == intent.lot.id && warehouseId == intent.lot.warehouseId && zoneId == intent.lot.zoneId &&
+        lotId == intent.lot.id && warehouseId == intent.lot.warehouseId &&
+            zoneId == intent.lot.zoneId &&
             lotVersion == intent.lot.version &&
-            expectedQuantityText.toBigDecimalOrNull()?.compareTo(intent.lot.onHandText.toBigDecimal()) == 0 &&
-            observedQuantityText.toBigDecimalOrNull()?.compareTo(intent.observedQuantityText.toBigDecimal()) == 0 &&
-            unit.equals(intent.lot.unit, ignoreCase = true) && actorMembershipId == intent.scope.membershipId &&
+            expectedQuantityText.toBigDecimalOrNull()?.compareTo(
+                intent.lot.onHandText.toBigDecimal()
+            ) ==
+            0 &&
+            observedQuantityText.toBigDecimalOrNull()?.compareTo(
+                intent.observedQuantityText.toBigDecimal()
+            ) ==
+            0 &&
+            unit.equals(intent.lot.unit, ignoreCase = true) &&
+            actorMembershipId == intent.scope.membershipId &&
             (status == RECORDED_STATUS || status == REQUESTED_STATUS)
 
     private fun CycleCountCorrection.matches(intent: CycleCountCorrectionIntent): Boolean =
-        cycleCountId == intent.count.id && lotId == intent.count.lotId && warehouseId == intent.count.warehouseId &&
+        cycleCountId == intent.count.id && lotId == intent.count.lotId &&
+            warehouseId == intent.count.warehouseId &&
             zoneId == intent.count.zoneId && lotVersionBefore == intent.expectedLotVersion &&
             lotVersionAfter == intent.expectedLotVersion + 1 &&
-            quantityBeforeText.toBigDecimalOrNull()?.compareTo(intent.count.expectedQuantityText.toBigDecimal()) == 0 &&
-            quantityAfterText.toBigDecimalOrNull()?.compareTo(intent.count.observedQuantityText.toBigDecimal()) == 0 &&
-            unit.equals(intent.count.unit, ignoreCase = true) && actorMembershipId == intent.scope.membershipId
+            quantityBeforeText.toBigDecimalOrNull()?.compareTo(
+                intent.count.expectedQuantityText.toBigDecimal()
+            ) ==
+            0 &&
+            quantityAfterText.toBigDecimalOrNull()?.compareTo(
+                intent.count.observedQuantityText.toBigDecimal()
+            ) ==
+            0 &&
+            unit.equals(intent.count.unit, ignoreCase = true) &&
+            actorMembershipId == intent.scope.membershipId
 
     private fun BigDecimal.isValidStockQuantity(): Boolean {
         if (signum() < 0) return false

@@ -126,12 +126,16 @@ class LotSubstitutionViewModelTest {
         assertTrue(gateway.submitted.isEmpty())
     }
 
-    private class MemoryMetadataStore(private val events: MutableList<String>) : LotSubstitutionMetadataStore {
+    private class MemoryMetadataStore(private val events: MutableList<String>) :
+        LotSubstitutionMetadataStore {
         var intent: LotSubstitutionIntent? = null
 
         override suspend fun load(scope: PickingScopeIdentity): LotSubstitutionMetadataRead =
-            if (intent != null && intent?.scope != scope) LotSubstitutionMetadataRead.Unavailable
-            else LotSubstitutionMetadataRead.Available(intent)
+            if (intent != null && intent?.scope != scope) {
+                LotSubstitutionMetadataRead.Unavailable
+            } else {
+                LotSubstitutionMetadataRead.Available(intent)
+            }
 
         override suspend fun freeze(intent: LotSubstitutionIntent): LotSubstitutionMetadataWrite {
             events += "freeze"
@@ -148,7 +152,11 @@ class LotSubstitutionViewModelTest {
         ): LotSubstitutionMetadataWrite {
             events += "mark-unknown"
             val current = intent ?: return LotSubstitutionMetadataWrite.Unavailable
-            if (current.scope != scope || current.idempotencyKey != idempotencyKey) return LotSubstitutionMetadataWrite.Unavailable
+            if (current.scope != scope ||
+                current.idempotencyKey != idempotencyKey
+            ) {
+                return LotSubstitutionMetadataWrite.Unavailable
+            }
             intent = current.copy(status = LotSubstitutionIntentStatus.UnknownOutcome)
             return LotSubstitutionMetadataWrite.Saved
         }
@@ -158,13 +166,18 @@ class LotSubstitutionViewModelTest {
             idempotencyKey: String
         ): LotSubstitutionMetadataWrite {
             events += "clear"
-            if (intent?.scope != scope || intent?.idempotencyKey != idempotencyKey) return LotSubstitutionMetadataWrite.Unavailable
+            if (intent?.scope != scope ||
+                intent?.idempotencyKey != idempotencyKey
+            ) {
+                return LotSubstitutionMetadataWrite.Unavailable
+            }
             intent = null
             return LotSubstitutionMetadataWrite.Saved
         }
     }
 
-    private inner class FakeGateway(private val events: MutableList<String>) : LotSubstitutionGateway {
+    private inner class FakeGateway(private val events: MutableList<String>) :
+        LotSubstitutionGateway {
         val submitted = mutableListOf<LotSubstitutionIntent>()
         val outcomes = ArrayDeque<LotSubstitutionResult>()
 
@@ -172,7 +185,10 @@ class LotSubstitutionViewModelTest {
             work: LotSubstitutionWork,
             authority: PickingAuthority
         ): LotSubstitutionLookupResult = LotSubstitutionLookupResult.Alternatives(
-            listOf(alternative(ALTERNATIVE_LOT_ID), alternative(WRONG_SKU_LOT_ID, sku = OTHER_SKU_ID))
+            listOf(
+                alternative(ALTERNATIVE_LOT_ID),
+                alternative(WRONG_SKU_LOT_ID, sku = OTHER_SKU_ID)
+            )
         )
 
         override suspend fun request(
@@ -193,7 +209,14 @@ class LotSubstitutionViewModelTest {
     }
 
     private fun authority(permissions: Set<String> = setOf("warehouse:read", "inventory.adjust")) =
-        PickingAuthority(USER_ID, TENANT_ID, WORKSPACE_ID, MEMBERSHIP_ID, permissions, authorityEpoch = 7)
+        PickingAuthority(
+            USER_ID,
+            TENANT_ID,
+            WORKSPACE_ID,
+            MEMBERSHIP_ID,
+            permissions,
+            authorityEpoch = 7
+        )
 
     private fun work() = LotSubstitutionWork(
         FULFILLMENT_ID, ALLOCATION_ID, LINE_ID, SKU_ID, "CAT-0042", EXPECTED_LOT_ID,
@@ -201,18 +224,28 @@ class LotSubstitutionViewModelTest {
     )
 
     private fun alternative(id: String, sku: String = SKU_ID) = LotSubstitutionAlternative(
-        id, WAREHOUSE_ID, ZONE_ID, sku, "CAT-0042", "BATCH-2", "2027-03-31", "8.000", "EA", "AVAILABLE", 11
+        id, WAREHOUSE_ID, ZONE_ID, sku,
+        "CAT-0042", "BATCH-2", "2027-03-31", "8.000", "EA", "AVAILABLE", 11
     )
 
     private fun intent(scope: PickingScopeIdentity) = LotSubstitutionIntent(
-        scope, KEY, work(), ALTERNATIVE_LOT_ID, "Expected lot could not supply prepared work",
+        scope,
+        KEY,
+        work(),
+        ALTERNATIVE_LOT_ID,
+        "Expected lot could not supply prepared work",
         "{\"fulfillmentId\":\"$FULFILLMENT_ID\",\"allocationId\":\"$ALLOCATION_ID\",\"physicalAllocationLineId\":\"$LINE_ID\",\"expectedLotId\":\"$EXPECTED_LOT_ID\",\"alternativeLotId\":\"$ALTERNATIVE_LOT_ID\",\"quantity\":4.000,\"unit\":\"EA\",\"reason\":\"Expected lot could not supply prepared work\"}",
         LotSubstitutionIntentStatus.Pending
     )
 
     private fun request() = LotSubstitutionRequest(
-        REQUEST_ID, EXPECTED_LOT_ID, ALTERNATIVE_LOT_ID, "4.000",
-        "Expected lot could not supply prepared work", "REQUESTED", 8
+        REQUEST_ID,
+        EXPECTED_LOT_ID,
+        ALTERNATIVE_LOT_ID,
+        "4.000",
+        "Expected lot could not supply prepared work",
+        "REQUESTED",
+        8
     )
 
     private companion object {

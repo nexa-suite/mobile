@@ -12,8 +12,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-enum class TransferMetadataStatus { Loading, Available, Unavailable }
-enum class TransferCommandStatus { Editing, PersistingIntent, Pending, UnknownOutcome, Confirmed, Rejected }
+enum class TransferMetadataStatus {
+    Loading,
+    Available,
+    Unavailable
+}
+enum class TransferCommandStatus {
+    Editing,
+    PersistingIntent,
+    Pending,
+    UnknownOutcome,
+    Confirmed,
+    Rejected
+}
 
 enum class TransferValidationError {
     SourceLotRequired,
@@ -132,12 +143,23 @@ class StockTransferViewModel(
             mutableState.update {
                 it.copy(
                     frozenIntent = intent,
-                    metadata = if (available) TransferMetadataStatus.Available
-                    else TransferMetadataStatus.Unavailable,
-                    command = if (stored != null) TransferCommandStatus.UnknownOutcome
-                    else TransferCommandStatus.Editing,
-                    notice = if (available) null else TransferSubmitNotice.IntentMetadataUnavailable,
-                    validationError = if (available) null else TransferValidationError.MetadataUnavailable
+                    metadata = if (available) {
+                        TransferMetadataStatus.Available
+                    } else {
+                        TransferMetadataStatus.Unavailable
+                    },
+                    command = if (stored != null) {
+                        TransferCommandStatus.UnknownOutcome
+                    } else {
+                        TransferCommandStatus.Editing
+                    },
+                    notice = if (available) {
+                        null
+                    } else {
+                        TransferSubmitNotice.IntentMetadataUnavailable
+                    },
+                    validationError =
+                        if (available) null else TransferValidationError.MetadataUnavailable
                 )
             }
             if (stored?.status == TransferIntentStatus.Pending) {
@@ -243,7 +265,9 @@ class StockTransferViewModel(
             val result = safeLookup { gateway.sourceLots(currentAuthority) }
             if (!isCurrent(requestGeneration, currentAuthority) ||
                 lotLookupGeneration != lookupGeneration
-            ) return@launch
+            ) {
+                return@launch
+            }
             when (result) {
                 is TransferLookupResult.Lots -> mutableState.update {
                     it.copy(
@@ -251,8 +275,11 @@ class StockTransferViewModel(
                         selectedSourceLotId = it.selectedSourceLotId?.takeIf { id ->
                             result.items.any { lot -> lot.id == id && lot.isSelectable }
                         },
-                        sourceLotLookup = if (result.items.isEmpty()) TransferLookupStatus.Empty
-                        else TransferLookupStatus.Ready
+                        sourceLotLookup = if (result.items.isEmpty()) {
+                            TransferLookupStatus.Empty
+                        } else {
+                            TransferLookupStatus.Ready
+                        }
                     )
                 }
 
@@ -274,7 +301,9 @@ class StockTransferViewModel(
             val result = safeLookup { gateway.warehouses(currentAuthority) }
             if (!isCurrent(requestGeneration, currentAuthority) ||
                 warehouseLookupGeneration != lookupGeneration
-            ) return@launch
+            ) {
+                return@launch
+            }
             when (result) {
                 is TransferLookupResult.Warehouses -> mutableState.update { current ->
                     val selected = current.selectedDestinationWarehouseId?.takeIf { id ->
@@ -283,8 +312,11 @@ class StockTransferViewModel(
                     current.copy(
                         warehouses = result.items,
                         selectedDestinationWarehouseId = selected,
-                        warehouseLookup = if (result.items.isEmpty()) TransferLookupStatus.Empty
-                        else TransferLookupStatus.Ready
+                        warehouseLookup = if (result.items.isEmpty()) {
+                            TransferLookupStatus.Empty
+                        } else {
+                            TransferLookupStatus.Ready
+                        }
                     )
                 }
 
@@ -311,14 +343,20 @@ class StockTransferViewModel(
             if (!isCurrent(requestGeneration, currentAuthority) ||
                 zoneLookupGeneration != lookupGeneration ||
                 mutableState.value.selectedDestinationWarehouseId != warehouseId
-            ) return@launch
+            ) {
+                return@launch
+            }
             when (result) {
                 is TransferLookupResult.Zones -> mutableState.update { current ->
                     current.copy(
                         zones = result.items.filter { it.warehouseId == warehouseId },
-                        selectedDestinationZoneId = current.selectedDestinationZoneId?.takeIf { id ->
-                            result.items.any { it.id == id && it.warehouseId == warehouseId && it.isSelectable }
-                        },
+                        selectedDestinationZoneId =
+                            current.selectedDestinationZoneId?.takeIf { id ->
+                                result.items.any {
+                                    it.id == id && it.warehouseId == warehouseId &&
+                                        it.isSelectable
+                                }
+                            },
                         zoneLookup = if (result.items.none { it.warehouseId == warehouseId }) {
                             TransferLookupStatus.Empty
                         } else {
@@ -335,7 +373,9 @@ class StockTransferViewModel(
     fun startTransfer() {
         if (mutableState.value.command != TransferCommandStatus.Editing ||
             mutableState.value.intentCleanupPending
-        ) return
+        ) {
+            return
+        }
         if (!commandMutex.tryLock()) return
         viewModelScope.launch {
             try {
@@ -367,12 +407,17 @@ class StockTransferViewModel(
                     mutableState.update { it.copy(validationError = validate(it)) }
                     return@launch
                 }
-                if (!isCurrent(requestGeneration, currentAuthority) || !currentAuthority.canCreate) return@launch
+                if (!isCurrent(requestGeneration, currentAuthority) ||
+                    !currentAuthority.canCreate
+                ) {
+                    return@launch
+                }
                 val frozen = StockTransferIntent(
                     scope = currentAuthority.scope,
                     idempotencyKey = newIdempotencyKey(),
                     frozenPayload = payload,
-                    expectedSourceVersion = selectedSourceLot(mutableState.value)?.version ?: return@launch,
+                    expectedSourceVersion =
+                        selectedSourceLot(mutableState.value)?.version ?: return@launch,
                     status = TransferIntentStatus.Pending
                 )
                 mutableState.update {
@@ -388,7 +433,10 @@ class StockTransferViewModel(
                 }
                 if (!isCurrent(requestGeneration, currentAuthority)) {
                     withMetadataLock(null, currentAuthority) {
-                        metadataStore.markUnknownOutcome(currentAuthority.scope, frozen.idempotencyKey)
+                        metadataStore.markUnknownOutcome(
+                            currentAuthority.scope,
+                            frozen.idempotencyKey
+                        )
                     }
                     return@launch
                 }
@@ -427,8 +475,16 @@ class StockTransferViewModel(
                 val currentAuthority = authority ?: return@launch
                 val currentIntent = intent ?: return@launch
                 val requestGeneration = generation
-                if (!currentAuthority.canCreate || currentIntent.scope != currentAuthority.scope) return@launch
-                if (mutableState.value.command != TransferCommandStatus.UnknownOutcome) return@launch
+                if (!currentAuthority.canCreate ||
+                    currentIntent.scope != currentAuthority.scope
+                ) {
+                    return@launch
+                }
+                if (mutableState.value.command !=
+                    TransferCommandStatus.UnknownOutcome
+                ) {
+                    return@launch
+                }
                 mutableState.update {
                     it.copy(command = TransferCommandStatus.Pending, notice = null)
                 }
@@ -442,7 +498,11 @@ class StockTransferViewModel(
     fun retryIntentCleanup() {
         val currentAuthority = authority ?: return
         val currentIntent = intent ?: return
-        if (currentIntent.scope != currentAuthority.scope || !mutableState.value.intentCleanupPending) return
+        if (currentIntent.scope != currentAuthority.scope ||
+            !mutableState.value.intentCleanupPending
+        ) {
+            return
+        }
         val requestGeneration = generation
         viewModelScope.launch {
             val result = withMetadataLock(requestGeneration, currentAuthority) {
@@ -500,9 +560,13 @@ class StockTransferViewModel(
                 val cleanup = withMetadataLock(requestGeneration, currentAuthority) {
                     metadataStore.clearIntent(currentAuthority.scope, frozen.idempotencyKey)
                 }
-                intent = if (cleanup == TransferMetadataWrite.Saved) null else frozen.copy(
-                    status = TransferIntentStatus.UnknownOutcome
-                )
+                intent = if (cleanup == TransferMetadataWrite.Saved) {
+                    null
+                } else {
+                    frozen.copy(
+                        status = TransferIntentStatus.UnknownOutcome
+                    )
+                }
                 mutableState.update {
                     it.copy(
                         command = TransferCommandStatus.Confirmed,
@@ -514,8 +578,11 @@ class StockTransferViewModel(
                         } else {
                             TransferMetadataStatus.Unavailable
                         },
-                        notice = if (cleanup == TransferMetadataWrite.Saved) null
-                        else TransferSubmitNotice.IntentMetadataUnavailable
+                        notice = if (cleanup == TransferMetadataWrite.Saved) {
+                            null
+                        } else {
+                            TransferSubmitNotice.IntentMetadataUnavailable
+                        }
                     )
                 }
             }
@@ -612,7 +679,12 @@ class StockTransferViewModel(
             }
             if (result == TransferSubmitResult.PreconditionFailed) reloadSourceLots()
         } else {
-            keepUnknown(requestGeneration, currentAuthority, frozen, TransferSubmitNotice.IntentMetadataUnavailable)
+            keepUnknown(
+                requestGeneration,
+                currentAuthority,
+                frozen,
+                TransferSubmitNotice.IntentMetadataUnavailable
+            )
         }
     }
 
@@ -640,7 +712,12 @@ class StockTransferViewModel(
                 )
             }
         } else {
-            keepUnknown(requestGeneration, currentAuthority, frozen, TransferSubmitNotice.IntentMetadataUnavailable)
+            keepUnknown(
+                requestGeneration,
+                currentAuthority,
+                frozen,
+                TransferSubmitNotice.IntentMetadataUnavailable
+            )
         }
     }
 
@@ -659,10 +736,18 @@ class StockTransferViewModel(
             it.copy(
                 command = TransferCommandStatus.UnknownOutcome,
                 frozenIntent = intent,
-                metadata = if (marked == TransferMetadataWrite.Saved) TransferMetadataStatus.Available
-                else TransferMetadataStatus.Unavailable,
-                notice = notice ?: if (marked == TransferMetadataWrite.Saved) null
-                else TransferSubmitNotice.IntentMetadataUnavailable
+                metadata = if (marked ==
+                    TransferMetadataWrite.Saved
+                ) {
+                    TransferMetadataStatus.Available
+                } else {
+                    TransferMetadataStatus.Unavailable
+                },
+                notice = notice ?: if (marked == TransferMetadataWrite.Saved) {
+                    null
+                } else {
+                    TransferSubmitNotice.IntentMetadataUnavailable
+                }
             )
         }
     }
@@ -710,8 +795,14 @@ class StockTransferViewModel(
             return TransferValidationError.QuantityInvalid
         }
         if (quantity.signum() <= 0) return TransferValidationError.QuantityMustBePositive
-        if (quantity > source.physicalRemaining) return TransferValidationError.QuantityExceedsSource
-        if (current.reason.isBlank() || current.reason != current.reason.trim() || current.reason.length > 2_000) {
+        if (quantity >
+            source.physicalRemaining
+        ) {
+            return TransferValidationError.QuantityExceedsSource
+        }
+        if (current.reason.isBlank() || current.reason != current.reason.trim() ||
+            current.reason.length > 2_000
+        ) {
             return TransferValidationError.ReasonRequired
         }
         if (current.metadata != TransferMetadataStatus.Available) {
@@ -724,9 +815,9 @@ class StockTransferViewModel(
         current.sourceLots.singleOrNull { it.id == current.selectedSourceLotId }
             ?.takeIf(TransferSourceLotChoice::isSelectable)
 
-    private fun isEditable(): Boolean =
-        mutableState.value.command in setOf(TransferCommandStatus.Editing, TransferCommandStatus.Rejected) &&
-            !mutableState.value.intentCleanupPending
+    private fun isEditable(): Boolean = mutableState.value.command in
+        setOf(TransferCommandStatus.Editing, TransferCommandStatus.Rejected) &&
+        !mutableState.value.intentCleanupPending
 
     private fun isCurrent(
         requestGeneration: Long,
@@ -764,7 +855,9 @@ class StockTransferViewModel(
         TransferMetadataWrite.Unavailable
     }
 
-    private suspend fun safeLookup(operation: suspend () -> TransferLookupResult): TransferLookupResult = try {
+    private suspend fun safeLookup(
+        operation: suspend () -> TransferLookupResult
+    ): TransferLookupResult = try {
         operation()
     } catch (cancelled: CancellationException) {
         throw cancelled
@@ -772,7 +865,9 @@ class StockTransferViewModel(
         TransferLookupResult.ServiceUnavailable
     }
 
-    private suspend fun safeSubmit(operation: suspend () -> TransferSubmitResult): TransferSubmitResult = try {
+    private suspend fun safeSubmit(
+        operation: suspend () -> TransferSubmitResult
+    ): TransferSubmitResult = try {
         operation()
     } catch (cancelled: CancellationException) {
         throw cancelled
@@ -782,10 +877,15 @@ class StockTransferViewModel(
 
     private fun TransferLookupResult.toLookupStatus(): TransferLookupStatus = when (this) {
         TransferLookupResult.NetworkUnavailable -> TransferLookupStatus.NetworkUnavailable
+
         TransferLookupResult.ServiceUnavailable -> TransferLookupStatus.ServiceUnavailable
+
         TransferLookupResult.PermissionDenied -> TransferLookupStatus.PermissionDenied
+
         TransferLookupResult.ContextInvalidated -> TransferLookupStatus.ContextInvalidated
+
         TransferLookupResult.SessionInvalidated -> TransferLookupStatus.SessionInvalidated
+
         is TransferLookupResult.Lots,
         is TransferLookupResult.Warehouses,
         is TransferLookupResult.Zones -> TransferLookupStatus.ServiceUnavailable

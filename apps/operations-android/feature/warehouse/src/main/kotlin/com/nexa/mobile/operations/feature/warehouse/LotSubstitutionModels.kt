@@ -104,7 +104,8 @@ data class LotSubstitutionIntent(
 
     fun sameFrozenCommand(other: LotSubstitutionIntent): Boolean =
         scope == other.scope && idempotencyKey == other.idempotencyKey && work == other.work &&
-            alternativeLotId == other.alternativeLotId && reason == other.reason && frozenBody == other.frozenBody
+            alternativeLotId == other.alternativeLotId && reason == other.reason &&
+            frozenBody == other.frozenBody
 
     override fun toString(): String = "LotSubstitutionIntent(status=$status, key=REDACTED)"
 }
@@ -134,7 +135,8 @@ data class LotSubstitutionUiState(
 }
 
 sealed interface LotSubstitutionLookupResult {
-    data class Alternatives(val items: List<LotSubstitutionAlternative>) : LotSubstitutionLookupResult
+    data class Alternatives(val items: List<LotSubstitutionAlternative>) :
+        LotSubstitutionLookupResult
     data object NetworkUnavailable : LotSubstitutionLookupResult
     data object ServiceUnavailable : LotSubstitutionLookupResult
     data object PermissionDenied : LotSubstitutionLookupResult
@@ -185,8 +187,14 @@ enum class LotSubstitutionMetadataWrite { Saved, Unavailable }
 interface LotSubstitutionMetadataStore {
     suspend fun load(scope: PickingScopeIdentity): LotSubstitutionMetadataRead
     suspend fun freeze(intent: LotSubstitutionIntent): LotSubstitutionMetadataWrite
-    suspend fun markUnknown(scope: PickingScopeIdentity, idempotencyKey: String): LotSubstitutionMetadataWrite
-    suspend fun clear(scope: PickingScopeIdentity, idempotencyKey: String): LotSubstitutionMetadataWrite
+    suspend fun markUnknown(
+        scope: PickingScopeIdentity,
+        idempotencyKey: String
+    ): LotSubstitutionMetadataWrite
+    suspend fun clear(
+        scope: PickingScopeIdentity,
+        idempotencyKey: String
+    ): LotSubstitutionMetadataWrite
 }
 
 interface LotSubstitutionGateway {
@@ -213,7 +221,8 @@ internal fun LotSubstitutionWork?.isUsable(): Boolean {
         UUID_TEXT.matches(allocationLineId) && UUID_TEXT.matches(skuId) &&
         UUID_TEXT.matches(expectedLotId) && UUID_TEXT.matches(warehouseId) &&
         (zoneId == null || UUID_TEXT.matches(zoneId)) &&
-        catalogItemId.isNotBlank() && quantity.signum() > 0 && allocationVersion >= 0 && unit.isNotBlank()
+        catalogItemId.isNotBlank() && quantity.signum() > 0 && allocationVersion >= 0 &&
+        unit.isNotBlank()
 }
 
 internal fun LotSubstitutionAlternative?.isEligibleFor(work: LotSubstitutionWork?): Boolean {
@@ -222,7 +231,8 @@ internal fun LotSubstitutionAlternative?.isEligibleFor(work: LotSubstitutionWork
     return UUID_TEXT.matches(id) && id != work.expectedLotId &&
         warehouseId == work.warehouseId && skuId == work.skuId &&
         catalogItemId == work.catalogItemId && unit.equals(work.unit, ignoreCase = true) &&
-        status.equals("AVAILABLE", ignoreCase = true) && available >= (work.preparedQuantityText.toBigDecimalOrNull() ?: return false) &&
+        status.equals("AVAILABLE", ignoreCase = true) &&
+        available >= (work.preparedQuantityText.toBigDecimalOrNull() ?: return false) &&
         version >= 0 && batchNumber.isNotBlank() && expirationDate.isNotBlank()
 }
 

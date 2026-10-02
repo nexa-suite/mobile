@@ -79,7 +79,9 @@ fun OperationsWorkEntryScreen(
                     onClick = onChangeContext
                 )
             }
-            if (state.activeContext != null && state.workEntryStatus == WorkEntryStatus.TaskAvailable) {
+            if (state.activeContext != null &&
+                state.workEntryStatus == WorkEntryStatus.TaskAvailable
+            ) {
                 additionalWorkContent()
             }
             when (state.workEntryStatus) {
@@ -459,8 +461,10 @@ fun ProductScannerScreen(
                         color = NexaColors.TextSecondary
                     )
                     onViewStorage?.let { openStorage ->
-                        NexaPrimaryButton(label = "Consultar lotes y ubicación de este SKU",
-                            onClick = { openStorage(state.sku.skuId.toString()) })
+                        NexaPrimaryButton(
+                            label = "Consultar lotes y ubicación de este SKU",
+                            onClick = { openStorage(state.sku.skuId.toString()) }
+                        )
                     }
                     NexaPrimaryButton(
                         label = stringResource(R.string.warehouse_scanner_start_action),

@@ -53,26 +53,32 @@ fun PickingWorkListScreen(
 
             when (state.status) {
                 PickingWorkListStatus.Loading -> Text(stringResource(R.string.picking_work_loading))
+
                 PickingWorkListStatus.NetworkUnavailable -> Text(
                     stringResource(R.string.picking_work_network_error),
                     color = MaterialTheme.colorScheme.error
                 )
+
                 PickingWorkListStatus.ServiceUnavailable -> Text(
                     stringResource(R.string.picking_work_service_error),
                     color = MaterialTheme.colorScheme.error
                 )
+
                 PickingWorkListStatus.PermissionDenied -> Text(
                     stringResource(R.string.picking_work_permission_error),
                     color = MaterialTheme.colorScheme.error
                 )
+
                 PickingWorkListStatus.ContextInvalidated -> Text(
                     stringResource(R.string.warehouse_context_invalid_body),
                     color = MaterialTheme.colorScheme.error
                 )
+
                 PickingWorkListStatus.SessionInvalidated -> Text(
                     stringResource(R.string.warehouse_session_invalid_body),
                     color = MaterialTheme.colorScheme.error
                 )
+
                 PickingWorkListStatus.Ready -> {
                     Text(
                         stringResource(
@@ -85,7 +91,9 @@ fun PickingWorkListScreen(
                     if (state.items.isEmpty()) {
                         Text(stringResource(R.string.picking_work_empty))
                     } else {
-                        state.items.forEach { item -> PickingWorkItemCard(item, onSelectFulfillment) }
+                        state.items.forEach { item ->
+                            PickingWorkItemCard(item, onSelectFulfillment)
+                        }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -102,6 +110,7 @@ fun PickingWorkListScreen(
                         }
                     }
                 }
+
                 PickingWorkListStatus.NotRequested -> Unit
             }
 
@@ -117,10 +126,7 @@ fun PickingWorkListScreen(
 }
 
 @Composable
-private fun PickingWorkItemCard(
-    item: PickingWorkItem,
-    onSelectFulfillment: (String) -> Unit
-) {
+private fun PickingWorkItemCard(item: PickingWorkItem, onSelectFulfillment: (String) -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),

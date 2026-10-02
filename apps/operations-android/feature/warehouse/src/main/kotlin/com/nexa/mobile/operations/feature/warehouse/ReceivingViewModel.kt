@@ -26,7 +26,23 @@ enum class ReceivingLookupStatus {
     SessionInvalidated
 }
 
-enum class ReceivingMetadataStatus { Loading, Available, Saving, Unavailable }
+enum class ReceivingMetadataStatus {
+    Loading,
+    Available,
+    Saving,
+    Unavailable
+}
+
+enum class ReceivingEvidenceStatus {
+    None,
+    Uploading,
+    Checking,
+    AwaitingAvailability,
+    Available,
+    UnknownOutcome,
+    Rejected,
+    Unavailable
+}
 
 enum class ReceivingCommandStatus {
     Editing,
@@ -49,6 +65,7 @@ enum class ReceivingValidationError {
     QuantityInvalid,
     QuantityMustBePositive,
     TemperatureInvalid,
+    TemperatureEvidenceNotAvailable,
     UnitRequired,
     MetadataUnavailable
 }
@@ -70,6 +87,11 @@ data class ReceivingUiState(
     val quantityText: String = "",
     val unit: String = "",
     val temperatureReadingText: String = "",
+    val temperatureEvidenceObjectId: String? = null,
+    val temperatureEvidenceStatus: ReceivingEvidenceStatus = ReceivingEvidenceStatus.None,
+    val temperatureEvidenceFailureCode: String? = null,
+    val canUploadTemperatureEvidence: Boolean = false,
+    val canReadTemperatureEvidence: Boolean = false,
     val metadata: ReceivingMetadataStatus = ReceivingMetadataStatus.Loading,
     val command: ReceivingCommandStatus = ReceivingCommandStatus.Editing,
     val validationError: ReceivingValidationError? = null,
@@ -130,6 +152,10 @@ class ReceivingViewModel(
             authorityEpoch = currentAuthority.authorityEpoch,
             canLookUpWarehouses = currentAuthority.canLookUpWarehouses,
             canReceive = currentAuthority.canReceive,
+            canUploadTemperatureEvidence = currentAuthority.permissions.containsAll(
+                setOf("document.upload", "document.read")
+            ),
+            canReadTemperatureEvidence = "document.read" in currentAuthority.permissions,
             product = initialProduct?.reference,
             productVerifiedEpoch = initialProduct
                 ?.takeIf { it.verifiedAuthorityEpoch == currentAuthority.authorityEpoch }
@@ -171,7 +197,16 @@ class ReceivingViewModel(
                         batchNumber = restoredIntent.request.batchNumber,
                         expirationDateText = restoredIntent.request.expirationDate.toString(),
                         quantityText = restoredIntent.request.quantity.toPlainString(),
-                        unit = restoredIntent.request.unit
+                        unit = restoredIntent.request.unit,
+                        temperatureEvidenceObjectId =
+                            restoredIntent.request.temperatureEvidenceObjectId,
+                        temperatureEvidenceStatus = if (
+                            restoredIntent.request.temperatureEvidenceObjectId != null
+                        ) {
+                            ReceivingEvidenceStatus.UnknownOutcome
+                        } else {
+                            ReceivingEvidenceStatus.None
+                        }
                     )
                 } else {
                     current
@@ -228,6 +263,9 @@ class ReceivingViewModel(
             }
 
             if (!metadataAvailable) return@launch
+            if (mutableState.value.temperatureEvidenceObjectId != null) {
+                refreshTemperatureEvidence()
+            }
             if (restoredIntent != null &&
                 restoredIntent.status == ReceivingIntentMetadataStatus.Pending
             ) {
@@ -279,6 +317,9 @@ class ReceivingViewModel(
                 product = product.reference,
                 productVerifiedEpoch = product.verifiedAuthorityEpoch,
                 unit = product.reference.unit,
+                temperatureEvidenceObjectId = null,
+                temperatureEvidenceStatus = ReceivingEvidenceStatus.None,
+                temperatureEvidenceFailureCode = null,
                 validationError = null,
                 rejectionCode = null,
                 confirmedLot = null,
@@ -301,6 +342,17 @@ class ReceivingViewModel(
             it.copy(
                 selectedWarehouseId = warehouse.id,
                 selectedZoneId = null,
+                temperatureEvidenceObjectId = if (current.selectedWarehouseId == warehouse.id) {
+                    current.temperatureEvidenceObjectId
+                } else {
+                    null
+                },
+                temperatureEvidenceStatus = if (current.selectedWarehouseId == warehouse.id) {
+                    current.temperatureEvidenceStatus
+                } else {
+                    ReceivingEvidenceStatus.None
+                },
+                temperatureEvidenceFailureCode = null,
                 zones = emptyList(),
                 zoneLookup = ReceivingLookupStatus.Loading,
                 command = ReceivingCommandStatus.Editing,
@@ -371,8 +423,248 @@ class ReceivingViewModel(
 
     fun unitChanged(value: String) = updateDraft { it.copy(unit = value) }
 
-    fun temperatureReadingChanged(value: String) =
-        updateDraft { it.copy(temperatureReadingText = value) }
+    fun temperatureReadingChanged(value: String) = updateDraft {
+        it.copy(
+            temperatureReadingText = value,
+            temperatureEvidenceObjectId = null,
+            temperatureEvidenceStatus = ReceivingEvidenceStatus.None,
+            temperatureEvidenceFailureCode = null
+        )
+    }
+
+    fun temperatureEvidenceSelectionContext(): ReceivingEvidenceSelectionContext? {
+        val currentAuthority = authority ?: return null
+        val current = mutableState.value
+        val warehouseId = current.selectedWarehouseId ?: return null
+        if (!current.canReceive || !current.canUploadTemperatureEvidence ||
+            current.isIntentFrozen ||
+            current.warehouses.none { it.id == warehouseId && it.isSelectable }
+        ) {
+            return null
+        }
+        return ReceivingEvidenceSelectionContext(currentAuthority.scope, warehouseId)
+    }
+
+    /** Uploads a selected image against the exact active warehouse, then reads back its status. */
+    suspend fun uploadTemperatureEvidence(
+        candidate: ReceivingEvidenceCandidate,
+        selection: ReceivingEvidenceSelectionContext
+    ) {
+        val currentAuthority = authority ?: return
+        val current = mutableState.value
+        val warehouseId = current.selectedWarehouseId ?: return
+        if (selection.scope != currentAuthority.scope ||
+            selection.warehouseId != warehouseId
+        ) {
+            return
+        }
+        if (!canEdit() || !current.canReceive || !current.canUploadTemperatureEvidence ||
+            current.warehouses.none { it.id == warehouseId && it.isSelectable } ||
+            !candidate.file.isFile || candidate.byteSize <= 0 ||
+            candidate.file.length() != candidate.byteSize
+        ) {
+            mutableState.update {
+                it.copy(
+                    temperatureEvidenceStatus = if (current.canUploadTemperatureEvidence) {
+                        ReceivingEvidenceStatus.Rejected
+                    } else {
+                        ReceivingEvidenceStatus.Unavailable
+                    },
+                    temperatureEvidenceFailureCode = if (current.canUploadTemperatureEvidence) {
+                        "INVALID_EVIDENCE"
+                    } else {
+                        "PERMISSION_DENIED"
+                    }
+                )
+            }
+            return
+        }
+        val requestGeneration = generation
+        val uploadKey = UUID.randomUUID().toString()
+        mutableState.update {
+            it.copy(
+                temperatureEvidenceObjectId = null,
+                temperatureEvidenceStatus = ReceivingEvidenceStatus.Uploading,
+                temperatureEvidenceFailureCode = null
+            )
+        }
+        val upload = try {
+            gateway.uploadTemperatureEvidence(warehouseId, candidate, uploadKey, currentAuthority)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            ReceivingEvidenceResult.UnknownOutcome
+        }
+        if (!isCurrent(requestGeneration, currentAuthority.authorityEpoch) ||
+            mutableState.value.selectedWarehouseId != warehouseId
+        ) {
+            return
+        }
+        when (upload) {
+            is ReceivingEvidenceResult.Loaded -> {
+                if (!upload.evidence.matchesWarehouse(warehouseId)) {
+                    mutableState.update {
+                        it.copy(
+                            temperatureEvidenceStatus = ReceivingEvidenceStatus.Rejected,
+                            temperatureEvidenceFailureCode = "EVIDENCE_SUBJECT_MISMATCH"
+                        )
+                    }
+                    return
+                }
+                mutableState.update {
+                    it.copy(
+                        temperatureEvidenceObjectId = upload.evidence.id,
+                        temperatureEvidenceStatus = ReceivingEvidenceStatus.Checking,
+                        temperatureEvidenceFailureCode = null
+                    )
+                }
+                persistDraft()
+                checkTemperatureEvidence(
+                    upload.evidence.id,
+                    warehouseId,
+                    requestGeneration,
+                    currentAuthority
+                )
+            }
+
+            is ReceivingEvidenceResult.Rejected -> mutableState.update {
+                it.copy(
+                    temperatureEvidenceStatus = ReceivingEvidenceStatus.Rejected,
+                    temperatureEvidenceFailureCode = upload.code
+                )
+            }
+
+            ReceivingEvidenceResult.PermissionDenied -> setEvidenceStatus(
+                ReceivingEvidenceStatus.Unavailable,
+                "PERMISSION_DENIED"
+            )
+
+            ReceivingEvidenceResult.ContextInvalidated -> setEvidenceStatus(
+                ReceivingEvidenceStatus.Unavailable,
+                "CONTEXT_INVALIDATED"
+            )
+
+            ReceivingEvidenceResult.SessionInvalidated -> setEvidenceStatus(
+                ReceivingEvidenceStatus.Unavailable,
+                "SESSION_INVALIDATED"
+            )
+
+            ReceivingEvidenceResult.NetworkUnavailable,
+            ReceivingEvidenceResult.UnknownOutcome -> setEvidenceStatus(
+                ReceivingEvidenceStatus.UnknownOutcome,
+                null
+            )
+
+            ReceivingEvidenceResult.ServiceUnavailable -> setEvidenceStatus(
+                ReceivingEvidenceStatus.Unavailable,
+                null
+            )
+        }
+    }
+
+    /** Rechecks the server status for evidence that was previously uploaded or restored. */
+    fun refreshTemperatureEvidence() {
+        val currentAuthority = authority ?: return
+        val current = mutableState.value
+        val evidenceId = current.temperatureEvidenceObjectId ?: return
+        val warehouseId = current.selectedWarehouseId ?: return
+        if (!current.canReadTemperatureEvidence || current.isIntentFrozen) return
+        val requestGeneration = generation
+        mutableState.update {
+            it.copy(
+                temperatureEvidenceStatus = ReceivingEvidenceStatus.Checking,
+                temperatureEvidenceFailureCode = null
+            )
+        }
+        viewModelScope.launch {
+            checkTemperatureEvidence(evidenceId, warehouseId, requestGeneration, currentAuthority)
+        }
+    }
+
+    private suspend fun checkTemperatureEvidence(
+        evidenceId: String,
+        warehouseId: String,
+        requestGeneration: Long,
+        currentAuthority: ReceivingAuthority
+    ) {
+        val result = try {
+            gateway.temperatureEvidenceStatus(evidenceId, warehouseId, currentAuthority)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            ReceivingEvidenceResult.ServiceUnavailable
+        }
+        if (!isCurrent(requestGeneration, currentAuthority.authorityEpoch) ||
+            mutableState.value.selectedWarehouseId != warehouseId ||
+            mutableState.value.temperatureEvidenceObjectId != evidenceId
+        ) {
+            return
+        }
+        when (result) {
+            is ReceivingEvidenceResult.Loaded -> {
+                if (!result.evidence.matchesWarehouse(warehouseId) ||
+                    result.evidence.id != evidenceId
+                ) {
+                    setEvidenceStatus(ReceivingEvidenceStatus.Rejected, "EVIDENCE_SUBJECT_MISMATCH")
+                } else {
+                    val available = result.evidence.lifecycleStatus.equals(
+                        "AVAILABLE",
+                        ignoreCase = true
+                    )
+                    mutableState.update {
+                        it.copy(
+                            temperatureEvidenceStatus = if (available) {
+                                ReceivingEvidenceStatus.Available
+                            } else {
+                                ReceivingEvidenceStatus.AwaitingAvailability
+                            },
+                            temperatureEvidenceFailureCode = null
+                        )
+                    }
+                    persistDraft()
+                }
+            }
+
+            is ReceivingEvidenceResult.Rejected -> setEvidenceStatus(
+                ReceivingEvidenceStatus.Rejected,
+                result.code
+            )
+
+            ReceivingEvidenceResult.PermissionDenied -> setEvidenceStatus(
+                ReceivingEvidenceStatus.Unavailable,
+                "PERMISSION_DENIED"
+            )
+
+            ReceivingEvidenceResult.ContextInvalidated -> setEvidenceStatus(
+                ReceivingEvidenceStatus.Unavailable,
+                "CONTEXT_INVALIDATED"
+            )
+
+            ReceivingEvidenceResult.SessionInvalidated -> setEvidenceStatus(
+                ReceivingEvidenceStatus.Unavailable,
+                "SESSION_INVALIDATED"
+            )
+
+            ReceivingEvidenceResult.UnknownOutcome,
+            ReceivingEvidenceResult.NetworkUnavailable,
+            ReceivingEvidenceResult.ServiceUnavailable -> setEvidenceStatus(
+                ReceivingEvidenceStatus.Unavailable,
+                null
+            )
+        }
+    }
+
+    private fun setEvidenceStatus(status: ReceivingEvidenceStatus, code: String?) {
+        mutableState.update {
+            it.copy(
+                temperatureEvidenceStatus = status,
+                temperatureEvidenceFailureCode = code
+            )
+        }
+    }
+
+    private fun ReceivingEvidenceObject.matchesWarehouse(warehouseId: String): Boolean =
+        subjectType == "WAREHOUSE" && subjectId == warehouseId && id.isNotBlank()
 
     fun reloadWarehouses() {
         val currentAuthority = authority ?: return
@@ -679,6 +971,9 @@ class ReceivingViewModel(
                 expirationDateText = "",
                 quantityText = "",
                 temperatureReadingText = "",
+                temperatureEvidenceObjectId = null,
+                temperatureEvidenceStatus = ReceivingEvidenceStatus.None,
+                temperatureEvidenceFailureCode = null,
                 command = ReceivingCommandStatus.Editing,
                 confirmedLot = null,
                 validationError = null,
@@ -999,6 +1294,18 @@ class ReceivingViewModel(
                 return invalid(ReceivingValidationError.TemperatureInvalid)
             }
         }
+        if (temperatureEvidenceObjectId != null &&
+            temperatureEvidenceStatus != ReceivingEvidenceStatus.Available
+        ) {
+            return invalid(ReceivingValidationError.TemperatureEvidenceNotAvailable)
+        }
+        if (temperatureEvidenceStatus in setOf(
+                ReceivingEvidenceStatus.Uploading,
+                ReceivingEvidenceStatus.Checking
+            )
+        ) {
+            return invalid(ReceivingValidationError.TemperatureEvidenceNotAvailable)
+        }
         val selectedUnit = unit.takeIf { it.isNotBlank() }
             ?: return invalid(ReceivingValidationError.UnitRequired)
         return InboundReceiptRequest(
@@ -1010,7 +1317,8 @@ class ReceivingViewModel(
             expirationDate = expiry,
             quantity = quantity,
             unit = selectedUnit,
-            temperatureReading = temperature
+            temperatureReading = temperature,
+            temperatureEvidenceObjectId = temperatureEvidenceObjectId
         )
     }
 
@@ -1022,7 +1330,8 @@ class ReceivingViewModel(
         expirationDateText = expirationDateText,
         quantityText = quantityText,
         unit = unit,
-        temperatureReadingText = temperatureReadingText
+        temperatureReadingText = temperatureReadingText,
+        temperatureEvidenceObjectId = temperatureEvidenceObjectId
     )
 
     private fun ReceivingDraftMetadata.toUiState(
@@ -1041,6 +1350,19 @@ class ReceivingViewModel(
             unit = request?.unit ?: unit,
             temperatureReadingText = request?.temperatureReading?.toPlainString()
                 ?: temperatureReadingText,
+            temperatureEvidenceObjectId = request?.temperatureEvidenceObjectId
+                ?: temperatureEvidenceObjectId,
+            temperatureEvidenceStatus = when {
+                request?.temperatureEvidenceObjectId != null ->
+                    ReceivingEvidenceStatus.UnknownOutcome
+
+                temperatureEvidenceObjectId != null && !current.canReadTemperatureEvidence ->
+                    ReceivingEvidenceStatus.Unavailable
+
+                temperatureEvidenceObjectId != null -> ReceivingEvidenceStatus.Checking
+
+                else -> ReceivingEvidenceStatus.None
+            },
             productVerifiedEpoch = null
         )
     }

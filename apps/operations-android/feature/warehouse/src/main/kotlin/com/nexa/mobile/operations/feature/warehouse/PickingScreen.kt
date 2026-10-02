@@ -220,9 +220,17 @@ fun PickingScreen(
                                     ) {
                                         Text(stringResource(R.string.picking_offer_select))
                                     }
-                                    if (onProposeLotSubstitution != null && offer?.isPickable == true) {
-                                        OutlinedButton(onClick = { onProposeLotSubstitution(line.physicalAllocationLineId) },
-                                            enabled = canEdit(state)) {
+                                    if (onProposeLotSubstitution != null &&
+                                        offer?.isPickable == true
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                onProposeLotSubstitution(
+                                                    line.physicalAllocationLineId
+                                                )
+                                            },
+                                            enabled = canEdit(state)
+                                        ) {
                                             Text("Proponer sustitución razonada de este lote")
                                         }
                                     }

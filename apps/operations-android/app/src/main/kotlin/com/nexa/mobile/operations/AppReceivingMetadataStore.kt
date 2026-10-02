@@ -56,7 +56,8 @@ internal class AppReceivingMetadataStore(private val local: LocalMetadataStore) 
                         expirationDateText = draft.expirationDateText,
                         quantityText = draft.quantityText,
                         unit = draft.unit,
-                        temperatureReadingText = draft.temperatureReadingText
+                        temperatureReadingText = draft.temperatureReadingText,
+                        temperatureEvidenceObjectId = draft.temperatureEvidenceObjectId
                     )
                 }
             )
@@ -83,7 +84,8 @@ internal class AppReceivingMetadataStore(private val local: LocalMetadataStore) 
             expirationDateText = draft.expirationDateText,
             quantityText = draft.quantityText,
             unit = draft.unit,
-            temperatureReadingText = draft.temperatureReadingText
+            temperatureReadingText = draft.temperatureReadingText,
+            temperatureEvidenceObjectId = draft.temperatureEvidenceObjectId
         )
     ).toFeatureResult()
 
@@ -149,7 +151,8 @@ private fun ReceivingIntentMetadata.toLocalIntent(): ReceivingIntentMetadataReco
             quantity = request.quantity.toPlainString(),
             unit = request.unit,
             temperatureReading = request.temperatureReading?.toPlainString(),
-            notes = request.notes
+            notes = request.notes,
+            temperatureEvidenceObjectId = request.temperatureEvidenceObjectId
         ),
         status = when (status) {
             ReceivingIntentMetadataStatus.Pending -> ReceivingIntentStatus.Pending
@@ -176,7 +179,8 @@ private fun ReceivingIntentMetadataRecord.toFeatureIntentOrNull(): ReceivingInte
             quantity = BigDecimal(payload.quantity),
             unit = payload.unit,
             temperatureReading = payload.temperatureReading?.let { BigDecimal(it) },
-            notes = payload.notes
+            notes = payload.notes,
+            temperatureEvidenceObjectId = payload.temperatureEvidenceObjectId
         ),
         status = when (status) {
             ReceivingIntentStatus.Pending -> ReceivingIntentMetadataStatus.Pending

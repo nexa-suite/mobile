@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -30,7 +31,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -63,7 +63,9 @@ fun TemperatureEvidenceScreen(
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            TextButton(onClick = onBack) { Text(stringResource(R.string.temperature_evidence_back)) }
+            TextButton(onClick = onBack) {
+                Text(stringResource(R.string.temperature_evidence_back))
+            }
             Text(
                 text = stringResource(R.string.temperature_evidence_title),
                 style = MaterialTheme.typography.headlineSmall,
@@ -76,7 +78,9 @@ fun TemperatureEvidenceScreen(
             )
             TemperatureNotice(state)
 
-            TemperatureSection(title = stringResource(R.string.temperature_evidence_subject_title)) {
+            TemperatureSection(
+                title = stringResource(R.string.temperature_evidence_subject_title)
+            ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
                         onClick = { onSubjectTypeChanged(TemperatureEvidenceSubjectType.LOT) },
@@ -93,7 +97,9 @@ fun TemperatureEvidenceScreen(
                         )
                     }
                     OutlinedButton(
-                        onClick = { onSubjectTypeChanged(TemperatureEvidenceSubjectType.WAREHOUSE) },
+                        onClick = {
+                            onSubjectTypeChanged(TemperatureEvidenceSubjectType.WAREHOUSE)
+                        },
                         enabled = editable(state)
                     ) {
                         Text(
@@ -130,7 +136,8 @@ fun TemperatureEvidenceScreen(
                             .fillMaxWidth()
                             .clickable(enabled = editable(state)) { onSelectSubject(subject) }
                             .semantics {
-                                contentDescription = "${subject.primaryLabel} ${subject.detailLabel}"
+                                contentDescription =
+                                    "${subject.primaryLabel} ${subject.detailLabel}"
                             },
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(
@@ -169,7 +176,9 @@ fun TemperatureEvidenceScreen(
                 )
             }
 
-            TemperatureSection(title = stringResource(R.string.temperature_evidence_reading_title)) {
+            TemperatureSection(
+                title = stringResource(R.string.temperature_evidence_reading_title)
+            ) {
                 OutlinedTextField(
                     value = state.valueText,
                     onValueChange = onValueChanged,
@@ -199,7 +208,9 @@ fun TemperatureEvidenceScreen(
                     enabled = editable(state),
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.temperature_evidence_time)) },
-                    supportingText = { Text(stringResource(R.string.temperature_evidence_time_help)) },
+                    supportingText = {
+                        Text(stringResource(R.string.temperature_evidence_time_help))
+                    },
                     singleLine = true
                 )
                 state.validationError?.let { error ->
@@ -210,7 +221,9 @@ fun TemperatureEvidenceScreen(
                 }
             }
 
-            TemperatureSection(title = stringResource(R.string.temperature_evidence_actions_title)) {
+            TemperatureSection(
+                title = stringResource(R.string.temperature_evidence_actions_title)
+            ) {
                 Button(
                     onClick = onStageAndRecord,
                     enabled = state.canRecord && editable(state) &&
@@ -221,7 +234,8 @@ fun TemperatureEvidenceScreen(
                 }
                 OutlinedButton(
                     onClick = onSaveDraft,
-                    enabled = editable(state) && state.metadata == TemperatureMetadataStatus.Available,
+                    enabled =
+                        editable(state) && state.metadata == TemperatureMetadataStatus.Available,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(stringResource(R.string.temperature_evidence_save_draft))
@@ -236,7 +250,10 @@ fun TemperatureEvidenceScreen(
                     }
                 }
                 if (state.intentCleanupPending) {
-                    OutlinedButton(onClick = onRetryIntentCleanup, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = onRetryIntentCleanup,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Text(stringResource(R.string.temperature_evidence_retry_cleanup))
                     }
                 }
@@ -245,7 +262,10 @@ fun TemperatureEvidenceScreen(
                         TemperatureCommandStatus.Rejected
                     ) && !state.intentCleanupPending
                 ) {
-                    OutlinedButton(onClick = onStartAnotherReading, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = onStartAnotherReading,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Text(stringResource(R.string.temperature_evidence_new_reading))
                     }
                 }
@@ -290,7 +310,11 @@ private fun TemperatureSection(title: String, content: @Composable () -> Unit) {
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium
+            )
             content()
         }
     }
@@ -303,17 +327,26 @@ private fun TemperatureNotice(state: TemperatureEvidenceUiState) {
     if (confirmed != null) {
         Card(
             colors = CardDefaults.cardColors(
-                containerColor = if (isConcerning) MaterialTheme.colorScheme.errorContainer
-                else MaterialTheme.colorScheme.secondaryContainer
+                containerColor = if (isConcerning) {
+                    MaterialTheme.colorScheme.errorContainer
+                } else {
+                    MaterialTheme.colorScheme.secondaryContainer
+                }
             ),
             shape = RoundedCornerShape(12.dp)
         ) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     stringResource(
-                        if (isConcerning) R.string.temperature_evidence_out_of_range
-                        else if (confirmed.status == "UNKNOWN") R.string.temperature_evidence_range_unknown
-                        else R.string.temperature_evidence_recorded
+                        if (isConcerning) {
+                            R.string.temperature_evidence_out_of_range
+                        } else if (confirmed.status ==
+                            "UNKNOWN"
+                        ) {
+                            R.string.temperature_evidence_range_unknown
+                        } else {
+                            R.string.temperature_evidence_recorded
+                        }
                     ),
                     fontWeight = FontWeight.SemiBold
                 )
@@ -329,10 +362,13 @@ private fun TemperatureNotice(state: TemperatureEvidenceUiState) {
         )
     }
     state.notice?.let { notice ->
-        TemperatureMessage(stringResource(notice.message()), error = notice !in setOf(
-            TemperatureSubmitNotice.NetworkUnavailable,
-            TemperatureSubmitNotice.ServiceUnavailable
-        ))
+        TemperatureMessage(
+            stringResource(notice.message()),
+            error = notice !in setOf(
+                TemperatureSubmitNotice.NetworkUnavailable,
+                TemperatureSubmitNotice.ServiceUnavailable
+            )
+        )
     }
     if (state.command == TemperatureCommandStatus.Rejected) {
         TemperatureMessage(
@@ -341,7 +377,10 @@ private fun TemperatureNotice(state: TemperatureEvidenceUiState) {
         )
     }
     if (state.metadata == TemperatureMetadataStatus.Unavailable) {
-        TemperatureMessage(stringResource(R.string.temperature_evidence_metadata_unavailable), error = true)
+        TemperatureMessage(
+            stringResource(R.string.temperature_evidence_metadata_unavailable),
+            error = true
+        )
     }
 }
 
@@ -350,7 +389,9 @@ private fun TemperatureConfirmation(facts: TemperatureEvidenceFacts) {
     TemperatureSection(title = stringResource(R.string.temperature_evidence_confirmation_title)) {
         Text("${facts.value.toPlainString()} ${facts.unit.name}", fontWeight = FontWeight.SemiBold)
         Text("${facts.subjectType.name} · ${facts.subjectId}")
-        facts.warehouseId?.let { Text(stringResource(R.string.temperature_evidence_warehouse_fact, it)) }
+        facts.warehouseId?.let {
+            Text(stringResource(R.string.temperature_evidence_warehouse_fact, it))
+        }
         Text(stringResource(R.string.temperature_evidence_time_fact, facts.occurredAt))
         Text(stringResource(R.string.temperature_evidence_actor_fact, facts.actorMembershipId))
         Text(stringResource(R.string.temperature_evidence_status_fact, facts.status, facts.source))
@@ -361,7 +402,11 @@ private fun TemperatureConfirmation(facts: TemperatureEvidenceFacts) {
 private fun TemperatureMessage(text: String, error: Boolean) {
     Text(
         text,
-        color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (error) {
+            MaterialTheme.colorScheme.error
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
         style = MaterialTheme.typography.bodyMedium
     )
 }
@@ -387,19 +432,32 @@ private fun editable(state: TemperatureEvidenceUiState): Boolean =
 
 private fun TemperatureValidationError.message(): Int = when (this) {
     TemperatureValidationError.SubjectRequired -> R.string.temperature_evidence_error_subject
+
     TemperatureValidationError.UnitRequired -> R.string.temperature_evidence_error_unit
+
     TemperatureValidationError.ValueRequired -> R.string.temperature_evidence_error_value
+
     TemperatureValidationError.ValueInvalid -> R.string.temperature_evidence_error_value_invalid
+
     TemperatureValidationError.TimeRequired -> R.string.temperature_evidence_error_time
+
     TemperatureValidationError.TimeInvalid -> R.string.temperature_evidence_error_time_invalid
-    TemperatureValidationError.MetadataUnavailable -> R.string.temperature_evidence_metadata_unavailable
+
+    TemperatureValidationError.MetadataUnavailable ->
+        R.string.temperature_evidence_metadata_unavailable
 }
 
 private fun TemperatureSubmitNotice.message(): Int = when (this) {
     TemperatureSubmitNotice.NetworkUnavailable -> R.string.temperature_evidence_notice_network
+
     TemperatureSubmitNotice.ServiceUnavailable -> R.string.temperature_evidence_notice_service
+
     TemperatureSubmitNotice.PermissionDenied -> R.string.temperature_evidence_notice_permission
+
     TemperatureSubmitNotice.ContextInvalidated -> R.string.temperature_evidence_notice_context
+
     TemperatureSubmitNotice.SessionInvalidated -> R.string.temperature_evidence_notice_session
-    TemperatureSubmitNotice.IntentMetadataUnavailable -> R.string.temperature_evidence_metadata_unavailable
+
+    TemperatureSubmitNotice.IntentMetadataUnavailable ->
+        R.string.temperature_evidence_metadata_unavailable
 }

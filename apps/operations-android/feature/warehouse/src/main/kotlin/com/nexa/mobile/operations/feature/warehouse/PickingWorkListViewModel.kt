@@ -8,9 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /** Loads only current server work and drops responses after authority or route changes. */
-class PickingWorkListViewModel(
-    private val gateway: PickingWorkListGateway
-) : ViewModel() {
+class PickingWorkListViewModel(private val gateway: PickingWorkListGateway) : ViewModel() {
     private val mutableState = MutableStateFlow(PickingWorkListUiState())
     val state = mutableState.asStateFlow()
 
@@ -32,7 +30,9 @@ class PickingWorkListViewModel(
 
     fun reload() {
         val currentAuthority = authority ?: return
-        if (currentAuthority.canRead && mutableState.value.status != PickingWorkListStatus.Loading) {
+        if (currentAuthority.canRead &&
+            mutableState.value.status != PickingWorkListStatus.Loading
+        ) {
             generation++
             loadPage(mutableState.value.page, currentAuthority, generation)
         }
@@ -90,11 +90,30 @@ class PickingWorkListViewModel(
                     asOf = result.value.asOf
                 )
 
-                PickingWorkListResult.NetworkUnavailable -> failure(PickingWorkListStatus.NetworkUnavailable, page)
-                PickingWorkListResult.ServiceUnavailable -> failure(PickingWorkListStatus.ServiceUnavailable, page)
-                PickingWorkListResult.PermissionDenied -> failure(PickingWorkListStatus.PermissionDenied, page)
-                PickingWorkListResult.ContextInvalidated -> failure(PickingWorkListStatus.ContextInvalidated, page)
-                PickingWorkListResult.SessionInvalidated -> failure(PickingWorkListStatus.SessionInvalidated, page)
+                PickingWorkListResult.NetworkUnavailable -> failure(
+                    PickingWorkListStatus.NetworkUnavailable,
+                    page
+                )
+
+                PickingWorkListResult.ServiceUnavailable -> failure(
+                    PickingWorkListStatus.ServiceUnavailable,
+                    page
+                )
+
+                PickingWorkListResult.PermissionDenied -> failure(
+                    PickingWorkListStatus.PermissionDenied,
+                    page
+                )
+
+                PickingWorkListResult.ContextInvalidated -> failure(
+                    PickingWorkListStatus.ContextInvalidated,
+                    page
+                )
+
+                PickingWorkListResult.SessionInvalidated -> failure(
+                    PickingWorkListStatus.SessionInvalidated,
+                    page
+                )
             }
         }
     }

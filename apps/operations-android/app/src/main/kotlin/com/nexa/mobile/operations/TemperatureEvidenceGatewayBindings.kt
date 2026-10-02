@@ -9,13 +9,13 @@ import com.nexa.mobile.operations.core.auth.session.VerifiedSession
 import com.nexa.mobile.operations.core.network.NexaReceivingGateway
 import com.nexa.mobile.operations.core.network.NexaStockConditionGateway
 import com.nexa.mobile.operations.core.network.NexaTemperatureEvidenceGateway
+import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.core.network.ReceivingNetworkOutcome
-import com.nexa.mobile.operations.core.network.StockConditionNetworkOutcome
+import com.nexa.mobile.operations.core.network.StockConditionNetworkOutcome as StockConditionOutcome
 import com.nexa.mobile.operations.core.network.TemperatureEvidenceCommandWire
-import com.nexa.mobile.operations.core.network.TemperatureEvidenceNetworkOutcome
+import com.nexa.mobile.operations.core.network.TemperatureEvidenceNetworkOutcome as TemperatureEvidenceOutcome
 import com.nexa.mobile.operations.core.network.TemperatureSubjectTypeWire
 import com.nexa.mobile.operations.core.network.TemperatureUnitWire
-import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidenceAuthority
 import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidenceFacts
 import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidenceGateway
@@ -31,6 +31,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -58,7 +59,15 @@ internal class OperationsTemperatureEvidenceGateway @Inject constructor(
         } catch (_: Exception) {
             TemperatureLookupResult.ServiceUnavailable
         }
-        return if (currentAfter(authority, before.lease)) result else authorityDriftLookup(authority)
+        return if (currentAfter(
+                authority,
+                before.lease
+            )
+        ) {
+            result
+        } else {
+            authorityDriftLookup(authority)
+        }
     }
 
     override suspend fun record(
@@ -73,7 +82,9 @@ internal class OperationsTemperatureEvidenceGateway @Inject constructor(
                 TemperatureEvidenceCommandWire(
                     subjectType = when (payload.subjectType) {
                         TemperatureEvidenceSubjectType.LOT -> TemperatureSubjectTypeWire.LOT
-                        TemperatureEvidenceSubjectType.WAREHOUSE -> TemperatureSubjectTypeWire.WAREHOUSE
+
+                        TemperatureEvidenceSubjectType.WAREHOUSE ->
+                            TemperatureSubjectTypeWire.WAREHOUSE
                     },
                     subjectId = payload.subjectId,
                     value = payload.value,
@@ -81,7 +92,7 @@ internal class OperationsTemperatureEvidenceGateway @Inject constructor(
                         TemperatureEvidenceUnit.CELSIUS -> TemperatureUnitWire.CELSIUS
                         TemperatureEvidenceUnit.FAHRENHEIT -> TemperatureUnitWire.FAHRENHEIT
                     },
-                    occurredAt = java.time.Instant.parse(payload.occurredAt)
+                    occurredAt = Instant.parse(payload.occurredAt)
                 ),
                 idempotencyKey,
                 authority.membershipId
@@ -91,11 +102,17 @@ internal class OperationsTemperatureEvidenceGateway @Inject constructor(
         } catch (_: Exception) {
             TemperatureSubmitResult.UnknownOutcome
         }
-        return if (currentAfter(authority, before.lease)) result else when (
-            authorityDriftLookup(authority)
-        ) {
-            TemperatureLookupResult.SessionInvalidated -> TemperatureSubmitResult.SessionInvalidated
-            else -> TemperatureSubmitResult.ContextInvalidated
+        return if (currentAfter(authority, before.lease)) {
+            result
+        } else {
+            when (
+                authorityDriftLookup(authority)
+            ) {
+                TemperatureLookupResult.SessionInvalidated ->
+                    TemperatureSubmitResult.SessionInvalidated
+
+                else -> TemperatureSubmitResult.ContextInvalidated
+            }
         }
     }
 
@@ -103,14 +120,21 @@ internal class OperationsTemperatureEvidenceGateway @Inject constructor(
         authority: TemperatureEvidenceAuthority,
         permissions: Set<String>
     ): Authorization {
-        if (sessions.sessionState.value != SessionState.Active) return Authorization.SessionInvalidated
+        if (sessions.sessionState.value !=
+            SessionState.Active
+        ) {
+            return Authorization.SessionInvalidated
+        }
         val lease = sessions.currentAccess() ?: return Authorization.SessionInvalidated
         val verified = sessions.verifiedSession.value ?: return Authorization.ContextInvalidated
         if (authority.authorityEpoch <= 0 || !verified.matches(authority)) {
             return Authorization.ContextInvalidated
         }
-        return if (authority.permissions.any(permissions::contains)) Authorization.Current(lease)
-        else Authorization.PermissionDenied
+        return if (authority.permissions.any(permissions::contains)) {
+            Authorization.Current(lease)
+        } else {
+            Authorization.PermissionDenied
+        }
     }
 
     private suspend fun currentAfter(
@@ -119,16 +143,21 @@ internal class OperationsTemperatureEvidenceGateway @Inject constructor(
     ): Boolean {
         if (sessions.sessionState.value != SessionState.Active ||
             !sessions.isEpochCurrent(originalLease.epoch)
-        ) return false
+        ) {
+            return false
+        }
         return sessions.verifiedSession.value?.matches(authority) == true
     }
 
     private suspend fun authorityDriftLookup(
         authority: TemperatureEvidenceAuthority
     ): TemperatureLookupResult = when {
-        sessions.sessionState.value != SessionState.Active -> TemperatureLookupResult.SessionInvalidated
+        sessions.sessionState.value != SessionState.Active ->
+            TemperatureLookupResult.SessionInvalidated
+
         sessions.verifiedSession.value?.matches(authority) == true ->
             TemperatureLookupResult.SessionInvalidated
+
         else -> TemperatureLookupResult.ContextInvalidated
     }
 
@@ -164,14 +193,18 @@ internal class OperationsTemperatureEvidenceGateway @Inject constructor(
         )
 
         ReceivingNetworkOutcome.NetworkUnavailable -> TemperatureLookupResult.NetworkUnavailable
+
         ReceivingNetworkOutcome.PermissionDenied -> TemperatureLookupResult.PermissionDenied
+
         ReceivingNetworkOutcome.ContextInvalidated -> TemperatureLookupResult.ContextInvalidated
+
         ReceivingNetworkOutcome.SessionInvalidated -> TemperatureLookupResult.SessionInvalidated
+
         else -> TemperatureLookupResult.ServiceUnavailable
     }
 
-    private fun StockConditionNetworkOutcome.toSubjects(): TemperatureLookupResult = when (this) {
-        is StockConditionNetworkOutcome.Lots -> TemperatureLookupResult.Subjects(
+    private fun StockConditionOutcome.toSubjects(): TemperatureLookupResult = when (this) {
+        is StockConditionOutcome.Lots -> TemperatureLookupResult.Subjects(
             items.map {
                 TemperatureEvidenceSubject(
                     id = it.id,
@@ -183,21 +216,30 @@ internal class OperationsTemperatureEvidenceGateway @Inject constructor(
             }
         )
 
-        StockConditionNetworkOutcome.NetworkUnavailable -> TemperatureLookupResult.NetworkUnavailable
-        StockConditionNetworkOutcome.PermissionDenied -> TemperatureLookupResult.PermissionDenied
-        StockConditionNetworkOutcome.ContextInvalidated -> TemperatureLookupResult.ContextInvalidated
-        StockConditionNetworkOutcome.SessionInvalidated -> TemperatureLookupResult.SessionInvalidated
+        StockConditionOutcome.NetworkUnavailable ->
+            TemperatureLookupResult.NetworkUnavailable
+
+        StockConditionOutcome.PermissionDenied -> TemperatureLookupResult.PermissionDenied
+
+        StockConditionOutcome.ContextInvalidated ->
+            TemperatureLookupResult.ContextInvalidated
+
+        StockConditionOutcome.SessionInvalidated ->
+            TemperatureLookupResult.SessionInvalidated
+
         else -> TemperatureLookupResult.ServiceUnavailable
     }
 
-    private fun TemperatureEvidenceNetworkOutcome.toFeatureResult(): TemperatureSubmitResult =
+    private fun TemperatureEvidenceOutcome.toFeatureResult(): TemperatureSubmitResult =
         when (this) {
-            is TemperatureEvidenceNetworkOutcome.Confirmed -> TemperatureSubmitResult.Confirmed(
+            is TemperatureEvidenceOutcome.Confirmed -> TemperatureSubmitResult.Confirmed(
                 TemperatureEvidenceFacts(
                     id = response.id,
                     subjectType = when (response.subjectType) {
                         TemperatureSubjectTypeWire.LOT -> TemperatureEvidenceSubjectType.LOT
-                        TemperatureSubjectTypeWire.WAREHOUSE -> TemperatureEvidenceSubjectType.WAREHOUSE
+
+                        TemperatureSubjectTypeWire.WAREHOUSE ->
+                            TemperatureEvidenceSubjectType.WAREHOUSE
                     },
                     subjectId = response.subjectId,
                     lotId = response.lotId,
@@ -214,13 +256,23 @@ internal class OperationsTemperatureEvidenceGateway @Inject constructor(
                 )
             )
 
-            is TemperatureEvidenceNetworkOutcome.Rejected -> TemperatureSubmitResult.Rejected(code)
-            TemperatureEvidenceNetworkOutcome.UnknownOutcome,
-            TemperatureEvidenceNetworkOutcome.NetworkUnavailable -> TemperatureSubmitResult.UnknownOutcome
-            TemperatureEvidenceNetworkOutcome.ServiceUnavailable -> TemperatureSubmitResult.ServiceUnavailable
-            TemperatureEvidenceNetworkOutcome.PermissionDenied -> TemperatureSubmitResult.PermissionDenied
-            TemperatureEvidenceNetworkOutcome.ContextInvalidated -> TemperatureSubmitResult.ContextInvalidated
-            TemperatureEvidenceNetworkOutcome.SessionInvalidated -> TemperatureSubmitResult.SessionInvalidated
+            is TemperatureEvidenceOutcome.Rejected -> TemperatureSubmitResult.Rejected(code)
+
+            TemperatureEvidenceOutcome.UnknownOutcome,
+            TemperatureEvidenceOutcome.NetworkUnavailable ->
+                TemperatureSubmitResult.UnknownOutcome
+
+            TemperatureEvidenceOutcome.ServiceUnavailable ->
+                TemperatureSubmitResult.ServiceUnavailable
+
+            TemperatureEvidenceOutcome.PermissionDenied ->
+                TemperatureSubmitResult.PermissionDenied
+
+            TemperatureEvidenceOutcome.ContextInvalidated ->
+                TemperatureSubmitResult.ContextInvalidated
+
+            TemperatureEvidenceOutcome.SessionInvalidated ->
+                TemperatureSubmitResult.SessionInvalidated
         }
 
     private sealed interface Authorization {
@@ -254,6 +306,7 @@ internal class TemperatureEvidenceGatewayBindings @Inject constructor(
 internal object TemperatureEvidenceGatewayModule {
     @Provides
     @Singleton
-    fun temperatureEvidenceGateway(protectedCalls: ProtectedCallExecutor):
-        NexaTemperatureEvidenceGateway = NexaTemperatureEvidenceGateway(protectedCalls)
+    fun temperatureEvidenceGateway(
+        protectedCalls: ProtectedCallExecutor
+    ): NexaTemperatureEvidenceGateway = NexaTemperatureEvidenceGateway(protectedCalls)
 }

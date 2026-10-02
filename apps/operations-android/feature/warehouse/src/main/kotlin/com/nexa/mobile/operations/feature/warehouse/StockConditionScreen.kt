@@ -19,18 +19,18 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -50,8 +50,11 @@ fun StockConditionScreen(
     identifiedSkuId: String? = null
 ) {
     var storageReference by remember(state.authorityEpoch) { mutableStateOf("") }
-    val visibleLots = if (identifiedSkuId == null) state.lots else
+    val visibleLots = if (identifiedSkuId == null) {
+        state.lots
+    } else {
         state.lots.filter { it.skuId.equals(identifiedSkuId, ignoreCase = true) }
+    }
     val closeAction = rememberUpdatedState(onRouteClosed)
     DisposableEffect(Unit) {
         onDispose { closeAction.value() }
@@ -95,13 +98,30 @@ fun StockConditionScreen(
                 }
             }
             item {
-                identifiedSkuId?.let { Text("Identidad de Catálogo confirmada: SKU $it. Consulta de lotes actuales autorizados; ningún código confirma cantidades físicas.") }
-                OutlinedTextField(storageReference, { storageReference = it }, label = { Text("Referencia manual de lote") }, singleLine = true)
-                OutlinedButton(onClick = { onSelectLot(storageReference.trim()) }, enabled = runCatching { java.util.UUID.fromString(storageReference.trim()) }.isSuccess) {
+                identifiedSkuId?.let {
+                    Text(
+                        "Identidad de Catálogo confirmada: SKU $it. Consulta de lotes actuales autorizados; ningún código confirma cantidades físicas."
+                    )
+                }
+                OutlinedTextField(storageReference, {
+                    storageReference = it
+                }, label = { Text("Referencia manual de lote") }, singleLine = true)
+                OutlinedButton(
+                    onClick = {
+                        onSelectLot(storageReference.trim())
+                    },
+                    enabled = runCatching {
+                        java.util.UUID.fromString(storageReference.trim())
+                    }.isSuccess
+                ) {
                     Text("Confirmar lote y ubicación con el servidor")
                 }
-                if (identifiedSkuId != null && state.status == StockConditionStatus.Current && visibleLots.isEmpty()) {
-                    Text("No hay lotes autorizados de este SKU en la consulta actual. Usa una referencia de lote para confirmación; no se infiere una ubicación desde el código.")
+                if (identifiedSkuId != null && state.status == StockConditionStatus.Current &&
+                    visibleLots.isEmpty()
+                ) {
+                    Text(
+                        "No hay lotes autorizados de este SKU en la consulta actual. Usa una referencia de lote para confirmación; no se infiere una ubicación desde el código."
+                    )
                 }
             }
             if (state.status == StockConditionStatus.Loading) {
@@ -130,14 +150,19 @@ fun StockConditionScreen(
             }
             if (state.selectedLotId != null) {
                 item {
-                    if (identifiedSkuId != null && state.detailStatus == StockConditionDetailStatus.Current &&
-                        state.selectedLot?.skuId?.equals(identifiedSkuId, ignoreCase = true) != true) {
-                        Text("El lote consultado no corresponde al SKU escaneado. Confirma la identidad antes de realizar trabajo físico.")
+                    if (identifiedSkuId != null &&
+                        state.detailStatus == StockConditionDetailStatus.Current &&
+                        state.selectedLot?.skuId?.equals(identifiedSkuId, ignoreCase = true) != true
+                    ) {
+                        Text(
+                            "El lote consultado no corresponde al SKU escaneado. Confirma la identidad antes de realizar trabajo físico."
+                        )
                     }
                     SelectedLotPanel(state)
                 }
                 val confirmedLot = state.selectedLot
-                if (confirmedLot != null && state.detailStatus == StockConditionDetailStatus.Current &&
+                if (confirmedLot != null &&
+                    state.detailStatus == StockConditionDetailStatus.Current &&
                     onDisposition != null
                 ) {
                     item {

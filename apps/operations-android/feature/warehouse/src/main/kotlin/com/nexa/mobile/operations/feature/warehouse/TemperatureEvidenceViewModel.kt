@@ -15,8 +15,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-enum class TemperatureMetadataStatus { Loading, Available, Unavailable }
-enum class TemperatureCommandStatus { Editing, PersistingIntent, Pending, UnknownOutcome, Confirmed, Rejected }
+enum class TemperatureMetadataStatus {
+    Loading,
+    Available,
+    Unavailable
+}
+enum class TemperatureCommandStatus {
+    Editing,
+    PersistingIntent,
+    Pending,
+    UnknownOutcome,
+    Confirmed,
+    Rejected
+}
 enum class TemperatureValidationError {
     SubjectRequired,
     UnitRequired,
@@ -119,22 +130,33 @@ class TemperatureEvidenceViewModel(
             val restored = restoredIntent?.payload
             mutableState.update { current ->
                 current.copy(
-                    subjectType = restored?.subjectType ?: draft?.subjectType ?: current.subjectType,
+                    subjectType =
+                        restored?.subjectType ?: draft?.subjectType ?: current.subjectType,
                     subjectId = restored?.subjectId ?: draft?.subjectId.orEmpty(),
                     valueText = restored?.value ?: draft?.value.orEmpty(),
                     unit = restored?.unit ?: draft?.unit ?: current.unit,
                     occurredAtText = restored?.occurredAt ?: draft?.occurredAt.orEmpty(),
                     selectedSubjectLabel = null,
-                    metadata = if (available) TemperatureMetadataStatus.Available
-                    else TemperatureMetadataStatus.Unavailable,
+                    metadata = if (available) {
+                        TemperatureMetadataStatus.Available
+                    } else {
+                        TemperatureMetadataStatus.Unavailable
+                    },
                     command = if (restoredIntent != null) {
                         TemperatureCommandStatus.UnknownOutcome
                     } else {
                         TemperatureCommandStatus.Editing
                     },
-                    validationError = if (available) null
-                    else TemperatureValidationError.MetadataUnavailable,
-                    notice = if (available) null else TemperatureSubmitNotice.IntentMetadataUnavailable
+                    validationError = if (available) {
+                        null
+                    } else {
+                        TemperatureValidationError.MetadataUnavailable
+                    },
+                    notice = if (available) {
+                        null
+                    } else {
+                        TemperatureSubmitNotice.IntentMetadataUnavailable
+                    }
                 )
             }
             if (!available) return@launch
@@ -168,7 +190,9 @@ class TemperatureEvidenceViewModel(
     }
 
     fun subjectTypeChanged(type: TemperatureEvidenceSubjectType) {
-        if (mutableState.value.isFrozen || mutableState.value.command != TemperatureCommandStatus.Editing) {
+        if (mutableState.value.isFrozen ||
+            mutableState.value.command != TemperatureCommandStatus.Editing
+        ) {
             return
         }
         mutableState.update {
@@ -189,15 +213,25 @@ class TemperatureEvidenceViewModel(
         val current = mutableState.value
         if (current.isFrozen || current.command != TemperatureCommandStatus.Editing ||
             subject.type != current.subjectType
-        ) return
+        ) {
+            return
+        }
         mutableState.update {
-            it.copy(subjectId = subject.id, selectedSubjectLabel = subject.primaryLabel, validationError = null)
+            it.copy(
+                subjectId = subject.id,
+                selectedSubjectLabel = subject.primaryLabel,
+                validationError = null
+            )
         }
         persistDraft()
     }
 
     fun subjectIdChanged(value: String) {
-        if (mutableState.value.isFrozen || mutableState.value.command != TemperatureCommandStatus.Editing) return
+        if (mutableState.value.isFrozen ||
+            mutableState.value.command != TemperatureCommandStatus.Editing
+        ) {
+            return
+        }
         mutableState.update {
             it.copy(
                 subjectId = value,
@@ -240,27 +274,48 @@ class TemperatureEvidenceViewModel(
             } catch (_: Exception) {
                 TemperatureLookupResult.ServiceUnavailable
             }
-            if (requestLookup != lookupGeneration || !isCurrent(requestGeneration, currentAuthority)) {
+            if (requestLookup != lookupGeneration ||
+                !isCurrent(requestGeneration, currentAuthority)
+            ) {
                 return@launch
             }
             when (result) {
                 is TemperatureLookupResult.Subjects -> {
-                    val selected = result.items.firstOrNull { it.id == mutableState.value.subjectId }
+                    val selected = result.items.firstOrNull {
+                        it.id == mutableState.value.subjectId
+                    }
                     mutableState.update {
                         it.copy(
                             subjects = result.items,
                             selectedSubjectLabel = selected?.primaryLabel,
-                            lookup = if (result.items.isEmpty()) TemperatureLookupStatus.Empty
-                            else TemperatureLookupStatus.Ready
+                            lookup = if (result.items.isEmpty()) {
+                                TemperatureLookupStatus.Empty
+                            } else {
+                                TemperatureLookupStatus.Ready
+                            }
                         )
                     }
                 }
 
-                TemperatureLookupResult.NetworkUnavailable -> lookupFailed(TemperatureLookupStatus.NetworkUnavailable)
-                TemperatureLookupResult.ServiceUnavailable -> lookupFailed(TemperatureLookupStatus.ServiceUnavailable)
-                TemperatureLookupResult.PermissionDenied -> lookupFailed(TemperatureLookupStatus.PermissionDenied)
-                TemperatureLookupResult.ContextInvalidated -> lookupFailed(TemperatureLookupStatus.ContextInvalidated)
-                TemperatureLookupResult.SessionInvalidated -> lookupFailed(TemperatureLookupStatus.SessionInvalidated)
+                TemperatureLookupResult.NetworkUnavailable -> lookupFailed(
+                    TemperatureLookupStatus.NetworkUnavailable
+                )
+
+                TemperatureLookupResult.ServiceUnavailable -> lookupFailed(
+                    TemperatureLookupStatus.ServiceUnavailable
+                )
+
+                TemperatureLookupResult.PermissionDenied -> lookupFailed(
+                    TemperatureLookupStatus.PermissionDenied
+                )
+
+                TemperatureLookupResult.ContextInvalidated -> lookupFailed(
+                    TemperatureLookupStatus.ContextInvalidated
+                )
+
+                TemperatureLookupResult.SessionInvalidated -> lookupFailed(
+                    TemperatureLookupStatus.SessionInvalidated
+                )
             }
         }
     }
@@ -291,7 +346,9 @@ class TemperatureEvidenceViewModel(
         val current = mutableState.value
         if (!currentAuthority.canRecord || current.command != TemperatureCommandStatus.Editing ||
             current.metadata != TemperatureMetadataStatus.Available
-        ) return
+        ) {
+            return
+        }
         val parsed = parsePayload(current)
         if (parsed.error != null) {
             mutableState.update { it.copy(validationError = parsed.error) }
@@ -336,7 +393,9 @@ class TemperatureEvidenceViewModel(
         val frozen = intent ?: return
         if (mutableState.value.command != TemperatureCommandStatus.UnknownOutcome ||
             frozen.scope != currentAuthority.scope || !currentAuthority.canRecord
-        ) return
+        ) {
+            return
+        }
         val requestGeneration = generation
         mutableState.update { it.copy(command = TemperatureCommandStatus.Pending, notice = null) }
         viewModelScope.launch {
@@ -357,7 +416,11 @@ class TemperatureEvidenceViewModel(
     fun retryIntentCleanup() {
         val currentAuthority = authority ?: return
         val frozen = intent ?: return
-        if (!mutableState.value.intentCleanupPending || frozen.scope != currentAuthority.scope) return
+        if (!mutableState.value.intentCleanupPending ||
+            frozen.scope != currentAuthority.scope
+        ) {
+            return
+        }
         val requestGeneration = generation
         viewModelScope.launch {
             val cleared = withMetadataLock(requestGeneration, currentAuthority) {
@@ -377,7 +440,9 @@ class TemperatureEvidenceViewModel(
                 TemperatureCommandStatus.Confirmed,
                 TemperatureCommandStatus.Rejected
             )
-        ) return
+        ) {
+            return
+        }
         intent = null
         mutableState.update {
             it.copy(
@@ -504,8 +569,11 @@ class TemperatureEvidenceViewModel(
         mutableState.update {
             it.copy(
                 command = TemperatureCommandStatus.UnknownOutcome,
-                notice = if (marked == TemperatureMetadataWrite.Saved) notice
-                else TemperatureSubmitNotice.IntentMetadataUnavailable
+                notice = if (marked == TemperatureMetadataWrite.Saved) {
+                    notice
+                } else {
+                    TemperatureSubmitNotice.IntentMetadataUnavailable
+                }
             )
         }
     }
@@ -530,7 +598,9 @@ class TemperatureEvidenceViewModel(
         val result = withMetadataLock(requestGeneration, currentAuthority) {
             metadataStore.saveDraft(currentAuthority.scope, draft)
         }
-        if (result != TemperatureMetadataWrite.Saved && isCurrent(requestGeneration, currentAuthority)) {
+        if (result != TemperatureMetadataWrite.Saved &&
+            isCurrent(requestGeneration, currentAuthority)
+        ) {
             metadataUnavailable()
         }
     }
@@ -549,7 +619,9 @@ class TemperatureEvidenceViewModel(
     }
 
     private fun edit(transform: (TemperatureEvidenceUiState) -> TemperatureEvidenceUiState) {
-        if (mutableState.value.isFrozen || mutableState.value.command != TemperatureCommandStatus.Editing) {
+        if (mutableState.value.isFrozen ||
+            mutableState.value.command != TemperatureCommandStatus.Editing
+        ) {
             return
         }
         mutableState.update(transform)
@@ -561,11 +633,17 @@ class TemperatureEvidenceViewModel(
         return TemperatureEvidenceDraft(subjectType, subjectId, valueText, unit, occurredAtText)
     }
 
-    private fun parsePayload(
-        current: TemperatureEvidenceUiState
-    ): ParsedPayload {
-        if (current.subjectId.isBlank()) return ParsedPayload(error = TemperatureValidationError.SubjectRequired)
-        if (current.valueText.isBlank()) return ParsedPayload(error = TemperatureValidationError.ValueRequired)
+    private fun parsePayload(current: TemperatureEvidenceUiState): ParsedPayload {
+        if (current.subjectId.isBlank()) {
+            return ParsedPayload(
+                error = TemperatureValidationError.SubjectRequired
+            )
+        }
+        if (current.valueText.isBlank()) {
+            return ParsedPayload(
+                error = TemperatureValidationError.ValueRequired
+            )
+        }
         try {
             BigDecimal(current.valueText)
         } catch (_: NumberFormatException) {
@@ -604,8 +682,9 @@ class TemperatureEvidenceViewModel(
         TemperatureMetadataRead.Unavailable
     }
 
-    private suspend fun safeMetadataWrite(block: suspend () -> TemperatureMetadataWrite):
-        TemperatureMetadataWrite = try {
+    private suspend fun safeMetadataWrite(
+        block: suspend () -> TemperatureMetadataWrite
+    ): TemperatureMetadataWrite = try {
         block()
     } catch (cancelled: CancellationException) {
         throw cancelled
@@ -614,7 +693,9 @@ class TemperatureEvidenceViewModel(
     }
 
     private fun lookupFailed(status: TemperatureLookupStatus) {
-        mutableState.update { it.copy(lookup = status, subjects = emptyList(), selectedSubjectLabel = null) }
+        mutableState.update {
+            it.copy(lookup = status, subjects = emptyList(), selectedSubjectLabel = null)
+        }
     }
 
     private fun metadataUnavailable() {
@@ -628,7 +709,9 @@ class TemperatureEvidenceViewModel(
     }
 
     private fun setUnknownNotice(notice: TemperatureSubmitNotice) {
-        mutableState.update { it.copy(command = TemperatureCommandStatus.UnknownOutcome, notice = notice) }
+        mutableState.update {
+            it.copy(command = TemperatureCommandStatus.UnknownOutcome, notice = notice)
+        }
     }
 
     private fun isCurrent(

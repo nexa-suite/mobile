@@ -38,6 +38,7 @@ internal class AppTemperatureEvidenceMetadataStore(
     ): TemperatureMetadataRead<TemperatureEvidenceDraft> =
         when (val result = local.loadDraft(scope.toLocal())) {
             LocalTemperatureMetadataRead.Unavailable -> TemperatureMetadataRead.Unavailable
+
             is LocalTemperatureMetadataRead.Available -> TemperatureMetadataRead.Available(
                 result.value?.toFeatureDraft()
             )
@@ -62,6 +63,7 @@ internal class AppTemperatureEvidenceMetadataStore(
     ): TemperatureMetadataRead<TemperatureEvidenceIntent> =
         when (val result = local.loadIntent(scope.toLocal())) {
             LocalTemperatureMetadataRead.Unavailable -> TemperatureMetadataRead.Unavailable
+
             is LocalTemperatureMetadataRead.Available -> {
                 val intent = result.value?.toFeatureIntentOrNull()
                 if (result.value != null && intent == null) {
@@ -107,6 +109,7 @@ private fun TemperatureEvidenceScope.toLocal(): TemperatureMetadataScope =
 
 private fun LocalTemperatureMetadataWrite.toFeature(): TemperatureMetadataWrite = when (this) {
     LocalTemperatureMetadataWrite.Saved -> TemperatureMetadataWrite.Saved
+
     LocalTemperatureMetadataWrite.Conflict,
     LocalTemperatureMetadataWrite.Stale,
     LocalTemperatureMetadataWrite.Unavailable -> TemperatureMetadataWrite.Unavailable
@@ -176,7 +179,9 @@ private fun TemperatureEvidenceIntentRecord.toFeatureIntentOrNull(): Temperature
             ),
             status = when (status) {
                 TemperatureEvidenceIntentStatus.Pending -> TemperatureIntentStatus.Pending
-                TemperatureEvidenceIntentStatus.UnknownOutcome -> TemperatureIntentStatus.UnknownOutcome
+
+                TemperatureEvidenceIntentStatus.UnknownOutcome ->
+                    TemperatureIntentStatus.UnknownOutcome
             }
         )
     } catch (_: RuntimeException) {

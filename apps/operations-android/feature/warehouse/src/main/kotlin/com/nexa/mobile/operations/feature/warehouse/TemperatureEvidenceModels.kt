@@ -166,15 +166,18 @@ sealed interface TemperatureMetadataRead<out T> {
 enum class TemperatureMetadataWrite { Saved, Unavailable }
 
 interface TemperatureEvidenceMetadataStore {
-    suspend fun loadDraft(scope: TemperatureEvidenceScope): TemperatureMetadataRead<TemperatureEvidenceDraft>
+    suspend fun loadDraft(
+        scope: TemperatureEvidenceScope
+    ): TemperatureMetadataRead<TemperatureEvidenceDraft>
 
     suspend fun saveDraft(
         scope: TemperatureEvidenceScope,
         draft: TemperatureEvidenceDraft
     ): TemperatureMetadataWrite
 
-    suspend fun loadIntent(scope: TemperatureEvidenceScope):
-        TemperatureMetadataRead<TemperatureEvidenceIntent>
+    suspend fun loadIntent(
+        scope: TemperatureEvidenceScope
+    ): TemperatureMetadataRead<TemperatureEvidenceIntent>
 
     suspend fun saveIntent(intent: TemperatureEvidenceIntent): TemperatureMetadataWrite
 

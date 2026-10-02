@@ -18,13 +18,15 @@ class StockTransferReceiptViewModelTest {
         val metadata = MemoryMetadataStore(events)
         val gateway = FakeReceiptGateway(events).apply {
             results += StockTransferReceiptResult.NetworkUnavailable
-            results += StockTransferReceiptResult.Confirmed(transfer.copy(
-                destinationLotId = DESTINATION_LOT_ID,
-                status = "RECEIVED",
-                destinationVersionAfter = 23,
-                version = 3,
-                receivedAt = "2026-09-30T10:30:00Z"
-            ))
+            results += StockTransferReceiptResult.Confirmed(
+                transfer.copy(
+                    destinationLotId = DESTINATION_LOT_ID,
+                    status = "RECEIVED",
+                    destinationVersionAfter = 23,
+                    version = 3,
+                    receivedAt = "2026-09-30T10:30:00Z"
+                )
+            )
         }
         val viewModel = StockTransferReceiptViewModel(gateway, metadata) { "receipt-key-1" }
         viewModel.activate(authority())
@@ -36,7 +38,10 @@ class StockTransferReceiptViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf("persist", "post", "mark-unknown"), events)
-        assertEquals(StockTransferReceiptCommandStatus.UnknownOutcome, viewModel.state.value.command)
+        assertEquals(
+            StockTransferReceiptCommandStatus.UnknownOutcome,
+            viewModel.state.value.command
+        )
         val frozen = requireNotNull(metadata.intent)
         assertEquals("receipt-key-1", frozen.idempotencyKey)
         assertEquals("1.2300", frozen.transfer.transferredQuantityText)
@@ -68,7 +73,10 @@ class StockTransferReceiptViewModelTest {
         advanceUntilIdle()
 
         assertTrue(gateway.receiptCommands.isEmpty())
-        assertEquals(StockTransferReceiptCommandStatus.UnknownOutcome, viewModel.state.value.command)
+        assertEquals(
+            StockTransferReceiptCommandStatus.UnknownOutcome,
+            viewModel.state.value.command
+        )
         assertEquals(StockTransferReceiptIntentStatus.UnknownOutcome, metadata.intent?.status)
         assertEquals(listOf("mark-unknown", "get-current"), events)
     }
@@ -110,7 +118,10 @@ class StockTransferReceiptViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf("observation-persist", "observe", "observation-mark-unknown"), events)
-        assertEquals(StockTransferReceiptObservationCommandStatus.UnknownOutcome, viewModel.state.value.observationCommand)
+        assertEquals(
+            StockTransferReceiptObservationCommandStatus.UnknownOutcome,
+            viewModel.state.value.observationCommand
+        )
         assertEquals("1.2300", observationMetadata.intent?.observedQuantityText)
         assertTrue(gateway.receiptCommands.isEmpty())
 
@@ -118,11 +129,20 @@ class StockTransferReceiptViewModelTest {
         advanceUntilIdle()
 
         assertEquals(
-            listOf("observation-persist", "observe", "observation-mark-unknown", "observe", "observation-clear"),
+            listOf(
+                "observation-persist",
+                "observe",
+                "observation-mark-unknown",
+                "observe",
+                "observation-clear"
+            ),
             events
         )
         assertTrue(gateway.observationCommands[0].sameFrozenCommand(gateway.observationCommands[1]))
-        assertEquals(StockTransferReceiptObservationCommandStatus.Recorded, viewModel.state.value.observationCommand)
+        assertEquals(
+            StockTransferReceiptObservationCommandStatus.Recorded,
+            viewModel.state.value.observationCommand
+        )
         assertEquals("LOT-18", viewModel.state.value.recordedObservation?.observedBatchNumber)
         assertEquals(null, viewModel.state.value.confirmed)
         assertEquals("IN_TRANSIT", viewModel.state.value.selectedTransfer?.status)
@@ -131,7 +151,10 @@ class StockTransferReceiptViewModelTest {
         viewModel.receiveExpectedQuantity()
         advanceUntilIdle()
         assertEquals(5, events.size)
-        assertEquals(StockTransferReceiptNotice.ObservedDifferenceRequiresResolution, viewModel.state.value.notice)
+        assertEquals(
+            StockTransferReceiptNotice.ObservedDifferenceRequiresResolution,
+            viewModel.state.value.notice
+        )
     }
 
     @Test
@@ -149,14 +172,18 @@ class StockTransferReceiptViewModelTest {
         )
         val observationMetadata = MemoryObservationMetadataStore(events).apply { intent = pending }
         val gateway = FakeReceiptGateway(events)
-        val viewModel = StockTransferReceiptViewModel(gateway, MemoryMetadataStore(events), observationMetadata)
+        val viewModel =
+            StockTransferReceiptViewModel(gateway, MemoryMetadataStore(events), observationMetadata)
 
         viewModel.activate(authority())
         advanceUntilIdle()
 
         assertTrue(gateway.observationCommands.isEmpty())
         assertTrue(gateway.receiptCommands.isEmpty())
-        assertEquals(StockTransferReceiptObservationCommandStatus.UnknownOutcome, viewModel.state.value.observationCommand)
+        assertEquals(
+            StockTransferReceiptObservationCommandStatus.UnknownOutcome,
+            viewModel.state.value.observationCommand
+        )
         assertEquals(
             StockTransferReceiptObservationIntentStatus.UnknownOutcome,
             observationMetadata.intent?.status
@@ -166,11 +193,16 @@ class StockTransferReceiptViewModelTest {
     }
 
     private fun authority() = StockTransferAuthority(
-        USER_ID, TENANT_ID, WORKSPACE_ID, MEMBERSHIP_ID,
-        setOf("warehouse:read", "warehouse:write"), authorityEpoch = 9
+        USER_ID,
+        TENANT_ID,
+        WORKSPACE_ID,
+        MEMBERSHIP_ID,
+        setOf("warehouse:read", "warehouse:write"),
+        authorityEpoch = 9
     )
 
-    private class FakeReceiptGateway(private val events: MutableList<String>) : StockTransferReceiptGateway {
+    private class FakeReceiptGateway(private val events: MutableList<String>) :
+        StockTransferReceiptGateway {
         val receiptCommands = mutableListOf<StockTransferReceiptIntent>()
         val observationCommands = mutableListOf<StockTransferReceiptObservationIntent>()
         val results = mutableListOf<StockTransferReceiptResult>()
@@ -178,7 +210,14 @@ class StockTransferReceiptViewModelTest {
 
         override suspend fun warehouses(authority: StockTransferAuthority) =
             StockTransferReceiptLookupResult.Warehouses(
-                listOf(TransferWarehouseChoice(DESTINATION_WAREHOUSE_ID, "DST", "Destination", "ACTIVE"))
+                listOf(
+                    TransferWarehouseChoice(
+                        DESTINATION_WAREHOUSE_ID,
+                        "DST",
+                        "Destination",
+                        "ACTIVE"
+                    )
+                )
             )
 
         override suspend fun transfers(
@@ -187,7 +226,10 @@ class StockTransferReceiptViewModelTest {
             authority: StockTransferAuthority
         ) = StockTransferReceiptLookupResult.TransferPage(listOf(transfer), page, 1)
 
-        override suspend fun transfer(transferId: String, authority: StockTransferAuthority): StockTransferReceiptLookupResult {
+        override suspend fun transfer(
+            transferId: String,
+            authority: StockTransferAuthority
+        ): StockTransferReceiptLookupResult {
             events += "get-current"
             return StockTransferReceiptLookupResult.Transfer(transfer)
         }
@@ -207,17 +249,21 @@ class StockTransferReceiptViewModelTest {
         ): StockTransferReceiptObservationResult {
             events += "observe"
             observationCommands += intent
-            return observationResults.removeFirstOrNull() ?: StockTransferReceiptObservationResult.UnknownOutcome
+            return observationResults.removeFirstOrNull()
+                ?: StockTransferReceiptObservationResult.UnknownOutcome
         }
     }
 
-    private class MemoryMetadataStore(private val events: MutableList<String>) : StockTransferReceiptMetadataStore {
+    private class MemoryMetadataStore(private val events: MutableList<String>) :
+        StockTransferReceiptMetadataStore {
         var intent: StockTransferReceiptIntent? = null
 
         override suspend fun loadIntent(scope: StockTransferScope) =
             StockTransferReceiptMetadataRead.Available(intent?.takeIf { it.scope == scope })
 
-        override suspend fun saveIntent(intent: StockTransferReceiptIntent): StockTransferReceiptMetadataWrite {
+        override suspend fun saveIntent(
+            intent: StockTransferReceiptIntent
+        ): StockTransferReceiptMetadataWrite {
             if (this.intent != null && this.intent?.idempotencyKey != intent.idempotencyKey) {
                 return StockTransferReceiptMetadataWrite.Unavailable
             }
@@ -230,8 +276,9 @@ class StockTransferReceiptViewModelTest {
             scope: StockTransferScope,
             idempotencyKey: String
         ): StockTransferReceiptMetadataWrite {
-            val current = intent?.takeIf { it.scope == scope && it.idempotencyKey == idempotencyKey }
-                ?: return StockTransferReceiptMetadataWrite.Unavailable
+            val current =
+                intent?.takeIf { it.scope == scope && it.idempotencyKey == idempotencyKey }
+                    ?: return StockTransferReceiptMetadataWrite.Unavailable
             intent = current.copy(status = StockTransferReceiptIntentStatus.UnknownOutcome)
             events += "mark-unknown"
             return StockTransferReceiptMetadataWrite.Saved
@@ -250,13 +297,16 @@ class StockTransferReceiptViewModelTest {
         }
     }
 
-    private class MemoryObservationMetadataStore(
-        private val events: MutableList<String>
-    ) : StockTransferReceiptObservationMetadataStore {
+    private class MemoryObservationMetadataStore(private val events: MutableList<String>) :
+        StockTransferReceiptObservationMetadataStore {
         var intent: StockTransferReceiptObservationIntent? = null
 
         override suspend fun loadIntent(scope: StockTransferScope) =
-            StockTransferReceiptObservationMetadataRead.Available(intent?.takeIf { it.scope == scope })
+            StockTransferReceiptObservationMetadataRead.Available(
+                intent?.takeIf {
+                    it.scope == scope
+                }
+            )
 
         override suspend fun saveIntent(
             intent: StockTransferReceiptObservationIntent
@@ -274,9 +324,11 @@ class StockTransferReceiptViewModelTest {
             scope: StockTransferScope,
             idempotencyKey: String
         ): StockTransferReceiptObservationMetadataWrite {
-            val current = intent?.takeIf { it.scope == scope && it.idempotencyKey == idempotencyKey }
-                ?: return StockTransferReceiptObservationMetadataWrite.Unavailable
-            intent = current.copy(status = StockTransferReceiptObservationIntentStatus.UnknownOutcome)
+            val current =
+                intent?.takeIf { it.scope == scope && it.idempotencyKey == idempotencyKey }
+                    ?: return StockTransferReceiptObservationMetadataWrite.Unavailable
+            intent =
+                current.copy(status = StockTransferReceiptObservationIntentStatus.UnknownOutcome)
             events += "observation-mark-unknown"
             return StockTransferReceiptObservationMetadataWrite.Saved
         }

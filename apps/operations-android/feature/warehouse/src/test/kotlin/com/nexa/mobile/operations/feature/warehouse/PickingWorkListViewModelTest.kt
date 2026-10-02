@@ -68,29 +68,26 @@ class PickingWorkListViewModelTest {
         authorityEpoch = 4
     )
 
-    private fun page(
-        page: Int = 0,
-        totalItems: Long = 1,
-        fulfillmentId: String = FULFILLMENT_ID
-    ) = PickingWorkListResult.Loaded(
-        PickingWorkPage(
-            items = listOf(
-                PickingWorkItem(
-                    fulfillmentId = fulfillmentId,
-                    salesOrderId = SALES_ORDER_ID,
-                    status = "ALLOCATED",
-                    version = 2,
-                    physicalAllocationId = ALLOCATION_ID,
-                    allocationVersion = 3,
-                    lineCount = 1
-                )
-            ),
-            page = page,
-            size = 25,
-            totalItems = totalItems,
-            asOf = Instant.parse("2026-09-30T12:00:00Z")
+    private fun page(page: Int = 0, totalItems: Long = 1, fulfillmentId: String = FULFILLMENT_ID) =
+        PickingWorkListResult.Loaded(
+            PickingWorkPage(
+                items = listOf(
+                    PickingWorkItem(
+                        fulfillmentId = fulfillmentId,
+                        salesOrderId = SALES_ORDER_ID,
+                        status = "ALLOCATED",
+                        version = 2,
+                        physicalAllocationId = ALLOCATION_ID,
+                        allocationVersion = 3,
+                        lineCount = 1
+                    )
+                ),
+                page = page,
+                size = 25,
+                totalItems = totalItems,
+                asOf = Instant.parse("2026-09-30T12:00:00Z")
+            )
         )
-    )
 
     private data class Request(val authority: PickingAuthority, val page: Int, val size: Int)
 

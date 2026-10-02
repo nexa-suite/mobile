@@ -3,6 +3,7 @@ package com.nexa.mobile.operations.core.network
 import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.AccessTokenSource
 import com.nexa.mobile.operations.core.auth.session.SessionState
+import java.io.File
 import java.math.BigDecimal
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -100,7 +101,7 @@ class NexaReceivingGatewayTest {
                 skuId = SKU_ID,
                 quantity = "0.0100",
                 temperatureReading = "-1.250"
-            )
+            ).copy(temperatureEvidenceObjectId = EVIDENCE_ID)
 
             val outcome = gateway(server).receive(command, "arrival-intent-01")
                 as ReceivingNetworkOutcome.Confirmed
@@ -120,12 +121,60 @@ class NexaReceivingGatewayTest {
             assertEquals("0.0100", json.getValue("quantity").jsonPrimitive.content)
             assertFalse(json.getValue("temperatureReading").jsonPrimitive.isString)
             assertEquals("-1.250", json.getValue("temperatureReading").jsonPrimitive.content)
+            assertEquals(
+                EVIDENCE_ID,
+                json.getValue("temperatureEvidenceObjectId").jsonPrimitive.content
+            )
             assertTrue(body.contains("\"catalogItemId\":\"CAT-0017\""))
             assertTrue(body.contains("\"skuId\":\"$SKU_ID\""))
             assertFalse(body.contains("NaN"))
             assertNull(request.getHeader("X-Nexa-Client"))
             assertNull(request.getHeader("X-Nexa-Surface"))
             assertNull(request.getHeader("X-Nexa-Refresh-Token"))
+        }
+    }
+
+    @Test
+    fun temperatureEvidenceUploadAndStatusUseTheExactWarehouseSubject() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(jsonResponse(201, evidenceJson(WAREHOUSE_A)))
+            server.enqueue(jsonResponse(200, evidenceJson(WAREHOUSE_A)))
+            server.enqueue(jsonResponse(200, evidenceJson(WAREHOUSE_B)))
+            val file = File.createTempFile("receiving-evidence", ".jpg")
+            try {
+                file.writeBytes(byteArrayOf(1, 2, 3, 4))
+                val gateway = gateway(server)
+                val uploaded = gateway.uploadTemperatureEvidence(
+                    warehouseId = WAREHOUSE_A,
+                    idempotencyKey = "receiving-evidence-01",
+                    file = file,
+                    originalFilename = "temperature.jpg",
+                    declaredContentType = "image/jpeg",
+                    byteSize = file.length(),
+                    checksumSha256 = "a".repeat(64)
+                ) as ReceivingNetworkOutcome.EvidenceUploaded
+                val uploadRequest = server.takeRequest()
+                val multipart = uploadRequest.body.readUtf8()
+                val status = gateway.temperatureEvidenceStatus(EVIDENCE_ID, WAREHOUSE_A)
+                val statusRequest = server.takeRequest()
+                val mismatched = gateway.temperatureEvidenceStatus(EVIDENCE_ID, WAREHOUSE_A)
+
+                assertEquals("AVAILABLE", uploaded.evidence.lifecycleStatus)
+                assertEquals("POST", uploadRequest.method)
+                assertEquals("/api/v1/business-document-evidence", uploadRequest.path)
+                assertEquals("receiving-evidence-01", uploadRequest.getHeader("Idempotency-Key"))
+                assertTrue(multipart.contains("name=\"subjectType\""))
+                assertTrue(multipart.contains("WAREHOUSE"))
+                assertTrue(multipart.contains("name=\"subjectId\""))
+                assertTrue(multipart.contains(WAREHOUSE_A))
+                assertTrue(status is ReceivingNetworkOutcome.EvidenceStatus)
+                assertEquals("GET", statusRequest.method)
+                assertEquals("/api/v1/business-document-evidence/$EVIDENCE_ID", statusRequest.path)
+                assertEquals(ReceivingNetworkOutcome.ServiceUnavailable, mismatched)
+            } finally {
+                file.delete()
+            }
         }
     }
 
@@ -300,6 +349,11 @@ class NexaReceivingGatewayTest {
     ): String =
         """{"id":"$LOT_ID","warehouseId":"$WAREHOUSE_A","zoneId":"$ZONE_A","catalogItemId":${catalogItemId.jsonOrNull()},"skuId":${skuId.jsonOrNull()},"batchNumber":"LOT-REAL-7","expirationDate":"2099-06-30","receivedAt":"2026-09-30T15:00:00Z","onHand":$onHand,"reserved":0,"available":$onHand,"unit":"$unit","status":"AVAILABLE","version":1}"""
 
+    private fun evidenceJson(warehouseId: String) =
+        """{"id":"$EVIDENCE_ID","subjectType":"WAREHOUSE","subjectId":"$warehouseId","lifecycleStatus":"AVAILABLE","declaredContentType":"image/jpeg","checksumSha256":"${"a".repeat(
+            64
+        )}","byteSize":4}"""
+
     private fun String?.jsonOrNull(): String = this?.let { "\"$it\"" } ?: "null"
 
     private fun jsonResponse(status: Int, body: String) = MockResponse()
@@ -338,5 +392,6 @@ class NexaReceivingGatewayTest {
         const val ZONE_A = "b8c24a46-57d9-4f64-8fa7-6a641b413201"
         const val SKU_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413301"
         const val LOT_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413401"
+        const val EVIDENCE_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413501"
     }
 }

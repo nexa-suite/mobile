@@ -34,11 +34,7 @@ sealed interface PickingWorkListResult {
 
 /** Client port for server-authorized prepared fulfillment work. */
 interface PickingWorkListGateway {
-    suspend fun list(
-        authority: PickingAuthority,
-        page: Int,
-        size: Int
-    ): PickingWorkListResult
+    suspend fun list(authority: PickingAuthority, page: Int, size: Int): PickingWorkListResult
 }
 
 enum class PickingWorkListStatus {

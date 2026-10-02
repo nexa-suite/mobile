@@ -1,6 +1,7 @@
 package com.nexa.mobile.operations.feature.warehouse
 
 import androidx.compose.runtime.Immutable
+import java.io.File
 import java.math.BigDecimal
 import java.time.LocalDate
 
@@ -50,6 +51,20 @@ data class ReceivingScopeIdentity(
     val membershipId: String
 ) {
     override fun toString(): String = "ReceivingScopeIdentity(REDACTED)"
+}
+
+/** In-memory picker context used only to bind a returned file to its original active warehouse. */
+@Immutable
+data class ReceivingEvidenceSelectionContext(
+    val scope: ReceivingScopeIdentity,
+    val warehouseId: String
+) {
+    init {
+        require(warehouseId.isNotBlank())
+    }
+
+    override fun toString(): String =
+        "ReceivingEvidenceSelectionContext(scope=REDACTED, warehouse=REDACTED)"
 }
 
 /** Catalog id and modern SKU UUID remain distinct server identifiers. */
@@ -116,7 +131,8 @@ data class InboundReceiptRequest(
     val quantity: BigDecimal,
     val unit: String,
     val temperatureReading: BigDecimal? = null,
-    val notes: String? = null
+    val notes: String? = null,
+    val temperatureEvidenceObjectId: String? = null
 ) {
     init {
         require(warehouseId.isNotBlank())
@@ -125,11 +141,50 @@ data class InboundReceiptRequest(
         require(batchNumber.isNotBlank())
         require(quantity.signum() > 0)
         require(unit.isNotBlank())
+        require(
+            temperatureEvidenceObjectId == null || UUID_PATTERN.matches(temperatureEvidenceObjectId)
+        )
     }
 
     override fun toString(): String =
         "InboundReceiptRequest(warehouseId=REDACTED, zoneId=REDACTED, quantity=$quantity, " +
             "batchNumber=REDACTED, expirationDate=$expirationDate)"
+}
+
+/** A validated image staged by the application boundary; it is not server evidence yet. */
+data class ReceivingEvidenceCandidate(
+    val file: File,
+    val originalFilename: String,
+    val declaredContentType: String,
+    val byteSize: Long,
+    val checksumSha256: String
+) {
+    override fun toString(): String =
+        "ReceivingEvidenceCandidate(type=$declaredContentType, bytes=$byteSize)"
+}
+
+@Immutable
+data class ReceivingEvidenceObject(
+    val id: String,
+    val subjectType: String,
+    val subjectId: String,
+    val lifecycleStatus: String,
+    val declaredContentType: String,
+    val byteSize: Long
+) {
+    override fun toString(): String =
+        "ReceivingEvidenceObject(status=$lifecycleStatus, bytes=$byteSize)"
+}
+
+sealed interface ReceivingEvidenceResult {
+    data class Loaded(val evidence: ReceivingEvidenceObject) : ReceivingEvidenceResult
+    data class Rejected(val code: String?) : ReceivingEvidenceResult
+    data object UnknownOutcome : ReceivingEvidenceResult
+    data object NetworkUnavailable : ReceivingEvidenceResult
+    data object ServiceUnavailable : ReceivingEvidenceResult
+    data object PermissionDenied : ReceivingEvidenceResult
+    data object ContextInvalidated : ReceivingEvidenceResult
+    data object SessionInvalidated : ReceivingEvidenceResult
 }
 
 /** Facts are projected only from the successful authoritative POST response. */
@@ -182,6 +237,19 @@ interface ReceivingGateway {
         idempotencyKey: String,
         authority: ReceivingAuthority
     ): ReceivingSubmitResult
+
+    suspend fun uploadTemperatureEvidence(
+        warehouseId: String,
+        candidate: ReceivingEvidenceCandidate,
+        idempotencyKey: String,
+        authority: ReceivingAuthority
+    ): ReceivingEvidenceResult = ReceivingEvidenceResult.ServiceUnavailable
+
+    suspend fun temperatureEvidenceStatus(
+        evidenceId: String,
+        warehouseId: String,
+        authority: ReceivingAuthority
+    ): ReceivingEvidenceResult = ReceivingEvidenceResult.ServiceUnavailable
 }
 
 @Immutable
@@ -193,7 +261,8 @@ data class ReceivingDraftMetadata(
     val expirationDateText: String,
     val quantityText: String,
     val unit: String,
-    val temperatureReadingText: String
+    val temperatureReadingText: String,
+    val temperatureEvidenceObjectId: String? = null
 )
 
 enum class ReceivingIntentMetadataStatus { Pending, UnknownOutcome }
@@ -208,6 +277,8 @@ data class ReceivingIntentMetadata(
 ) {
     override fun toString(): String = "ReceivingIntentMetadata(status=$status, key=REDACTED)"
 }
+
+private val UUID_PATTERN = Regex("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
 sealed interface ReceivingMetadataRead<out T> {
     data class Available<T>(val value: T?) : ReceivingMetadataRead<T>

@@ -140,7 +140,9 @@ class NexaTemperatureEvidenceGatewayTest {
 
         override suspend fun currentAccess(): AccessTokenLease = lease
 
-        override suspend fun recoverAfterUnauthorized(observed: AccessTokenLease): AccessTokenLease? = null
+        override suspend fun recoverAfterUnauthorized(
+            observed: AccessTokenLease
+        ): AccessTokenLease? = null
 
         override suspend fun rejectCurrentAccess(observed: AccessTokenLease) = Unit
 

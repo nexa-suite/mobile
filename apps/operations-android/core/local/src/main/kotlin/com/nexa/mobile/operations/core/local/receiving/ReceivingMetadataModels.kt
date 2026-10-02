@@ -46,7 +46,8 @@ data class ReceivingDraftMetadataRecord(
     val quantityText: String,
     val unit: String,
     val temperatureReadingText: String,
-    val notes: String? = null
+    val notes: String? = null,
+    val temperatureEvidenceObjectId: String? = null
 ) {
     override fun toString(): String = "ReceivingDraftMetadataRecord(values=REDACTED)"
 }
@@ -62,7 +63,8 @@ data class ReceivingIntentPayload(
     val quantity: String,
     val unit: String,
     val temperatureReading: String? = null,
-    val notes: String? = null
+    val notes: String? = null,
+    val temperatureEvidenceObjectId: String? = null
 ) {
     override fun toString(): String = "ReceivingIntentPayload(REDACTED)"
 }

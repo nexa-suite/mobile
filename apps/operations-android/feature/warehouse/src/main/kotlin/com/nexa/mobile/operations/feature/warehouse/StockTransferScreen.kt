@@ -49,8 +49,9 @@ fun StockTransferScreen(
     onRetryIntentCleanup: () -> Unit,
     onStartAnotherTransfer: () -> Unit
 ) {
-    val editable = state.command in setOf(TransferCommandStatus.Editing, TransferCommandStatus.Rejected) &&
-        !state.intentCleanupPending
+    val editable =
+        state.command in setOf(TransferCommandStatus.Editing, TransferCommandStatus.Rejected) &&
+            !state.intentCleanupPending
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
             modifier = Modifier
@@ -95,12 +96,16 @@ fun StockTransferScreen(
 
             Section(title = stringResource(R.string.transfer_source_title)) {
                 LookupMessage(state.sourceLotLookup, onReloadSourceLots)
-                if (state.sourceLots.isEmpty() && state.sourceLotLookup == TransferLookupStatus.Ready) {
+                if (state.sourceLots.isEmpty() &&
+                    state.sourceLotLookup == TransferLookupStatus.Ready
+                ) {
                     Text(stringResource(R.string.transfer_lot_empty))
                 }
                 state.sourceLots.filter(TransferSourceLotChoice::isSelectable).forEach { lot ->
                     val selected = lot.id == state.selectedSourceLotId
-                    ChoiceCard(selected = selected, onClick = { onSelectSourceLot(lot.id) }, label = {
+                    ChoiceCard(selected = selected, onClick = {
+                        onSelectSourceLot(lot.id)
+                    }, label = {
                         val warehouse = state.warehouses.firstOrNull { it.id == lot.warehouseId }
                             ?.let { "${it.name} · ${it.code}" } ?: lot.warehouseId
                         Text(lot.batchNumber, fontWeight = FontWeight.Medium)
@@ -124,7 +129,9 @@ fun StockTransferScreen(
 
             Section(title = stringResource(R.string.transfer_destination_title)) {
                 LookupMessage(state.warehouseLookup, onReloadWarehouses)
-                state.warehouses.filter(TransferWarehouseChoice::isSelectable).forEach { warehouse ->
+                state.warehouses.filter(
+                    TransferWarehouseChoice::isSelectable
+                ).forEach { warehouse ->
                     ChoiceCard(
                         selected = warehouse.id == state.selectedDestinationWarehouseId,
                         onClick = { onSelectDestinationWarehouse(warehouse.id) },
@@ -180,7 +187,8 @@ fun StockTransferScreen(
                     Notice(stringResource(R.string.transfer_unknown), isError = true)
                     Button(
                         onClick = onRetryUnknownOutcome,
-                        enabled = state.canCreate && state.metadata == TransferMetadataStatus.Available,
+                        enabled =
+                            state.canCreate && state.metadata == TransferMetadataStatus.Available,
                         modifier = Modifier.fillMaxWidth()
                     ) { Text(stringResource(R.string.transfer_retry_same)) }
                 }
@@ -231,7 +239,9 @@ fun StockTransferScreen(
 private fun LookupMessage(status: TransferLookupStatus, retry: () -> Unit) {
     when (status) {
         TransferLookupStatus.Loading -> Text(stringResource(R.string.transfer_loading))
+
         TransferLookupStatus.Empty -> Text(stringResource(R.string.transfer_lookup_empty))
+
         TransferLookupStatus.NetworkUnavailable,
         TransferLookupStatus.ServiceUnavailable,
         TransferLookupStatus.SessionInvalidated,
@@ -240,7 +250,10 @@ private fun LookupMessage(status: TransferLookupStatus, retry: () -> Unit) {
             TextButton(onClick = retry) { Text(stringResource(R.string.transfer_retry_lookup)) }
         }
 
-        TransferLookupStatus.PermissionDenied -> Text(stringResource(R.string.transfer_lookup_denied))
+        TransferLookupStatus.PermissionDenied -> Text(
+            stringResource(R.string.transfer_lookup_denied)
+        )
+
         TransferLookupStatus.NotRequested,
         TransferLookupStatus.Ready -> Unit
     }
@@ -263,11 +276,17 @@ private fun ChoiceCard(selected: Boolean, onClick: () -> Unit, label: @Composabl
             .semantics { contentDescription = if (selected) "Selected" else "Choose" },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer
-            else MaterialTheme.colorScheme.surface
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.secondaryContainer
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
         )
     ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
             label()
         }
     }
@@ -280,7 +299,11 @@ private fun Notice(text: String, isError: Boolean) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp),
-        color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (isError) {
+            MaterialTheme.colorScheme.error
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
         style = MaterialTheme.typography.bodyMedium
     )
 }
@@ -295,25 +318,53 @@ private fun metadataText(status: TransferMetadataStatus): String = when (status)
 @Composable
 private fun noticeText(notice: TransferSubmitNotice): String = when (notice) {
     TransferSubmitNotice.NetworkUnavailable -> stringResource(R.string.transfer_network_unknown)
+
     TransferSubmitNotice.ServiceUnavailable -> stringResource(R.string.transfer_service_unknown)
+
     TransferSubmitNotice.PermissionDenied -> stringResource(R.string.transfer_permission_missing)
+
     TransferSubmitNotice.ContextInvalidated -> stringResource(R.string.transfer_context_invalid)
+
     TransferSubmitNotice.SessionInvalidated -> stringResource(R.string.transfer_session_invalid)
+
     TransferSubmitNotice.PreconditionFailed -> stringResource(R.string.transfer_stale_source)
+
     TransferSubmitNotice.Conflict -> stringResource(R.string.transfer_conflict)
-    TransferSubmitNotice.IntentMetadataUnavailable -> stringResource(R.string.transfer_metadata_unavailable)
+
+    TransferSubmitNotice.IntentMetadataUnavailable -> stringResource(
+        R.string.transfer_metadata_unavailable
+    )
 }
 
 @Composable
 private fun validationText(error: TransferValidationError): String = when (error) {
     TransferValidationError.SourceLotRequired -> stringResource(R.string.transfer_source_required)
-    TransferValidationError.DestinationWarehouseRequired -> stringResource(R.string.transfer_destination_required)
-    TransferValidationError.DestinationZoneRequired -> stringResource(R.string.transfer_zone_required)
+
+    TransferValidationError.DestinationWarehouseRequired -> stringResource(
+        R.string.transfer_destination_required
+    )
+
+    TransferValidationError.DestinationZoneRequired -> stringResource(
+        R.string.transfer_zone_required
+    )
+
     TransferValidationError.SameLocation -> stringResource(R.string.transfer_same_location)
+
     TransferValidationError.QuantityRequired -> stringResource(R.string.transfer_quantity_required)
+
     TransferValidationError.QuantityInvalid -> stringResource(R.string.transfer_quantity_invalid)
-    TransferValidationError.QuantityMustBePositive -> stringResource(R.string.transfer_quantity_positive)
-    TransferValidationError.QuantityExceedsSource -> stringResource(R.string.transfer_quantity_too_large)
+
+    TransferValidationError.QuantityMustBePositive -> stringResource(
+        R.string.transfer_quantity_positive
+    )
+
+    TransferValidationError.QuantityExceedsSource -> stringResource(
+        R.string.transfer_quantity_too_large
+    )
+
     TransferValidationError.ReasonRequired -> stringResource(R.string.transfer_reason_required)
-    TransferValidationError.MetadataUnavailable -> stringResource(R.string.transfer_metadata_unavailable)
+
+    TransferValidationError.MetadataUnavailable -> stringResource(
+        R.string.transfer_metadata_unavailable
+    )
 }

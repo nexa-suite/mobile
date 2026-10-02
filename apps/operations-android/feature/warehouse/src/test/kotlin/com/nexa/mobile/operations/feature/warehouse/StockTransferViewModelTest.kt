@@ -193,16 +193,27 @@ class StockTransferViewModelTest {
             TransferLookupResult.Warehouses(
                 listOf(
                     TransferWarehouseChoice(SOURCE_WAREHOUSE_ID, "SRC", "Source", "ACTIVE"),
-                    TransferWarehouseChoice(DESTINATION_WAREHOUSE_ID, "DST", "Destination", "ACTIVE")
+                    TransferWarehouseChoice(
+                        DESTINATION_WAREHOUSE_ID,
+                        "DST",
+                        "Destination",
+                        "ACTIVE"
+                    )
                 )
             )
 
-        override suspend fun zones(
-            warehouseId: String,
-            authority: StockTransferAuthority
-        ) = TransferLookupResult.Zones(
-            listOf(TransferZoneChoice(DESTINATION_ZONE_ID, warehouseId, "DST-Z", "Target", "ACTIVE"))
-        )
+        override suspend fun zones(warehouseId: String, authority: StockTransferAuthority) =
+            TransferLookupResult.Zones(
+                listOf(
+                    TransferZoneChoice(
+                        DESTINATION_ZONE_ID,
+                        warehouseId,
+                        "DST-Z",
+                        "Target",
+                        "ACTIVE"
+                    )
+                )
+            )
 
         override suspend fun sourceLots(authority: StockTransferAuthority) =
             TransferLookupResult.Lots(
@@ -235,13 +246,19 @@ class StockTransferViewModelTest {
         }
     }
 
-    private data class Submitted(val payload: String, val expectedSourceVersion: Long, val idempotencyKey: String)
+    private data class Submitted(
+        val payload: String,
+        val expectedSourceVersion: Long,
+        val idempotencyKey: String
+    )
 
     private class MemoryTransferStore : StockTransferMetadataStore {
         var intent: StockTransferIntent? = null
         val events = mutableListOf<String>()
 
-        override suspend fun loadIntent(scope: StockTransferScope): TransferMetadataRead<StockTransferIntent> =
+        override suspend fun loadIntent(
+            scope: StockTransferScope
+        ): TransferMetadataRead<StockTransferIntent> =
             TransferMetadataRead.Available(intent?.takeIf { it.scope == scope })
 
         override suspend fun saveIntent(intent: StockTransferIntent): TransferMetadataWrite {
@@ -257,8 +274,9 @@ class StockTransferViewModelTest {
             scope: StockTransferScope,
             idempotencyKey: String
         ): TransferMetadataWrite {
-            val current = intent?.takeIf { it.scope == scope && it.idempotencyKey == idempotencyKey }
-                ?: return TransferMetadataWrite.Unavailable
+            val current =
+                intent?.takeIf { it.scope == scope && it.idempotencyKey == idempotencyKey }
+                    ?: return TransferMetadataWrite.Unavailable
             intent = current.copy(status = TransferIntentStatus.UnknownOutcome)
             return TransferMetadataWrite.Saved
         }

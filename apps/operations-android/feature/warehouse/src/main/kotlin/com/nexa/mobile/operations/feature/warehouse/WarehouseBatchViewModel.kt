@@ -30,8 +30,12 @@ class WarehouseBatchViewModel : ViewModel() {
     fun add(item: PickingWorkItem, currentPage: PickingWorkListUiState) {
         if (authority?.canRead != true || currentPage.status != PickingWorkListStatus.Ready ||
             currentPage.items.none { it == item } || mutableState.value.items.size >= 25 ||
-            mutableState.value.items.any { it.prepared.fulfillmentId == item.fulfillmentId }) return
-        mutableState.value = mutableState.value.copy(items = mutableState.value.items + WarehouseBatchItem(item))
+            mutableState.value.items.any { it.prepared.fulfillmentId == item.fulfillmentId }
+        ) {
+            return
+        }
+        mutableState.value =
+            mutableState.value.copy(items = mutableState.value.items + WarehouseBatchItem(item))
     }
 
     fun move(id: String, offset: Int) {
@@ -48,7 +52,11 @@ class WarehouseBatchViewModel : ViewModel() {
 
     fun select(id: String): Boolean {
         val current = mutableState.value
-        if (authority?.canRead != true || current.items.none { it.prepared.fulfillmentId == id }) return false
+        if (authority?.canRead != true ||
+            current.items.none { it.prepared.fulfillmentId == id }
+        ) {
+            return false
+        }
         mutableState.value = current.copy(selectedId = id)
         return true
     }
@@ -57,20 +65,38 @@ class WarehouseBatchViewModel : ViewModel() {
         val current = mutableState.value
         val result = value.confirmedFulfillment ?: return
         if (value.authorityEpoch != current.authorityEpoch || current.selectedId != result.id ||
-            value.command != PickingCommandStatus.Confirmed) return
-        mutableState.value = current.copy(items = current.items.map {
-            if (it.prepared.fulfillmentId == result.id) it.copy(confirmed = result) else it
-        })
+            value.command != PickingCommandStatus.Confirmed
+        ) {
+            return
+        }
+        mutableState.value = current.copy(
+            items = current.items.map {
+                if (it.prepared.fulfillmentId == result.id) it.copy(confirmed = result) else it
+            }
+        )
     }
 
     fun review(id: String, note: String) {
         val current = mutableState.value
         if (authority == null || note.isBlank()) return
-        mutableState.value = current.copy(items = current.items.map {
-            if (it.prepared.fulfillmentId == id) it.copy(reviewNote = note.trim().take(500)) else it
-        })
+        mutableState.value = current.copy(
+            items = current.items.map {
+                if (it.prepared.fulfillmentId ==
+                    id
+                ) {
+                    it.copy(reviewNote = note.trim().take(500))
+                } else {
+                    it
+                }
+            }
+        )
     }
 
-    fun closeItem() { mutableState.value = mutableState.value.copy(selectedId = null) }
-    fun invalidate() { authority = null; mutableState.value = WarehouseBatchUiState() }
+    fun closeItem() {
+        mutableState.value = mutableState.value.copy(selectedId = null)
+    }
+    fun invalidate() {
+        authority = null
+        mutableState.value = WarehouseBatchUiState()
+    }
 }

@@ -2,6 +2,7 @@
 
 package com.nexa.mobile.operations.feature.warehouse
 
+import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyMutationResult as DiscrepancyMutationResult
 import java.time.Instant
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -15,38 +16,45 @@ class InboundDiscrepancyViewModelTest {
     @get:Rule val mainDispatcher = MainDispatcherRule()
 
     @Test
-    fun unknownCreateRestoresFrozenIntentWithoutAutomaticMutationAndExplicitRetryReusesIt() = runTest {
-        val events = mutableListOf<String>()
-        val drafts = MemoryDraftStore(events)
-        val gateway = MemoryGateway(events)
-        val viewModel = viewModel(gateway, drafts)
-        viewModel.activate(authority())
-        advanceUntilIdle()
-        fillKnownFacts(viewModel)
+    fun unknownCreateRestoresFrozenIntentWithoutAutomaticMutationAndExplicitRetryReusesIt() =
+        runTest {
+            val events = mutableListOf<String>()
+            val drafts = MemoryDraftStore(events)
+            val gateway = MemoryGateway(events)
+            val viewModel = viewModel(gateway, drafts)
+            viewModel.activate(authority())
+            advanceUntilIdle()
+            fillKnownFacts(viewModel)
 
-        viewModel.createCase()
-        advanceUntilIdle()
-        assertEquals(listOf("save", "create"), events.take(2))
-        assertEquals(InboundDiscrepancyFlowStatus.UnknownOutcome, viewModel.state.value.flow)
-        assertEquals(InboundDiscrepancyPendingAction.CreateCase, drafts.records[authority().scope]?.pendingAction)
-        val original = requireNotNull(gateway.createCommands.singleOrNull())
+            viewModel.createCase()
+            advanceUntilIdle()
+            assertEquals(listOf("save", "create"), events.take(2))
+            assertEquals(InboundDiscrepancyFlowStatus.UnknownOutcome, viewModel.state.value.flow)
+            assertEquals(
+                InboundDiscrepancyPendingAction.CreateCase,
+                drafts.records[authority().scope]?.pendingAction
+            )
+            val original = requireNotNull(gateway.createCommands.singleOrNull())
 
-        viewModel.deactivate()
-        gateway.createResult = InboundDiscrepancyMutationResult.CaseConfirmed(caseFact())
-        viewModel.activate(authority(epoch = 4))
-        advanceUntilIdle()
-        assertEquals(1, gateway.createCommands.size)
-        assertEquals(InboundDiscrepancyFlowStatus.UnknownOutcome, viewModel.state.value.flow)
-        assertFalse(viewModel.state.value.expectedQuantityText == viewModel.state.value.observedQuantityText)
+            viewModel.deactivate()
+            gateway.createResult = DiscrepancyMutationResult.CaseConfirmed(caseFact())
+            viewModel.activate(authority(epoch = 4))
+            advanceUntilIdle()
+            assertEquals(1, gateway.createCommands.size)
+            assertEquals(InboundDiscrepancyFlowStatus.UnknownOutcome, viewModel.state.value.flow)
+            assertFalse(
+                viewModel.state.value.expectedQuantityText ==
+                    viewModel.state.value.observedQuantityText
+            )
 
-        viewModel.retryPendingAction()
-        advanceUntilIdle()
-        assertEquals(2, gateway.createCommands.size)
-        assertEquals(original, gateway.createCommands.last())
-        assertEquals("case-1", viewModel.state.value.caseId)
-        assertEquals("PENDING_EVIDENCE", viewModel.state.value.caseStatus)
-        assertTrue(viewModel.state.value.canSelectEvidence)
-    }
+            viewModel.retryPendingAction()
+            advanceUntilIdle()
+            assertEquals(2, gateway.createCommands.size)
+            assertEquals(original, gateway.createCommands.last())
+            assertEquals("case-1", viewModel.state.value.caseId)
+            assertEquals("PENDING_EVIDENCE", viewModel.state.value.caseStatus)
+            assertTrue(viewModel.state.value.canSelectEvidence)
+        }
 
     private fun fillKnownFacts(viewModel: InboundDiscrepancyViewModel) {
         viewModel.warehouseChanged(WAREHOUSE_ID)
@@ -58,17 +66,19 @@ class InboundDiscrepancyViewModelTest {
         viewModel.unitChanged("UNIT")
     }
 
-    private fun viewModel(gateway: MemoryGateway, drafts: MemoryDraftStore) = InboundDiscrepancyViewModel(
-        gateway = gateway,
-        drafts = drafts,
-        artifacts = EmptyArtifactStore,
-        newDraftId = { "draft-1" },
-        newCommandKey = { "create-key-1" },
-        deviceClockMillis = { 1_727_700_000_000 }
-    )
+    private fun viewModel(gateway: MemoryGateway, drafts: MemoryDraftStore) =
+        InboundDiscrepancyViewModel(
+            gateway = gateway,
+            drafts = drafts,
+            artifacts = EmptyArtifactStore,
+            newDraftId = { "draft-1" },
+            newCommandKey = { "create-key-1" },
+            deviceClockMillis = { 1_727_700_000_000 }
+        )
 
     private fun authority(epoch: Long = 3) = InboundDiscrepancyAuthority(
-        InboundDiscrepancyScope("user-a", "tenant-a", "workspace-a", "membership-a"), epoch
+        InboundDiscrepancyScope("user-a", "tenant-a", "workspace-a", "membership-a"),
+        epoch
     )
 
     private fun caseFact() = InboundDiscrepancyCase(
@@ -92,7 +102,8 @@ class InboundDiscrepancyViewModelTest {
         submittedAt = null
     )
 
-    private class MemoryDraftStore(private val events: MutableList<String>) : InboundDiscrepancyDraftStore {
+    private class MemoryDraftStore(private val events: MutableList<String>) :
+        InboundDiscrepancyDraftStore {
         val records = mutableMapOf<InboundDiscrepancyScope, InboundDiscrepancyDraft>()
         override suspend fun load(scope: InboundDiscrepancyScope): InboundDiscrepancyDraftRead =
             InboundDiscrepancyDraftRead.Available(records[scope])
@@ -102,7 +113,11 @@ class InboundDiscrepancyViewModelTest {
             draft: InboundDiscrepancyDraft
         ): InboundDiscrepancyDraftWrite {
             val current = records[scope]
-            if (current != null && current.id != draft.id) return InboundDiscrepancyDraftWrite.Conflict
+            if (current != null &&
+                current.id != draft.id
+            ) {
+                return InboundDiscrepancyDraftWrite.Conflict
+            }
             events += "save"
             records[scope] = draft
             return InboundDiscrepancyDraftWrite.Saved
@@ -114,14 +129,15 @@ class InboundDiscrepancyViewModelTest {
         ): InboundDiscrepancyDraftWrite = InboundDiscrepancyDraftWrite.Conflict
     }
 
-    private class MemoryGateway(private val events: MutableList<String>) : InboundDiscrepancyGateway {
+    private class MemoryGateway(private val events: MutableList<String>) :
+        InboundDiscrepancyGateway {
         val createCommands = mutableListOf<InboundDiscrepancyCreateCommand>()
-        var createResult: InboundDiscrepancyMutationResult = InboundDiscrepancyMutationResult.UnknownOutcome
+        var createResult: DiscrepancyMutationResult = DiscrepancyMutationResult.UnknownOutcome
 
         override suspend fun createCase(
             command: InboundDiscrepancyCreateCommand,
             authority: InboundDiscrepancyAuthority
-        ): InboundDiscrepancyMutationResult {
+        ): DiscrepancyMutationResult {
             events += "create"
             createCommands += command
             return createResult
@@ -130,18 +146,19 @@ class InboundDiscrepancyViewModelTest {
         override suspend fun uploadEvidence(
             command: InboundDiscrepancyUploadCommand,
             authority: InboundDiscrepancyAuthority
-        ): InboundDiscrepancyMutationResult = InboundDiscrepancyMutationResult.UnknownOutcome
+        ): DiscrepancyMutationResult = DiscrepancyMutationResult.UnknownOutcome
 
         override suspend fun evidenceStatus(
             evidenceId: String,
             caseId: String,
             authority: InboundDiscrepancyAuthority
-        ): InboundDiscrepancyEvidenceStatusResult = InboundDiscrepancyEvidenceStatusResult.ServiceUnavailable
+        ): InboundDiscrepancyEvidenceStatusResult =
+            InboundDiscrepancyEvidenceStatusResult.ServiceUnavailable
 
         override suspend fun submitForReview(
             command: InboundDiscrepancySubmitCommand,
             authority: InboundDiscrepancyAuthority
-        ): InboundDiscrepancyMutationResult = InboundDiscrepancyMutationResult.UnknownOutcome
+        ): DiscrepancyMutationResult = DiscrepancyMutationResult.UnknownOutcome
     }
 
     private companion object {
@@ -156,10 +173,13 @@ private object EmptyArtifactStore : InboundDiscrepancyEvidenceArtifactStore {
         candidate: InboundDiscrepancyEvidenceCandidate
     ): InboundDiscrepancyArtifactWrite = InboundDiscrepancyArtifactWrite.Unavailable
 
-    override suspend fun load(identity: InboundDiscrepancyArtifactIdentity): InboundDiscrepancyArtifactRead =
-        InboundDiscrepancyArtifactRead.Available(null)
+    override suspend fun load(
+        identity: InboundDiscrepancyArtifactIdentity
+    ): InboundDiscrepancyArtifactRead = InboundDiscrepancyArtifactRead.Available(null)
 
-    override suspend fun openForUpload(identity: InboundDiscrepancyArtifactIdentity): InboundDiscrepancyEvidenceCandidate? = null
+    override suspend fun openForUpload(
+        identity: InboundDiscrepancyArtifactIdentity
+    ): InboundDiscrepancyEvidenceCandidate? = null
     override fun releaseUploadCandidate(candidate: InboundDiscrepancyEvidenceCandidate) = Unit
     override suspend fun clear(identity: InboundDiscrepancyArtifactIdentity): Boolean = true
 }

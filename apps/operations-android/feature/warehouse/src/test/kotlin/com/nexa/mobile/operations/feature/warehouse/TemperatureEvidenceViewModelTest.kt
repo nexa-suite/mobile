@@ -73,7 +73,12 @@ class TemperatureEvidenceViewModelTest {
         viewModel.retryUnknownOutcome()
         advanceUntilIdle()
 
-        assertEquals(listOf("temperature-key-1", "temperature-key-1"), gateway.commands.map { it.second })
+        assertEquals(
+            listOf("temperature-key-1", "temperature-key-1"),
+            gateway.commands.map {
+                it.second
+            }
+        )
         assertEquals("4.2500", gateway.commands.last().first.value)
         assertEquals("UNKNOWN", viewModel.state.value.confirmed?.status)
         assertEquals(TemperatureCommandStatus.Confirmed, viewModel.state.value.command)
@@ -105,40 +110,41 @@ class TemperatureEvidenceViewModelTest {
     }
 
     @Test
-    fun missingPermissionOrUnavailableMetadataNeverDispatchesAndLateResponseIsDiscarded() = runTest {
-        val noPermissionGateway = FakeGateway()
-        val noPermission = viewModel(noPermissionGateway, MemoryMetadataStore())
-        noPermission.activate(authority(permissions = setOf("warehouse.read")))
-        advanceUntilIdle()
-        fill(noPermission)
-        noPermission.stageAndRecord()
-        advanceUntilIdle()
-        assertTrue(noPermissionGateway.commands.isEmpty())
+    fun missingPermissionOrUnavailableMetadataNeverDispatchesAndLateResponseIsDiscarded() =
+        runTest {
+            val noPermissionGateway = FakeGateway()
+            val noPermission = viewModel(noPermissionGateway, MemoryMetadataStore())
+            noPermission.activate(authority(permissions = setOf("warehouse.read")))
+            advanceUntilIdle()
+            fill(noPermission)
+            noPermission.stageAndRecord()
+            advanceUntilIdle()
+            assertTrue(noPermissionGateway.commands.isEmpty())
 
-        val unavailableStore = MemoryMetadataStore().apply { available = false }
-        val unavailableGateway = FakeGateway()
-        val unavailable = viewModel(unavailableGateway, unavailableStore)
-        unavailable.activate(authority())
-        advanceUntilIdle()
-        fill(unavailable)
-        unavailable.stageAndRecord()
-        advanceUntilIdle()
-        assertTrue(unavailableGateway.commands.isEmpty())
+            val unavailableStore = MemoryMetadataStore().apply { available = false }
+            val unavailableGateway = FakeGateway()
+            val unavailable = viewModel(unavailableGateway, unavailableStore)
+            unavailable.activate(authority())
+            advanceUntilIdle()
+            fill(unavailable)
+            unavailable.stageAndRecord()
+            advanceUntilIdle()
+            assertTrue(unavailableGateway.commands.isEmpty())
 
-        val response = CompletableDeferred<TemperatureSubmitResult>()
-        val delayedGateway = FakeGateway().apply { pendingResponse = response }
-        val delayed = viewModel(delayedGateway, MemoryMetadataStore())
-        delayed.activate(authority())
-        advanceUntilIdle()
-        fill(delayed)
-        delayed.stageAndRecord()
-        advanceUntilIdle()
-        delayed.deactivate()
-        response.complete(TemperatureSubmitResult.Confirmed(facts(status = "WITHIN_RANGE")))
-        advanceUntilIdle()
-        assertNull(delayed.state.value.confirmed)
-        assertEquals(0, delayed.state.value.authorityEpoch)
-    }
+            val response = CompletableDeferred<TemperatureSubmitResult>()
+            val delayedGateway = FakeGateway().apply { pendingResponse = response }
+            val delayed = viewModel(delayedGateway, MemoryMetadataStore())
+            delayed.activate(authority())
+            advanceUntilIdle()
+            fill(delayed)
+            delayed.stageAndRecord()
+            advanceUntilIdle()
+            delayed.deactivate()
+            response.complete(TemperatureSubmitResult.Confirmed(facts(status = "WITHIN_RANGE")))
+            advanceUntilIdle()
+            assertNull(delayed.state.value.confirmed)
+            assertEquals(0, delayed.state.value.authorityEpoch)
+        }
 
     private fun viewModel(gateway: FakeGateway, store: MemoryMetadataStore) =
         TemperatureEvidenceViewModel(
@@ -203,7 +209,13 @@ class TemperatureEvidenceViewModelTest {
                     TemperatureEvidenceSubject(
                         LOT_ID,
                         type,
-                        if (type == TemperatureEvidenceSubjectType.LOT) "LOT-A · ACTIVE" else "Cold store · WH-1",
+                        if (type ==
+                            TemperatureEvidenceSubjectType.LOT
+                        ) {
+                            "LOT-A · ACTIVE"
+                        } else {
+                            "Cold store · WH-1"
+                        },
                         "Warehouse $WAREHOUSE_ID"
                     )
                 )
@@ -229,8 +241,9 @@ class TemperatureEvidenceViewModelTest {
         var intent: TemperatureEvidenceIntent? = null
         val events = mutableListOf<String>()
 
-        override suspend fun loadDraft(scope: TemperatureEvidenceScope):
-            TemperatureMetadataRead<TemperatureEvidenceDraft> = if (available) {
+        override suspend fun loadDraft(
+            scope: TemperatureEvidenceScope
+        ): TemperatureMetadataRead<TemperatureEvidenceDraft> = if (available) {
             TemperatureMetadataRead.Available(draft)
         } else {
             TemperatureMetadataRead.Unavailable
@@ -245,19 +258,26 @@ class TemperatureEvidenceViewModelTest {
             return TemperatureMetadataWrite.Saved
         }
 
-        override suspend fun loadIntent(scope: TemperatureEvidenceScope):
-            TemperatureMetadataRead<TemperatureEvidenceIntent> = if (available) {
+        override suspend fun loadIntent(
+            scope: TemperatureEvidenceScope
+        ): TemperatureMetadataRead<TemperatureEvidenceIntent> = if (available) {
             TemperatureMetadataRead.Available(intent?.takeIf { it.scope == scope })
         } else {
             TemperatureMetadataRead.Unavailable
         }
 
-        override suspend fun saveIntent(intent: TemperatureEvidenceIntent): TemperatureMetadataWrite {
+        override suspend fun saveIntent(
+            intent: TemperatureEvidenceIntent
+        ): TemperatureMetadataWrite {
             if (!available) return TemperatureMetadataWrite.Unavailable
             val existing = this.intent
-            if (existing != null && (existing.idempotencyKey != intent.idempotencyKey ||
-                    existing.payload != intent.payload)
-            ) return TemperatureMetadataWrite.Unavailable
+            if (existing != null && (
+                    existing.idempotencyKey != intent.idempotencyKey ||
+                        existing.payload != intent.payload
+                    )
+            ) {
+                return TemperatureMetadataWrite.Unavailable
+            }
             this.intent = intent
             events += "intent"
             return TemperatureMetadataWrite.Saved
@@ -268,8 +288,9 @@ class TemperatureEvidenceViewModelTest {
             idempotencyKey: String
         ): TemperatureMetadataWrite {
             if (!available) return TemperatureMetadataWrite.Unavailable
-            val current = intent?.takeIf { it.scope == scope && it.idempotencyKey == idempotencyKey }
-                ?: return TemperatureMetadataWrite.Unavailable
+            val current =
+                intent?.takeIf { it.scope == scope && it.idempotencyKey == idempotencyKey }
+                    ?: return TemperatureMetadataWrite.Unavailable
             intent = current.copy(status = TemperatureIntentStatus.UnknownOutcome)
             return TemperatureMetadataWrite.Saved
         }
@@ -279,7 +300,11 @@ class TemperatureEvidenceViewModelTest {
             idempotencyKey: String
         ): TemperatureMetadataWrite {
             if (!available) return TemperatureMetadataWrite.Unavailable
-            if (intent?.idempotencyKey != idempotencyKey) return TemperatureMetadataWrite.Unavailable
+            if (intent?.idempotencyKey !=
+                idempotencyKey
+            ) {
+                return TemperatureMetadataWrite.Unavailable
+            }
             intent = null
             events += "clear"
             return TemperatureMetadataWrite.Saved

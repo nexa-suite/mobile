@@ -1,6 +1,7 @@
 package com.nexa.mobile.operations.feature.warehouse
 
 import androidx.compose.runtime.Immutable
+import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyEvidenceCandidate as DiscrepancyEvidenceCandidate
 import java.io.File
 import java.time.Instant
 
@@ -10,8 +11,11 @@ data class InboundDiscrepancyAuthority(
     val scope: InboundDiscrepancyScope,
     val authorityEpoch: Long
 ) {
-    init { require(authorityEpoch > 0) }
-    override fun toString(): String = "InboundDiscrepancyAuthority(scope=REDACTED, epoch=$authorityEpoch)"
+    init {
+        require(authorityEpoch > 0)
+    }
+    override fun toString(): String =
+        "InboundDiscrepancyAuthority(scope=REDACTED, epoch=$authorityEpoch)"
 }
 
 @Immutable
@@ -21,7 +25,9 @@ data class InboundDiscrepancyScope(
     val workspaceId: String,
     val membershipId: String
 ) {
-    init { require(listOf(userId, tenantId, workspaceId, membershipId).all(String::isNotBlank)) }
+    init {
+        require(listOf(userId, tenantId, workspaceId, membershipId).all(String::isNotBlank))
+    }
     override fun toString(): String = "InboundDiscrepancyScope(REDACTED)"
 }
 
@@ -76,11 +82,23 @@ data class InboundDiscrepancyDraft(
     init {
         require(id.isNotBlank() && id.length <= MAX_REFERENCE_LENGTH)
         require(warehouseId.length <= MAX_REFERENCE_LENGTH)
-        require(expectedSkuId.length <= MAX_REFERENCE_LENGTH && observedSkuId.length <= MAX_REFERENCE_LENGTH)
+        require(
+            expectedSkuId.length <= MAX_REFERENCE_LENGTH &&
+                observedSkuId.length <= MAX_REFERENCE_LENGTH
+        )
         require(observedSkuLabel == null || observedSkuLabel.length <= MAX_NOTE_LENGTH)
-        require(expectedBatchReference.length <= MAX_REFERENCE_LENGTH && observedBatchReference.length <= MAX_REFERENCE_LENGTH)
-        require(expectedQuantityText.length <= MAX_QUANTITY_LENGTH && observedQuantityText.length <= MAX_QUANTITY_LENGTH)
-        require(unit.length <= 32 && reasonDetails.length <= MAX_NOTE_LENGTH && observationNotes.length <= MAX_NOTE_LENGTH)
+        require(
+            expectedBatchReference.length <= MAX_REFERENCE_LENGTH &&
+                observedBatchReference.length <= MAX_REFERENCE_LENGTH
+        )
+        require(
+            expectedQuantityText.length <= MAX_QUANTITY_LENGTH &&
+                observedQuantityText.length <= MAX_QUANTITY_LENGTH
+        )
+        require(
+            unit.length <= 32 && reasonDetails.length <= MAX_NOTE_LENGTH &&
+                observationNotes.length <= MAX_NOTE_LENGTH
+        )
         require(capturedAtDeviceMillis > 0)
         require(createIdempotencyKey == null || createIdempotencyKey.length <= MAX_REFERENCE_LENGTH)
         require(createBody == null || createBody.length <= MAX_COMMAND_LENGTH)
@@ -104,8 +122,16 @@ data class InboundDiscrepancyDraft(
     }
 }
 
-enum class InboundDiscrepancyPendingAction { CreateCase, UploadEvidence, SubmitForReview }
-enum class InboundDiscrepancyMetadataStatus { Loading, Available, Unavailable }
+enum class InboundDiscrepancyPendingAction {
+    CreateCase,
+    UploadEvidence,
+    SubmitForReview
+}
+enum class InboundDiscrepancyMetadataStatus {
+    Loading,
+    Available,
+    Unavailable
+}
 enum class InboundDiscrepancyFlowStatus {
     Editing,
     CreatingCase,
@@ -233,17 +259,21 @@ data class InboundDiscrepancyUiState(
     val rejectionCode: String? = null
 ) {
     val canSave: Boolean
-        get() = active && metadata == InboundDiscrepancyMetadataStatus.Available && !isSaving && pendingAction == null
+        get() = active && metadata == InboundDiscrepancyMetadataStatus.Available && !isSaving &&
+            pendingAction == null
     val canCreateCase: Boolean
         get() = canSave && caseId == null && flow !in setOf(
             InboundDiscrepancyFlowStatus.CreatingCase,
             InboundDiscrepancyFlowStatus.UnknownOutcome
         )
     val canSelectEvidence: Boolean
-        get() = active && caseStatus == "PENDING_EVIDENCE" && evidenceId == null && artifact == null &&
+        get() = active && caseStatus ==
+            "PENDING_EVIDENCE" && evidenceId == null && artifact == null &&
             !isSaving && pendingAction == null
     val canUploadEvidence: Boolean
-        get() = active && caseStatus == "PENDING_EVIDENCE" && evidenceId == null && artifact != null && !isSaving &&
+        get() = active && caseStatus ==
+            "PENDING_EVIDENCE" && evidenceId == null && artifact != null &&
+            !isSaving &&
             pendingAction == null &&
             evidenceStatus !in setOf("AVAILABLE", "REJECTED")
     val canRefreshEvidence: Boolean
@@ -251,7 +281,8 @@ data class InboundDiscrepancyUiState(
             evidenceStatus !in setOf("AVAILABLE", "REJECTED")
     val canSubmitForReview: Boolean
         get() = active && caseId != null && caseStatus == "PENDING_EVIDENCE" &&
-            evidenceId != null && evidenceStatus == "AVAILABLE" && !isSaving && pendingAction == null
+            evidenceId != null && evidenceStatus == "AVAILABLE" && !isSaving &&
+            pendingAction == null
 
     override fun toString(): String =
         "InboundDiscrepancyUiState(epoch=$authorityEpoch, active=$active, flow=$flow, case=REDACTED)"
@@ -267,7 +298,8 @@ data class InboundDiscrepancySelectionContext(
     init {
         require(authorityEpoch > 0 && warehouseId.isNotBlank() && caseId.isNotBlank())
     }
-    override fun toString(): String = "InboundDiscrepancySelectionContext(scope=REDACTED, epoch=$authorityEpoch)"
+    override fun toString(): String =
+        "InboundDiscrepancySelectionContext(scope=REDACTED, epoch=$authorityEpoch)"
 }
 
 @Immutable
@@ -276,7 +308,9 @@ data class InboundDiscrepancyArtifactIdentity(
     val warehouseId: String,
     val caseId: String
 ) {
-    init { require(warehouseId.isNotBlank() && caseId.isNotBlank()) }
+    init {
+        require(warehouseId.isNotBlank() && caseId.isNotBlank())
+    }
     override fun toString(): String = "InboundDiscrepancyArtifactIdentity(scope=REDACTED)"
 }
 
@@ -296,7 +330,7 @@ data class InboundDiscrepancyEvidenceCandidate(
         require(checksumSha256.matches(Regex("[0-9a-f]{64}")))
     }
     override fun toString(): String =
-        "InboundDiscrepancyEvidenceCandidate(contentType=$declaredContentType, bytes=$byteSize, checksum=REDACTED)"
+        "DiscrepancyEvidenceCandidate(contentType=$declaredContentType, bytes=$byteSize, checksum=REDACTED)"
 
     private companion object {
         const val MAX_BYTES = 10L * 1024L * 1024L
@@ -317,26 +351,34 @@ data class InboundDiscrepancyEvidenceArtifact(
         require(byteSize in 1..10L * 1024L * 1024L)
         require(checksumSha256.matches(Regex("[0-9a-f]{64}")))
     }
-    override fun toString(): String = "InboundDiscrepancyEvidenceArtifact(contentType=$contentType, bytes=$byteSize)"
+    override fun toString(): String =
+        "InboundDiscrepancyEvidenceArtifact(contentType=$contentType, bytes=$byteSize)"
 }
 
 sealed interface InboundDiscrepancyArtifactRead {
-    data class Available(val artifact: InboundDiscrepancyEvidenceArtifact?) : InboundDiscrepancyArtifactRead
+    data class Available(val artifact: InboundDiscrepancyEvidenceArtifact?) :
+        InboundDiscrepancyArtifactRead
     data object Unavailable : InboundDiscrepancyArtifactRead
 }
 
-enum class InboundDiscrepancyArtifactWrite { Saved, Conflict, Unavailable }
+enum class InboundDiscrepancyArtifactWrite {
+    Saved,
+    Conflict,
+    Unavailable
+}
 
 /** Encrypted, scope-bound artifact staging; loading never starts network work. */
 interface InboundDiscrepancyEvidenceArtifactStore {
     suspend fun stageReturnedSelection(
         selection: InboundDiscrepancySelectionContext,
-        candidate: InboundDiscrepancyEvidenceCandidate
+        candidate: DiscrepancyEvidenceCandidate
     ): InboundDiscrepancyArtifactWrite
 
     suspend fun load(identity: InboundDiscrepancyArtifactIdentity): InboundDiscrepancyArtifactRead
-    suspend fun openForUpload(identity: InboundDiscrepancyArtifactIdentity): InboundDiscrepancyEvidenceCandidate?
-    fun releaseUploadCandidate(candidate: InboundDiscrepancyEvidenceCandidate)
+    suspend fun openForUpload(
+        identity: InboundDiscrepancyArtifactIdentity
+    ): DiscrepancyEvidenceCandidate?
+    fun releaseUploadCandidate(candidate: DiscrepancyEvidenceCandidate)
     suspend fun clear(identity: InboundDiscrepancyArtifactIdentity): Boolean
 }
 
@@ -345,7 +387,7 @@ data class InboundDiscrepancyCreateCommand(val idempotencyKey: String, val froze
 data class InboundDiscrepancyUploadCommand(
     val caseId: String,
     val idempotencyKey: String,
-    val candidate: InboundDiscrepancyEvidenceCandidate
+    val candidate: DiscrepancyEvidenceCandidate
 )
 
 data class InboundDiscrepancySubmitCommand(
@@ -358,7 +400,8 @@ data class InboundDiscrepancySubmitCommand(
 
 sealed interface InboundDiscrepancyMutationResult {
     data class CaseConfirmed(val value: InboundDiscrepancyCase) : InboundDiscrepancyMutationResult
-    data class EvidenceUploaded(val value: InboundDiscrepancyEvidence) : InboundDiscrepancyMutationResult
+    data class EvidenceUploaded(val value: InboundDiscrepancyEvidence) :
+        InboundDiscrepancyMutationResult
     data class Rejected(val code: String?) : InboundDiscrepancyMutationResult
     data object PreconditionFailed : InboundDiscrepancyMutationResult
     data object Conflict : InboundDiscrepancyMutationResult
@@ -371,7 +414,8 @@ sealed interface InboundDiscrepancyMutationResult {
 }
 
 sealed interface InboundDiscrepancyEvidenceStatusResult {
-    data class Loaded(val value: InboundDiscrepancyEvidence) : InboundDiscrepancyEvidenceStatusResult
+    data class Loaded(val value: InboundDiscrepancyEvidence) :
+        InboundDiscrepancyEvidenceStatusResult
     data class Rejected(val code: String?) : InboundDiscrepancyEvidenceStatusResult
     data object ServiceUnavailable : InboundDiscrepancyEvidenceStatusResult
     data object PermissionDenied : InboundDiscrepancyEvidenceStatusResult
@@ -379,7 +423,8 @@ sealed interface InboundDiscrepancyEvidenceStatusResult {
     data object SessionInvalidated : InboundDiscrepancyEvidenceStatusResult
 }
 
-/** Feature port; app boundary rechecks current session, permission and context before every call. */
+/** Feature port; app boundary rechecks current session,
+ permission and context before every call. */
 interface InboundDiscrepancyGateway {
     suspend fun createCase(
         command: InboundDiscrepancyCreateCommand,
@@ -408,11 +453,22 @@ sealed interface InboundDiscrepancyDraftRead {
     data object Unavailable : InboundDiscrepancyDraftRead
 }
 
-enum class InboundDiscrepancyDraftWrite { Saved, Discarded, Unavailable, Conflict }
+enum class InboundDiscrepancyDraftWrite {
+    Saved,
+    Discarded,
+    Unavailable,
+    Conflict
+}
 
 /** Encrypted local draft and exact replay identity only; never treats local data as server truth. */
 interface InboundDiscrepancyDraftStore {
     suspend fun load(scope: InboundDiscrepancyScope): InboundDiscrepancyDraftRead
-    suspend fun save(scope: InboundDiscrepancyScope, draft: InboundDiscrepancyDraft): InboundDiscrepancyDraftWrite
-    suspend fun discard(scope: InboundDiscrepancyScope, expectedDraftId: String): InboundDiscrepancyDraftWrite
+    suspend fun save(
+        scope: InboundDiscrepancyScope,
+        draft: InboundDiscrepancyDraft
+    ): InboundDiscrepancyDraftWrite
+    suspend fun discard(
+        scope: InboundDiscrepancyScope,
+        expectedDraftId: String
+    ): InboundDiscrepancyDraftWrite
 }

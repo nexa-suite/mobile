@@ -2,6 +2,12 @@ package com.nexa.mobile.operations.feature.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptLookupResult as ReceiptLookupResult
+import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservationMetadataRead as ObservationMetadataRead
+import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservationMetadataStore as ObservationMetadataStore
+import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservationNotice as ReceiptObservationNotice
+import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservationResult as ReceiptObservationResult
+import com.nexa.mobile.operations.feature.warehouse.UnavailableReceiptObservationMetadataStore as MetadataStore
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
@@ -17,7 +23,7 @@ import kotlinx.coroutines.sync.withLock
 class StockTransferReceiptViewModel(
     private val gateway: StockTransferReceiptGateway,
     private val metadataStore: StockTransferReceiptMetadataStore,
-    private val observationMetadataStore: StockTransferReceiptObservationMetadataStore = UnavailableReceiptObservationMetadataStore,
+    private val observationMetadataStore: ObservationMetadataStore = MetadataStore,
     private val newIdempotencyKey: () -> String = { UUID.randomUUID().toString() }
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(StockTransferReceiptUiState())
@@ -39,40 +45,62 @@ class StockTransferReceiptViewModel(
             authorityEpoch = currentAuthority.authorityEpoch,
             canLookUp = currentAuthority.canLookUp,
             canReceive = currentAuthority.canCreate,
-            warehouseLookup = if (currentAuthority.canLookUp) TransferLookupStatus.Loading
-            else TransferLookupStatus.PermissionDenied,
+            warehouseLookup = if (currentAuthority.canLookUp) {
+                TransferLookupStatus.Loading
+            } else {
+                TransferLookupStatus.PermissionDenied
+            },
             metadata = TransferMetadataStatus.Loading,
             observationMetadata = TransferMetadataStatus.Loading
         )
         reloadWarehouses()
         viewModelScope.launch {
-            val read = metadataMutex.withLock { safeRead { metadataStore.loadIntent(currentAuthority.scope) } }
+            val read = metadataMutex.withLock {
+                safeRead { metadataStore.loadIntent(currentAuthority.scope) }
+            }
             if (!isCurrent(requestGeneration, currentAuthority)) return@launch
             val restored = (read as? StockTransferReceiptMetadataRead.Available)?.value
                 ?.takeIf { it.scope == currentAuthority.scope && it.transfer.id.isNotBlank() }
             intent = restored?.copy(status = StockTransferReceiptIntentStatus.UnknownOutcome)
             mutableState.update {
                 it.copy(
-                    metadata = if (read is StockTransferReceiptMetadataRead.Available) TransferMetadataStatus.Available
-                    else TransferMetadataStatus.Unavailable,
+                    metadata = if (read is StockTransferReceiptMetadataRead.Available) {
+                        TransferMetadataStatus.Available
+                    } else {
+                        TransferMetadataStatus.Unavailable
+                    },
                     frozenIntent = intent,
-                    command = if (restored == null) StockTransferReceiptCommandStatus.Editing
-                    else StockTransferReceiptCommandStatus.UnknownOutcome,
+                    command = if (restored == null) {
+                        StockTransferReceiptCommandStatus.Editing
+                    } else {
+                        StockTransferReceiptCommandStatus.UnknownOutcome
+                    },
                     selectedDestinationWarehouseId = restored?.transfer?.destinationWarehouseId,
                     selectedTransferId = restored?.transfer?.id,
-                    notice = if (read is StockTransferReceiptMetadataRead.Available) null
-                    else StockTransferReceiptNotice.MetadataUnavailable
+                    notice = if (read is StockTransferReceiptMetadataRead.Available) {
+                        null
+                    } else {
+                        StockTransferReceiptNotice.MetadataUnavailable
+                    }
                 )
             }
             if (restored != null) {
                 if (restored.status == StockTransferReceiptIntentStatus.Pending) {
                     val marked = metadataMutex.withLock {
-                        safeWrite { metadataStore.markUnknownOutcome(currentAuthority.scope, restored.idempotencyKey) }
+                        safeWrite {
+                            metadataStore.markUnknownOutcome(
+                                currentAuthority.scope,
+                                restored.idempotencyKey
+                            )
+                        }
                     }
                     if (!isCurrent(requestGeneration, currentAuthority)) return@launch
                     if (marked != StockTransferReceiptMetadataWrite.Saved) {
                         mutableState.update {
-                            it.copy(metadata = TransferMetadataStatus.Unavailable, notice = StockTransferReceiptNotice.MetadataUnavailable)
+                            it.copy(
+                                metadata = TransferMetadataStatus.Unavailable,
+                                notice = StockTransferReceiptNotice.MetadataUnavailable
+                            )
                         }
                     }
                 }
@@ -84,31 +112,43 @@ class StockTransferReceiptViewModel(
                 safeObservationRead { observationMetadataStore.loadIntent(currentAuthority.scope) }
             }
             if (!isCurrent(requestGeneration, currentAuthority)) return@launch
-            val restored = (read as? StockTransferReceiptObservationMetadataRead.Available)?.value
+            val restored = (read as? ObservationMetadataRead.Available)?.value
                 ?.takeIf { it.scope == currentAuthority.scope && it.transfer.id.isNotBlank() }
-            observationIntent = restored?.copy(status = StockTransferReceiptObservationIntentStatus.UnknownOutcome)
+            observationIntent =
+                restored?.copy(status = StockTransferReceiptObservationIntentStatus.UnknownOutcome)
             mutableState.update {
                 it.copy(
-                    observationMetadata = if (read is StockTransferReceiptObservationMetadataRead.Available) {
+                    observationMetadata = if (read is ObservationMetadataRead.Available) {
                         TransferMetadataStatus.Available
                     } else {
                         TransferMetadataStatus.Unavailable
                     },
                     frozenObservationIntent = observationIntent,
-                    observationCommand = if (restored == null) StockTransferReceiptObservationCommandStatus.Editing
-                    else StockTransferReceiptObservationCommandStatus.UnknownOutcome,
+                    observationCommand = if (restored ==
+                        null
+                    ) {
+                        StockTransferReceiptObservationCommandStatus.Editing
+                    } else {
+                        StockTransferReceiptObservationCommandStatus.UnknownOutcome
+                    },
                     selectedDestinationWarehouseId = it.selectedDestinationWarehouseId
                         ?: restored?.transfer?.destinationWarehouseId,
                     selectedTransferId = it.selectedTransferId ?: restored?.transfer?.id,
-                    observationNotice = if (read is StockTransferReceiptObservationMetadataRead.Available) null
-                    else StockTransferReceiptObservationNotice.MetadataUnavailable
+                    observationNotice = if (read is ObservationMetadataRead.Available) {
+                        null
+                    } else {
+                        ReceiptObservationNotice.MetadataUnavailable
+                    }
                 )
             }
             if (restored != null) {
                 if (restored.status == StockTransferReceiptObservationIntentStatus.Pending) {
                     val marked = observationMetadataMutex.withLock {
                         safeObservationWrite {
-                            observationMetadataStore.markUnknownOutcome(currentAuthority.scope, restored.idempotencyKey)
+                            observationMetadataStore.markUnknownOutcome(
+                                currentAuthority.scope,
+                                restored.idempotencyKey
+                            )
                         }
                     }
                     if (!isCurrent(requestGeneration, currentAuthority)) return@launch
@@ -116,7 +156,7 @@ class StockTransferReceiptViewModel(
                         mutableState.update {
                             it.copy(
                                 observationMetadata = TransferMetadataStatus.Unavailable,
-                                observationNotice = StockTransferReceiptObservationNotice.MetadataUnavailable
+                                observationNotice = ReceiptObservationNotice.MetadataUnavailable
                             )
                         }
                     }
@@ -147,13 +187,19 @@ class StockTransferReceiptViewModel(
             val result = safeLookup { gateway.warehouses(currentAuthority) }
             if (!isCurrent(requestGeneration, currentAuthority)) return@launch
             when (result) {
-                is StockTransferReceiptLookupResult.Warehouses -> mutableState.update {
+                is ReceiptLookupResult.Warehouses -> mutableState.update {
                     it.copy(
                         warehouses = result.items,
-                        warehouseLookup = if (result.items.isEmpty()) TransferLookupStatus.Empty else TransferLookupStatus.Ready,
+                        warehouseLookup =
+                            if (result.items.isEmpty()) {
+                                TransferLookupStatus.Empty
+                            } else {
+                                TransferLookupStatus.Ready
+                            },
                         notice = null
                     )
                 }
+
                 else -> mutableState.update { it.copy(warehouseLookup = result.toLookupStatus()) }
             }
         }
@@ -167,8 +213,13 @@ class StockTransferReceiptViewModel(
         mutableState.update {
             it.copy(
                 selectedDestinationWarehouseId = warehouse.id,
-                transfers = emptyList(), transferLookup = TransferLookupStatus.Loading,
-                page = 0, total = 0, selectedTransferId = null, confirmed = null, notice = null
+                transfers = emptyList(),
+                transferLookup = TransferLookupStatus.Loading,
+                page = 0,
+                total = 0,
+                selectedTransferId = null,
+                confirmed = null,
+                notice = null
             )
         }
         loadTransfers(warehouse.id, 0, append = false)
@@ -177,20 +228,31 @@ class StockTransferReceiptViewModel(
     fun loadMoreTransfers() {
         val current = mutableState.value
         val warehouseId = current.selectedDestinationWarehouseId ?: return
-        if (!current.hasMoreTransfers || current.isFrozen || current.transferLookup == TransferLookupStatus.Loading) return
+        if (!current.hasMoreTransfers || current.isFrozen ||
+            current.transferLookup == TransferLookupStatus.Loading
+        ) {
+            return
+        }
         loadTransfers(warehouseId, current.page + 1, append = true)
     }
 
     fun selectTransfer(transferId: String) {
         if (!canEditSelection()) return
         val transfer = mutableState.value.transfers.singleOrNull { it.id == transferId } ?: return
-        if (transfer.destinationWarehouseId != mutableState.value.selectedDestinationWarehouseId) return
+        if (transfer.destinationWarehouseId !=
+            mutableState.value.selectedDestinationWarehouseId
+        ) {
+            return
+        }
         mutableState.update {
             it.copy(
                 selectedTransferId = transfer.id,
                 confirmed = null,
-                notice = if (transfer.canReceiveExpectedQuantity) null
-                else StockTransferReceiptNotice.ExpectedQuantityOnly
+                notice = if (transfer.canReceiveExpectedQuantity) {
+                    null
+                } else {
+                    StockTransferReceiptNotice.ExpectedQuantityOnly
+                }
             )
         }
     }
@@ -199,15 +261,25 @@ class StockTransferReceiptViewModel(
         val currentAuthority = authority ?: return
         val current = mutableState.value
         val transfer = current.selectedTransfer ?: return
-        if (current.recordedObservation?.let { it.transferId == transfer.id && it.hasDifference } == true) {
+        if (current.recordedObservation?.let { it.transferId == transfer.id && it.hasDifference } ==
+            true
+        ) {
             mutableState.update {
                 it.copy(notice = StockTransferReceiptNotice.ObservedDifferenceRequiresResolution)
             }
             return
         }
-        if (!current.canReceive || current.isFrozen || current.metadata != TransferMetadataStatus.Available) return
-        if (!transfer.canReceiveExpectedQuantity || transfer.destinationWarehouseId != current.selectedDestinationWarehouseId) {
-            mutableState.update { it.copy(notice = StockTransferReceiptNotice.ExpectedQuantityOnly) }
+        if (!current.canReceive || current.isFrozen ||
+            current.metadata != TransferMetadataStatus.Available
+        ) {
+            return
+        }
+        if (!transfer.canReceiveExpectedQuantity ||
+            transfer.destinationWarehouseId != current.selectedDestinationWarehouseId
+        ) {
+            mutableState.update {
+                it.copy(notice = StockTransferReceiptNotice.ExpectedQuantityOnly)
+            }
             return
         }
         val command = StockTransferReceiptIntent(
@@ -218,7 +290,11 @@ class StockTransferReceiptViewModel(
         )
         intent = command
         mutableState.update {
-            it.copy(frozenIntent = command, command = StockTransferReceiptCommandStatus.PersistingIntent, notice = null)
+            it.copy(
+                frozenIntent = command,
+                command = StockTransferReceiptCommandStatus.PersistingIntent,
+                notice = null
+            )
         }
         persistThenReceive(command, currentAuthority, generation)
     }
@@ -228,37 +304,46 @@ class StockTransferReceiptViewModel(
         val currentAuthority = authority ?: return
         val current = mutableState.value
         val transfer = current.selectedTransfer ?: return
-        if (!current.canReceive || current.isFrozen || current.observationMetadata != TransferMetadataStatus.Available ||
-            current.metadata != TransferMetadataStatus.Available || current.command == StockTransferReceiptCommandStatus.Conflict ||
+        if (!current.canReceive || current.isFrozen ||
+            current.observationMetadata != TransferMetadataStatus.Available ||
+            current.metadata != TransferMetadataStatus.Available ||
+            current.command == StockTransferReceiptCommandStatus.Conflict ||
             current.observationCommand == StockTransferReceiptObservationCommandStatus.Conflict
-        ) return
+        ) {
+            return
+        }
         val observedBatch = batch.trim()
-        if (observedBatch.isBlank() || observedBatch.length > MAX_OBSERVED_BATCH_LENGTH || observedBatch.any(Char::isISOControl)) {
-            rejectObservationInput(StockTransferReceiptObservationNotice.InvalidBatch)
+        if (observedBatch.isBlank() || observedBatch.length > MAX_OBSERVED_BATCH_LENGTH ||
+            observedBatch.any(Char::isISOControl)
+        ) {
+            rejectObservationInput(ReceiptObservationNotice.InvalidBatch)
             return
         }
         val observedExpiration = expiry?.trim()?.takeIf(String::isNotEmpty)
         if (observedExpiration != null && !observedExpiration.isCanonicalLocalDate()) {
-            rejectObservationInput(StockTransferReceiptObservationNotice.InvalidExpirationDate)
+            rejectObservationInput(ReceiptObservationNotice.InvalidExpirationDate)
             return
         }
         val observedQuantity = quantity.trim().toBigDecimalOrNull()
         if (observedQuantity == null || observedQuantity.signum() < 0) {
-            rejectObservationInput(StockTransferReceiptObservationNotice.InvalidQuantity)
+            rejectObservationInput(ReceiptObservationNotice.InvalidQuantity)
             return
         }
         val normalizedUnit = unit.trim()
         if (normalizedUnit.isBlank() || !normalizedUnit.equals(transfer.unit, ignoreCase = true)) {
-            rejectObservationInput(StockTransferReceiptObservationNotice.UnitMismatch)
+            rejectObservationInput(ReceiptObservationNotice.UnitMismatch)
             return
         }
         val expectedQuantity = transfer.expectedQuantity
         val expectedBatch = transfer.batchNumber
-        if (!transfer.canReceiveExpectedQuantity || transfer.destinationWarehouseId != current.selectedDestinationWarehouseId ||
+        if (!transfer.canReceiveExpectedQuantity ||
+            transfer.destinationWarehouseId != current.selectedDestinationWarehouseId ||
             expectedQuantity == null || expectedBatch.isNullOrBlank()
         ) {
             mutableState.update {
-                it.copy(observationNotice = StockTransferReceiptObservationNotice.CurrentTransferUnavailable)
+                it.copy(
+                    observationNotice = ReceiptObservationNotice.CurrentTransferUnavailable
+                )
             }
             return
         }
@@ -266,7 +351,7 @@ class StockTransferReceiptViewModel(
             (observedExpiration != null && observedExpiration != transfer.expirationDate) ||
             observedQuantity.compareTo(expectedQuantity) != 0
         if (!differs) {
-            rejectObservationInput(StockTransferReceiptObservationNotice.NoDifference)
+            rejectObservationInput(ReceiptObservationNotice.NoDifference)
             return
         }
         val command = StockTransferReceiptObservationIntent(
@@ -291,29 +376,47 @@ class StockTransferReceiptViewModel(
         persistThenObserve(command, currentAuthority, generation)
     }
 
-    /** Replays only the same persisted key, body, transfer version and scope after an explicit user action. */
+    /** Replays only the same persisted key,
+     body, transfer version and scope after an explicit user action. */
     fun retryObservationUnknownOutcome() {
         val currentAuthority = authority ?: return
         val frozen = observationIntent ?: return
         val current = mutableState.value
-        if (current.observationCommand != StockTransferReceiptObservationCommandStatus.UnknownOutcome ||
+        if (current.observationCommand !=
+            StockTransferReceiptObservationCommandStatus.UnknownOutcome ||
             frozen.scope != currentAuthority.scope || !current.canReceive ||
             current.observationMetadata != TransferMetadataStatus.Available
-        ) return
-        mutableState.update {
-            it.copy(observationCommand = StockTransferReceiptObservationCommandStatus.Pending, observationNotice = null)
+        ) {
+            return
         }
-        executeObservation(frozen.copy(status = StockTransferReceiptObservationIntentStatus.UnknownOutcome), currentAuthority, generation)
+        mutableState.update {
+            it.copy(
+                observationCommand = StockTransferReceiptObservationCommandStatus.Pending,
+                observationNotice = null
+            )
+        }
+        executeObservation(
+            frozen.copy(status = StockTransferReceiptObservationIntentStatus.UnknownOutcome),
+            currentAuthority,
+            generation
+        )
     }
 
     fun retryObservationIntentCleanup() {
         val currentAuthority = authority ?: return
         val frozen = observationIntent ?: return
-        if (!mutableState.value.observationCleanupPending || frozen.scope != currentAuthority.scope) return
+        if (!mutableState.value.observationCleanupPending ||
+            frozen.scope != currentAuthority.scope
+        ) {
+            return
+        }
         viewModelScope.launch {
             val cleared = observationMetadataMutex.withLock {
                 safeObservationWrite {
-                    observationMetadataStore.clearIntent(currentAuthority.scope, frozen.idempotencyKey)
+                    observationMetadataStore.clearIntent(
+                        currentAuthority.scope,
+                        frozen.idempotencyKey
+                    )
                 }
             }
             if (!isCurrent(generation, currentAuthority)) return@launch
@@ -327,7 +430,9 @@ class StockTransferReceiptViewModel(
                     )
                 }
             } else {
-                mutableState.update { it.copy(observationMetadata = TransferMetadataStatus.Unavailable) }
+                mutableState.update {
+                    it.copy(observationMetadata = TransferMetadataStatus.Unavailable)
+                }
             }
         }
     }
@@ -338,24 +443,42 @@ class StockTransferReceiptViewModel(
         if (mutableState.value.command != StockTransferReceiptCommandStatus.UnknownOutcome ||
             frozen.scope != currentAuthority.scope || !mutableState.value.canReceive ||
             mutableState.value.metadata != TransferMetadataStatus.Available
-        ) return
-        mutableState.update { it.copy(command = StockTransferReceiptCommandStatus.Pending, notice = null) }
-        execute(frozen.copy(status = StockTransferReceiptIntentStatus.UnknownOutcome), currentAuthority, generation)
+        ) {
+            return
+        }
+        mutableState.update {
+            it.copy(command = StockTransferReceiptCommandStatus.Pending, notice = null)
+        }
+        execute(
+            frozen.copy(status = StockTransferReceiptIntentStatus.UnknownOutcome),
+            currentAuthority,
+            generation
+        )
     }
 
     fun retryIntentCleanup() {
         val currentAuthority = authority ?: return
         val frozen = intent ?: return
-        if (!mutableState.value.intentCleanupPending || frozen.scope != currentAuthority.scope) return
+        if (!mutableState.value.intentCleanupPending ||
+            frozen.scope != currentAuthority.scope
+        ) {
+            return
+        }
         viewModelScope.launch {
             val cleared = metadataMutex.withLock {
-                safeWrite { metadataStore.clearIntent(currentAuthority.scope, frozen.idempotencyKey) }
+                safeWrite {
+                    metadataStore.clearIntent(currentAuthority.scope, frozen.idempotencyKey)
+                }
             }
             if (!isCurrent(generation, currentAuthority)) return@launch
             if (cleared == StockTransferReceiptMetadataWrite.Saved) {
                 intent = null
                 mutableState.update {
-                    it.copy(frozenIntent = null, intentCleanupPending = false, metadata = TransferMetadataStatus.Available)
+                    it.copy(
+                        frozenIntent = null,
+                        intentCleanupPending = false,
+                        metadata = TransferMetadataStatus.Available
+                    )
                 }
             } else {
                 mutableState.update { it.copy(metadata = TransferMetadataStatus.Unavailable) }
@@ -371,18 +494,26 @@ class StockTransferReceiptViewModel(
             val result = safeLookup { gateway.transfers(warehouseId, page, currentAuthority) }
             if (!isCurrent(requestGeneration, currentAuthority) || lookup != lookupGeneration ||
                 mutableState.value.selectedDestinationWarehouseId != warehouseId
-            ) return@launch
+            ) {
+                return@launch
+            }
             when (result) {
-                is StockTransferReceiptLookupResult.TransferPage -> mutableState.update { current ->
+                is ReceiptLookupResult.TransferPage -> mutableState.update { current ->
                     val combined = if (append) current.transfers + result.items else result.items
                     current.copy(
                         transfers = combined.distinctBy(StockTransferReceiptTransfer::id),
                         page = result.page,
                         total = result.total,
-                        transferLookup = if (combined.isEmpty()) TransferLookupStatus.Empty else TransferLookupStatus.Ready,
+                        transferLookup =
+                            if (combined.isEmpty()) {
+                                TransferLookupStatus.Empty
+                            } else {
+                                TransferLookupStatus.Ready
+                            },
                         notice = null
                     )
                 }
+
                 else -> mutableState.update { it.copy(transferLookup = result.toLookupStatus()) }
             }
         }
@@ -396,18 +527,26 @@ class StockTransferReceiptViewModel(
         viewModelScope.launch {
             val result = safeLookup { gateway.transfer(transferId, currentAuthority) }
             if (!isCurrent(requestGeneration, currentAuthority)) return@launch
-            if (result is StockTransferReceiptLookupResult.Transfer) {
+            if (result is ReceiptLookupResult.Transfer) {
                 mutableState.update { current ->
                     current.copy(
-                        transfers = current.transfers.filterNot { it.id == transferId } + result.item,
+                        transfers =
+                            current.transfers.filterNot { it.id == transferId } + result.item,
                         selectedDestinationWarehouseId = result.item.destinationWarehouseId,
                         selectedTransferId = transferId,
-                        notice = if (result.item.status == "RECEIVED") StockTransferReceiptNotice.CurrentTransferUnavailable
-                        else current.notice
+                        notice = if (result.item.status ==
+                            "RECEIVED"
+                        ) {
+                            StockTransferReceiptNotice.CurrentTransferUnavailable
+                        } else {
+                            current.notice
+                        }
                     )
                 }
             } else {
-                mutableState.update { it.copy(notice = StockTransferReceiptNotice.CurrentTransferUnavailable) }
+                mutableState.update {
+                    it.copy(notice = StockTransferReceiptNotice.CurrentTransferUnavailable)
+                }
             }
         }
     }
@@ -444,26 +583,75 @@ class StockTransferReceiptViewModel(
     ) {
         viewModelScope.launch {
             when (val result = safeReceive { gateway.receive(command, currentAuthority) }) {
-                is StockTransferReceiptResult.Confirmed -> confirm(command, result.transfer, currentAuthority, requestGeneration)
-                is StockTransferReceiptResult.Rejected -> clearRejected(command, currentAuthority, requestGeneration, result.code)
+                is StockTransferReceiptResult.Confirmed -> confirm(
+                    command,
+                    result.transfer,
+                    currentAuthority,
+                    requestGeneration
+                )
+
+                is StockTransferReceiptResult.Rejected -> clearRejected(
+                    command,
+                    currentAuthority,
+                    requestGeneration,
+                    result.code
+                )
+
                 StockTransferReceiptResult.PreconditionFailed -> {
                     clearRejected(command, currentAuthority, requestGeneration, null, stale = true)
                     loadCurrentTransfer(requestGeneration, currentAuthority, command.transfer.id)
                 }
-                StockTransferReceiptResult.Conflict -> finish(command, currentAuthority, requestGeneration,
-                    StockTransferReceiptCommandStatus.Conflict, StockTransferReceiptNotice.Conflict, markUnknown = false)
-                StockTransferReceiptResult.UnknownOutcome -> finishUnknown(command, currentAuthority, requestGeneration,
-                    StockTransferReceiptNotice.ServiceUnavailable)
-                StockTransferReceiptResult.NetworkUnavailable -> finishUnknown(command, currentAuthority, requestGeneration,
-                    StockTransferReceiptNotice.NetworkUnavailable)
-                StockTransferReceiptResult.ServiceUnavailable -> finishUnknown(command, currentAuthority, requestGeneration,
-                    StockTransferReceiptNotice.ServiceUnavailable)
-                StockTransferReceiptResult.PermissionDenied -> finishUnknown(command, currentAuthority, requestGeneration,
-                    StockTransferReceiptNotice.PermissionDenied)
-                StockTransferReceiptResult.ContextInvalidated -> finishUnknown(command, currentAuthority, requestGeneration,
-                    StockTransferReceiptNotice.ContextInvalidated)
-                StockTransferReceiptResult.SessionInvalidated -> finishUnknown(command, currentAuthority, requestGeneration,
-                    StockTransferReceiptNotice.SessionInvalidated)
+
+                StockTransferReceiptResult.Conflict -> finish(
+                    command,
+                    currentAuthority,
+                    requestGeneration,
+                    StockTransferReceiptCommandStatus.Conflict,
+                    StockTransferReceiptNotice.Conflict,
+                    markUnknown = false
+                )
+
+                StockTransferReceiptResult.UnknownOutcome -> finishUnknown(
+                    command,
+                    currentAuthority,
+                    requestGeneration,
+                    StockTransferReceiptNotice.ServiceUnavailable
+                )
+
+                StockTransferReceiptResult.NetworkUnavailable -> finishUnknown(
+                    command,
+                    currentAuthority,
+                    requestGeneration,
+                    StockTransferReceiptNotice.NetworkUnavailable
+                )
+
+                StockTransferReceiptResult.ServiceUnavailable -> finishUnknown(
+                    command,
+                    currentAuthority,
+                    requestGeneration,
+                    StockTransferReceiptNotice.ServiceUnavailable
+                )
+
+                StockTransferReceiptResult.PermissionDenied -> finishUnknown(
+                    command,
+                    currentAuthority,
+                    requestGeneration,
+                    StockTransferReceiptNotice.PermissionDenied
+                )
+
+                StockTransferReceiptResult.ContextInvalidated -> finishUnknown(
+                    command,
+                    currentAuthority,
+                    requestGeneration,
+                    StockTransferReceiptNotice.ContextInvalidated
+                )
+
+                StockTransferReceiptResult.SessionInvalidated -> finishUnknown(
+                    command,
+                    currentAuthority,
+                    requestGeneration,
+                    StockTransferReceiptNotice.SessionInvalidated
+                )
             }
         }
     }
@@ -485,7 +673,7 @@ class StockTransferReceiptViewModel(
                         frozenObservationIntent = null,
                         observationCommand = StockTransferReceiptObservationCommandStatus.Editing,
                         observationMetadata = TransferMetadataStatus.Unavailable,
-                        observationNotice = StockTransferReceiptObservationNotice.MetadataUnavailable
+                        observationNotice = ReceiptObservationNotice.MetadataUnavailable
                     )
                 }
                 return@launch
@@ -503,35 +691,82 @@ class StockTransferReceiptViewModel(
         requestGeneration: Long
     ) {
         viewModelScope.launch {
-            when (val result = safeObserveArrival { gateway.observeArrival(command, currentAuthority) }) {
-                is StockTransferReceiptObservationResult.Recorded ->
-                    recordObservation(command, result.observation, currentAuthority, requestGeneration)
-                is StockTransferReceiptObservationResult.Rejected ->
-                    clearObservationIntent(command, currentAuthority, requestGeneration, result.code)
-                StockTransferReceiptObservationResult.PreconditionFailed -> {
-                    clearObservationIntent(command, currentAuthority, requestGeneration, null, stale = true)
+            when (
+                val result = safeObserveArrival {
+                    gateway.observeArrival(command, currentAuthority)
+                }
+            ) {
+                is ReceiptObservationResult.Recorded ->
+                    recordObservation(
+                        command,
+                        result.observation,
+                        currentAuthority,
+                        requestGeneration
+                    )
+
+                is ReceiptObservationResult.Rejected ->
+                    clearObservationIntent(
+                        command,
+                        currentAuthority,
+                        requestGeneration,
+                        result.code
+                    )
+
+                ReceiptObservationResult.PreconditionFailed -> {
+                    clearObservationIntent(
+                        command,
+                        currentAuthority,
+                        requestGeneration,
+                        null,
+                        stale = true
+                    )
                     loadCurrentTransfer(requestGeneration, currentAuthority, command.transfer.id)
                 }
-                StockTransferReceiptObservationResult.Conflict -> {
+
+                ReceiptObservationResult.Conflict -> {
                     finishObservationConflict(command, currentAuthority, requestGeneration)
                 }
-                StockTransferReceiptObservationResult.UnknownOutcome -> finishObservationUnknown(
-                    command, currentAuthority, requestGeneration, StockTransferReceiptObservationNotice.ServiceUnavailable
+
+                ReceiptObservationResult.UnknownOutcome -> finishObservationUnknown(
+                    command,
+                    currentAuthority,
+                    requestGeneration,
+                    ReceiptObservationNotice.ServiceUnavailable
                 )
-                StockTransferReceiptObservationResult.NetworkUnavailable -> finishObservationUnknown(
-                    command, currentAuthority, requestGeneration, StockTransferReceiptObservationNotice.NetworkUnavailable
+
+                ReceiptObservationResult.NetworkUnavailable -> finishObservationUnknown(
+                    command,
+                    currentAuthority,
+                    requestGeneration,
+                    ReceiptObservationNotice.NetworkUnavailable
                 )
-                StockTransferReceiptObservationResult.ServiceUnavailable -> finishObservationUnknown(
-                    command, currentAuthority, requestGeneration, StockTransferReceiptObservationNotice.ServiceUnavailable
+
+                ReceiptObservationResult.ServiceUnavailable -> finishObservationUnknown(
+                    command,
+                    currentAuthority,
+                    requestGeneration,
+                    ReceiptObservationNotice.ServiceUnavailable
                 )
-                StockTransferReceiptObservationResult.PermissionDenied -> finishObservationUnknown(
-                    command, currentAuthority, requestGeneration, StockTransferReceiptObservationNotice.PermissionDenied
+
+                ReceiptObservationResult.PermissionDenied -> finishObservationUnknown(
+                    command,
+                    currentAuthority,
+                    requestGeneration,
+                    ReceiptObservationNotice.PermissionDenied
                 )
-                StockTransferReceiptObservationResult.ContextInvalidated -> finishObservationUnknown(
-                    command, currentAuthority, requestGeneration, StockTransferReceiptObservationNotice.ContextInvalidated
+
+                ReceiptObservationResult.ContextInvalidated -> finishObservationUnknown(
+                    command,
+                    currentAuthority,
+                    requestGeneration,
+                    ReceiptObservationNotice.ContextInvalidated
                 )
-                StockTransferReceiptObservationResult.SessionInvalidated -> finishObservationUnknown(
-                    command, currentAuthority, requestGeneration, StockTransferReceiptObservationNotice.SessionInvalidated
+
+                ReceiptObservationResult.SessionInvalidated -> finishObservationUnknown(
+                    command,
+                    currentAuthority,
+                    requestGeneration,
+                    ReceiptObservationNotice.SessionInvalidated
                 )
             }
         }
@@ -554,16 +789,30 @@ class StockTransferReceiptViewModel(
         mutableState.update {
             it.copy(
                 recordedObservation = observation,
-                frozenObservationIntent = if (cleared == StockTransferReceiptObservationMetadataWrite.Saved) null else command,
-                observationCleanupPending = cleared != StockTransferReceiptObservationMetadataWrite.Saved,
-                observationMetadata = if (cleared == StockTransferReceiptObservationMetadataWrite.Saved) {
+                frozenObservationIntent = if (cleared ==
+                    StockTransferReceiptObservationMetadataWrite.Saved
+                ) {
+                    null
+                } else {
+                    command
+                },
+                observationCleanupPending =
+                    cleared != StockTransferReceiptObservationMetadataWrite.Saved,
+                observationMetadata = if (cleared ==
+                    StockTransferReceiptObservationMetadataWrite.Saved
+                ) {
                     TransferMetadataStatus.Available
                 } else {
                     TransferMetadataStatus.Unavailable
                 },
                 observationCommand = StockTransferReceiptObservationCommandStatus.Recorded,
-                observationNotice = if (cleared == StockTransferReceiptObservationMetadataWrite.Saved) null
-                else StockTransferReceiptObservationNotice.MetadataUnavailable
+                observationNotice = if (cleared ==
+                    StockTransferReceiptObservationMetadataWrite.Saved
+                ) {
+                    null
+                } else {
+                    ReceiptObservationNotice.MetadataUnavailable
+                }
             )
         }
     }
@@ -585,19 +834,33 @@ class StockTransferReceiptViewModel(
         if (cleared == StockTransferReceiptObservationMetadataWrite.Saved) observationIntent = null
         mutableState.update {
             it.copy(
-                frozenObservationIntent = if (cleared == StockTransferReceiptObservationMetadataWrite.Saved) null else command,
-                observationCleanupPending = cleared != StockTransferReceiptObservationMetadataWrite.Saved,
-                observationMetadata = if (cleared == StockTransferReceiptObservationMetadataWrite.Saved) {
+                frozenObservationIntent = if (cleared ==
+                    StockTransferReceiptObservationMetadataWrite.Saved
+                ) {
+                    null
+                } else {
+                    command
+                },
+                observationCleanupPending =
+                    cleared != StockTransferReceiptObservationMetadataWrite.Saved,
+                observationMetadata = if (cleared ==
+                    StockTransferReceiptObservationMetadataWrite.Saved
+                ) {
                     TransferMetadataStatus.Available
                 } else {
                     TransferMetadataStatus.Unavailable
                 },
-                observationCommand = if (stale) StockTransferReceiptObservationCommandStatus.PreconditionFailed
-                else StockTransferReceiptObservationCommandStatus.Rejected,
+                observationCommand = if (stale) {
+                    StockTransferReceiptObservationCommandStatus.PreconditionFailed
+                } else {
+                    StockTransferReceiptObservationCommandStatus.Rejected
+                },
                 observationNotice = when {
-                    stale -> StockTransferReceiptObservationNotice.PreconditionFailed
+                    stale -> ReceiptObservationNotice.PreconditionFailed
+
                     cleared != StockTransferReceiptObservationMetadataWrite.Saved ->
-                        StockTransferReceiptObservationNotice.MetadataUnavailable
+                        ReceiptObservationNotice.MetadataUnavailable
+
                     else -> null
                 },
                 rejectionCode = code
@@ -609,12 +872,17 @@ class StockTransferReceiptViewModel(
         command: StockTransferReceiptObservationIntent,
         currentAuthority: StockTransferAuthority,
         requestGeneration: Long,
-        notice: StockTransferReceiptObservationNotice
+        notice: ReceiptObservationNotice
     ) {
-        val unknown = command.copy(status = StockTransferReceiptObservationIntentStatus.UnknownOutcome)
+        val unknown = command.copy(
+            status = StockTransferReceiptObservationIntentStatus.UnknownOutcome
+        )
         val marked = observationMetadataMutex.withLock {
             safeObservationWrite {
-                observationMetadataStore.markUnknownOutcome(currentAuthority.scope, command.idempotencyKey)
+                observationMetadataStore.markUnknownOutcome(
+                    currentAuthority.scope,
+                    command.idempotencyKey
+                )
             }
         }
         if (!isCurrent(requestGeneration, currentAuthority)) return
@@ -622,14 +890,21 @@ class StockTransferReceiptViewModel(
         mutableState.update {
             it.copy(
                 frozenObservationIntent = unknown,
-                observationMetadata = if (marked == StockTransferReceiptObservationMetadataWrite.Saved) {
+                observationMetadata = if (marked ==
+                    StockTransferReceiptObservationMetadataWrite.Saved
+                ) {
                     TransferMetadataStatus.Available
                 } else {
                     TransferMetadataStatus.Unavailable
                 },
                 observationCommand = StockTransferReceiptObservationCommandStatus.UnknownOutcome,
-                observationNotice = if (marked == StockTransferReceiptObservationMetadataWrite.Saved) notice
-                else StockTransferReceiptObservationNotice.MetadataUnavailable
+                observationNotice = if (marked ==
+                    StockTransferReceiptObservationMetadataWrite.Saved
+                ) {
+                    notice
+                } else {
+                    ReceiptObservationNotice.MetadataUnavailable
+                }
             )
         }
     }
@@ -645,12 +920,12 @@ class StockTransferReceiptViewModel(
             it.copy(
                 frozenObservationIntent = command,
                 observationCommand = StockTransferReceiptObservationCommandStatus.Conflict,
-                observationNotice = StockTransferReceiptObservationNotice.Conflict
+                observationNotice = ReceiptObservationNotice.Conflict
             )
         }
     }
 
-    private fun rejectObservationInput(notice: StockTransferReceiptObservationNotice) {
+    private fun rejectObservationInput(notice: ReceiptObservationNotice) {
         mutableState.update {
             it.copy(
                 observationCommand = StockTransferReceiptObservationCommandStatus.Rejected,
@@ -675,13 +950,27 @@ class StockTransferReceiptViewModel(
             it.copy(
                 transfers = it.transfers.filterNot { row -> row.id == transfer.id } + transfer,
                 confirmed = transfer,
-                frozenIntent = if (cleared == StockTransferReceiptMetadataWrite.Saved) null else command,
+                frozenIntent = if (cleared ==
+                    StockTransferReceiptMetadataWrite.Saved
+                ) {
+                    null
+                } else {
+                    command
+                },
                 intentCleanupPending = cleared != StockTransferReceiptMetadataWrite.Saved,
-                metadata = if (cleared == StockTransferReceiptMetadataWrite.Saved) TransferMetadataStatus.Available
-                else TransferMetadataStatus.Unavailable,
+                metadata = if (cleared ==
+                    StockTransferReceiptMetadataWrite.Saved
+                ) {
+                    TransferMetadataStatus.Available
+                } else {
+                    TransferMetadataStatus.Unavailable
+                },
                 command = StockTransferReceiptCommandStatus.Confirmed,
-                notice = if (cleared == StockTransferReceiptMetadataWrite.Saved) null
-                else StockTransferReceiptNotice.MetadataUnavailable
+                notice = if (cleared == StockTransferReceiptMetadataWrite.Saved) {
+                    null
+                } else {
+                    StockTransferReceiptNotice.MetadataUnavailable
+                }
             )
         }
     }
@@ -701,15 +990,33 @@ class StockTransferReceiptViewModel(
         if (cleared == StockTransferReceiptMetadataWrite.Saved) intent = null
         mutableState.update {
             it.copy(
-                frozenIntent = if (cleared == StockTransferReceiptMetadataWrite.Saved) null else command,
+                frozenIntent = if (cleared ==
+                    StockTransferReceiptMetadataWrite.Saved
+                ) {
+                    null
+                } else {
+                    command
+                },
                 intentCleanupPending = cleared != StockTransferReceiptMetadataWrite.Saved,
-                metadata = if (cleared == StockTransferReceiptMetadataWrite.Saved) TransferMetadataStatus.Available
-                else TransferMetadataStatus.Unavailable,
-                command = if (stale) StockTransferReceiptCommandStatus.PreconditionFailed
-                else StockTransferReceiptCommandStatus.Rejected,
-                notice = if (stale) StockTransferReceiptNotice.PreconditionFailed
-                else if (cleared == StockTransferReceiptMetadataWrite.Saved) null
-                else StockTransferReceiptNotice.MetadataUnavailable,
+                metadata = if (cleared ==
+                    StockTransferReceiptMetadataWrite.Saved
+                ) {
+                    TransferMetadataStatus.Available
+                } else {
+                    TransferMetadataStatus.Unavailable
+                },
+                command = if (stale) {
+                    StockTransferReceiptCommandStatus.PreconditionFailed
+                } else {
+                    StockTransferReceiptCommandStatus.Rejected
+                },
+                notice = if (stale) {
+                    StockTransferReceiptNotice.PreconditionFailed
+                } else if (cleared == StockTransferReceiptMetadataWrite.Saved) {
+                    null
+                } else {
+                    StockTransferReceiptNotice.MetadataUnavailable
+                },
                 rejectionCode = code
             )
         }
@@ -723,18 +1030,28 @@ class StockTransferReceiptViewModel(
     ) {
         val unknown = command.copy(status = StockTransferReceiptIntentStatus.UnknownOutcome)
         val marked = metadataMutex.withLock {
-            safeWrite { metadataStore.markUnknownOutcome(currentAuthority.scope, command.idempotencyKey) }
+            safeWrite {
+                metadataStore.markUnknownOutcome(currentAuthority.scope, command.idempotencyKey)
+            }
         }
         if (!isCurrent(requestGeneration, currentAuthority)) return
         intent = unknown
         mutableState.update {
             it.copy(
                 frozenIntent = unknown,
-                metadata = if (marked == StockTransferReceiptMetadataWrite.Saved) TransferMetadataStatus.Available
-                else TransferMetadataStatus.Unavailable,
+                metadata = if (marked ==
+                    StockTransferReceiptMetadataWrite.Saved
+                ) {
+                    TransferMetadataStatus.Available
+                } else {
+                    TransferMetadataStatus.Unavailable
+                },
                 command = StockTransferReceiptCommandStatus.UnknownOutcome,
-                notice = if (marked == StockTransferReceiptMetadataWrite.Saved) notice
-                else StockTransferReceiptNotice.MetadataUnavailable
+                notice = if (marked == StockTransferReceiptMetadataWrite.Saved) {
+                    notice
+                } else {
+                    StockTransferReceiptNotice.MetadataUnavailable
+                }
             )
         }
     }
@@ -747,9 +1064,19 @@ class StockTransferReceiptViewModel(
         notice: StockTransferReceiptNotice,
         markUnknown: Boolean
     ) {
-        val stored = if (markUnknown) command.copy(status = StockTransferReceiptIntentStatus.UnknownOutcome) else command
+        val stored = if (markUnknown) {
+            command.copy(
+                status = StockTransferReceiptIntentStatus.UnknownOutcome
+            )
+        } else {
+            command
+        }
         if (markUnknown) {
-            metadataMutex.withLock { safeWrite { metadataStore.markUnknownOutcome(currentAuthority.scope, command.idempotencyKey) } }
+            metadataMutex.withLock {
+                safeWrite {
+                    metadataStore.markUnknownOutcome(currentAuthority.scope, command.idempotencyKey)
+                }
+            }
         }
         if (!isCurrent(requestGeneration, currentAuthority)) return
         intent = stored
@@ -758,17 +1085,18 @@ class StockTransferReceiptViewModel(
 
     private fun canEditSelection(): Boolean {
         val current = mutableState.value
-        return current.canLookUp && current.metadata == TransferMetadataStatus.Available && !current.isFrozen &&
+        return current.canLookUp && current.metadata == TransferMetadataStatus.Available &&
+            !current.isFrozen &&
             current.command != StockTransferReceiptCommandStatus.Conflict &&
             current.observationCommand != StockTransferReceiptObservationCommandStatus.Conflict
     }
 
-    private fun StockTransferReceiptLookupResult.toLookupStatus(): TransferLookupStatus = when (this) {
-        StockTransferReceiptLookupResult.NetworkUnavailable -> TransferLookupStatus.NetworkUnavailable
-        StockTransferReceiptLookupResult.ServiceUnavailable -> TransferLookupStatus.ServiceUnavailable
-        StockTransferReceiptLookupResult.PermissionDenied -> TransferLookupStatus.PermissionDenied
-        StockTransferReceiptLookupResult.ContextInvalidated -> TransferLookupStatus.ContextInvalidated
-        StockTransferReceiptLookupResult.SessionInvalidated -> TransferLookupStatus.SessionInvalidated
+    private fun ReceiptLookupResult.toLookupStatus(): TransferLookupStatus = when (this) {
+        ReceiptLookupResult.NetworkUnavailable -> TransferLookupStatus.NetworkUnavailable
+        ReceiptLookupResult.ServiceUnavailable -> TransferLookupStatus.ServiceUnavailable
+        ReceiptLookupResult.PermissionDenied -> TransferLookupStatus.PermissionDenied
+        ReceiptLookupResult.ContextInvalidated -> TransferLookupStatus.ContextInvalidated
+        ReceiptLookupResult.SessionInvalidated -> TransferLookupStatus.SessionInvalidated
         else -> TransferLookupStatus.Empty
     }
 
@@ -788,14 +1116,12 @@ class StockTransferReceiptViewModel(
         StockTransferReceiptMetadataWrite.Unavailable
     }
 
-    private suspend fun safeObservationRead(
-        block: suspend () -> StockTransferReceiptObservationMetadataRead
-    ) = try {
+    private suspend fun safeObservationRead(block: suspend () -> ObservationMetadataRead) = try {
         block()
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) {
-        StockTransferReceiptObservationMetadataRead.Unavailable
+        ObservationMetadataRead.Unavailable
     }
 
     private suspend fun safeObservationWrite(
@@ -808,12 +1134,12 @@ class StockTransferReceiptViewModel(
         StockTransferReceiptObservationMetadataWrite.Unavailable
     }
 
-    private suspend fun safeLookup(block: suspend () -> StockTransferReceiptLookupResult) = try {
+    private suspend fun safeLookup(block: suspend () -> ReceiptLookupResult) = try {
         block()
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) {
-        StockTransferReceiptLookupResult.ServiceUnavailable
+        ReceiptLookupResult.ServiceUnavailable
     }
 
     private suspend fun safeReceive(block: suspend () -> StockTransferReceiptResult) = try {
@@ -824,19 +1150,19 @@ class StockTransferReceiptViewModel(
         StockTransferReceiptResult.UnknownOutcome
     }
 
-    private suspend fun safeObserveArrival(
-        block: suspend () -> StockTransferReceiptObservationResult
-    ) = try {
+    private suspend fun safeObserveArrival(block: suspend () -> ReceiptObservationResult) = try {
         block()
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) {
-        StockTransferReceiptObservationResult.UnknownOutcome
+        ReceiptObservationResult.UnknownOutcome
     }
 
-    private fun isCurrent(requestGeneration: Long, currentAuthority: StockTransferAuthority): Boolean =
-        generation == requestGeneration && authority == currentAuthority &&
-            mutableState.value.authorityEpoch == currentAuthority.authorityEpoch
+    private fun isCurrent(
+        requestGeneration: Long,
+        currentAuthority: StockTransferAuthority
+    ): Boolean = generation == requestGeneration && authority == currentAuthority &&
+        mutableState.value.authorityEpoch == currentAuthority.authorityEpoch
 
     private fun String.isCanonicalLocalDate(): Boolean = try {
         LocalDate.parse(this).toString() == this
@@ -849,20 +1175,24 @@ class StockTransferReceiptViewModel(
     }
 }
 
-private object UnavailableReceiptObservationMetadataStore : StockTransferReceiptObservationMetadataStore {
-    override suspend fun loadIntent(scope: StockTransferScope): StockTransferReceiptObservationMetadataRead =
-        StockTransferReceiptObservationMetadataRead.Unavailable
+private object UnavailableReceiptObservationMetadataStore : ObservationMetadataStore {
+    override suspend fun loadIntent(scope: StockTransferScope): ObservationMetadataRead =
+        ObservationMetadataRead.Unavailable
 
-    override suspend fun saveIntent(intent: StockTransferReceiptObservationIntent): StockTransferReceiptObservationMetadataWrite =
+    override suspend fun saveIntent(
+        intent: StockTransferReceiptObservationIntent
+    ): StockTransferReceiptObservationMetadataWrite =
         StockTransferReceiptObservationMetadataWrite.Unavailable
 
     override suspend fun markUnknownOutcome(
         scope: StockTransferScope,
         idempotencyKey: String
-    ): StockTransferReceiptObservationMetadataWrite = StockTransferReceiptObservationMetadataWrite.Unavailable
+    ): StockTransferReceiptObservationMetadataWrite =
+        StockTransferReceiptObservationMetadataWrite.Unavailable
 
     override suspend fun clearIntent(
         scope: StockTransferScope,
         idempotencyKey: String
-    ): StockTransferReceiptObservationMetadataWrite = StockTransferReceiptObservationMetadataWrite.Unavailable
+    ): StockTransferReceiptObservationMetadataWrite =
+        StockTransferReceiptObservationMetadataWrite.Unavailable
 }

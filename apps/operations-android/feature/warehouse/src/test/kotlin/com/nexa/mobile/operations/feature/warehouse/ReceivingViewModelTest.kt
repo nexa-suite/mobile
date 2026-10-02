@@ -1,5 +1,6 @@
 package com.nexa.mobile.operations.feature.warehouse
 
+import java.io.File
 import java.math.BigDecimal
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
@@ -84,6 +85,77 @@ class ReceivingViewModelTest {
         assertEquals(ReceivingCommandStatus.Confirmed, viewModel.state.value.command)
         assertEquals(BigDecimal("0.0100"), viewModel.state.value.confirmedLot?.onHand)
         assertNull(storage.intent)
+    }
+
+    @Test
+    fun receiptCarriesOnlyPhotoVerifiedAvailableForTheSelectedWarehouse() = runTest {
+        val evidenceId = "b8c24a46-57d9-4f64-8fa7-6a641b413501"
+        val gateway = FakeReceivingGateway().apply {
+            uploadEvidenceResult = ReceivingEvidenceResult.Loaded(
+                ReceivingEvidenceObject(
+                    id = evidenceId,
+                    subjectType = "WAREHOUSE",
+                    subjectId = warehouse.id,
+                    lifecycleStatus = "QUARANTINED",
+                    declaredContentType = "image/jpeg",
+                    byteSize = 4
+                )
+            )
+            evidenceStatusResult = ReceivingEvidenceResult.Loaded(
+                ReceivingEvidenceObject(
+                    id = evidenceId,
+                    subjectType = "WAREHOUSE",
+                    subjectId = warehouse.id,
+                    lifecycleStatus = "AVAILABLE",
+                    declaredContentType = "image/jpeg",
+                    byteSize = 4
+                )
+            )
+            submitResults += ReceivingSubmitResult.Confirmed(facts(request()))
+        }
+        val storage = FakeReceivingMetadataStore()
+        val viewModel = readyViewModel(
+            gateway,
+            storage,
+            permissions = setOf(
+                "warehouse.read",
+                "inventory.receive",
+                "document.upload",
+                "document.read"
+            )
+        )
+        viewModel.temperatureReadingChanged("-1.250")
+        advanceUntilIdle()
+        val selection = viewModel.temperatureEvidenceSelectionContext()
+            ?: error("active warehouse should permit photo selection")
+        val file = File.createTempFile("receiving-evidence", ".jpg")
+        try {
+            file.writeBytes(byteArrayOf(1, 2, 3, 4))
+            viewModel.uploadTemperatureEvidence(
+                ReceivingEvidenceCandidate(
+                    file = file,
+                    originalFilename = "temperature.jpg",
+                    declaredContentType = "image/jpeg",
+                    byteSize = file.length(),
+                    checksumSha256 = "a".repeat(64)
+                ),
+                selection = selection
+            )
+            advanceUntilIdle()
+
+            assertEquals(warehouse.id, gateway.uploadedWarehouseId)
+            assertEquals(
+                ReceivingEvidenceStatus.Available,
+                viewModel.state.value.temperatureEvidenceStatus
+            )
+            assertEquals(evidenceId, viewModel.state.value.temperatureEvidenceObjectId)
+            assertEquals(evidenceId, storage.drafts.values.single().temperatureEvidenceObjectId)
+            viewModel.submit()
+            advanceUntilIdle()
+            assertEquals(evidenceId, gateway.requests.single().temperatureEvidenceObjectId)
+        } finally {
+            file.delete()
+        }
     }
 
     @Test
@@ -284,10 +356,14 @@ class ReceivingViewModelTest {
 
     private suspend fun TestScope.readyViewModel(
         gateway: FakeReceivingGateway,
-        storage: FakeReceivingMetadataStore
+        storage: FakeReceivingMetadataStore,
+        permissions: Set<String> = setOf("warehouse.read", "inventory.receive")
     ): ReceivingViewModel {
         val viewModel = ReceivingViewModel(gateway, storage)
-        viewModel.activate(authority(), ConfirmedReceivingProduct(product, 1))
+        viewModel.activate(
+            authority(permissions = permissions),
+            ConfirmedReceivingProduct(product, 1)
+        )
         advanceUntilIdle()
         viewModel.selectWarehouse(warehouse.id)
         advanceUntilIdle()
@@ -346,6 +422,11 @@ class ReceivingViewModelTest {
         var warehouseCalls = 0
         var receiveCalls = 0
         var submitDeferred: CompletableDeferred<ReceivingSubmitResult>? = null
+        var uploadEvidenceResult: ReceivingEvidenceResult =
+            ReceivingEvidenceResult.ServiceUnavailable
+        var evidenceStatusResult: ReceivingEvidenceResult =
+            ReceivingEvidenceResult.ServiceUnavailable
+        var uploadedWarehouseId: String? = null
         val submitResults = mutableListOf<ReceivingSubmitResult>()
         val requests = mutableListOf<InboundReceiptRequest>()
         val keys = mutableListOf<String>()
@@ -373,6 +454,22 @@ class ReceivingViewModelTest {
             submitDeferred?.let { return it.await() }
             return submitResults.removeFirstOrNull() ?: ReceivingSubmitResult.UnknownOutcome
         }
+
+        override suspend fun uploadTemperatureEvidence(
+            warehouseId: String,
+            candidate: ReceivingEvidenceCandidate,
+            idempotencyKey: String,
+            authority: ReceivingAuthority
+        ): ReceivingEvidenceResult {
+            uploadedWarehouseId = warehouseId
+            return uploadEvidenceResult
+        }
+
+        override suspend fun temperatureEvidenceStatus(
+            evidenceId: String,
+            warehouseId: String,
+            authority: ReceivingAuthority
+        ): ReceivingEvidenceResult = evidenceStatusResult
     }
 
     private class FakeReceivingMetadataStore(private val available: Boolean = true) :

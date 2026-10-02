@@ -31,10 +31,15 @@ class ReceivingMetadataStoreCoreTest {
     @Test
     fun codecRejectsUnknownSchemaTruncationAndTrailingBytes() {
         val valid = ReceivingMetadataCodec.encode(ReceivingMetadataSnapshot(scope(), null, null))
+        val legacy = valid.copyOf().also { it[4] = 1 }
 
+        assertEquals(
+            ReceivingMetadataSnapshot(scope(), null, null),
+            ReceivingMetadataCodec.decode(legacy)
+        )
         assertFails { ReceivingMetadataCodec.decode(valid.copyOf(valid.size - 1)) }
         assertFails { ReceivingMetadataCodec.decode(valid + 1) }
-        assertFails { ReceivingMetadataCodec.decode(valid.also { it[4] = 2 }) }
+        assertFails { ReceivingMetadataCodec.decode(valid.also { it[4] = 3 }) }
     }
 
     @Test
@@ -189,7 +194,8 @@ class ReceivingMetadataStoreCoreTest {
         quantityText = "12.50",
         unit = "box",
         temperatureReadingText = "4.5",
-        notes = notes
+        notes = notes,
+        temperatureEvidenceObjectId = "b8c24a46-57d9-4f64-8fa7-6a641b413501"
     )
 
     private fun intent(scope: ReceivingMetadataScope, key: String = "idem-key-1") =
@@ -206,7 +212,8 @@ class ReceivingMetadataStoreCoreTest {
                 quantity = "12.50",
                 unit = "box",
                 temperatureReading = "4.5",
-                notes = "fragile"
+                notes = "fragile",
+                temperatureEvidenceObjectId = "b8c24a46-57d9-4f64-8fa7-6a641b413501"
             ),
             status = ReceivingIntentStatus.Pending
         )

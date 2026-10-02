@@ -50,7 +50,9 @@ fun ReceivingScreen(
     onRetryUnknownOutcome: () -> Unit,
     onRetryIntentCleanup: () -> Unit,
     onStartAnotherReceipt: () -> Unit,
-    onReportDiscrepancy: (() -> Unit)? = null
+    onReportDiscrepancy: (() -> Unit)? = null,
+    onChooseTemperatureEvidence: (() -> Unit)? = null,
+    onRefreshTemperatureEvidence: (() -> Unit)? = null
 ) {
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -211,6 +213,51 @@ fun ReceivingScreen(
                     },
                     singleLine = true
                 )
+                if (onChooseTemperatureEvidence != null) {
+                    OutlinedButton(
+                        onClick = onChooseTemperatureEvidence,
+                        enabled = !state.isIntentFrozen && state.canReceive &&
+                            state.canUploadTemperatureEvidence &&
+                            state.selectedWarehouseId != null &&
+                            state.temperatureEvidenceStatus !in setOf(
+                                ReceivingEvidenceStatus.Uploading,
+                                ReceivingEvidenceStatus.Checking
+                            ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            stringResource(
+                                if (state.temperatureEvidenceObjectId == null) {
+                                    R.string.receiving_temperature_evidence_add
+                                } else {
+                                    R.string.receiving_temperature_evidence_replace
+                                }
+                            )
+                        )
+                    }
+                    Text(
+                        stringResource(state.temperatureEvidenceStatus.stringResource()),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (state.temperatureEvidenceStatus in setOf(
+                                ReceivingEvidenceStatus.Rejected,
+                                ReceivingEvidenceStatus.Unavailable,
+                                ReceivingEvidenceStatus.UnknownOutcome
+                            )
+                        ) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                    if (state.temperatureEvidenceStatus ==
+                        ReceivingEvidenceStatus.AwaitingAvailability &&
+                        onRefreshTemperatureEvidence != null
+                    ) {
+                        TextButton(onClick = onRefreshTemperatureEvidence) {
+                            Text(stringResource(R.string.receiving_temperature_evidence_check))
+                        }
+                    }
+                }
                 state.validationError?.let { error ->
                     Text(
                         stringResource(error.stringResource()),
@@ -496,6 +543,10 @@ private fun Fact(label: String, value: String) {
 
 private fun canSubmit(state: ReceivingUiState): Boolean =
     state.canReceive && state.metadata == ReceivingMetadataStatus.Available &&
+        (
+            state.temperatureEvidenceObjectId == null ||
+                state.temperatureEvidenceStatus == ReceivingEvidenceStatus.Available
+            ) &&
         state.command !in setOf(
             ReceivingCommandStatus.PersistingIntent,
             ReceivingCommandStatus.Pending,
@@ -504,16 +555,42 @@ private fun canSubmit(state: ReceivingUiState): Boolean =
 
 private fun ReceivingValidationError.stringResource(): Int = when (this) {
     ReceivingValidationError.ProductRequired -> R.string.receiving_error_product
+
     ReceivingValidationError.ProductMustBeReconfirmed -> R.string.receiving_product_reconfirm
+
     ReceivingValidationError.WarehouseRequired -> R.string.receiving_error_warehouse
+
     ReceivingValidationError.ZoneRequired -> R.string.receiving_error_zone
+
     ReceivingValidationError.BatchRequired -> R.string.receiving_error_batch
+
     ReceivingValidationError.ExpiryRequired -> R.string.receiving_error_expiry
+
     ReceivingValidationError.ExpiryMalformed -> R.string.receiving_error_expiry_format
+
     ReceivingValidationError.QuantityRequired -> R.string.receiving_error_quantity
+
     ReceivingValidationError.QuantityInvalid -> R.string.receiving_error_quantity_format
+
     ReceivingValidationError.QuantityMustBePositive -> R.string.receiving_error_quantity_positive
+
     ReceivingValidationError.TemperatureInvalid -> R.string.receiving_error_temperature
+
+    ReceivingValidationError.TemperatureEvidenceNotAvailable ->
+        R.string.receiving_error_temperature_evidence_unavailable
+
     ReceivingValidationError.UnitRequired -> R.string.receiving_error_unit
+
     ReceivingValidationError.MetadataUnavailable -> R.string.receiving_storage_unavailable
+}
+
+private fun ReceivingEvidenceStatus.stringResource(): Int = when (this) {
+    ReceivingEvidenceStatus.None -> R.string.receiving_temperature_evidence_none
+    ReceivingEvidenceStatus.Uploading -> R.string.receiving_temperature_evidence_uploading
+    ReceivingEvidenceStatus.Checking -> R.string.receiving_temperature_evidence_checking
+    ReceivingEvidenceStatus.AwaitingAvailability -> R.string.receiving_temperature_evidence_pending
+    ReceivingEvidenceStatus.Available -> R.string.receiving_temperature_evidence_available
+    ReceivingEvidenceStatus.UnknownOutcome -> R.string.receiving_temperature_evidence_unknown
+    ReceivingEvidenceStatus.Rejected -> R.string.receiving_temperature_evidence_rejected
+    ReceivingEvidenceStatus.Unavailable -> R.string.receiving_temperature_evidence_unavailable
 }

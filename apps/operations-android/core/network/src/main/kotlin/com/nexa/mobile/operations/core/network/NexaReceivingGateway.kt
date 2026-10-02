@@ -1,5 +1,6 @@
 package com.nexa.mobile.operations.core.network
 
+import java.io.File
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
@@ -13,9 +14,15 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
 
 private const val WAREHOUSES_PATH = "/api/v1/warehouses"
 private const val INBOUND_RECEIPTS_PATH = "/api/v1/inventory/inbound-receipts"
+private const val BUSINESS_EVIDENCE_PATH = "/api/v1/business-document-evidence"
+private const val RECEIVING_EVIDENCE_SUBJECT = "WAREHOUSE"
+private const val MAX_RECEIVING_EVIDENCE_BYTES = 10L * 1024L * 1024L
 private const val RECEIVING_PAGE_SIZE = 100
 private const val MAX_RECEIVING_PAGES = 100
 private val receivingJson = Json { ignoreUnknownKeys = true }
@@ -47,7 +54,8 @@ data class InboundReceiptCommand(
     val quantity: BigDecimal,
     val unit: String,
     val temperatureReading: BigDecimal? = null,
-    val notes: String? = null
+    val notes: String? = null,
+    val temperatureEvidenceObjectId: String? = null
 ) {
     init {
         require(uuidPattern.matches(warehouseId) && uuidPattern.matches(zoneId))
@@ -55,6 +63,9 @@ data class InboundReceiptCommand(
         require(catalogItemId == null || catalogItemPattern.matches(catalogItemId))
         require(skuId == null || uuidPattern.matches(skuId))
         require(batchNumber.isNotBlank() && quantity.signum() > 0 && unit.isNotBlank())
+        require(
+            temperatureEvidenceObjectId == null || uuidPattern.matches(temperatureEvidenceObjectId)
+        )
     }
 }
 
@@ -78,10 +89,25 @@ data class ReceivingLotProjection(
         "ReceivingLotProjection(id=REDACTED, quantity=$onHand, unit=$unit)"
 }
 
+data class ReceivingEvidenceProjection(
+    val id: String,
+    val subjectType: String,
+    val subjectId: String,
+    val lifecycleStatus: String,
+    val declaredContentType: String,
+    val checksumSha256: String?,
+    val byteSize: Long
+) {
+    override fun toString(): String =
+        "ReceivingEvidenceProjection(status=$lifecycleStatus, bytes=$byteSize)"
+}
+
 sealed interface ReceivingNetworkOutcome {
     data class Warehouses(val items: List<ReceivingWarehouseProjection>) : ReceivingNetworkOutcome
     data class Zones(val items: List<ReceivingZoneProjection>) : ReceivingNetworkOutcome
     data class Confirmed(val lot: ReceivingLotProjection) : ReceivingNetworkOutcome
+    data class EvidenceUploaded(val evidence: ReceivingEvidenceProjection) : ReceivingNetworkOutcome
+    data class EvidenceStatus(val evidence: ReceivingEvidenceProjection) : ReceivingNetworkOutcome
     data class Rejected(val code: String?) : ReceivingNetworkOutcome
     data object UnknownOutcome : ReceivingNetworkOutcome
     data object NetworkUnavailable : ReceivingNetworkOutcome
@@ -221,6 +247,97 @@ class NexaReceivingGateway(private val protectedCalls: ProtectedCallExecutor) {
         }
     }
 
+    suspend fun uploadTemperatureEvidence(
+        warehouseId: String,
+        idempotencyKey: String,
+        file: File,
+        originalFilename: String,
+        declaredContentType: String,
+        byteSize: Long,
+        checksumSha256: String
+    ): ReceivingNetworkOutcome {
+        if (!uuidPattern.matches(warehouseId) || idempotencyKey.isBlank() ||
+            idempotencyKey.length > 160 || !file.isFile || file.length() != byteSize ||
+            byteSize !in 1..MAX_RECEIVING_EVIDENCE_BYTES ||
+            declaredContentType !in setOf("image/jpeg", "image/png", "image/webp") ||
+            !checksumSha256.matches(Regex("[0-9a-f]{64}")) || originalFilename.isBlank() ||
+            originalFilename.length > 255 ||
+            originalFilename.any { it == '\r' || it == '\n' || it == '/' || it == '\\' }
+        ) {
+            return ReceivingNetworkOutcome.Rejected("INVALID_EVIDENCE")
+        }
+
+        val body = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("subjectType", RECEIVING_EVIDENCE_SUBJECT)
+            .addFormDataPart("subjectId", warehouseId)
+            .addFormDataPart(
+                "file",
+                originalFilename,
+                file.asRequestBody(declaredContentType.toMediaType())
+            )
+            .build()
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(
+                    method = ProtectedMethod.POST,
+                    path = BUSINESS_EVIDENCE_PATH,
+                    idempotencyKey = idempotencyKey,
+                    requestBody = body
+                )
+            )
+        ) {
+            is ProtectedResult.Failure -> result.error.toReceiptOutcome()
+
+            is ProtectedResult.Success -> {
+                if (result.status !in setOf(200, 201)) return ReceivingNetworkOutcome.UnknownOutcome
+                val evidence = result.body.decode<EvidenceWire>()?.toProjection()
+                    ?: return ReceivingNetworkOutcome.UnknownOutcome
+                if (evidence.subjectType != RECEIVING_EVIDENCE_SUBJECT ||
+                    evidence.subjectId != warehouseId ||
+                    evidence.declaredContentType != declaredContentType ||
+                    evidence.byteSize != byteSize
+                ) {
+                    return ReceivingNetworkOutcome.UnknownOutcome
+                }
+                if (evidence.checksumSha256 != null && evidence.checksumSha256 != checksumSha256) {
+                    ReceivingNetworkOutcome.Rejected("IDEMPOTENCY_PAYLOAD_CONFLICT")
+                } else {
+                    ReceivingNetworkOutcome.EvidenceUploaded(evidence)
+                }
+            }
+        }
+    }
+
+    suspend fun temperatureEvidenceStatus(
+        evidenceId: String,
+        warehouseId: String
+    ): ReceivingNetworkOutcome {
+        if (!uuidPattern.matches(evidenceId) || !uuidPattern.matches(warehouseId)) {
+            return ReceivingNetworkOutcome.Rejected("INVALID_REQUEST")
+        }
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(ProtectedMethod.GET, "$BUSINESS_EVIDENCE_PATH/$evidenceId")
+            )
+        ) {
+            is ProtectedResult.Failure -> result.error.toReceivingLookupOutcome()
+
+            is ProtectedResult.Success -> {
+                val evidence = result.body.decode<EvidenceWire>()?.toProjection()
+                    ?: return ReceivingNetworkOutcome.ServiceUnavailable
+                if (evidence.id != evidenceId ||
+                    evidence.subjectType != RECEIVING_EVIDENCE_SUBJECT ||
+                    evidence.subjectId != warehouseId
+                ) {
+                    ReceivingNetworkOutcome.ServiceUnavailable
+                } else {
+                    ReceivingNetworkOutcome.EvidenceStatus(evidence)
+                }
+            }
+        }
+    }
+
     private fun InboundReceiptCommand.toJson(): JsonObject = buildJsonObject {
         put("warehouseId", warehouseId)
         put("zoneId", zoneId)
@@ -233,6 +350,7 @@ class NexaReceivingGateway(private val protectedCalls: ProtectedCallExecutor) {
         put("unit", unit)
         temperatureReading?.let { put("temperatureReading", JsonPrimitive(it)) }
         notes?.let { put("notes", it) }
+        temperatureEvidenceObjectId?.let { put("temperatureEvidenceObjectId", it) }
     }
 
     private fun ClientFailure.toReceivingLookupOutcome(): ReceivingNetworkOutcome = when {
@@ -326,6 +444,30 @@ class NexaReceivingGateway(private val protectedCalls: ProtectedCallExecutor) {
         )
     }
 
+    private fun EvidenceWire.toProjection(): ReceivingEvidenceProjection? {
+        val safeId = id.requiredText() ?: return null
+        val safeSubjectType = subjectType.requiredText() ?: return null
+        val safeSubjectId = subjectId.requiredText() ?: return null
+        val safeStatus = lifecycleStatus.requiredText() ?: return null
+        val safeContentType = declaredContentType.requiredText() ?: return null
+        val safeBytes = byteSize?.takeIf { it in 1..MAX_RECEIVING_EVIDENCE_BYTES } ?: return null
+        if (!uuidPattern.matches(safeId) || !uuidPattern.matches(safeSubjectId) ||
+            safeContentType !in setOf("image/jpeg", "image/png", "image/webp") ||
+            (checksumSha256 != null && !checksumSha256.matches(Regex("[0-9a-f]{64}")))
+        ) {
+            return null
+        }
+        return ReceivingEvidenceProjection(
+            safeId,
+            safeSubjectType,
+            safeSubjectId,
+            safeStatus,
+            safeContentType,
+            checksumSha256,
+            safeBytes
+        )
+    }
+
     private fun JsonElement?.decimalValue(): BigDecimal? = try {
         when (this) {
             null, JsonNull -> null
@@ -405,4 +547,15 @@ private data class LotWire(
     val unit: String? = null,
     val status: String? = null,
     val version: Long? = null
+)
+
+@Serializable
+private data class EvidenceWire(
+    val id: String? = null,
+    val subjectType: String? = null,
+    val subjectId: String? = null,
+    val lifecycleStatus: String? = null,
+    val declaredContentType: String? = null,
+    val checksumSha256: String? = null,
+    val byteSize: Long? = null
 )

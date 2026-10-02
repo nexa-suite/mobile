@@ -55,8 +55,11 @@ class LotSubstitutionViewModel(
                 LotSubstitutionLookupStatus.PermissionDenied
             },
             metadataAvailable = false,
-            notice = if (SUBSTITUTION_PERMISSION in currentAuthority.permissions) null
-            else "No tienes permiso vigente para solicitar esta sustitución."
+            notice = if (SUBSTITUTION_PERMISSION in currentAuthority.permissions) {
+                null
+            } else {
+                "No tienes permiso vigente para solicitar esta sustitución."
+            }
         )
         restoreJob = viewModelScope.launch { restoreIntent(currentAuthority, activation) }
         loadAlternatives()
@@ -92,7 +95,11 @@ class LotSubstitutionViewModel(
             } catch (_: Exception) {
                 LotSubstitutionLookupResult.ServiceUnavailable
             }
-            if (!isCurrent(currentAuthority, activation) || lookup != lookupGeneration) return@launch
+            if (!isCurrent(currentAuthority, activation) ||
+                lookup != lookupGeneration
+            ) {
+                return@launch
+            }
             when (result) {
                 is LotSubstitutionLookupResult.Alternatives -> {
                     val eligible = result.items.distinctBy { it.id }
@@ -101,21 +108,44 @@ class LotSubstitutionViewModel(
                         it.copy(
                             alternatives = eligible,
                             selectedAlternativeId = it.frozenIntent?.alternativeLotId
-                                ?.takeIf { id -> eligible.any { alternative -> alternative.id == id } },
-                            alternativeLookup = if (eligible.isEmpty()) LotSubstitutionLookupStatus.Empty
-                            else LotSubstitutionLookupStatus.Ready,
+                                ?.takeIf { id ->
+                                    eligible.any { alternative -> alternative.id == id }
+                                },
+                            alternativeLookup = if (eligible.isEmpty()) {
+                                LotSubstitutionLookupStatus.Empty
+                            } else {
+                                LotSubstitutionLookupStatus.Ready
+                            },
                             hasMoreAlternatives = false,
-                            notice = if (eligible.isEmpty()) "No hay lotes alternativos elegibles en la vista actual." else it.notice
+                            notice = if (eligible.isEmpty()) {
+                                "No hay lotes alternativos elegibles en la vista actual."
+                            } else {
+                                it.notice
+                            }
                         )
                     }
                     refreshCanRequest()
                 }
 
-                LotSubstitutionLookupResult.NetworkUnavailable -> lookupFailure(LotSubstitutionLookupStatus.NetworkUnavailable)
-                LotSubstitutionLookupResult.ServiceUnavailable -> lookupFailure(LotSubstitutionLookupStatus.ServiceUnavailable)
-                LotSubstitutionLookupResult.PermissionDenied -> lookupFailure(LotSubstitutionLookupStatus.PermissionDenied)
-                LotSubstitutionLookupResult.ContextInvalidated -> lookupFailure(LotSubstitutionLookupStatus.ContextInvalidated)
-                LotSubstitutionLookupResult.SessionInvalidated -> lookupFailure(LotSubstitutionLookupStatus.SessionInvalidated)
+                LotSubstitutionLookupResult.NetworkUnavailable -> lookupFailure(
+                    LotSubstitutionLookupStatus.NetworkUnavailable
+                )
+
+                LotSubstitutionLookupResult.ServiceUnavailable -> lookupFailure(
+                    LotSubstitutionLookupStatus.ServiceUnavailable
+                )
+
+                LotSubstitutionLookupResult.PermissionDenied -> lookupFailure(
+                    LotSubstitutionLookupStatus.PermissionDenied
+                )
+
+                LotSubstitutionLookupResult.ContextInvalidated -> lookupFailure(
+                    LotSubstitutionLookupStatus.ContextInvalidated
+                )
+
+                LotSubstitutionLookupResult.SessionInvalidated -> lookupFailure(
+                    LotSubstitutionLookupStatus.SessionInvalidated
+                )
             }
         }
     }
@@ -129,7 +159,11 @@ class LotSubstitutionViewModel(
     }
 
     fun updateReason(text: String) {
-        if (intent != null || mutableState.value.status != LotSubstitutionCommandStatus.Editing) return
+        if (intent != null ||
+            mutableState.value.status != LotSubstitutionCommandStatus.Editing
+        ) {
+            return
+        }
         mutableState.update { it.copy(reasonText = text.take(MAX_REASON_LENGTH), notice = null) }
         refreshCanRequest()
     }
@@ -140,12 +174,21 @@ class LotSubstitutionViewModel(
         val current = mutableState.value
         val currentWork = work ?: return
         val alternative = current.selectedAlternative ?: return
-        if (!current.canRequest || current.status != LotSubstitutionCommandStatus.Editing || intent != null) return
-        val key = newIdempotencyKey().takeIf { it.isNotBlank() && it.length <= MAX_IDEMPOTENCY_KEY_LENGTH }
-            ?: run {
-                mutableState.update { it.copy(notice = "No se pudo preparar la solicitud. Intenta nuevamente.") }
-                return
+        if (!current.canRequest || current.status != LotSubstitutionCommandStatus.Editing ||
+            intent != null
+        ) {
+            return
+        }
+        val key =
+            newIdempotencyKey().takeIf {
+                it.isNotBlank() && it.length <= MAX_IDEMPOTENCY_KEY_LENGTH
             }
+                ?: run {
+                    mutableState.update {
+                        it.copy(notice = "No se pudo preparar la solicitud. Intenta nuevamente.")
+                    }
+                    return
+                }
         val quantity = currentWork.preparedQuantityText.toBigDecimalOrNull() ?: return
         val frozen = LotSubstitutionIntent(
             scope = currentAuthority.scope,
@@ -153,12 +196,21 @@ class LotSubstitutionViewModel(
             work = currentWork,
             alternativeLotId = alternative.id,
             reason = current.reasonText,
-            frozenBody = substitutionBody(currentWork, alternative.id, quantity, current.reasonText),
+            frozenBody = substitutionBody(
+                currentWork,
+                alternative.id,
+                quantity,
+                current.reasonText
+            ),
             status = LotSubstitutionIntentStatus.Pending
         )
         intent = frozen
         mutableState.update {
-            it.copy(status = LotSubstitutionCommandStatus.PersistingIntent, frozenIntent = frozen, notice = null)
+            it.copy(
+                status = LotSubstitutionCommandStatus.PersistingIntent,
+                frozenIntent = frozen,
+                notice = null
+            )
         }
         val activation = generation
         viewModelScope.launch {
@@ -174,7 +226,8 @@ class LotSubstitutionViewModel(
                         status = LotSubstitutionCommandStatus.Editing,
                         frozenIntent = null,
                         canRequest = false,
-                        notice = "No se pudo guardar la solicitud protegida; no se envió al servidor."
+                        notice =
+                            "No se pudo guardar la solicitud protegida; no se envió al servidor."
                     )
                 }
                 return@launch
@@ -192,11 +245,19 @@ class LotSubstitutionViewModel(
         if (frozen.scope != currentAuthority.scope || frozen.work != work ||
             current.status != LotSubstitutionCommandStatus.UnknownOutcome ||
             SUBSTITUTION_PERMISSION !in currentAuthority.permissions
-        ) return
+        ) {
+            return
+        }
         val activation = generation
-        mutableState.update { it.copy(status = LotSubstitutionCommandStatus.Pending, notice = null) }
+        mutableState.update {
+            it.copy(status = LotSubstitutionCommandStatus.Pending, notice = null)
+        }
         viewModelScope.launch {
-            dispatch(frozen.copy(status = LotSubstitutionIntentStatus.UnknownOutcome), currentAuthority, activation)
+            dispatch(
+                frozen.copy(status = LotSubstitutionIntentStatus.UnknownOutcome),
+                currentAuthority,
+                activation
+            )
         }
     }
 
@@ -210,7 +271,9 @@ class LotSubstitutionViewModel(
                 LotSubstitutionCommandStatus.Rejected,
                 LotSubstitutionCommandStatus.Conflict
             )
-        ) return
+        ) {
+            return
+        }
         val activation = generation
         viewModelScope.launch {
             val result = try {
@@ -234,21 +297,29 @@ class LotSubstitutionViewModel(
                         }
                     )
                 }
+
                 LotSubstitutionCurrentResult.NotFound -> mutableState.update {
-                    it.copy(notice = "No se encontró una asignación física vigente para este trabajo.")
+                    it.copy(
+                        notice = "No se encontró una asignación física vigente para este trabajo."
+                    )
                 }
+
                 LotSubstitutionCurrentResult.NetworkUnavailable -> mutableState.update {
                     it.copy(notice = "No hay conexión para consultar la asignación vigente.")
                 }
+
                 LotSubstitutionCurrentResult.PermissionDenied -> mutableState.update {
                     it.copy(notice = "No tienes permiso vigente para consultar la asignación.")
                 }
+
                 LotSubstitutionCurrentResult.ContextInvalidated -> mutableState.update {
                     it.copy(notice = "El contexto cambió. Confirma nuevamente la autoridad activa.")
                 }
+
                 LotSubstitutionCurrentResult.SessionInvalidated -> mutableState.update {
                     it.copy(notice = "La sesión cambió. Confirma nuevamente la sesión activa.")
                 }
+
                 LotSubstitutionCurrentResult.ServiceUnavailable -> mutableState.update {
                     it.copy(notice = "No fue posible consultar la asignación vigente.")
                 }
@@ -257,8 +328,11 @@ class LotSubstitutionViewModel(
     }
 
     private suspend fun restoreIntent(currentAuthority: PickingAuthority, activation: Long) {
-        val read = withMetadataLock(currentAuthority, activation) { metadataStore.load(currentAuthority.scope) }
-            ?: LotSubstitutionMetadataRead.Unavailable
+        val read =
+            withMetadataLock(currentAuthority, activation) {
+                metadataStore.load(currentAuthority.scope)
+            }
+                ?: LotSubstitutionMetadataRead.Unavailable
         if (!isCurrent(currentAuthority, activation)) return
         when (read) {
             LotSubstitutionMetadataRead.Unavailable -> {
@@ -280,7 +354,10 @@ class LotSubstitutionViewModel(
                 }
                 if (stored.scope != currentAuthority.scope || !stored.isValid()) {
                     mutableState.update {
-                        it.copy(metadataAvailable = false, notice = "La solicitud guardada no puede recuperarse de forma segura.")
+                        it.copy(
+                            metadataAvailable = false,
+                            notice = "La solicitud guardada no puede recuperarse de forma segura."
+                        )
                     }
                     return
                 }
@@ -295,7 +372,8 @@ class LotSubstitutionViewModel(
                         metadataAvailable = true,
                         status = LotSubstitutionCommandStatus.UnknownOutcome,
                         frozenIntent = recovered,
-                        notice = "Resultado incierto. Reintenta manualmente la misma solicitud para recuperar su resultado."
+                        notice =
+                            "Resultado incierto. Reintenta manualmente la misma solicitud para recuperar su resultado."
                     )
                 }
                 if (stored.status == LotSubstitutionIntentStatus.Pending) {
@@ -305,7 +383,11 @@ class LotSubstitutionViewModel(
                     if (!isCurrent(currentAuthority, activation)) return
                     if (marked != LotSubstitutionMetadataWrite.Saved) {
                         mutableState.update {
-                            it.copy(metadataAvailable = false, notice = "No se pudo actualizar el estado protegido de la solicitud.")
+                            it.copy(
+                                metadataAvailable = false,
+                                notice =
+                                    "No se pudo actualizar el estado protegido de la solicitud."
+                            )
                         }
                     }
                 }
@@ -342,7 +424,8 @@ class LotSubstitutionViewModel(
                             request = result.request,
                             frozenIntent = null,
                             canRequest = false,
-                            notice = "Solicitud registrada por el servidor. La asignación original sigue vigente hasta una decisión autorizada."
+                            notice =
+                                "Solicitud registrada por el servidor. La asignación original sigue vigente hasta una decisión autorizada."
                         )
                     }
                     intent = null
@@ -356,7 +439,10 @@ class LotSubstitutionViewModel(
                             frozenIntent = null,
                             canRequest = false,
                             notice = result.code?.let(::safeRejectionMessage)
-                                ?: "El servidor rechazó la solicitud; la asignación original permanece vigente."
+                                ?: (
+                                    "El servidor rechazó la solicitud; " +
+                                        "la asignación original permanece vigente."
+                                    )
                         )
                     }
                     intent = null
@@ -370,8 +456,13 @@ class LotSubstitutionViewModel(
                             frozenIntent = null,
                             canRequest = false,
                             notice = result.currentAllocationVersion?.let {
-                                "La asignación cambió a la versión $it. Actualiza Picking; no se cambió el lote original."
-                            } ?: "La asignación cambió. Actualiza Picking; no se cambió el lote original."
+                                "La asignación cambió a la versión $it. " +
+                                    "Actualiza Picking; no se cambió el lote original."
+                            }
+                                ?: (
+                                    "La asignación cambió. Actualiza Picking; " +
+                                        "no se cambió el lote original."
+                                    )
                         )
                     }
                     intent = null
@@ -384,24 +475,41 @@ class LotSubstitutionViewModel(
                             status = LotSubstitutionCommandStatus.Conflict,
                             frozenIntent = null,
                             canRequest = false,
-                            notice = "La solicitud entra en conflicto con el estado vigente. Actualiza Picking antes de continuar."
+                            notice =
+                                "La solicitud entra en conflicto con el estado vigente. Actualiza Picking antes de continuar."
                         )
                     }
                     intent = null
                 }
 
                 LotSubstitutionResult.PermissionDenied -> knownFailure(
-                    frozen, currentAuthority, activation, LotSubstitutionCommandStatus.PermissionDenied
+                    frozen,
+                    currentAuthority,
+                    activation,
+                    LotSubstitutionCommandStatus.PermissionDenied
                 )
+
                 LotSubstitutionResult.ContextInvalidated -> knownFailure(
-                    frozen, currentAuthority, activation, LotSubstitutionCommandStatus.ContextInvalidated
+                    frozen,
+                    currentAuthority,
+                    activation,
+                    LotSubstitutionCommandStatus.ContextInvalidated
                 )
+
                 LotSubstitutionResult.SessionInvalidated -> knownFailure(
-                    frozen, currentAuthority, activation, LotSubstitutionCommandStatus.SessionInvalidated
+                    frozen,
+                    currentAuthority,
+                    activation,
+                    LotSubstitutionCommandStatus.SessionInvalidated
                 )
+
                 LotSubstitutionResult.ServiceUnavailable,
                 LotSubstitutionResult.NetworkUnavailable,
-                LotSubstitutionResult.UnknownOutcome -> markUnknown(frozen, currentAuthority, activation)
+                LotSubstitutionResult.UnknownOutcome -> markUnknown(
+                    frozen,
+                    currentAuthority,
+                    activation
+                )
             }
         }
     }
@@ -414,11 +522,17 @@ class LotSubstitutionViewModel(
     ) {
         finishKnown(frozen, currentAuthority, activation)
         val notice = when (status) {
-            LotSubstitutionCommandStatus.PermissionDenied -> "No tienes permiso vigente para solicitar esta sustitución."
-            LotSubstitutionCommandStatus.ContextInvalidated -> "El contexto cambió. Confirma nuevamente la autoridad activa."
+            LotSubstitutionCommandStatus.PermissionDenied ->
+                "No tienes permiso vigente para solicitar esta sustitución."
+
+            LotSubstitutionCommandStatus.ContextInvalidated ->
+                "El contexto cambió. Confirma nuevamente la autoridad activa."
+
             else -> "La sesión cambió. Confirma nuevamente la sesión activa."
         }
-        mutableState.update { it.copy(status = status, frozenIntent = null, canRequest = false, notice = notice) }
+        mutableState.update {
+            it.copy(status = status, frozenIntent = null, canRequest = false, notice = notice)
+        }
         intent = null
     }
 
@@ -435,7 +549,8 @@ class LotSubstitutionViewModel(
             mutableState.update {
                 it.copy(
                     metadataAvailable = false,
-                    notice = "El resultado llegó del servidor, pero la copia protegida no se pudo limpiar."
+                    notice =
+                        "El resultado llegó del servidor, pero la copia protegida no se pudo limpiar."
                 )
             }
         }
@@ -489,10 +604,18 @@ class LotSubstitutionViewModel(
                 hasMoreAlternatives = false,
                 canRequest = false,
                 notice = when (status) {
-                    LotSubstitutionLookupStatus.NetworkUnavailable -> "No hay conexión para cargar lotes alternativos."
-                    LotSubstitutionLookupStatus.PermissionDenied -> "No tienes permiso vigente para consultar lotes."
-                    LotSubstitutionLookupStatus.ContextInvalidated -> "El contexto cambió; vuelve a confirmar la selección activa."
-                    LotSubstitutionLookupStatus.SessionInvalidated -> "La sesión cambió; vuelve a confirmar la sesión activa."
+                    LotSubstitutionLookupStatus.NetworkUnavailable ->
+                        "No hay conexión para cargar lotes alternativos."
+
+                    LotSubstitutionLookupStatus.PermissionDenied ->
+                        "No tienes permiso vigente para consultar lotes."
+
+                    LotSubstitutionLookupStatus.ContextInvalidated ->
+                        "El contexto cambió; vuelve a confirmar la selección activa."
+
+                    LotSubstitutionLookupStatus.SessionInvalidated ->
+                        "La sesión cambió; vuelve a confirmar la sesión activa."
+
                     else -> "No fue posible cargar los lotes alternativos vigentes."
                 }
             )
@@ -502,7 +625,8 @@ class LotSubstitutionViewModel(
     private fun refreshCanRequest() {
         val currentAuthority = authority
         val current = mutableState.value
-        val allowed = currentAuthority != null && SUBSTITUTION_PERMISSION in currentAuthority.permissions
+        val allowed =
+            currentAuthority != null && SUBSTITUTION_PERMISSION in currentAuthority.permissions
         val canRequest = allowed && current.metadataAvailable && current.work.isUsable() &&
             current.selectedAlternative.isEligibleFor(current.work) &&
             current.reasonText.isValidSubstitutionReason() && current.frozenIntent == null &&
@@ -516,25 +640,34 @@ class LotSubstitutionViewModel(
 
     private fun LotSubstitutionIntent.isValid(): Boolean {
         val quantity = work.preparedQuantityText.toBigDecimalOrNull() ?: return false
-        return scope.userId.isNotBlank() && scope.tenantId.isNotBlank() && scope.workspaceId.isNotBlank() &&
+        return scope.userId.isNotBlank() && scope.tenantId.isNotBlank() &&
+            scope.workspaceId.isNotBlank() &&
             scope.membershipId.isNotBlank() && work.isUsable() && idempotencyKey.isNotBlank() &&
-            idempotencyKey.length <= MAX_IDEMPOTENCY_KEY_LENGTH && UUID_TEXT.matches(alternativeLotId) &&
+            idempotencyKey.length <= MAX_IDEMPOTENCY_KEY_LENGTH &&
+            UUID_TEXT.matches(alternativeLotId) &&
             reason.isValidSubstitutionReason() &&
             frozenBody == substitutionBody(work, alternativeLotId, quantity, reason)
     }
 
     private fun LotSubstitutionRequest.matches(frozen: LotSubstitutionIntent): Boolean =
-        UUID_TEXT.matches(id) && expectedLotId.equals(frozen.work.expectedLotId, ignoreCase = true) &&
+        UUID_TEXT.matches(
+            id
+        ) && expectedLotId.equals(frozen.work.expectedLotId, ignoreCase = true) &&
             alternativeLotId.equals(frozen.alternativeLotId, ignoreCase = true) &&
-            quantityText.toBigDecimalOrNull()?.compareTo(frozen.work.preparedQuantityText.toBigDecimal()) == 0 &&
+            quantityText.toBigDecimalOrNull()?.compareTo(
+                frozen.work.preparedQuantityText.toBigDecimal()
+            ) ==
+            0 &&
             reason == frozen.reason && status == "REQUESTED" &&
             currentAllocationVersion == frozen.work.allocationVersion
 
     private fun safeRejectionMessage(code: String): String = when (code) {
         "ALTERNATIVE_NOT_ELIGIBLE", "INSUFFICIENT_ALTERNATIVE_QUANTITY" ->
             "El lote alternativo no cumple la política o disponibilidad vigente. La asignación original permanece."
+
         "EXPECTED_LOT_MISMATCH", "PHYSICAL_ALLOCATION_LINE_NOT_FOUND" ->
             "La línea de asignación cambió. Actualiza Picking antes de continuar."
+
         else -> "El servidor rechazó la solicitud; la asignación original permanece vigente."
     }
 
@@ -550,7 +683,10 @@ class LotSubstitutionViewModel(
             alternativeLotId: String,
             quantity: BigDecimal,
             reason: String
-        ): String = """{"fulfillmentId":"${work.fulfillmentId}","allocationId":"${work.allocationId}","physicalAllocationLineId":"${work.allocationLineId}","expectedLotId":"${work.expectedLotId}","alternativeLotId":"$alternativeLotId","quantity":${quantity.toPlainString()},"unit":${reasonUnit(work.unit)},"reason":${reason.jsonString()}}"""
+        ): String =
+            """{"fulfillmentId":"${work.fulfillmentId}","allocationId":"${work.allocationId}","physicalAllocationLineId":"${work.allocationLineId}","expectedLotId":"${work.expectedLotId}","alternativeLotId":"$alternativeLotId","quantity":${quantity.toPlainString()},"unit":${reasonUnit(
+                work.unit
+            )},"reason":${reason.jsonString()}}"""
 
         private fun reasonUnit(unit: String): String = unit.jsonString()
 
@@ -559,13 +695,27 @@ class LotSubstitutionViewModel(
             for (char in this@jsonString) {
                 when (char) {
                     '"' -> append("\\\"")
+
                     '\\' -> append("\\\\")
+
                     '\b' -> append("\\b")
+
                     '\u000C' -> append("\\f")
+
                     '\n' -> append("\\n")
+
                     '\r' -> append("\\r")
+
                     '\t' -> append("\\t")
-                    else -> if (char.code < 0x20) append("\\u%04x".format(char.code)) else append(char)
+
+                    else ->
+                        if (char.code <
+                            0x20
+                        ) {
+                            append("\\u%04x".format(char.code))
+                        } else {
+                            append(char)
+                        }
                 }
             }
             append('"')

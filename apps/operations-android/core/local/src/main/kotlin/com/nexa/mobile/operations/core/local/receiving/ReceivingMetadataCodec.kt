@@ -16,7 +16,7 @@ internal data class ReceivingMetadataSnapshot(
 )
 
 internal object ReceivingMetadataCodec {
-    private const val SCHEMA_VERSION = 1
+    private const val SCHEMA_VERSION = 2
     private const val MAX_RECORD_BYTES = 64 * 1024
     private const val MAX_FIELD_BYTES = 8 * 1024
     private val MAGIC =
@@ -40,10 +40,11 @@ internal object ReceivingMetadataCodec {
         require(bytes.isNotEmpty() && bytes.size <= MAX_RECORD_BYTES)
         DataInputStream(ByteArrayInputStream(bytes)).use { input ->
             val magic = ByteArray(MAGIC.size).also(input::readFully)
-            require(magic.contentEquals(MAGIC) && input.readUnsignedByte() == SCHEMA_VERSION)
+            val schemaVersion = input.readUnsignedByte()
+            require(magic.contentEquals(MAGIC) && schemaVersion in 1..SCHEMA_VERSION)
             val scope = input.readScope()
-            val draft = if (input.readBoolean()) input.readDraft() else null
-            val intent = if (input.readBoolean()) input.readIntent(scope) else null
+            val draft = if (input.readBoolean()) input.readDraft(schemaVersion) else null
+            val intent = if (input.readBoolean()) input.readIntent(scope, schemaVersion) else null
             require(input.available() == 0)
             return ReceivingMetadataSnapshot(scope, draft, intent)
         }
@@ -80,9 +81,10 @@ internal object ReceivingMetadataCodec {
         writeField(draft.unit, 128)
         writeField(draft.temperatureReadingText, 128)
         writeNullableField(draft.notes, MAX_FIELD_BYTES)
+        writeNullableField(draft.temperatureEvidenceObjectId, 128)
     }
 
-    private fun DataInputStream.readDraft(): ReceivingDraftMetadataRecord {
+    private fun DataInputStream.readDraft(schemaVersion: Int): ReceivingDraftMetadataRecord {
         val product = if (readBoolean()) {
             ReceivingProductReferenceMetadata(
                 readNullableField(128),
@@ -94,16 +96,26 @@ internal object ReceivingMetadataCodec {
         } else {
             null
         }
+        val warehouseId = readNullableField(256)
+        val zoneId = readNullableField(256)
+        val batchNumber = readField(512)
+        val expirationDateText = readField(64)
+        val quantityText = readField(128)
+        val unit = readField(128)
+        val temperatureReadingText = readField(128)
+        val notes = readNullableField(MAX_FIELD_BYTES)
+        val temperatureEvidenceObjectId = if (schemaVersion >= 2) readNullableField(128) else null
         return ReceivingDraftMetadataRecord(
             selectedProduct = product,
-            warehouseId = readNullableField(256),
-            zoneId = readNullableField(256),
-            batchNumber = readField(512),
-            expirationDateText = readField(64),
-            quantityText = readField(128),
-            unit = readField(128),
-            temperatureReadingText = readField(128),
-            notes = readNullableField(MAX_FIELD_BYTES)
+            warehouseId = warehouseId,
+            zoneId = zoneId,
+            batchNumber = batchNumber,
+            expirationDateText = expirationDateText,
+            quantityText = quantityText,
+            unit = unit,
+            temperatureReadingText = temperatureReadingText,
+            notes = notes,
+            temperatureEvidenceObjectId = temperatureEvidenceObjectId
         )
     }
 
@@ -120,6 +132,7 @@ internal object ReceivingMetadataCodec {
         writeField(payload.unit, 128)
         writeNullableField(payload.temperatureReading, 128)
         writeNullableField(payload.notes, MAX_FIELD_BYTES)
+        writeNullableField(payload.temperatureEvidenceObjectId, 128)
         writeByte(
             when (intent.status) {
                 ReceivingIntentStatus.Pending -> 1
@@ -129,20 +142,33 @@ internal object ReceivingMetadataCodec {
     }
 
     private fun DataInputStream.readIntent(
-        scope: ReceivingMetadataScope
+        scope: ReceivingMetadataScope,
+        schemaVersion: Int
     ): ReceivingIntentMetadataRecord {
         val key = readField(ReceivingIntentMetadataRecord.MAX_KEY_BYTES)
+        val warehouseId = readField(256)
+        val zoneId = readField(256)
+        val catalogItemId = readNullableField(128)
+        val skuId = readNullableField(128)
+        val batchNumber = readField(512)
+        val expirationDate = readField(64)
+        val quantity = readField(128)
+        val unit = readField(128)
+        val temperatureReading = readNullableField(128)
+        val notes = readNullableField(MAX_FIELD_BYTES)
+        val temperatureEvidenceObjectId = if (schemaVersion >= 2) readNullableField(128) else null
         val payload = ReceivingIntentPayload(
-            warehouseId = readField(256),
-            zoneId = readField(256),
-            catalogItemId = readNullableField(128),
-            skuId = readNullableField(128),
-            batchNumber = readField(512),
-            expirationDate = readField(64),
-            quantity = readField(128),
-            unit = readField(128),
-            temperatureReading = readNullableField(128),
-            notes = readNullableField(MAX_FIELD_BYTES)
+            warehouseId = warehouseId,
+            zoneId = zoneId,
+            catalogItemId = catalogItemId,
+            skuId = skuId,
+            batchNumber = batchNumber,
+            expirationDate = expirationDate,
+            quantity = quantity,
+            unit = unit,
+            temperatureReading = temperatureReading,
+            notes = notes,
+            temperatureEvidenceObjectId = temperatureEvidenceObjectId
         )
         val status = when (readUnsignedByte()) {
             1 -> ReceivingIntentStatus.Pending
