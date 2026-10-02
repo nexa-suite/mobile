@@ -110,3 +110,15 @@ Live instrumentation arguments were supplied through private Gradle project envi
 All six release-origin negative cases in CI were also rejected locally for the expected reason. APK inspection confirmed that the shrunk release excludes debug review classes/resources, cleartext configuration and `ACCESS_LOCAL_NETWORK`. The release origin remains verification-only and the APK is not distribution-signed.
 
 These are technical results. Human Product/UX Acceptance, System Acceptance and Production Readiness remain separate open gates.
+
+## Isolated local instrumented execution
+
+AGP 9.4.1's serial-device filter throws `UnsupportedOperationException` before tests when it removes from an immutable device collection. Local verification must use one connected device without `--serial` or `ANDROID_SERIAL`. The helper refuses to run when another device is connected; it does not stop, disconnect or mutate other devices. It also serializes Gradle workers and provides a bounded 6 GiB daemon heap for Android test dex assembly. CI already provisions a single emulator and does not use this serial filter.
+
+From the Android project, after starting only the chosen API29 or API37 emulator:
+
+```sh
+scripts/verify-connected-local.sh emulator-5554 --console=plain
+```
+
+Use the actual serial from `adb devices`. A refused invocation or a build failure is not instrumented test evidence. Optional live-identity tests still require private local credentials and exact API provenance.
