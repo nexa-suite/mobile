@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.0-alpha.1] - 2026-10-01
+
+Wave 4 source checkpoint, published as prerelease with known validation failures.
+See [release notes](docs/releases/v0.3.0-alpha.1.md). No stable readiness claim.
+
 ## 0.1.1 - 2026-09-28
 
 ### Added
