@@ -20,11 +20,13 @@ import com.nexa.mobile.operations.feature.warehouse.DispositionMetadataWrite
 import com.nexa.mobile.operations.feature.warehouse.DispositionScopeIdentity
 import com.nexa.mobile.operations.feature.warehouse.LotDispositionAction
 import com.nexa.mobile.operations.feature.warehouse.LotDispositionCommand
+import com.nexa.mobile.operations.feature.warehouse.PartialDispositionEvaluation
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import java.math.BigDecimal
 import javax.inject.Singleton
 
 /** App-only adapter between the feature metadata port and encrypted durable local storage. */
@@ -129,7 +131,9 @@ private fun DispositionIntentMetadata.toLocal() = LocalIntent(
         lotId = command.lotId,
         disposition = command.disposition.toLocal(),
         reason = command.reason,
-        expectedVersion = command.expectedVersion
+        expectedVersion = command.expectedVersion,
+        affectedQuantity = command.partialEvaluation?.affectedQuantity?.toPlainString(),
+        temperatureEvaluationId = command.partialEvaluation?.temperatureEvaluationId
     ),
     status = when (status) {
         DispositionIntentMetadataStatus.Pending -> LocalIntentStatus.Pending
@@ -153,7 +157,13 @@ private fun LocalIntent.toFeatureOrNull(): DispositionIntentMetadata? = try {
             lotId = payload.lotId,
             disposition = payload.disposition.toFeature(),
             reason = payload.reason,
-            expectedVersion = payload.expectedVersion
+            expectedVersion = payload.expectedVersion,
+            partialEvaluation = payload.affectedQuantity?.let { quantity ->
+                PartialDispositionEvaluation(
+                    temperatureEvaluationId = requireNotNull(payload.temperatureEvaluationId),
+                    affectedQuantity = BigDecimal(quantity)
+                )
+            }
         ),
         status = when (status) {
             LocalIntentStatus.Pending -> DispositionIntentMetadataStatus.Pending

@@ -112,6 +112,9 @@ fun DispositionScreen(
             state.lotFacts?.let { facts ->
                 item { LotFactsPanel(facts) }
             }
+            state.partialEvaluation?.let { evaluation ->
+                item { PartialEvaluationPanel(evaluation) }
+            }
             item {
                 Text(
                     stringResource(R.string.disposition_action_title),
@@ -276,6 +279,29 @@ private fun LotFactsPanel(facts: DispositionLotFacts) {
 }
 
 @Composable
+private fun PartialEvaluationPanel(evaluation: PartialDispositionEvaluation) {
+    StatusCard {
+        Text(
+            stringResource(R.string.disposition_partial_title),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            stringResource(R.string.disposition_partial_description),
+            style = MaterialTheme.typography.bodyMedium
+        )
+        FactLine(
+            stringResource(R.string.disposition_partial_affected_quantity),
+            evaluation.affectedQuantity.toPlainString()
+        )
+        FactLine(
+            stringResource(R.string.disposition_partial_evaluation_id),
+            evaluation.temperatureEvaluationId
+        )
+    }
+}
+
+@Composable
 private fun CommandStatusPanel(state: DispositionUiState) {
     val message = when (state.commandStatus) {
         DispositionCommandStatus.Editing -> R.string.disposition_command_editing
@@ -337,12 +363,23 @@ private fun LotDispositionAction.toLabel(): Int = when (this) {
 
 private fun DispositionValidationError.toLabel(): Int = when (this) {
     DispositionValidationError.LotIdRequired -> R.string.disposition_error_lot_required
+
     DispositionValidationError.LotIdInvalid -> R.string.disposition_error_lot_invalid
+
     DispositionValidationError.LotMustBeReloaded -> R.string.disposition_error_lot_reload
+
+    DispositionValidationError.PartialEvaluationInvalid ->
+        R.string.disposition_error_partial_evaluation
+
     DispositionValidationError.ActionRequired -> R.string.disposition_error_action
+
     DispositionValidationError.ReasonRequired -> R.string.disposition_error_reason
+
     DispositionValidationError.ReasonTooLong -> R.string.disposition_error_reason_long
+
     DispositionValidationError.PermissionRequired -> R.string.disposition_error_permission
+
     DispositionValidationError.MetadataUnavailable -> R.string.disposition_error_metadata
+
     DispositionValidationError.IntentMustBeReviewed -> R.string.disposition_error_review
 }

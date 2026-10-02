@@ -3,6 +3,7 @@ package com.nexa.mobile.operations.core.network
 import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.AccessTokenSource
 import com.nexa.mobile.operations.core.auth.session.SessionState
+import java.math.BigDecimal
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
@@ -64,6 +65,92 @@ class NexaDispositionGatewayTest {
             assertEquals(18L, confirmed.version)
             assertEquals("DEPLETED", confirmed.status)
             assertEquals("12.500", confirmed.onHand.toPlainString())
+        }
+    }
+
+    @Test
+    fun partialDispositionSendsExactNumericQuantityEvaluationAndCurrentVersion() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(jsonResponse(lotJson(version = 22, status = "AVAILABLE")))
+
+            val result = gateway(server).dispose(
+                lotId = LOT_ID,
+                disposition = "HOLD",
+                reason = "temperature excursion",
+                expectedVersion = 21,
+                idempotencyKey = "partial-intent-21",
+                affectedQuantity = BigDecimal("1.2300"),
+                temperatureEvaluationId = EVALUATION_ID
+            )
+            val request = server.takeRequest()
+
+            assertEquals("partial-intent-21", request.getHeader("Idempotency-Key"))
+            assertEquals("\"21\"", request.getHeader("If-Match"))
+            assertEquals(
+                """{"disposition":"HOLD","reason":"temperature excursion","affectedQuantity":1.2300,"temperatureEvaluationId":"$EVALUATION_ID"}""",
+                request.body.readUtf8()
+            )
+            val confirmed = (result as DispositionNetworkOutcome.Confirmed).item
+            assertEquals("AVAILABLE", confirmed.status)
+            assertEquals(22L, confirmed.version)
+        }
+    }
+
+    @Test
+    fun partialDispositionRejectsIncompleteOrInvalidEvaluationBeforeHttp() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val gateway = gateway(server)
+
+            assertEquals(
+                DispositionNetworkOutcome.Rejected("INVALID_REQUEST"),
+                gateway.dispose(
+                    LOT_ID,
+                    "HOLD",
+                    "temperature excursion",
+                    21,
+                    "partial-key",
+                    affectedQuantity = BigDecimal("1.0")
+                )
+            )
+            assertEquals(
+                DispositionNetworkOutcome.Rejected("INVALID_REQUEST"),
+                gateway.dispose(
+                    LOT_ID,
+                    "HOLD",
+                    "temperature excursion",
+                    21,
+                    "partial-key",
+                    affectedQuantity = BigDecimal("0.00001"),
+                    temperatureEvaluationId = EVALUATION_ID
+                )
+            )
+            assertEquals(
+                DispositionNetworkOutcome.Rejected("INVALID_REQUEST"),
+                gateway.dispose(
+                    LOT_ID,
+                    "HOLD",
+                    "temperature excursion",
+                    21,
+                    "partial-key",
+                    affectedQuantity = BigDecimal("1.0"),
+                    temperatureEvaluationId = "not-a-uuid"
+                )
+            )
+            assertEquals(
+                DispositionNetworkOutcome.Rejected("INVALID_REQUEST"),
+                gateway.dispose(
+                    LOT_ID,
+                    "HOLD",
+                    "temperature excursion",
+                    21,
+                    "partial-key",
+                    affectedQuantity = BigDecimal("1000000000000000.0000"),
+                    temperatureEvaluationId = EVALUATION_ID
+                )
+            )
+            assertEquals(0, server.requestCount)
         }
     }
 
@@ -169,5 +256,6 @@ class NexaDispositionGatewayTest {
         const val WAREHOUSE_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413101"
         const val ZONE_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413201"
         const val SKU_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413301"
+        const val EVALUATION_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413501"
     }
 }

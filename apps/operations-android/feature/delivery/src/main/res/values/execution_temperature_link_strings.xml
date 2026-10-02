@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="driver_incident_use_thermal_evidence">Use photo %1$d for transit temperature</string>
+    <string name="driver_incident_use_thermal_evidence">Transit temperature evidence photo: %1$d</string>
 </resources>

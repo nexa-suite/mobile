@@ -19,7 +19,7 @@
     <string name="delivery_load_plan_window_body">El plan de solo anexado registra al actor de despacho y el motivo. No reemplaza ventanas comerciales existentes.</string>
     <string name="delivery_load_window_start">Inicio de ventana</string>
     <string name="delivery_load_window_end">Fin de ventana</string>
-    <string name="delivery_load_window_iso_hint">Usa fecha y hora ISO-8601 con zona horaria, por ejemplo 2026-10-02T14:00:00Z.</string>
+    <string name="delivery_load_window_iso_hint">Usa fecha y hora ISO 8601 con zona horaria.</string>
     <string name="delivery_load_window_reason">Motivo de la ventana</string>
     <string name="delivery_load_save_window">Guardar plan de ventana</string>
     <string name="delivery_load_cancel_window">Cancelar</string>
@@ -41,7 +41,11 @@
     <string name="delivery_load_assigned_list">Cargas asignadas</string>
     <string name="delivery_load_current_list">Cargas actuales</string>
     <string name="delivery_load_id">Carga %1$s</string>
-    <string name="delivery_load_version_stops">%1$s · versión %2$d · %3$d paradas</string>
+    <plurals name="delivery_load_version_stops">
+        <item quantity="one">%1$s · versión %2$d · %3$d parada</item>
+        <item quantity="other">%1$s · versión %2$d · %3$d paradas</item>
+        <item quantity="many">%1$s · versión %2$d · %3$d paradas</item>
+    </plurals>
     <string name="delivery_load_driver_id">Conductor asignado: %1$s</string>
     <string name="delivery_load_stop_delivery">%1$d. Entrega %2$s</string>
     <string name="delivery_load_review_delivery">Revisar entrega</string>

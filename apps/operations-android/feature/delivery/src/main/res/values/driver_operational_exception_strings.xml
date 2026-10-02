@@ -28,7 +28,10 @@
     <string name="driver_operational_exceptions_claim">Take responsibility</string>
     <string name="driver_operational_exceptions_send_for_review">Send for review</string>
     <string name="driver_operational_exceptions_resolution_input">How was the warning addressed?</string>
-    <string name="driver_operational_exceptions_resolution_length">%1$d / %2$d characters</string>
+    <plurals name="driver_operational_exceptions_resolution_length">
+        <item quantity="one">%1$d / %2$d character</item>
+        <item quantity="other">%1$d / %2$d characters</item>
+    </plurals>
     <string name="driver_operational_exceptions_resolve_warning">Record resolution</string>
     <string name="driver_operational_exceptions_close_warning">Close resolved warning</string>
     <string name="driver_operational_exceptions_persisting">Saving your identity, time, version and request before sending…</string>

@@ -16,7 +16,7 @@ internal data class DispositionMetadataSnapshot(
 )
 
 internal object DispositionMetadataCodec {
-    private const val SCHEMA_VERSION = 1
+    private const val SCHEMA_VERSION = 2
     private const val MAX_RECORD_BYTES = 64 * 1024
     private const val MAX_FIELD_BYTES = 16 * 1024
     private val MAGIC =
@@ -40,10 +40,11 @@ internal object DispositionMetadataCodec {
         require(bytes.isNotEmpty() && bytes.size <= MAX_RECORD_BYTES)
         DataInputStream(ByteArrayInputStream(bytes)).use { input ->
             val magic = ByteArray(MAGIC.size).also(input::readFully)
-            require(magic.contentEquals(MAGIC) && input.readUnsignedByte() == SCHEMA_VERSION)
+            val schemaVersion = input.readUnsignedByte()
+            require(magic.contentEquals(MAGIC) && schemaVersion in 1..SCHEMA_VERSION)
             val scope = input.readScope()
             val draft = if (input.readBoolean()) input.readDraft() else null
-            val intent = if (input.readBoolean()) input.readIntent(scope) else null
+            val intent = if (input.readBoolean()) input.readIntent(scope, schemaVersion) else null
             require(input.available() == 0)
             return DispositionMetadataSnapshot(scope, draft, intent)
         }
@@ -82,6 +83,11 @@ internal object DispositionMetadataCodec {
         writeByte(intent.payload.disposition.ordinal + 1)
         writeField(intent.payload.reason, DispositionDraftRecord.MAX_REASON_BYTES)
         writeLong(intent.payload.expectedVersion)
+        writeBoolean(intent.payload.affectedQuantity != null)
+        intent.payload.affectedQuantity?.let { quantity ->
+            writeField(quantity, DispositionCommandPayload.MAX_QUANTITY_BYTES)
+            writeField(requireNotNull(intent.payload.temperatureEvaluationId), 64)
+        }
         writeByte(
             when (intent.status) {
                 DispositionIntentStatus.Pending -> 1
@@ -94,13 +100,21 @@ internal object DispositionMetadataCodec {
     }
 
     private fun DataInputStream.readIntent(
-        scope: DispositionMetadataScope
+        scope: DispositionMetadataScope,
+        schemaVersion: Int
     ): DispositionIntentRecord {
         val key = readField(DispositionIntentRecord.MAX_KEY_BYTES)
         val lotId = readField(64)
         val disposition = readDispositionOrNull(readUnsignedByte()) ?: error("Missing disposition")
         val reason = readField(DispositionDraftRecord.MAX_REASON_BYTES)
         val version = readLong()
+        val hasPartialEvaluation = schemaVersion >= 2 && readBoolean()
+        val affectedQuantity = if (hasPartialEvaluation) {
+            readField(DispositionCommandPayload.MAX_QUANTITY_BYTES)
+        } else {
+            null
+        }
+        val temperatureEvaluationId = if (hasPartialEvaluation) readField(64) else null
         val status = when (readUnsignedByte()) {
             1 -> DispositionIntentStatus.Pending
             2 -> DispositionIntentStatus.UnknownOutcome
@@ -112,7 +126,14 @@ internal object DispositionMetadataCodec {
         return DispositionIntentRecord(
             scope,
             key,
-            DispositionCommandPayload(lotId, disposition, reason, version),
+            DispositionCommandPayload(
+                lotId,
+                disposition,
+                reason,
+                version,
+                affectedQuantity,
+                temperatureEvaluationId
+            ),
             status
         )
     }

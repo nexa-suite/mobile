@@ -2,6 +2,7 @@ package com.nexa.mobile.operations.feature.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import java.math.BigDecimal
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +43,7 @@ enum class DispositionValidationError {
     LotIdRequired,
     LotIdInvalid,
     LotMustBeReloaded,
+    PartialEvaluationInvalid,
     ActionRequired,
     ReasonRequired,
     ReasonTooLong,
@@ -55,6 +57,7 @@ data class DispositionUiState(
     val permissions: Set<String> = emptySet(),
     val lotIdText: String = "",
     val disposition: LotDispositionAction? = null,
+    val partialEvaluation: PartialDispositionEvaluation? = null,
     val reasonText: String = "",
     val metadata: DispositionMetadataStatus = DispositionMetadataStatus.Loading,
     val lotStatus: DispositionLotStatus = DispositionLotStatus.Idle,
@@ -184,6 +187,7 @@ class DispositionViewModel(
                 current.copy(
                     lotIdText = command?.lotId ?: draft?.lotIdText.orEmpty(),
                     disposition = command?.disposition ?: draft?.disposition,
+                    partialEvaluation = command?.partialEvaluation,
                     reasonText = command?.reason ?: draft?.reason.orEmpty(),
                     metadata = if (metadataAvailable) {
                         DispositionMetadataStatus.Available
@@ -234,11 +238,44 @@ class DispositionViewModel(
         mutableState.value = DispositionUiState()
     }
 
+    /** Seeds an explicit partial temperature disposition, then reloads server lot facts. */
+    fun seedPartialDisposition(lotId: String, evaluationId: String, affectedQuantity: BigDecimal) {
+        val current = mutableState.value
+        if (authority == null || current.metadata != DispositionMetadataStatus.Available ||
+            current.intent != null || current.isIntentFrozen
+        ) {
+            return
+        }
+        val evaluation = try {
+            PartialDispositionEvaluation(evaluationId, affectedQuantity)
+        } catch (_: IllegalArgumentException) {
+            mutableState.value = current.copy(
+                validationError = DispositionValidationError.PartialEvaluationInvalid
+            )
+            return
+        }
+        mutableState.value = current.copy(
+            lotIdText = lotId.trim(),
+            disposition = null,
+            partialEvaluation = evaluation,
+            reasonText = "",
+            lotStatus = DispositionLotStatus.Idle,
+            lotFacts = null,
+            commandStatus = DispositionCommandStatus.Editing,
+            validationError = null,
+            rejectionCode = null,
+            noteSaved = false,
+            terminalIntentRefreshed = false
+        )
+        loadLot()
+    }
+
     fun lotIdChanged(value: String) {
         val current = mutableState.value
         if (current.isIntentFrozen) return
         mutableState.value = current.copy(
             lotIdText = value,
+            partialEvaluation = null,
             lotFacts = null,
             lotStatus = DispositionLotStatus.Idle,
             commandStatus = DispositionCommandStatus.Editing,
@@ -458,7 +495,13 @@ class DispositionViewModel(
                 current.copy(validationError = DispositionValidationError.MetadataUnavailable)
             return
         }
-        val command = LotDispositionCommand(facts.id, action, reason, facts.version)
+        val command = LotDispositionCommand(
+            lotId = facts.id,
+            disposition = action,
+            reason = reason,
+            expectedVersion = facts.version,
+            partialEvaluation = current.partialEvaluation
+        )
         val frozen = DispositionIntentMetadata(
             currentAuthority.scope,
             UUID.randomUUID().toString(),

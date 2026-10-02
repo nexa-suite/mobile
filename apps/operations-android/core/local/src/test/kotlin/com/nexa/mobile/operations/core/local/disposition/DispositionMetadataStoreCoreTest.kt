@@ -1,5 +1,7 @@
 package com.nexa.mobile.operations.core.local.disposition
 
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -32,7 +34,46 @@ class DispositionMetadataStoreCoreTest {
 
         assertFails { DispositionMetadataCodec.decode(valid.copyOf(valid.size - 1)) }
         assertFails { DispositionMetadataCodec.decode(valid + 1) }
-        assertFails { DispositionMetadataCodec.decode(valid.also { it[4] = 2 }) }
+        assertFails { DispositionMetadataCodec.decode(valid.also { it[4] = 3 }) }
+    }
+
+    @Test
+    fun schemaOneFrozenIntentDecodesAsWholeLotWithoutLosingItsKeyOrVersion() {
+        val scope = scope()
+        val decoded = DispositionMetadataCodec.decode(legacyV1Record())
+
+        assertEquals(
+            DispositionMetadataSnapshot(
+                scope,
+                null,
+                legacyIntent(scope)
+            ),
+            decoded
+        )
+    }
+
+    @Test
+    fun frozenPartialPayloadRequiresValidEvaluationPairAndNumericPrecision() {
+        assertFails {
+            DispositionCommandPayload(
+                LOT_ID,
+                StoredLotDisposition.HOLD,
+                "temperature review",
+                17,
+                "1.2500",
+                null
+            )
+        }
+        assertFails {
+            DispositionCommandPayload(
+                LOT_ID,
+                StoredLotDisposition.HOLD,
+                "temperature review",
+                17,
+                "1000000000000000.0000",
+                EVALUATION_ID
+            )
+        }
     }
 
     @Test
@@ -68,6 +109,12 @@ class DispositionMetadataStoreCoreTest {
             DispositionMetadataWrite.Conflict,
             store.saveIntent(
                 pending.copy(payload = pending.payload.copy(reason = "changed reason"))
+            )
+        )
+        assertEquals(
+            DispositionMetadataWrite.Conflict,
+            store.saveIntent(
+                pending.copy(payload = pending.payload.copy(affectedQuantity = "1.5000"))
             )
         )
         assertEquals(
@@ -155,10 +202,57 @@ class DispositionMetadataStoreCoreTest {
                 LOT_ID,
                 StoredLotDisposition.RETURN_TO_SUPPLIER,
                 "seal broken",
-                17
+                17,
+                "1.2500",
+                EVALUATION_ID
             ),
             DispositionIntentStatus.Pending
         )
+
+    private fun legacyIntent(scope: DispositionMetadataScope) = DispositionIntentRecord(
+        scope,
+        "legacy-key",
+        DispositionCommandPayload(
+            LOT_ID,
+            StoredLotDisposition.RETURN_TO_SUPPLIER,
+            "seal broken",
+            17,
+            null,
+            null
+        ),
+        DispositionIntentStatus.Pending
+    )
+
+    private fun legacyV1Record(): ByteArray = ByteArrayOutputStream().let { bytes ->
+        DataOutputStream(bytes).use { output ->
+            output.writeByte('N'.code)
+            output.writeByte('X'.code)
+            output.writeByte('D'.code)
+            output.writeByte('M'.code)
+            output.writeByte(1)
+            listOf(
+                "user-1",
+                "tenant-2",
+                "workspace-3",
+                "member-4"
+            ).forEach { output.writeLegacyField(it) }
+            output.writeBoolean(false)
+            output.writeBoolean(true)
+            output.writeLegacyField("legacy-key")
+            output.writeLegacyField(LOT_ID)
+            output.writeByte(StoredLotDisposition.RETURN_TO_SUPPLIER.ordinal + 1)
+            output.writeLegacyField("seal broken")
+            output.writeLong(17)
+            output.writeByte(1)
+        }
+        bytes.toByteArray()
+    }
+
+    private fun DataOutputStream.writeLegacyField(value: String) {
+        val encoded = value.toByteArray(Charsets.UTF_8)
+        writeInt(encoded.size)
+        write(encoded)
+    }
 
     private fun assertFails(block: () -> Unit) {
         try {
@@ -197,5 +291,6 @@ class DispositionMetadataStoreCoreTest {
 
     private companion object {
         const val LOT_ID = "11111111-1111-4111-8111-111111111111"
+        const val EVALUATION_ID = "22222222-2222-4222-8222-222222222222"
     }
 }

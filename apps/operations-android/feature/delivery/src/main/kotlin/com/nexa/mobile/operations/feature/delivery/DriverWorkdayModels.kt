@@ -1042,6 +1042,5 @@ class DriverWorkdayViewModel(
 
     override fun onCleared() {
         stopCapture()
-        super.onCleared()
     }
 }

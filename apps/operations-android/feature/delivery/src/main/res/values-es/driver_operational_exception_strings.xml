@@ -27,6 +27,14 @@
     <string name="driver_operational_exceptions_reviewed_by">Enviada a revisión por la membresía %1$s</string>
     <string name="driver_operational_exceptions_claim">Asumir responsabilidad</string>
     <string name="driver_operational_exceptions_send_for_review">Enviar a revisión</string>
+    <string name="driver_operational_exceptions_resolution_input">¿Cómo se atendió la advertencia?</string>
+    <plurals name="driver_operational_exceptions_resolution_length">
+        <item quantity="one">%1$d de %2$d carácter</item>
+        <item quantity="other">%1$d de %2$d caracteres</item>
+        <item quantity="many">%1$d de %2$d caracteres</item>
+    </plurals>
+    <string name="driver_operational_exceptions_resolve_warning">Registrar resolución</string>
+    <string name="driver_operational_exceptions_close_warning">Cerrar advertencia resuelta</string>
     <string name="driver_operational_exceptions_persisting">Guardando tu identidad, hora, versión y solicitud antes de enviar…</string>
     <string name="driver_operational_exceptions_pending">Enviando a Nexa la acción de responsabilidad o revisión…</string>
     <string name="driver_operational_exceptions_unknown">Nexa no confirmó la acción. La excepción no se muestra como modificada.</string>
@@ -36,6 +44,10 @@
     <string name="driver_operational_exceptions_claim_replayed">Nexa confirmó la acción de responsabilidad guardada.</string>
     <string name="driver_operational_exceptions_under_review">Nexa envió la excepción a revisión. Sigue sin resolverse y abierta.</string>
     <string name="driver_operational_exceptions_review_replayed">Nexa confirmó la acción de revisión guardada.</string>
+    <string name="driver_operational_exceptions_resolved">Nexa registró la resolución de la advertencia. El resultado de la entrega sigue siendo independiente.</string>
+    <string name="driver_operational_exceptions_resolution_replayed">Nexa confirmó la resolución guardada de la advertencia.</string>
+    <string name="driver_operational_exceptions_closed">Nexa confirmó el cierre de la advertencia. Esto no completa la entrega.</string>
+    <string name="driver_operational_exceptions_closure_replayed">Nexa confirmó el cierre guardado de la advertencia.</string>
     <string name="driver_operational_exceptions_stale">La entrega cambió. No se reutilizó la acción anterior.</string>
     <string name="driver_operational_exceptions_fresh_decision">Revisa el estado actual de la excepción y vuelve a elegir una acción.</string>
     <string name="driver_operational_exceptions_rejected">Nexa rechazó la acción. Actualiza y revisa el estado actual del servidor.</string>

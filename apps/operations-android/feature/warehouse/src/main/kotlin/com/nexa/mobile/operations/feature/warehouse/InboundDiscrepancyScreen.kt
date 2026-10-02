@@ -25,6 +25,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -267,8 +268,9 @@ fun InboundDiscrepancyScreen(
 
             state.artifact?.let { artifact ->
                 Text(
-                    stringResource(
-                        R.string.discrepancy_photo_staged,
+                    pluralStringResource(
+                        R.plurals.discrepancy_photo_staged,
+                        artifact.byteSize.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
                         artifact.filename,
                         artifact.contentType,
                         artifact.byteSize

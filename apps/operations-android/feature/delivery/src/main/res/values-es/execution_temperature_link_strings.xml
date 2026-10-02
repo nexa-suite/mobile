@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="driver_incident_use_thermal_evidence">Usar foto %1$d para temperatura en tránsito</string>
+    <string name="driver_incident_use_thermal_evidence">Evidencia térmica de tránsito: foto %1$d</string>
 </resources>
