@@ -26,11 +26,27 @@ data class TemperatureEvidenceCommandWire(
     val subjectId: String,
     val value: String,
     val unit: TemperatureUnitWire,
-    val occurredAt: Instant
+    val occurredAt: Instant,
+    val evidenceObjectId: String? = null,
+    val expectedLotVersion: Long? = null,
+    val affectedQuantity: String? = null,
+    val reason: String? = null,
+    val sourceEvidenceId: String? = null
 ) {
     init {
         require(temperatureUuidPattern.matches(subjectId))
         require(BigDecimal(value).toPlainString() == value)
+        require(evidenceObjectId == null || temperatureUuidPattern.matches(evidenceObjectId))
+        require(sourceEvidenceId == null || temperatureUuidPattern.matches(sourceEvidenceId))
+        require(expectedLotVersion == null || expectedLotVersion >= 0)
+        require(
+            affectedQuantity == null ||
+                (
+                    BigDecimal(affectedQuantity).toPlainString() == affectedQuantity &&
+                        BigDecimal(affectedQuantity).signum() > 0
+                    )
+        )
+        require(reason == null || reason.isNotBlank())
     }
 
     override fun toString(): String = "TemperatureEvidenceCommandWire(REDACTED)"
@@ -47,7 +63,15 @@ data class TemperatureEvidenceResponseWire(
     val occurredAt: Instant,
     val actorMembershipId: String,
     val status: String,
-    val source: String
+    val source: String,
+    val evidenceObjectId: String? = null,
+    val expectedLotVersion: Long? = null,
+    val resultingLotVersion: Long? = null,
+    val inventoryTemperatureEvaluationId: String? = null,
+    val inventoryLotStatus: String? = null,
+    val affectedQuantity: BigDecimal? = null,
+    val reason: String? = null,
+    val exceptionId: String? = null
 ) {
     override fun toString(): String =
         "TemperatureEvidenceResponseWire(id=REDACTED, status=$status, source=$source)"
@@ -84,6 +108,11 @@ class NexaTemperatureEvidenceGateway(private val protectedCalls: ProtectedCallEx
             put("value", JsonUnquotedLiteral(command.value))
             put("unit", command.unit.name)
             put("occurredAt", command.occurredAt.toString())
+            command.evidenceObjectId?.let { put("evidenceObjectId", it) }
+            command.expectedLotVersion?.let { put("expectedLotVersion", it) }
+            command.affectedQuantity?.let { put("affectedQuantity", JsonUnquotedLiteral(it)) }
+            command.reason?.let { put("reason", it) }
+            command.sourceEvidenceId?.let { put("sourceEvidenceId", it) }
         }.toString()
         return when (
             val result = protectedCalls.execute(
@@ -169,6 +198,18 @@ class NexaTemperatureEvidenceGateway(private val protectedCalls: ProtectedCallEx
         ) {
             return null
         }
+        if (listOf(evidenceObjectId, inventoryTemperatureEvaluationId, exceptionId)
+                .any { it != null && !temperatureUuidPattern.matches(it) } ||
+            listOf(expectedLotVersion, resultingLotVersion).any { it != null && it < 0 }
+        ) {
+            return null
+        }
+        val safeAffectedQuantity = affectedQuantity.decimalValue()
+        if (affectedQuantity != null && affectedQuantity != JsonNull &&
+            (safeAffectedQuantity == null || safeAffectedQuantity.signum() <= 0)
+        ) {
+            return null
+        }
         return TemperatureEvidenceResponseWire(
             id = safeId,
             subjectType = safeType,
@@ -180,7 +221,15 @@ class NexaTemperatureEvidenceGateway(private val protectedCalls: ProtectedCallEx
             occurredAt = safeOccurredAt,
             actorMembershipId = safeMembership,
             status = safeStatus,
-            source = safeSource
+            source = safeSource,
+            evidenceObjectId = evidenceObjectId,
+            expectedLotVersion = expectedLotVersion,
+            resultingLotVersion = resultingLotVersion,
+            inventoryTemperatureEvaluationId = inventoryTemperatureEvaluationId,
+            inventoryLotStatus = inventoryLotStatus,
+            affectedQuantity = safeAffectedQuantity,
+            reason = reason,
+            exceptionId = exceptionId
         )
     }
 
@@ -226,5 +275,13 @@ private data class TemperatureEvidenceWire(
     val occurredAt: String? = null,
     val actorMembershipId: String? = null,
     val status: String? = null,
-    val source: String? = null
+    val source: String? = null,
+    val evidenceObjectId: String? = null,
+    val expectedLotVersion: Long? = null,
+    val resultingLotVersion: Long? = null,
+    val inventoryTemperatureEvaluationId: String? = null,
+    val inventoryLotStatus: String? = null,
+    val affectedQuantity: JsonElement? = null,
+    val reason: String? = null,
+    val exceptionId: String? = null
 )

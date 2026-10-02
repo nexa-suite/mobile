@@ -19,6 +19,58 @@ import org.junit.Test
 
 class NexaTemperatureEvidenceGatewayTest {
     @Test
+    fun partialHoldFactsRequireWellFormedServerEvidenceAndKeepUnheldLotStatus() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val body = response(status = "OUT_OF_RANGE").dropLast(1) +
+                """, "evidenceObjectId":"$EVIDENCE_ID","expectedLotVersion":7,"resultingLotVersion":8,"inventoryTemperatureEvaluationId":"$EVIDENCE_ID","inventoryLotStatus":"AVAILABLE","affectedQuantity":5.123456789,"reason":"Affected cases","exceptionId":"$EVIDENCE_ID"}"""
+            server.enqueue(jsonResponse(201, body))
+            server.enqueue(jsonResponse(201, body.replace("5.123456789", "-5")))
+            val adapter = gateway(server)
+            val outcome = adapter.record(command(), "server-facts", MEMBERSHIP_ID)
+                as TemperatureEvidenceNetworkOutcome.Confirmed
+            assertEquals("5.123456789", outcome.response.affectedQuantity?.toPlainString())
+            assertEquals(8L, outcome.response.resultingLotVersion)
+            assertEquals("AVAILABLE", outcome.response.inventoryLotStatus)
+            assertEquals(EVIDENCE_ID, outcome.response.exceptionId)
+            assertEquals(
+                TemperatureEvidenceNetworkOutcome.ServiceUnavailable,
+                adapter.record(command(), "malformed-facts", MEMBERSHIP_ID)
+            )
+        }
+    }
+
+    @Test
+    fun explicitAffectedQuantityAndWarehouseSourcePreservePrecisionWithoutDisposition() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(jsonResponse(201, response(status = "OUT_OF_RANGE")))
+            gateway(server).record(
+                command().copy(
+                    evidenceObjectId = EVIDENCE_ID,
+                    expectedLotVersion = 7,
+                    affectedQuantity = "5.123456789",
+                    reason = "Affected cases identified during warehouse review",
+                    sourceEvidenceId = EVIDENCE_ID
+                ),
+                "partial-hold-key",
+                MEMBERSHIP_ID
+            )
+            val request = server.takeRequest()
+            val json = Json.parseToJsonElement(request.body.readUtf8()).jsonObject
+            assertEquals("partial-hold-key", request.getHeader("Idempotency-Key"))
+            assertEquals("5.123456789", json.getValue("affectedQuantity").jsonPrimitive.content)
+            assertFalse(json.getValue("affectedQuantity").jsonPrimitive.isString)
+            assertEquals("7", json.getValue("expectedLotVersion").jsonPrimitive.content)
+            assertEquals(EVIDENCE_ID, json.getValue("evidenceObjectId").jsonPrimitive.content)
+            assertEquals(EVIDENCE_ID, json.getValue("sourceEvidenceId").jsonPrimitive.content)
+            assertFalse(json.containsKey("disposition"))
+            assertFalse(json.containsKey("severity"))
+            assertFalse(json.containsKey("status"))
+        }
+    }
+
+    @Test
     fun recordsExactManualEvidenceWithStableKeyAndProjectsServerClassification() = runTest {
         MockWebServer().use { server ->
             server.start()
