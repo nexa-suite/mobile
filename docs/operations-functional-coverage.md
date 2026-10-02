@@ -111,7 +111,9 @@ fixed-search-path coordinate retention function. Docker runtime health is UP;
 four PLATFORM logins and Buyer PORTAL login returned HTTP 200 using existing local
 configuration. Raw coordinates retain the approved maximum 24-hour TTL.
 
-The local APK uses `http://10.0.2.2:8080/` for the Android emulator. Android Studio
+The default debug build uses `http://10.0.2.2:8080/` for the Android emulator.
+The delivered APK is assembled with `-PnexaDebugApiBaseUrl=http://127.0.0.1:8080/`
+and uses `adb reverse tcp:8080 tcp:8080` for USB devices or an emulator. Android Studio
 Rabbit 1 2026.2.1 reports READY through Android CLI; GUI Sync is not claimed.
 Source branches remain local and unmerged. Full-suite/final-SHA CI, physical-device
 tracking, provider readiness and Product/System Acceptance remain unverified.
