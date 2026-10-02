@@ -26,6 +26,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nexa.mobile.operations.feature.access.AccessViewModel
 import com.nexa.mobile.operations.feature.access.R as AccessResources
+import com.nexa.mobile.operations.feature.warehouse.R as WarehouseResources
 import com.nexa.mobile.operations.feature.warehouse.ReceivingCommandStatus
 import com.nexa.mobile.operations.feature.warehouse.ReceivingViewModel
 import com.nexa.mobile.operations.feature.warehouse.StockConditionAvailabilityStatus
@@ -200,6 +201,15 @@ class LiveCandidateIdentityIntegrationTest {
         }
 
         if (arguments.getString("nexaLiveReceiving") == "true") {
+            val receivingWarehouseId = checkNotNull(
+                arguments.getString("nexaLiveWarehouseId")
+            ) { "The live runner must provide its API-authorized receiving warehouse." }
+            val receivingZoneId = checkNotNull(
+                arguments.getString("nexaLiveZoneId")
+            ) { "The live runner must provide its API-authorized receiving zone." }
+            val temperatureReading = checkNotNull(
+                arguments.getString("nexaLiveTemperature")
+            ) { "The live runner must provide a reading within the authoritative range." }
             composeRule.onNode(hasClickAction() and hasText("Registrar llegada"))
                 .performScrollTo().performClick()
             composeRule.onNodeWithText("Elegir producto").performScrollTo().performClick()
@@ -218,13 +228,21 @@ class LiveCandidateIdentityIntegrationTest {
                 receivingModel.state.value.product != null &&
                     receivingModel.state.value.warehouses.isNotEmpty()
             }
-            val warehouse = receivingModel.state.value.warehouses.first()
+            val warehouse = receivingModel.state.value.warehouses.singleOrNull {
+                it.id == receivingWarehouseId
+            } ?: throw AssertionError(
+                "API-authorized warehouse is absent from the current Receiving choices."
+            )
             composeRule.onNodeWithText("${warehouse.name} · ${warehouse.code}")
                 .performScrollTo().performClick()
             composeRule.waitUntil(timeoutMillis = 15_000) {
                 receivingModel.state.value.zones.isNotEmpty()
             }
-            val zone = receivingModel.state.value.zones.first()
+            val zone = receivingModel.state.value.zones.singleOrNull {
+                it.id == receivingZoneId && it.warehouseId == warehouse.id
+            } ?: throw AssertionError(
+                "API-authorized zone is absent from the selected warehouse's current choices."
+            )
             composeRule.onNodeWithText("${zone.name} · ${zone.code}")
                 .performScrollTo().performClick()
             val batch = "ANDROID-W4-${System.currentTimeMillis()}"
@@ -240,13 +258,35 @@ class LiveCandidateIdentityIntegrationTest {
             fill("Cantidad recibida", "1.25")
             fill("Unidad", receivingModel.state.value.product!!.unit.ifBlank { "UNIT" })
             fill(
-                "Lectura de temperatura (opcional)",
-                arguments.getString("nexaLiveTemperature") ?: "20"
+                composeRule.activity.getString(
+                    WarehouseResources.string.receiving_temperature_label
+                ),
+                temperatureReading
             )
             composeRule.onNode(hasClickAction() and hasText("Registrar llegada"))
                 .performScrollTo().performClick()
-            composeRule.waitUntil(timeoutMillis = 20_000) {
-                receivingModel.state.value.command == ReceivingCommandStatus.Confirmed
+            try {
+                composeRule.waitUntil(timeoutMillis = 20_000) {
+                    receivingModel.state.value.command == ReceivingCommandStatus.Confirmed
+                }
+            } catch (timeout: ComposeTimeoutException) {
+                val receiving = receivingModel.state.value
+                val rejectionCode = receiving.rejectionCode?.let { code ->
+                    if (Regex("[A-Z0-9_]{1,80}").matches(code)) code else "redacted"
+                } ?: "none"
+                throw AssertionError(
+                    "Native Receiving submit not confirmed; command=${receiving.command}, " +
+                        "notice=${receiving.notice}, rejectionCode=$rejectionCode, " +
+                        "validationError=${receiving.validationError}, " +
+                        "warehouseLookup=${receiving.warehouseLookup}, " +
+                        "zoneLookup=${receiving.zoneLookup}, " +
+                        "productSelected=${receiving.product != null}, " +
+                        "productVerified=${receiving.productVerifiedEpoch != null}, " +
+                        "warehouseSelected=${receiving.selectedWarehouseId != null}, " +
+                        "zoneSelected=${receiving.selectedZoneId != null}, " +
+                        "metadata=${receiving.metadata}, confirmed=${receiving.confirmedLot != null}",
+                    timeout
+                )
             }
             composeRule.onNodeWithText(
                 "Lote confirmado por Nexa"
