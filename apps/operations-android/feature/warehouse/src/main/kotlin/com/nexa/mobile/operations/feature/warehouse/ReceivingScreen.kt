@@ -475,10 +475,12 @@ private fun ChoiceRow(label: String, selected: Boolean, enabled: Boolean, onClic
             .semantics { contentDescription = label }
             .clickable(enabled = enabled, onClick = onClick)
             .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(label, style = MaterialTheme.typography.bodyMedium)
-        if (selected) Text(stringResource(R.string.receiving_selected))
+        Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        if (selected) {
+            Text(stringResource(R.string.receiving_selected), maxLines = 1)
+        }
     }
 }
 
