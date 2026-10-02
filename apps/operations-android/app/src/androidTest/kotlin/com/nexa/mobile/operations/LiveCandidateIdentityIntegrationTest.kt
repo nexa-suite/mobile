@@ -2,6 +2,7 @@ package com.nexa.mobile.operations
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.os.Build
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.assertCountEquals
@@ -52,6 +53,7 @@ class LiveCandidateIdentityIntegrationTest {
         val password = arguments.getString("nexaLivePassword")
         val query = arguments.getString("nexaLiveQuery")
         val expectedSku = arguments.getString("nexaLiveSku")
+        val captureEnabled = arguments.getString("nexaLiveCapture") == "true"
         assumeTrue(
             "candidate credentials are needed for the opt-in live test",
             !identifier.isNullOrBlank() && !password.isNullOrBlank() &&
@@ -131,6 +133,8 @@ class LiveCandidateIdentityIntegrationTest {
                 timeout
             )
         }
+        composeRule.onNodeWithText("Identificar producto").assertIsDisplayed()
+        captureScreenWhenEnabled(captureEnabled, "01-warehouse-home-before-query.png")
 
         composeRule.onNodeWithText("Identificar producto").performClick()
         composeRule.onNode(hasSetTextAction() and hasText("Buscar producto"))
@@ -177,6 +181,7 @@ class LiveCandidateIdentityIntegrationTest {
         composeRule.onNodeWithText(expectedSku, substring = true).assertIsDisplayed()
         composeRule.onNodeWithText("No se realizó ninguna operación de inventario.")
             .performScrollTo().assertIsDisplayed()
+        captureScreenWhenEnabled(captureEnabled, "02-catalog-detail-no-inventory.png")
 
         val accessModel = ViewModelProvider(composeRule.activity)[AccessViewModel::class.java]
         val warehouseModel = ViewModelProvider(composeRule.activity)[WarehouseViewModel::class.java]
@@ -301,6 +306,7 @@ class LiveCandidateIdentityIntegrationTest {
                 lot.onHand.compareTo(java.math.BigDecimal("1.25")) == 0
             )
             assertTrue("server must confirm exact submitted batch", lot.batchNumber == batch)
+            captureScreenWhenEnabled(captureEnabled, "03-receiving-confirmed.png")
             composeRule.onNodeWithText("Volver").performScrollTo().performClick()
             composeRule.onNode(hasClickAction() and hasText("Estado de existencias"))
                 .performScrollTo().performClick()
@@ -333,6 +339,32 @@ class LiveCandidateIdentityIntegrationTest {
                 "sellable quantity supplied by server",
                 stockModel.state.value.availability != null
             )
+            captureScreenWhenEnabled(captureEnabled, "04-stock-detail-confirmed.png")
         }
+    }
+
+    private fun captureScreenWhenEnabled(enabled: Boolean, fileName: String) {
+        if (!enabled) return
+
+        composeRule.waitForIdle()
+        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        val captureDirectory = composeRule.activity.getExternalFilesDir("wireflow-captures")
+            ?: throw AssertionError("External files directory is unavailable for captures.")
+        assertTrue(
+            "capture directory must be available",
+            captureDirectory.isDirectory || captureDirectory.mkdirs()
+        )
+        val outputFile = java.io.File(captureDirectory, fileName)
+        val compressed = try {
+            outputFile.outputStream().use { stream ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+            }
+        } finally {
+            bitmap.recycle()
+        }
+        assertTrue(
+            "enabled capture must produce a PNG: ${outputFile.absolutePath}",
+            compressed && outputFile.isFile && outputFile.length() > 0
+        )
     }
 }
