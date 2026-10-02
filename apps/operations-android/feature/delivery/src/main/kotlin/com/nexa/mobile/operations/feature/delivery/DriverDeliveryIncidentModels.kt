@@ -1,9 +1,9 @@
 package com.nexa.mobile.operations.feature.delivery
 
 import androidx.compose.runtime.Immutable
+import java.util.UUID
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import java.util.UUID
 
 @Immutable
 data class DriverIncidentCurrentDelivery(
@@ -29,7 +29,8 @@ data class DriverIncidentSelectionContext(
         require(deliveryId.isNotBlank() && attemptId.isNotBlank() && draftId.isNotBlank())
     }
 
-    override fun toString(): String = "DriverIncidentSelectionContext(epoch=$authorityEpoch, scope=REDACTED)"
+    override fun toString(): String =
+        "DriverIncidentSelectionContext(epoch=$authorityEpoch, scope=REDACTED)"
 }
 
 /** Driver-selected source classification. Severity is always assigned by the server. */
@@ -70,21 +71,45 @@ data class DriverIncidentEvidenceDraft(
     val attachBody: String? = null
 ) {
     init {
-        require(fileToken.isNotBlank() && originalFilename.isNotBlank() && originalFilename.length <= 255)
+        require(
+            fileToken.isNotBlank() && originalFilename.isNotBlank() &&
+                originalFilename.length <= 255
+        )
         require(contentType in setOf("image/jpeg", "image/png", "image/webp"))
         require(byteSize in 1..(10L * 1024L * 1024L))
         require(checksumSha256.matches(Regex("[0-9a-f]{64}")))
-        require((stage == DriverIncidentEvidenceStage.Staged) || !uploadIdempotencyKey.isNullOrBlank())
-        require((stage !in setOf(DriverIncidentEvidenceStage.AwaitingAvailability,
-            DriverIncidentEvidenceStage.AvailableForReview, DriverIncidentEvidenceStage.AttachPending,
-            DriverIncidentEvidenceStage.AttachUnknownOutcome, DriverIncidentEvidenceStage.Linked)) ||
-            !evidenceId.isNullOrBlank())
-        require((stage !in setOf(DriverIncidentEvidenceStage.AttachPending,
-            DriverIncidentEvidenceStage.AttachUnknownOutcome, DriverIncidentEvidenceStage.Linked)) ||
-            (!attachIdempotencyKey.isNullOrBlank() && attachExpectedVersion != null && attachBody != null))
+        require(
+            (stage == DriverIncidentEvidenceStage.Staged) || !uploadIdempotencyKey.isNullOrBlank()
+        )
+        require(
+            (
+                stage !in setOf(
+                    DriverIncidentEvidenceStage.AwaitingAvailability,
+                    DriverIncidentEvidenceStage.AvailableForReview,
+                    DriverIncidentEvidenceStage.AttachPending,
+                    DriverIncidentEvidenceStage.AttachUnknownOutcome,
+                    DriverIncidentEvidenceStage.Linked
+                )
+                ) ||
+                !evidenceId.isNullOrBlank()
+        )
+        require(
+            (
+                stage !in setOf(
+                    DriverIncidentEvidenceStage.AttachPending,
+                    DriverIncidentEvidenceStage.AttachUnknownOutcome,
+                    DriverIncidentEvidenceStage.Linked
+                )
+                ) ||
+                (
+                    !attachIdempotencyKey.isNullOrBlank() && attachExpectedVersion != null &&
+                        attachBody != null
+                    )
+        )
     }
 
-    override fun toString(): String = "DriverIncidentEvidenceDraft(stage=$stage, bytes=$byteSize, payload=REDACTED)"
+    override fun toString(): String =
+        "DriverIncidentEvidenceDraft(stage=$stage, bytes=$byteSize, payload=REDACTED)"
 }
 
 @Immutable
@@ -107,11 +132,17 @@ data class DriverIncidentCommand(
         require(reason.isNotBlank() && reason.length <= 500)
         require(description.isNotBlank() && description.length <= 2000)
         require(place.isNotBlank() && place.length <= 500)
-        require(frozenBody == if (type == null) driverIncidentLegacyBody(reason, description, place)
-        else driverIncidentBody(type, reason, description, place))
+        require(
+            frozenBody == if (type == null) {
+                driverIncidentLegacyBody(reason, description, place)
+            } else {
+                driverIncidentBody(type, reason, description, place)
+            }
+        )
     }
 
-    override fun toString(): String = "DriverIncidentCommand(version=$expectedVersion, key=REDACTED)"
+    override fun toString(): String =
+        "DriverIncidentCommand(version=$expectedVersion, key=REDACTED)"
 }
 
 fun driverIncidentBody(
@@ -129,13 +160,14 @@ fun driverIncidentBody(
 ).toString()
 
 /** Retains the immutable request shape of reports created before typed source classification. */
-fun driverIncidentLegacyBody(reason: String, description: String, place: String): String = JsonObject(
-    linkedMapOf(
-        "reason" to JsonPrimitive(reason),
-        "description" to JsonPrimitive(description),
-        "place" to JsonPrimitive(place)
-    )
-).toString()
+fun driverIncidentLegacyBody(reason: String, description: String, place: String): String =
+    JsonObject(
+        linkedMapOf(
+            "reason" to JsonPrimitive(reason),
+            "description" to JsonPrimitive(description),
+            "place" to JsonPrimitive(place)
+        )
+    ).toString()
 
 @Immutable
 data class DriverIncidentSummary(
@@ -155,12 +187,22 @@ data class DriverIncidentSummary(
     val operationalExceptionId: String? = null
 ) {
     val evidenceLabel: String
-        get() = if (evidenceObjectIds.isEmpty()) "PENDIENTE_EVIDENCIA" else "EVIDENCIA_VINCULADA_PARA_REVISION"
+        get() = if (evidenceObjectIds.isEmpty()) {
+            "PENDIENTE_EVIDENCIA"
+        } else {
+            "EVIDENCIA_VINCULADA_PARA_REVISION"
+        }
 }
 
-enum class DriverIncidentRecordStatus { Draft, Pending, UnknownOutcome, RecordedWithEvidence }
+enum class DriverIncidentRecordStatus {
+    Draft,
+    Pending,
+    UnknownOutcome,
+    RecordedWithEvidence
+}
 
-/** Encrypted local metadata only. It holds no credentials, permission snapshot, or server authority. */
+/** Encrypted local metadata only. It holds no credentials,
+ permission snapshot, or server authority. */
 @Immutable
 data class DriverIncidentMetadata(
     val scope: DriverAttemptScopeIdentity,
@@ -187,17 +229,39 @@ data class DriverIncidentMetadata(
         require(deliveryId.isNotBlank() && attemptId.isNotBlank())
         require(draftId.isNotBlank())
         require(draftVersion >= 0)
-        require((status in setOf(DriverIncidentRecordStatus.Draft, DriverIncidentRecordStatus.RecordedWithEvidence)) == (command == null))
-        require((status == DriverIncidentRecordStatus.RecordedWithEvidence) == !incidentId.isNullOrBlank())
-        require(command == null || (command.deliveryId == deliveryId && command.attemptId == attemptId))
-        require(command == null || (command.expectedVersion == draftVersion &&
-            command.reason == reason && command.description == description && command.place == place &&
-            command.type == type))
+        require(
+            (
+                status in
+                    setOf(
+                        DriverIncidentRecordStatus.Draft,
+                        DriverIncidentRecordStatus.RecordedWithEvidence
+                    )
+                ) ==
+                (command == null)
+        )
+        require(
+            (status == DriverIncidentRecordStatus.RecordedWithEvidence) ==
+                !incidentId.isNullOrBlank()
+        )
+        require(
+            command == null || (command.deliveryId == deliveryId && command.attemptId == attemptId)
+        )
+        require(
+            command == null || (
+                command.expectedVersion == draftVersion &&
+                    command.reason == reason && command.description == description &&
+                    command.place == place &&
+                    command.type == type
+                )
+        )
         require(reason.length <= 500 && description.length <= 2000 && place.length <= 500)
         require(deliveryVersion == null || deliveryVersion >= 0)
         require(recordedByMembershipId == null || recordedByMembershipId.isNotBlank())
         require(severity == null || severity in setOf("WARNING", "BLOCKING", "CRITICAL"))
-        require(operationalExceptionId == null || UUID.fromString(operationalExceptionId).toString() == operationalExceptionId)
+        require(
+            operationalExceptionId == null ||
+                UUID.fromString(operationalExceptionId).toString() == operationalExceptionId
+        )
     }
 
     override fun toString(): String = "DriverIncidentMetadata(status=$status, payload=REDACTED)"
@@ -224,7 +288,9 @@ interface DriverIncidentMetadataStore {
         context: DriverIncidentSelectionContext,
         candidate: DriverProofFileCandidate
     ): DriverIncidentMetadataWrite
-    suspend fun updateRecordedEvidence(metadata: DriverIncidentMetadata): DriverIncidentMetadataWrite
+    suspend fun updateRecordedEvidence(
+        metadata: DriverIncidentMetadata
+    ): DriverIncidentMetadataWrite
     suspend fun loadCandidate(metadata: DriverIncidentMetadata): DriverProofFileCandidate?
     suspend fun clearCandidate(metadata: DriverIncidentMetadata): Boolean
     suspend fun clearIntent(
@@ -267,7 +333,8 @@ data class DriverIncidentEvidenceUploadCommand(
     val idempotencyKey: String,
     val candidate: DriverProofFileCandidate
 ) {
-    override fun toString(): String = "DriverIncidentEvidenceUploadCommand(key=REDACTED, bytes=${candidate.byteSize})"
+    override fun toString(): String =
+        "DriverIncidentEvidenceUploadCommand(key=REDACTED, bytes=${candidate.byteSize})"
 }
 
 @Immutable
@@ -280,7 +347,8 @@ data class DriverIncidentEvidenceAttachCommand(
     val idempotencyKey: String,
     val frozenBody: String
 ) {
-    override fun toString(): String = "DriverIncidentEvidenceAttachCommand(version=$expectedVersion, key=REDACTED)"
+    override fun toString(): String =
+        "DriverIncidentEvidenceAttachCommand(version=$expectedVersion, key=REDACTED)"
 }
 
 @Immutable
@@ -295,8 +363,10 @@ data class DriverIncidentEvidenceProjection(
 )
 
 sealed interface DriverIncidentEvidenceResult {
-    data class Uploaded(val evidence: DriverIncidentEvidenceProjection) : DriverIncidentEvidenceResult
-    data class Current(val evidence: DriverIncidentEvidenceProjection) : DriverIncidentEvidenceResult
+    data class Uploaded(val evidence: DriverIncidentEvidenceProjection) :
+        DriverIncidentEvidenceResult
+    data class Current(val evidence: DriverIncidentEvidenceProjection) :
+        DriverIncidentEvidenceResult
     data class Rejected(val code: String?) : DriverIncidentEvidenceResult
     data object NotFound : DriverIncidentEvidenceResult
     data object UnknownOutcome : DriverIncidentEvidenceResult
@@ -307,7 +377,8 @@ sealed interface DriverIncidentEvidenceResult {
 }
 
 sealed interface DriverIncidentCurrentDeliveryResult {
-    data class Loaded(val delivery: DriverIncidentCurrentDelivery) : DriverIncidentCurrentDeliveryResult
+    data class Loaded(val delivery: DriverIncidentCurrentDelivery) :
+        DriverIncidentCurrentDeliveryResult
     data object NotFound : DriverIncidentCurrentDeliveryResult
     data object Unavailable : DriverIncidentCurrentDeliveryResult
     data object PermissionDenied : DriverIncidentCurrentDeliveryResult

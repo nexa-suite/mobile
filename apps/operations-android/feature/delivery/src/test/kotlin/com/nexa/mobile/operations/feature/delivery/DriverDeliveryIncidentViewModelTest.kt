@@ -19,7 +19,8 @@ class DriverDeliveryIncidentViewModelTest {
         val store = FakeIncidentMetadataStore(events)
         val gateway = FakeIncidentGateway(events)
         gateway.result = DriverIncidentResult.Recorded(summary())
-        val viewModel = DriverDeliveryIncidentViewModel(gateway, store, keyFactory = { "incident-key" })
+        val viewModel =
+            DriverDeliveryIncidentViewModel(gateway, store, keyFactory = { "incident-key" })
         viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
         advanceUntilIdle()
         viewModel.editType(DriverIncidentType.DELAY)
@@ -83,8 +84,13 @@ class DriverDeliveryIncidentViewModelTest {
     fun recoveredLegacyIntentStaysUnclassifiedAndOnlyManualRetryUsesExactOldBody() = runTest {
         val store = FakeIncidentMetadataStore()
         val oldCommand = DriverIncidentCommand(
-            DELIVERY_ID, ATTEMPT_ID, 7, "legacy-incident-key", "Road closure",
-            "Entrance blocked", "North entrance",
+            DELIVERY_ID,
+            ATTEMPT_ID,
+            7,
+            "legacy-incident-key",
+            "Road closure",
+            "Entrance blocked",
+            "North entrance",
             driverIncidentLegacyBody("Road closure", "Entrance blocked", "North entrance")
         )
         store.stored = DriverIncidentMetadata(
@@ -198,7 +204,8 @@ class DriverDeliveryIncidentViewModelTest {
         gateway: FakeIncidentGateway,
         store: FakeIncidentMetadataStore
     ): DriverDeliveryIncidentViewModel {
-        val viewModel = DriverDeliveryIncidentViewModel(gateway, store, keyFactory = { "incident-key" })
+        val viewModel =
+            DriverDeliveryIncidentViewModel(gateway, store, keyFactory = { "incident-key" })
         viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
         advanceUntilIdle()
         viewModel.editType(DriverIncidentType.DELAY)
@@ -213,7 +220,8 @@ class DriverDeliveryIncidentViewModelTest {
         return viewModel
     }
 
-    private class FakeIncidentGateway(private val events: MutableList<String> = mutableListOf()) : DriverIncidentGateway {
+    private class FakeIncidentGateway(private val events: MutableList<String> = mutableListOf()) :
+        DriverIncidentGateway {
         var current = current()
         var result: DriverIncidentResult = DriverIncidentResult.UnknownOutcome
         val commands = mutableListOf<DriverIncidentCommand>()
@@ -261,8 +269,9 @@ class DriverDeliveryIncidentViewModelTest {
         ): DriverIncidentResult = DriverIncidentResult.Unavailable
     }
 
-    private class FakeIncidentMetadataStore(private val events: MutableList<String> = mutableListOf()) :
-        DriverIncidentMetadataStore {
+    private class FakeIncidentMetadataStore(
+        private val events: MutableList<String> = mutableListOf()
+    ) : DriverIncidentMetadataStore {
         var stored: DriverIncidentMetadata? = null
         var writeResult: DriverIncidentMetadataWrite = DriverIncidentMetadataWrite.Saved
         val persistedIntents = mutableListOf<DriverIncidentMetadata>()
@@ -272,21 +281,29 @@ class DriverDeliveryIncidentViewModelTest {
             if (current?.scope != scope) return DriverIncidentMetadataRead.Available(null)
             val recovered = if (current.status == DriverIncidentRecordStatus.Pending) {
                 current.copy(status = DriverIncidentRecordStatus.UnknownOutcome)
-            } else current
+            } else {
+                current
+            }
             stored = recovered
             return DriverIncidentMetadataRead.Available(recovered)
         }
 
-        override suspend fun saveDraft(metadata: DriverIncidentMetadata): DriverIncidentMetadataWrite {
+        override suspend fun saveDraft(
+            metadata: DriverIncidentMetadata
+        ): DriverIncidentMetadataWrite {
             if (writeResult != DriverIncidentMetadataWrite.Saved) return writeResult
             stored = metadata
             return DriverIncidentMetadataWrite.Saved
         }
 
-        override suspend fun persistIntent(metadata: DriverIncidentMetadata): DriverIncidentMetadataWrite {
+        override suspend fun persistIntent(
+            metadata: DriverIncidentMetadata
+        ): DriverIncidentMetadataWrite {
             if (writeResult != DriverIncidentMetadataWrite.Saved) return writeResult
             val existing = stored
-            if (existing?.status != DriverIncidentRecordStatus.Draft && existing?.command != metadata.command) {
+            if (existing?.status != DriverIncidentRecordStatus.Draft &&
+                existing?.command != metadata.command
+            ) {
                 return DriverIncidentMetadataWrite.Conflict
             }
             stored = metadata
@@ -295,7 +312,9 @@ class DriverDeliveryIncidentViewModelTest {
             return DriverIncidentMetadataWrite.Saved
         }
 
-        override suspend fun persistRecorded(metadata: DriverIncidentMetadata): DriverIncidentMetadataWrite {
+        override suspend fun persistRecorded(
+            metadata: DriverIncidentMetadata
+        ): DriverIncidentMetadataWrite {
             if (writeResult != DriverIncidentMetadataWrite.Saved) return writeResult
             stored = metadata
             events += "persist-recorded"
@@ -307,14 +326,18 @@ class DriverDeliveryIncidentViewModelTest {
             candidate: DriverProofFileCandidate
         ): DriverIncidentMetadataWrite = DriverIncidentMetadataWrite.Unavailable
 
-        override suspend fun updateRecordedEvidence(metadata: DriverIncidentMetadata): DriverIncidentMetadataWrite {
+        override suspend fun updateRecordedEvidence(
+            metadata: DriverIncidentMetadata
+        ): DriverIncidentMetadataWrite {
             if (writeResult != DriverIncidentMetadataWrite.Saved) return writeResult
             stored = metadata
             events += "persist-evidence"
             return DriverIncidentMetadataWrite.Saved
         }
 
-        override suspend fun loadCandidate(metadata: DriverIncidentMetadata): DriverProofFileCandidate? = null
+        override suspend fun loadCandidate(
+            metadata: DriverIncidentMetadata
+        ): DriverProofFileCandidate? = null
 
         override suspend fun clearCandidate(metadata: DriverIncidentMetadata): Boolean = true
 
@@ -326,7 +349,9 @@ class DriverDeliveryIncidentViewModelTest {
             val current = stored ?: return DriverIncidentMetadataWrite.Saved
             if (current.scope != scope || current.deliveryId != deliveryId ||
                 current.command?.idempotencyKey != idempotencyKey
-            ) return DriverIncidentMetadataWrite.Stale
+            ) {
+                return DriverIncidentMetadataWrite.Stale
+            }
             stored = null
             return DriverIncidentMetadataWrite.Saved
         }
@@ -343,19 +368,32 @@ class DriverDeliveryIncidentViewModelTest {
         const val INCIDENT_ID = "88888888-8888-4888-8888-888888888888"
 
         val AUTHORITY = DriverDeliveryAuthority(
-            USER_ID, TENANT_ID, WORKSPACE_ID, MEMBERSHIP_ID,
-            setOf("dispatch.read", "dispatch.start_route"), authorityEpoch = 12
+            USER_ID,
+            TENANT_ID,
+            WORKSPACE_ID,
+            MEMBERSHIP_ID,
+            setOf("dispatch.read", "dispatch.start_route"),
+            authorityEpoch = 12
         )
 
         fun current(version: Long = 7, activeAttemptId: String? = ATTEMPT_ID) =
             DriverIncidentCurrentDelivery(DELIVERY_ID, "IN_TRANSIT", version, activeAttemptId)
 
-        fun summary(replayed: Boolean = false, type: DriverIncidentType? = DriverIncidentType.DELAY) = DriverIncidentSummary(
+        fun summary(
+            replayed: Boolean = false,
+            type: DriverIncidentType? = DriverIncidentType.DELAY
+        ) = DriverIncidentSummary(
             "88888888-8888-4888-8888-888888888888", DELIVERY_ID, ATTEMPT_ID,
             "Road closure", "Entrance blocked", "North entrance", MEMBERSHIP_ID,
             "2026-10-01T17:00:00Z", emptyList(), 7, replayed,
             type = type, severity = if (type == null) null else "WARNING",
-            operationalExceptionId = if (type == null) null else "99999999-9999-4999-8999-999999999999"
+            operationalExceptionId = if (type ==
+                null
+            ) {
+                null
+            } else {
+                "99999999-9999-4999-8999-999999999999"
+            }
         )
     }
 }

@@ -64,14 +64,20 @@ class DispatchHandoffIdentityViewModel(
                     mutableState.update {
                         it.copy(
                             command = command,
-                            status = if (command == null) DispatchHandoffIdentityStatus.Ready
-                            else DispatchHandoffIdentityStatus.UnknownOutcome
+                            status = if (command == null) {
+                                DispatchHandoffIdentityStatus.Ready
+                            } else {
+                                DispatchHandoffIdentityStatus.UnknownOutcome
+                            }
                         )
                     }
                 }
+
                 DispatchHandoffMetadataRead.Unavailable -> {
                     if (isCurrent(request, context)) {
-                        mutableState.update { it.copy(status = DispatchHandoffIdentityStatus.PersistenceUnavailable) }
+                        mutableState.update {
+                            it.copy(status = DispatchHandoffIdentityStatus.PersistenceUnavailable)
+                        }
                     }
                 }
             }
@@ -94,8 +100,12 @@ class DispatchHandoffIdentityViewModel(
         if (!current.canRetrySame || !authorized(context, HANDOFF_WRITE_PERMISSION)) return
         val request = generation
         mutableState.update {
-            it.copy(status = DispatchHandoffIdentityStatus.Issuing, busy = true, errorCode = null,
-                oneTimeToken = null)
+            it.copy(
+                status = DispatchHandoffIdentityStatus.Issuing,
+                busy = true,
+                errorCode = null,
+                oneTimeToken = null
+            )
         }
         activeJob = viewModelScope.launch {
             sendIssue(context, request, command)
@@ -128,38 +138,76 @@ class DispatchHandoffIdentityViewModel(
         if (!current.canValidate || !authorized(context, HANDOFF_READ_PERMISSION)) return
         val request = ++generation
         mutableState.update {
-            it.copy(status = DispatchHandoffIdentityStatus.Validating, busy = true,
-                enteredToken = "", oneTimeToken = null, identity = null, errorCode = null)
+            it.copy(
+                status = DispatchHandoffIdentityStatus.Validating,
+                busy = true,
+                enteredToken = "",
+                oneTimeToken = null,
+                identity = null,
+                errorCode = null
+            )
         }
         activeJob = viewModelScope.launch {
             val result = safeValidate(deliveryId, assignmentId, token, context)
             if (!isCurrent(request, context)) return@launch
             when (result) {
                 is DispatchHandoffValidationResult.Validated -> {
-                    if (result.identity.matches(deliveryId, assignmentId) && isFuture(result.identity.expiresAt)) {
+                    if (result.identity.matches(deliveryId, assignmentId) &&
+                        isFuture(result.identity.expiresAt)
+                    ) {
                         mutableState.update {
-                            it.copy(status = DispatchHandoffIdentityStatus.IdentityValidated,
-                                busy = false, identity = result.identity, errorCode = null)
+                            it.copy(
+                                status = DispatchHandoffIdentityStatus.IdentityValidated,
+                                busy = false,
+                                identity = result.identity,
+                                errorCode = null
+                            )
                         }
                     } else {
                         mutableState.update {
-                            it.copy(status = DispatchHandoffIdentityStatus.ValidationUnknown,
-                                busy = false, identity = null, errorCode = "HANDOFF_RESPONSE_INVALID")
+                            it.copy(
+                                status = DispatchHandoffIdentityStatus.ValidationUnknown,
+                                busy = false,
+                                identity = null,
+                                errorCode = "HANDOFF_RESPONSE_INVALID"
+                            )
                         }
                     }
                 }
+
                 is DispatchHandoffValidationResult.Rejected -> mutableState.update {
-                    it.copy(status = DispatchHandoffIdentityStatus.ValidationRejected,
-                        busy = false, identity = null, errorCode = result.code)
+                    it.copy(
+                        status = DispatchHandoffIdentityStatus.ValidationRejected,
+                        busy = false,
+                        identity = null,
+                        errorCode = result.code
+                    )
                 }
+
                 DispatchHandoffValidationResult.NotFound -> mutableState.update {
-                    it.copy(status = DispatchHandoffIdentityStatus.ValidationRejected,
-                        busy = false, identity = null, errorCode = "HANDOFF_IDENTITY_NOT_FOUND")
+                    it.copy(
+                        status = DispatchHandoffIdentityStatus.ValidationRejected,
+                        busy = false,
+                        identity = null,
+                        errorCode = "HANDOFF_IDENTITY_NOT_FOUND"
+                    )
                 }
-                DispatchHandoffValidationResult.Unavailable -> validationUnknown("HANDOFF_RESULT_UNKNOWN")
-                DispatchHandoffValidationResult.PermissionDenied -> fail(DispatchHandoffIdentityStatus.PermissionDenied)
-                DispatchHandoffValidationResult.ContextInvalidated -> fail(DispatchHandoffIdentityStatus.ContextInvalidated)
-                DispatchHandoffValidationResult.SessionInvalidated -> fail(DispatchHandoffIdentityStatus.SessionInvalidated)
+
+                DispatchHandoffValidationResult.Unavailable -> validationUnknown(
+                    "HANDOFF_RESULT_UNKNOWN"
+                )
+
+                DispatchHandoffValidationResult.PermissionDenied -> fail(
+                    DispatchHandoffIdentityStatus.PermissionDenied
+                )
+
+                DispatchHandoffValidationResult.ContextInvalidated -> fail(
+                    DispatchHandoffIdentityStatus.ContextInvalidated
+                )
+
+                DispatchHandoffValidationResult.SessionInvalidated -> fail(
+                    DispatchHandoffIdentityStatus.SessionInvalidated
+                )
             }
         }
     }
@@ -180,15 +228,25 @@ class DispatchHandoffIdentityViewModel(
                 busy = false,
                 status = when {
                     pendingCommand != null -> DispatchHandoffIdentityStatus.UnknownOutcome
+
                     hadActiveOperation && old.status == DispatchHandoffIdentityStatus.Issuing ->
                         DispatchHandoffIdentityStatus.UnknownOutcome
+
                     hadActiveOperation && it.status == DispatchHandoffIdentityStatus.Validating ->
                         DispatchHandoffIdentityStatus.Ready
+
                     it.status == DispatchHandoffIdentityStatus.TokenVisible ->
                         DispatchHandoffIdentityStatus.ReissueRequired
+
                     else -> it.status
                 },
-                errorCode = if (pendingCommand != null && hadActiveOperation) "HANDOFF_RESULT_UNKNOWN" else null
+                errorCode = if (pendingCommand != null &&
+                    hadActiveOperation
+                ) {
+                    "HANDOFF_RESULT_UNKNOWN"
+                } else {
+                    null
+                }
             )
         }
     }
@@ -215,8 +273,12 @@ class DispatchHandoffIdentityViewModel(
         val assignmentId = current.assignmentId ?: return
         val key = keyFactory().takeIf { it.isNotBlank() && it.length <= 160 }
         if (key == null || current.busy) {
-            mutableState.update { it.copy(status = DispatchHandoffIdentityStatus.Rejected,
-                errorCode = "IDEMPOTENCY_KEY_INVALID") }
+            mutableState.update {
+                it.copy(
+                    status = DispatchHandoffIdentityStatus.Rejected,
+                    errorCode = "IDEMPOTENCY_KEY_INVALID"
+                )
+            }
             return
         }
         val command = try {
@@ -227,14 +289,23 @@ class DispatchHandoffIdentityViewModel(
                 frozenBody = dispatchHandoffIssueBody(assignmentId)
             )
         } catch (_: IllegalArgumentException) {
-            mutableState.update { it.copy(status = DispatchHandoffIdentityStatus.Rejected,
-                errorCode = "HANDOFF_COMMAND_INVALID") }
+            mutableState.update {
+                it.copy(
+                    status = DispatchHandoffIdentityStatus.Rejected,
+                    errorCode = "HANDOFF_COMMAND_INVALID"
+                )
+            }
             return
         }
         val request = generation
         mutableState.update {
-            it.copy(status = DispatchHandoffIdentityStatus.Issuing, busy = true,
-                oneTimeToken = null, identity = null, errorCode = null)
+            it.copy(
+                status = DispatchHandoffIdentityStatus.Issuing,
+                busy = true,
+                oneTimeToken = null,
+                identity = null,
+                errorCode = null
+            )
         }
         activeJob = viewModelScope.launch {
             when (safePersist(context.identity!!, command, replacingKey)) {
@@ -244,12 +315,18 @@ class DispatchHandoffIdentityViewModel(
                     mutableState.update { it.copy(command = command) }
                     sendIssue(context, request, command)
                 }
+
                 DispatchHandoffMetadataWrite.Conflict,
                 DispatchHandoffMetadataWrite.Stale,
                 DispatchHandoffMetadataWrite.Unavailable -> {
                     if (isCurrent(request, context)) {
-                        mutableState.update { it.copy(status = DispatchHandoffIdentityStatus.PersistenceUnavailable,
-                            busy = false, command = pendingCommand) }
+                        mutableState.update {
+                            it.copy(
+                                status = DispatchHandoffIdentityStatus.PersistenceUnavailable,
+                                busy = false,
+                                command = pendingCommand
+                            )
+                        }
                     }
                 }
             }
@@ -274,24 +351,44 @@ class DispatchHandoffIdentityViewModel(
                     if (!isCurrent(request, context)) return
                     if (!cleared) {
                         pendingCommand = command
-                        mutableState.update { it.copy(status = DispatchHandoffIdentityStatus.PersistenceUnavailable,
-                            busy = false, oneTimeToken = null, command = command) }
+                        mutableState.update {
+                            it.copy(
+                                status = DispatchHandoffIdentityStatus.PersistenceUnavailable,
+                                busy = false,
+                                oneTimeToken = null,
+                                command = command
+                            )
+                        }
                         return
                     }
                     pendingCommand = null
                     mutableState.update {
-                        it.copy(status = DispatchHandoffIdentityStatus.TokenVisible, busy = false,
-                            command = null, identity = result.identity, oneTimeToken = result.token,
-                            enteredToken = "", errorCode = null)
+                        it.copy(
+                            status = DispatchHandoffIdentityStatus.TokenVisible,
+                            busy = false,
+                            command = null,
+                            identity = result.identity,
+                            oneTimeToken = result.token,
+                            enteredToken = "",
+                            errorCode = null
+                        )
                     }
                     expiryJob?.cancel()
                     expiryJob = viewModelScope.launch {
-                        val remaining = java.time.Duration.between(now(), Instant.parse(result.identity.expiresAt)).toMillis().coerceAtLeast(0)
+                        val remaining = java.time.Duration.between(
+                            now(),
+                            Instant.parse(result.identity.expiresAt)
+                        ).toMillis().coerceAtLeast(0)
                         delay(remaining)
-                        if (isCurrent(request, context) && mutableState.value.oneTimeToken == result.token) hideToken()
+                        if (isCurrent(request, context) &&
+                            mutableState.value.oneTimeToken == result.token
+                        ) {
+                            hideToken()
+                        }
                     }
                 }
             }
+
             is DispatchHandoffIssueResult.AcceptedWithoutToken -> {
                 if (!result.identity.matches(command.deliveryId, command.assignmentId)) {
                     unknownIssue(command, "HANDOFF_RESPONSE_INVALID")
@@ -299,24 +396,53 @@ class DispatchHandoffIdentityViewModel(
                     val cleared = safeClear(context.identity!!, command)
                     pendingCommand = if (cleared) null else command
                     mutableState.update {
-                        it.copy(status = if (cleared) DispatchHandoffIdentityStatus.ReissueRequired
-                            else DispatchHandoffIdentityStatus.PersistenceUnavailable,
-                            busy = false, command = pendingCommand, identity = result.identity,
-                            oneTimeToken = null, errorCode = "HANDOFF_TOKEN_NOT_RECOVERABLE")
+                        it.copy(
+                            status = if (cleared) {
+                                DispatchHandoffIdentityStatus.ReissueRequired
+                            } else {
+                                DispatchHandoffIdentityStatus.PersistenceUnavailable
+                            },
+                            busy = false,
+                            command = pendingCommand,
+                            identity = result.identity,
+                            oneTimeToken = null,
+                            errorCode = "HANDOFF_TOKEN_NOT_RECOVERABLE"
+                        )
                     }
                 }
             }
+
             is DispatchHandoffIssueResult.Rejected -> knownIssueFailure(
-                context, command, DispatchHandoffIdentityStatus.Rejected, result.code
+                context,
+                command,
+                DispatchHandoffIdentityStatus.Rejected,
+                result.code
             )
+
             DispatchHandoffIssueResult.NotFound -> knownIssueFailure(
-                context, command, DispatchHandoffIdentityStatus.NotFound, "HANDOFF_NOT_FOUND"
+                context,
+                command,
+                DispatchHandoffIdentityStatus.NotFound,
+                "HANDOFF_NOT_FOUND"
             )
-            DispatchHandoffIssueResult.PermissionDenied -> fail(DispatchHandoffIdentityStatus.PermissionDenied)
-            DispatchHandoffIssueResult.ContextInvalidated -> fail(DispatchHandoffIdentityStatus.ContextInvalidated)
-            DispatchHandoffIssueResult.SessionInvalidated -> fail(DispatchHandoffIdentityStatus.SessionInvalidated)
+
+            DispatchHandoffIssueResult.PermissionDenied -> fail(
+                DispatchHandoffIdentityStatus.PermissionDenied
+            )
+
+            DispatchHandoffIssueResult.ContextInvalidated -> fail(
+                DispatchHandoffIdentityStatus.ContextInvalidated
+            )
+
+            DispatchHandoffIssueResult.SessionInvalidated -> fail(
+                DispatchHandoffIdentityStatus.SessionInvalidated
+            )
+
             DispatchHandoffIssueResult.UnknownOutcome,
-            DispatchHandoffIssueResult.Unavailable -> unknownIssue(command, "HANDOFF_RESULT_UNKNOWN")
+            DispatchHandoffIssueResult.Unavailable -> unknownIssue(
+                command,
+                "HANDOFF_RESULT_UNKNOWN"
+            )
         }
     }
 
@@ -329,27 +455,54 @@ class DispatchHandoffIdentityViewModel(
         val cleared = safeClear(context.identity!!, command)
         pendingCommand = if (cleared) null else command
         mutableState.update {
-            it.copy(status = if (cleared) status else DispatchHandoffIdentityStatus.PersistenceUnavailable,
-                busy = false, command = pendingCommand, oneTimeToken = null, identity = null,
-                errorCode = code)
+            it.copy(
+                status = if (cleared) {
+                    status
+                } else {
+                    DispatchHandoffIdentityStatus.PersistenceUnavailable
+                },
+                busy = false,
+                command = pendingCommand,
+                oneTimeToken = null,
+                identity = null,
+                errorCode = code
+            )
         }
     }
 
     private fun unknownIssue(command: DispatchHandoffIdentityCommand, code: String) {
         pendingCommand = command
         mutableState.update {
-            it.copy(status = DispatchHandoffIdentityStatus.UnknownOutcome, busy = false,
-                command = command, oneTimeToken = null, identity = null, errorCode = code)
+            it.copy(
+                status = DispatchHandoffIdentityStatus.UnknownOutcome,
+                busy = false,
+                command = command,
+                oneTimeToken = null,
+                identity = null,
+                errorCode = code
+            )
         }
     }
 
     private fun validationUnknown(code: String) = mutableState.update {
-        it.copy(status = DispatchHandoffIdentityStatus.ValidationUnknown, busy = false,
-            identity = null, oneTimeToken = null, enteredToken = "", errorCode = code)
+        it.copy(
+            status = DispatchHandoffIdentityStatus.ValidationUnknown,
+            busy = false,
+            identity = null,
+            oneTimeToken = null,
+            enteredToken = "",
+            errorCode = code
+        )
     }
 
     private fun fail(status: DispatchHandoffIdentityStatus) = mutableState.update {
-        it.copy(status = status, busy = false, oneTimeToken = null, enteredToken = "", identity = null)
+        it.copy(
+            status = status,
+            busy = false,
+            oneTimeToken = null,
+            enteredToken = "",
+            identity = null
+        )
     }
 
     private suspend fun safeIssue(
@@ -404,8 +557,12 @@ class DispatchHandoffIdentityViewModel(
         identity: DispatchAuthorityIdentity,
         command: DispatchHandoffIdentityCommand
     ): Boolean = try {
-        metadataStore.clearCommand(identity, command.deliveryId, command.assignmentId,
-            command.idempotencyKey) == DispatchHandoffMetadataWrite.Saved
+        metadataStore.clearCommand(
+            identity,
+            command.deliveryId,
+            command.assignmentId,
+            command.idempotencyKey
+        ) == DispatchHandoffMetadataWrite.Saved
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) {
@@ -417,7 +574,8 @@ class DispatchHandoffIdentityViewModel(
             context.identity?.permissions?.contains(permission) == true
 
     private fun isCurrent(request: Long, context: DispatchAuthorityContext): Boolean =
-        request == generation && authority == context && mutableState.value.authorityEpoch == context.authorityEpoch
+        request == generation && authority == context &&
+            mutableState.value.authorityEpoch == context.authorityEpoch
 
     private fun isFuture(value: String): Boolean = try {
         Instant.parse(value).isAfter(now())
@@ -436,7 +594,10 @@ class DispatchHandoffIdentityViewModel(
     private fun DispatchAuthorityContext.validIdentity(): Boolean {
         val value = identity ?: return false
         return authorityEpoch > 0 && listOf(
-            value.userId, value.tenantId, value.workspaceId, value.membershipId
+            value.userId,
+            value.tenantId,
+            value.workspaceId,
+            value.membershipId
         ).all(String::isNotBlank) && value.permissions.isNotEmpty()
     }
 

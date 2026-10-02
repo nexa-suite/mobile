@@ -110,10 +110,14 @@ class NexaTemperatureEvidenceGateway(private val protectedCalls: ProtectedCallEx
                     response.occurredAt != command.occurredAt ||
                     response.actorMembershipId != expectedMembershipId ||
                     response.source != "MANUAL" ||
-                    (response.subjectType == TemperatureSubjectTypeWire.LOT &&
-                        response.lotId != response.subjectId) ||
-                    (response.subjectType == TemperatureSubjectTypeWire.WAREHOUSE &&
-                        response.warehouseId != response.subjectId)
+                    (
+                        response.subjectType == TemperatureSubjectTypeWire.LOT &&
+                            response.lotId != response.subjectId
+                        ) ||
+                    (
+                        response.subjectType == TemperatureSubjectTypeWire.WAREHOUSE &&
+                            response.warehouseId != response.subjectId
+                        )
                 ) {
                     TemperatureEvidenceNetworkOutcome.ServiceUnavailable
                 } else {
@@ -123,23 +127,26 @@ class NexaTemperatureEvidenceGateway(private val protectedCalls: ProtectedCallEx
         }
     }
 
-    private fun ClientFailure.toTemperatureEvidenceOutcome(): TemperatureEvidenceNetworkOutcome = when {
-        kind == FailureKind.UnknownOutcome -> TemperatureEvidenceNetworkOutcome.UnknownOutcome
-        kind == FailureKind.AuthenticationRequired ->
-            TemperatureEvidenceNetworkOutcome.SessionInvalidated
+    private fun ClientFailure.toTemperatureEvidenceOutcome(): TemperatureEvidenceNetworkOutcome =
+        when {
+            kind == FailureKind.UnknownOutcome -> TemperatureEvidenceNetworkOutcome.UnknownOutcome
 
-        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
-            TemperatureEvidenceNetworkOutcome.ContextInvalidated
+            kind == FailureKind.AuthenticationRequired ->
+                TemperatureEvidenceNetworkOutcome.SessionInvalidated
 
-        kind == FailureKind.AuthorizationFailure -> TemperatureEvidenceNetworkOutcome.PermissionDenied
+            httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
+                TemperatureEvidenceNetworkOutcome.ContextInvalidated
 
-        httpStatus in 400..499 -> TemperatureEvidenceNetworkOutcome.Rejected(problemCode)
+            kind == FailureKind.AuthorizationFailure ->
+                TemperatureEvidenceNetworkOutcome.PermissionDenied
 
-        kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
-            TemperatureEvidenceNetworkOutcome.NetworkUnavailable
+            httpStatus in 400..499 -> TemperatureEvidenceNetworkOutcome.Rejected(problemCode)
 
-        else -> TemperatureEvidenceNetworkOutcome.UnknownOutcome
-    }
+            kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
+                TemperatureEvidenceNetworkOutcome.NetworkUnavailable
+
+            else -> TemperatureEvidenceNetworkOutcome.UnknownOutcome
+        }
 
     private fun TemperatureEvidenceWire.toProjection(): TemperatureEvidenceResponseWire? {
         val safeId = id.requiredText()?.takeIf(temperatureUuidPattern::matches) ?: return null

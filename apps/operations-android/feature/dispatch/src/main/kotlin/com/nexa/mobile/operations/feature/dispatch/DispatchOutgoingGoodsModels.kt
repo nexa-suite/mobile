@@ -19,7 +19,8 @@ data class DispatchOutgoingGoodsLine(
     val observedLotId: String = "",
     val observedQuantity: String = ""
 ) {
-    override fun toString(): String = "DispatchOutgoingGoodsLine(REDACTED, quantity=$remainingQuantity)"
+    override fun toString(): String =
+        "DispatchOutgoingGoodsLine(REDACTED, quantity=$remainingQuantity)"
 }
 
 @Immutable
@@ -68,7 +69,8 @@ data class DispatchOutgoingGoodsCheck(
     val replayed: Boolean,
     val discrepancy: DispatchOutgoingGoodsDiscrepancy? = null
 ) {
-    override fun toString(): String = "DispatchOutgoingGoodsCheck(REDACTED, matches=$matches, current=$current)"
+    override fun toString(): String =
+        "DispatchOutgoingGoodsCheck(REDACTED, matches=$matches, current=$current)"
 }
 
 @Immutable
@@ -133,7 +135,8 @@ data class DispatchOutgoingGoodsIntent(
 }
 
 sealed interface DispatchOutgoingGoodsMetadataRead {
-    data class Available(val intent: DispatchOutgoingGoodsIntent?) : DispatchOutgoingGoodsMetadataRead
+    data class Available(val intent: DispatchOutgoingGoodsIntent?) :
+        DispatchOutgoingGoodsMetadataRead
     data object Unavailable : DispatchOutgoingGoodsMetadataRead
 }
 
@@ -191,10 +194,12 @@ data class DispatchOutgoingGoodsUiState(
             fulfillment?.let { it.ready && it.fulfillmentStatus == READY_FOR_DISPATCH } == true &&
             allocation?.let { it.status == ALLOCATED && it.lines.isNotEmpty() } == true &&
             currentCheck?.openDiscrepancy != true &&
-            currentCheck?.let { check -> allocation?.let { active ->
-                check.current && check.physicalAllocationId == active.id &&
-                    check.physicalAllocationVersion == active.version
-            } } != true &&
+            currentCheck?.let { check ->
+                allocation?.let { active ->
+                    check.current && check.physicalAllocationId == active.id &&
+                        check.physicalAllocationVersion == active.version
+                }
+            } != true &&
             allocation?.let { active -> active.lines.all(::isValidObservation) } == true
 
     val canResolveDiscrepancy: Boolean
@@ -202,7 +207,8 @@ data class DispatchOutgoingGoodsUiState(
             currentCheck?.let {
                 it.current && it.openDiscrepancy && it.matches && it.discrepancy != null &&
                     allocation?.let { active ->
-                        it.physicalAllocationId == active.id && it.physicalAllocationVersion == active.version
+                        it.physicalAllocationId == active.id &&
+                            it.physicalAllocationVersion == active.version
                     } == true
             } == true && resolutionReason.isNotBlank() && resolutionReason.trim().length <= 1000
 
@@ -210,7 +216,8 @@ data class DispatchOutgoingGoodsUiState(
         "lines=${allocation?.lines?.size ?: 0}, pending=$hasPendingCommand)"
 
     private fun isValidObservation(line: DispatchOutgoingGoodsLine): Boolean {
-        val quantity = line.observedQuantity.toBigDecimalOrNull()?.takeIf { it.signum() >= 0 } ?: return false
+        val quantity =
+            line.observedQuantity.toBigDecimalOrNull()?.takeIf { it.signum() >= 0 } ?: return false
         return if (quantity.signum() == 0) {
             line.observedLotId.isBlank()
         } else {
@@ -228,9 +235,11 @@ data class DispatchOutgoingGoodsUiState(
 }
 
 sealed interface DispatchOutgoingGoodsGatewayResult {
-    data class Snapshot(val value: DispatchOutgoingGoodsSnapshot) : DispatchOutgoingGoodsGatewayResult
+    data class Snapshot(val value: DispatchOutgoingGoodsSnapshot) :
+        DispatchOutgoingGoodsGatewayResult
     data class Recorded(val value: DispatchOutgoingGoodsCheck) : DispatchOutgoingGoodsGatewayResult
-    data class Resolved(val value: DispatchOutgoingGoodsResolution) : DispatchOutgoingGoodsGatewayResult
+    data class Resolved(val value: DispatchOutgoingGoodsResolution) :
+        DispatchOutgoingGoodsGatewayResult
     data object UnknownOutcome : DispatchOutgoingGoodsGatewayResult
     data object NetworkUnavailable : DispatchOutgoingGoodsGatewayResult
     data object ServiceUnavailable : DispatchOutgoingGoodsGatewayResult

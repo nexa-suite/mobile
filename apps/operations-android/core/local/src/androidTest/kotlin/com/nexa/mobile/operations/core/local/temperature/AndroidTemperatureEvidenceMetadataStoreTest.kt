@@ -29,7 +29,13 @@ class AndroidTemperatureEvidenceMetadataStoreTest {
         val suffix = UUID.randomUUID().toString()
         directory = File(context.noBackupFilesDir, "temperature-evidence-test-$suffix")
         keyAlias = "com.nexa.mobile.operations.test.temperature.$suffix"
-        scope = TemperatureMetadataScope("user-$suffix", "tenant-$suffix", "workspace-$suffix", "member-$suffix")
+        scope =
+            TemperatureMetadataScope(
+                "user-$suffix",
+                "tenant-$suffix",
+                "workspace-$suffix",
+                "member-$suffix"
+            )
         store = AndroidTemperatureEvidenceMetadataStore(context, directory.name, keyAlias)
     }
 
@@ -50,7 +56,8 @@ class AndroidTemperatureEvidenceMetadataStoreTest {
         assertFalse(ciphertext.contains(pending.payload.subjectId))
         assertTrue(directory.canonicalPath.startsWith(context.noBackupFilesDir.canonicalPath))
 
-        val reconstructed = AndroidTemperatureEvidenceMetadataStore(context, directory.name, keyAlias)
+        val reconstructed =
+            AndroidTemperatureEvidenceMetadataStore(context, directory.name, keyAlias)
 
         assertEquals(
             pending,
@@ -80,7 +87,9 @@ class AndroidTemperatureEvidenceMetadataStoreTest {
         assertEquals(TemperatureMetadataWrite.Saved, store.saveIntent(intent(scope)))
         val file = recordFile(scope)
         val original = file.readBytes()
-        val corrupt = original.clone().also { it[it.lastIndex] = (it.last().toInt() xor 1).toByte() }
+        val corrupt = original.clone().also {
+            it[it.lastIndex] = (it.last().toInt() xor 1).toByte()
+        }
         file.writeBytes(corrupt)
 
         assertEquals(TemperatureMetadataRead.Unavailable, store.loadIntent(scope))

@@ -85,7 +85,8 @@ data class StockTransferReceiptObservationProjection(
 }
 
 sealed interface StockTransferReceiptObservationNetworkOutcome {
-    data class Recorded(val observation: StockTransferReceiptObservationProjection) : StockTransferReceiptObservationNetworkOutcome
+    data class Recorded(val observation: StockTransferReceiptObservationProjection) :
+        StockTransferReceiptObservationNetworkOutcome
     data class Rejected(val code: String?) : StockTransferReceiptObservationNetworkOutcome
     data object UnknownOutcome : StockTransferReceiptObservationNetworkOutcome
     data object PreconditionFailed : StockTransferReceiptObservationNetworkOutcome
@@ -123,17 +124,30 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
         if (!destinationWarehouseId.isUuid() || page !in 0..MAX_PAGE || size !in 1..MAX_PAGE_SIZE) {
             return StockTransferLookupNetworkOutcome.Rejected
         }
-        val path = "$INVENTORY_TRANSFERS_PATH?destinationWarehouseId=$destinationWarehouseId&page=$page&size=$size"
-        return when (val result = protectedCalls.execute(ProtectedRequest(ProtectedMethod.GET, path))) {
+        val path =
+            "$INVENTORY_TRANSFERS_PATH?destinationWarehouseId=$destinationWarehouseId" +
+                "&page=$page&size=$size"
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(ProtectedMethod.GET, path)
+            )
+        ) {
             is ProtectedResult.Failure -> result.error.toStockTransferLookupOutcome()
+
             is ProtectedResult.Success -> {
-                if (result.status != HTTP_OK) return StockTransferLookupNetworkOutcome.ServiceUnavailable
+                if (result.status !=
+                    HTTP_OK
+                ) {
+                    return StockTransferLookupNetworkOutcome.ServiceUnavailable
+                }
                 val wire = result.body.decode<TransferPageResponseWire>()
                     ?: return StockTransferLookupNetworkOutcome.ServiceUnavailable
                 val items = wire.items?.map { item ->
-                    item.toProjection() ?: return StockTransferLookupNetworkOutcome.ServiceUnavailable
+                    item.toProjection()
+                        ?: return StockTransferLookupNetworkOutcome.ServiceUnavailable
                 } ?: return StockTransferLookupNetworkOutcome.ServiceUnavailable
-                if (wire.page != page || wire.size != size || wire.total == null || wire.total < items.size ||
+                if (wire.page != page || wire.size != size || wire.total == null ||
+                    wire.total < items.size ||
                     items.size > size
                 ) {
                     StockTransferLookupNetworkOutcome.ServiceUnavailable
@@ -152,12 +166,20 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
             )
         ) {
             is ProtectedResult.Failure -> result.error.toStockTransferLookupOutcome()
+
             is ProtectedResult.Success -> {
-                if (result.status != HTTP_OK) return StockTransferLookupNetworkOutcome.ServiceUnavailable
+                if (result.status !=
+                    HTTP_OK
+                ) {
+                    return StockTransferLookupNetworkOutcome.ServiceUnavailable
+                }
                 val item = result.body.decode<TransferResponseWire>()?.toProjection()
                     ?: return StockTransferLookupNetworkOutcome.ServiceUnavailable
-                if (item.id == transferId) StockTransferLookupNetworkOutcome.Transfer(item)
-                else StockTransferLookupNetworkOutcome.ServiceUnavailable
+                if (item.id == transferId) {
+                    StockTransferLookupNetworkOutcome.Transfer(item)
+                } else {
+                    StockTransferLookupNetworkOutcome.ServiceUnavailable
+                }
             }
         }
     }
@@ -183,12 +205,16 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
             )
         ) {
             is ProtectedResult.Failure -> result.error.toStockTransferOutcome()
+
             is ProtectedResult.Success -> {
                 if (result.status != HTTP_OK) return StockTransferNetworkOutcome.UnknownOutcome
                 val item = result.body.decode<TransferResponseWire>()?.toProjection()
                     ?: return StockTransferNetworkOutcome.UnknownOutcome
-                if (item.matchesReceipt(expectedTransfer)) StockTransferNetworkOutcome.Confirmed(item)
-                else StockTransferNetworkOutcome.UnknownOutcome
+                if (item.matchesReceipt(expectedTransfer)) {
+                    StockTransferNetworkOutcome.Confirmed(item)
+                } else {
+                    StockTransferNetworkOutcome.UnknownOutcome
+                }
             }
         }
     }
@@ -203,12 +229,17 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
         idempotencyKey: String
     ): StockTransferReceiptObservationNetworkOutcome {
         if (expectedTransfer.status != STATUS_IN_TRANSIT || expectedTransfer.version < 0 ||
-            expectedTransfer.transferredQuantity.signum() <= 0 || expectedTransfer.dispatchedAt.isNullOrBlank() ||
+            expectedTransfer.transferredQuantity.signum() <= 0 ||
+            expectedTransfer.dispatchedAt.isNullOrBlank() ||
             expectedTransfer.batchNumber.isNullOrBlank() || !expectedTransfer.id.isUuid() ||
             observedBatchNumber.isBlank() || observedBatchNumber != observedBatchNumber.trim() ||
-            observedBatchNumber.length > MAX_BATCH_NUMBER_LENGTH || observedBatchNumber.any(Char::isISOControl) ||
+            observedBatchNumber.length > MAX_BATCH_NUMBER_LENGTH ||
+            observedBatchNumber.any(Char::isISOControl) ||
             (observedExpirationDate != null && !observedExpirationDate.isValidLocalDate()) ||
-            observedQuantity.signum() < 0 || !unit.equals(expectedTransfer.unit, ignoreCase = true) ||
+            observedQuantity.signum() < 0 || !unit.equals(
+                expectedTransfer.unit,
+                ignoreCase = true
+            ) ||
             idempotencyKey.isBlank() || idempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH
         ) {
             return StockTransferReceiptObservationNetworkOutcome.Rejected("INVALID_REQUEST")
@@ -237,12 +268,22 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
             )
         ) {
             is ProtectedResult.Failure -> result.error.toReceiptObservationOutcome()
+
             is ProtectedResult.Success -> {
-                if (result.status != HTTP_CREATED) return StockTransferReceiptObservationNetworkOutcome.UnknownOutcome
+                if (result.status !=
+                    HTTP_CREATED
+                ) {
+                    return StockTransferReceiptObservationNetworkOutcome.UnknownOutcome
+                }
                 val wire = result.body.decode<TransferReceiptObservationResponseWire>()
                     ?: return StockTransferReceiptObservationNetworkOutcome.UnknownOutcome
-                val observation = wire.toProjection(expectedTransfer, observedBatchNumber,
-                    observedExpirationDate, observedQuantity, unit)
+                val observation = wire.toProjection(
+                    expectedTransfer,
+                    observedBatchNumber,
+                    observedExpirationDate,
+                    observedQuantity,
+                    unit
+                )
                     ?: return StockTransferReceiptObservationNetworkOutcome.UnknownOutcome
                 StockTransferReceiptObservationNetworkOutcome.Recorded(observation)
             }
@@ -272,6 +313,7 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
             )
         ) {
             is ProtectedResult.Failure -> result.error.toStockTransferOutcome()
+
             is ProtectedResult.Success -> {
                 if (result.status != HTTP_CREATED) return StockTransferNetworkOutcome.UnknownOutcome
                 val wire = result.body.decode<TransferResponseWire>()
@@ -341,14 +383,17 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
     private fun StockTransferProjection.matchesReceipt(expected: StockTransferProjection): Boolean =
         id == expected.id && sourceWarehouseId == expected.sourceWarehouseId &&
             sourceZoneId == expected.sourceZoneId && sourceLotId == expected.sourceLotId &&
-            destinationWarehouseId == expected.destinationWarehouseId && destinationZoneId == expected.destinationZoneId &&
+            destinationWarehouseId == expected.destinationWarehouseId &&
+            destinationZoneId == expected.destinationZoneId &&
             skuId == expected.skuId && catalogItemId == expected.catalogItemId &&
             requestedQuantity.compareTo(expected.requestedQuantity) == 0 &&
             transferredQuantity.compareTo(expected.transferredQuantity) == 0 &&
-            mode == expected.mode && unit.equals(expected.unit, ignoreCase = true) && reason == expected.reason &&
+            mode == expected.mode && unit.equals(expected.unit, ignoreCase = true) &&
+            reason == expected.reason &&
             status == STATUS_RECEIVED && destinationLotId != null && receivedAt != null &&
             sourceVersionAfter != null && sourceVersionAfter >= 0 &&
-            destinationVersionAfter != null && destinationVersionAfter >= 0 && version > expected.version
+            destinationVersionAfter != null && destinationVersionAfter >= 0 &&
+            version > expected.version
 
     private fun StockTransferProjection.matches(
         command: TransferCommandWire,
@@ -368,47 +413,77 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
 
     private fun ClientFailure.toStockTransferOutcome(): StockTransferNetworkOutcome = when {
         kind == FailureKind.AuthenticationRequired -> StockTransferNetworkOutcome.SessionInvalidated
+
         httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
             StockTransferNetworkOutcome.ContextInvalidated
+
         kind == FailureKind.AuthorizationFailure || httpStatus == 404 ->
             StockTransferNetworkOutcome.PermissionDenied
+
         kind == FailureKind.StaleState || httpStatus == 412 ->
             StockTransferNetworkOutcome.PreconditionFailed
+
         kind == FailureKind.BusinessConflict || httpStatus == 409 ->
             StockTransferNetworkOutcome.Conflict
+
         kind == FailureKind.ValidationFailure -> StockTransferNetworkOutcome.Rejected(problemCode)
+
         kind == FailureKind.UnknownOutcome -> StockTransferNetworkOutcome.UnknownOutcome
+
         kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
             StockTransferNetworkOutcome.UnknownOutcome
+
         else -> StockTransferNetworkOutcome.ServiceUnavailable
     }
 
-    private fun ClientFailure.toStockTransferLookupOutcome(): StockTransferLookupNetworkOutcome = when {
-        kind == FailureKind.AuthenticationRequired -> StockTransferLookupNetworkOutcome.SessionInvalidated
-        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
-            StockTransferLookupNetworkOutcome.ContextInvalidated
-        kind == FailureKind.AuthorizationFailure -> StockTransferLookupNetworkOutcome.PermissionDenied
-        kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
-            StockTransferLookupNetworkOutcome.NetworkUnavailable
-        kind == FailureKind.ValidationFailure -> StockTransferLookupNetworkOutcome.Rejected
-        else -> StockTransferLookupNetworkOutcome.ServiceUnavailable
-    }
+    private fun ClientFailure.toStockTransferLookupOutcome(): StockTransferLookupNetworkOutcome =
+        when {
+            kind == FailureKind.AuthenticationRequired ->
+                StockTransferLookupNetworkOutcome.SessionInvalidated
 
-    private fun ClientFailure.toReceiptObservationOutcome(): StockTransferReceiptObservationNetworkOutcome = when {
-        kind == FailureKind.AuthenticationRequired -> StockTransferReceiptObservationNetworkOutcome.SessionInvalidated
-        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
-            StockTransferReceiptObservationNetworkOutcome.ContextInvalidated
-        kind == FailureKind.AuthorizationFailure || httpStatus == 404 ->
-            StockTransferReceiptObservationNetworkOutcome.PermissionDenied
-        kind == FailureKind.StaleState || httpStatus == 412 ->
-            StockTransferReceiptObservationNetworkOutcome.PreconditionFailed
-        kind == FailureKind.BusinessConflict || httpStatus == 409 ->
-            StockTransferReceiptObservationNetworkOutcome.Conflict
-        kind == FailureKind.ValidationFailure -> StockTransferReceiptObservationNetworkOutcome.Rejected(problemCode)
-        kind == FailureKind.UnknownOutcome || kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
-            StockTransferReceiptObservationNetworkOutcome.UnknownOutcome
-        else -> StockTransferReceiptObservationNetworkOutcome.ServiceUnavailable
-    }
+            httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
+                StockTransferLookupNetworkOutcome.ContextInvalidated
+
+            kind == FailureKind.AuthorizationFailure ->
+                StockTransferLookupNetworkOutcome.PermissionDenied
+
+            kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
+                StockTransferLookupNetworkOutcome.NetworkUnavailable
+
+            kind == FailureKind.ValidationFailure -> StockTransferLookupNetworkOutcome.Rejected
+
+            else -> StockTransferLookupNetworkOutcome.ServiceUnavailable
+        }
+
+    private fun ClientFailure.toReceiptObservationOutcome():
+        StockTransferReceiptObservationNetworkOutcome =
+        when {
+            kind == FailureKind.AuthenticationRequired ->
+                StockTransferReceiptObservationNetworkOutcome.SessionInvalidated
+
+            httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
+                StockTransferReceiptObservationNetworkOutcome.ContextInvalidated
+
+            kind == FailureKind.AuthorizationFailure || httpStatus == 404 ->
+                StockTransferReceiptObservationNetworkOutcome.PermissionDenied
+
+            kind == FailureKind.StaleState || httpStatus == 412 ->
+                StockTransferReceiptObservationNetworkOutcome.PreconditionFailed
+
+            kind == FailureKind.BusinessConflict || httpStatus == 409 ->
+                StockTransferReceiptObservationNetworkOutcome.Conflict
+
+            kind == FailureKind.ValidationFailure ->
+                StockTransferReceiptObservationNetworkOutcome.Rejected(
+                    problemCode
+                )
+
+            kind == FailureKind.UnknownOutcome || kind == FailureKind.NetworkUnavailable ||
+                kind == FailureKind.Timeout ->
+                StockTransferReceiptObservationNetworkOutcome.UnknownOutcome
+
+            else -> StockTransferReceiptObservationNetworkOutcome.ServiceUnavailable
+        }
 
     private fun TransferReceiptObservationResponseWire.toProjection(
         expectedTransfer: StockTransferProjection,
@@ -432,33 +507,50 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
         val safeObservedUnit = observedUnit.takeIf(String::isNotBlank) ?: return null
         val safeActor = actorMembershipId?.takeIf { it.isUuid() } ?: return null
         val safeRecordedAt = recordedAt?.takeIf { value ->
-            try { Instant.parse(value); true } catch (_: RuntimeException) { false }
+            try {
+                Instant.parse(value)
+                true
+            } catch (_: RuntimeException) {
+                false
+            }
         } ?: return null
         if (transferVersion != expectedTransfer.version || safeTransferId != expectedTransfer.id ||
-            safeSourceWarehouse != expectedTransfer.sourceWarehouseId || safeSourceZone != expectedTransfer.sourceZoneId ||
+            safeSourceWarehouse != expectedTransfer.sourceWarehouseId ||
+            safeSourceZone != expectedTransfer.sourceZoneId ||
             safeSourceLot != expectedTransfer.sourceLotId ||
             safeDestinationWarehouse != expectedTransfer.destinationWarehouseId ||
             safeDestinationZone != expectedTransfer.destinationZoneId ||
-            expectedBatch != expectedTransfer.batchNumber || expectedExpirationDate != expectedTransfer.expirationDate ||
+            expectedBatch != expectedTransfer.batchNumber ||
+            expectedExpirationDate != expectedTransfer.expirationDate ||
             safeExpectedQuantity.compareTo(expectedTransfer.transferredQuantity) != 0 ||
             !safeExpectedUnit.equals(expectedTransfer.unit, ignoreCase = true) ||
-            safeObservedBatch != observedBatchNumber || observedExpirationDate != this.observedExpirationDate ||
+            safeObservedBatch != observedBatchNumber ||
+            observedExpirationDate != this.observedExpirationDate ||
             safeObservedQuantity.compareTo(observedQuantity) != 0 ||
             !safeObservedUnit.equals(observedUnit, ignoreCase = true) || hasDifference != true
-        ) return null
+        ) {
+            return null
+        }
         return StockTransferReceiptObservationProjection(
             safeObservationId, safeTransferId, transferVersion, safeSourceWarehouse, safeSourceZone,
             safeSourceLot, safeDestinationWarehouse, safeDestinationZone, expectedBatch,
             expectedExpirationDate, safeExpectedQuantity, safeExpectedUnit, safeObservedBatch,
-            this.observedExpirationDate, safeObservedQuantity, safeObservedUnit, true, safeActor, safeRecordedAt
+            this.observedExpirationDate, safeObservedQuantity, safeObservedUnit, true,
+            safeActor, safeRecordedAt
         )
     }
 
     private fun String.parseTransferCommand(): TransferCommandWire? = try {
         val objectValue = stockTransferJson.parseToJsonElement(this) as? JsonObject ?: return null
         val required = setOf(
-            "sourceLotId", "sourceWarehouseId", "sourceZoneId", "destinationWarehouseId",
-            "destinationZoneId", "quantity", "unit", "reason"
+            "sourceLotId",
+            "sourceWarehouseId",
+            "sourceZoneId",
+            "destinationWarehouseId",
+            "destinationZoneId",
+            "quantity",
+            "unit",
+            "reason"
         )
         val allowed = required + setOf("skuId", "catalogItemId")
         if (!objectValue.keys.containsAll(required) || objectValue.keys.any { it !in allowed }) {
@@ -473,7 +565,8 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
             sourceLotId = objectValue.requiredString("sourceLotId") ?: return null,
             sourceWarehouseId = objectValue.requiredString("sourceWarehouseId") ?: return null,
             sourceZoneId = objectValue.requiredString("sourceZoneId") ?: return null,
-            destinationWarehouseId = objectValue.requiredString("destinationWarehouseId") ?: return null,
+            destinationWarehouseId =
+                objectValue.requiredString("destinationWarehouseId") ?: return null,
             destinationZoneId = objectValue.requiredString("destinationZoneId") ?: return null,
             skuId = objectValue.optionalString("skuId") ?: return null,
             catalogItemId = objectValue.optionalString("catalogItemId") ?: return null,
@@ -494,7 +587,8 @@ class NexaStockTransferGateway(private val protectedCalls: ProtectedCallExecutor
             (skuId == null || skuId.isUuid()) &&
             (catalogItemId == null || CATALOG_ITEM_ID.matches(catalogItemId)) &&
             (skuId != null || catalogItemId != null) && quantity.signum() > 0 &&
-            unit.isNotBlank() && reason.isNotBlank() && reason == reason.trim() && reason.length <= 2_000
+            unit.isNotBlank() && reason.isNotBlank() && reason == reason.trim() &&
+            reason.length <= 2_000
 
     private fun String.isUuid(): Boolean = try {
         UUID.fromString(this).toString().equals(this, ignoreCase = true)

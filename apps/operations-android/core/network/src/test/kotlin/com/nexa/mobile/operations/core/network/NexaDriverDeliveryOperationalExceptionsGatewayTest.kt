@@ -37,10 +37,16 @@ class NexaDriverDeliveryOperationalExceptionsGatewayTest {
             assertEquals("Road closure", result.value.exceptions.first().reason)
             assertTrue(result.value.exceptions.last().evidenceObjectIds.isNotEmpty())
             assertEquals("CLAIMED", result.value.exceptions.last().status)
-            assertEquals(OTHER_MEMBERSHIP_ID, result.value.exceptions.last().responsibleMembershipId)
+            assertEquals(
+                OTHER_MEMBERSHIP_ID,
+                result.value.exceptions.last().responsibleMembershipId
+            )
             val request = server.takeRequest()
             assertEquals("GET", request.method)
-            assertEquals("/api/v1/driver/deliveries/$DELIVERY_ID/operational-exceptions", request.path)
+            assertEquals(
+                "/api/v1/driver/deliveries/$DELIVERY_ID/operational-exceptions",
+                request.path
+            )
         }
     }
 
@@ -58,13 +64,24 @@ class NexaDriverDeliveryOperationalExceptionsGatewayTest {
                 MockResponse().setResponseCode(201)
                     .setHeader("Content-Type", "application/json")
                     .setHeader("ETag", "\"9\"")
-                    .setBody(mutationResponse(version = 9, status = "UNDER_REVIEW", reviewed = true, replayed = false))
+                    .setBody(
+                        mutationResponse(
+                            version = 9,
+                            status = "UNDER_REVIEW",
+                            reviewed = true,
+                            replayed = false
+                        )
+                    )
             )
             val gateway = gateway(server)
 
             val claim = gateway.mutate(
-                DELIVERY_ID, EXCEPTION_ID, DriverOperationalExceptionActionTransport.Claim,
-                7, "claim-key", "{}"
+                DELIVERY_ID,
+                EXCEPTION_ID,
+                DriverOperationalExceptionActionTransport.Claim,
+                7,
+                "claim-key",
+                "{}"
             ) as DriverOperationalExceptionsNetworkOutcome.Changed
             val claimRequest = server.takeRequest()
             assertEquals("POST", claimRequest.method)
@@ -78,8 +95,12 @@ class NexaDriverDeliveryOperationalExceptionsGatewayTest {
             assertEquals("CLAIMED", claim.value.exception.status)
 
             val review = gateway.mutate(
-                DELIVERY_ID, EXCEPTION_ID, DriverOperationalExceptionActionTransport.Review,
-                8, "review-key", "{}"
+                DELIVERY_ID,
+                EXCEPTION_ID,
+                DriverOperationalExceptionActionTransport.Review,
+                8,
+                "review-key",
+                "{}"
             ) as DriverOperationalExceptionsNetworkOutcome.Changed
             val reviewRequest = server.takeRequest()
             assertEquals(
@@ -227,13 +248,21 @@ class NexaDriverDeliveryOperationalExceptionsGatewayTest {
             assertEquals(
                 DriverOperationalExceptionsNetworkOutcome.StaleVersion,
                 gateway.mutate(
-                    DELIVERY_ID, EXCEPTION_ID, DriverOperationalExceptionActionTransport.Claim,
-                    7, "claim-key", "{}"
+                    DELIVERY_ID,
+                    EXCEPTION_ID,
+                    DriverOperationalExceptionActionTransport.Claim,
+                    7,
+                    "claim-key",
+                    "{}"
                 )
             )
             val rejected = gateway.mutate(
-                DELIVERY_ID, EXCEPTION_ID, DriverOperationalExceptionActionTransport.Review,
-                8, "review-key", "{}"
+                DELIVERY_ID,
+                EXCEPTION_ID,
+                DriverOperationalExceptionActionTransport.Review,
+                8,
+                "review-key",
+                "{}"
             ) as DriverOperationalExceptionsNetworkOutcome.Rejected
             assertEquals("OPERATIONAL_EXCEPTION_STATE_CONFLICT", rejected.code)
             assertEquals(2, server.requestCount)
@@ -265,8 +294,12 @@ class NexaDriverDeliveryOperationalExceptionsGatewayTest {
             assertEquals(
                 DriverOperationalExceptionsNetworkOutcome.UnknownOutcome,
                 gateway.mutate(
-                    DELIVERY_ID, EXCEPTION_ID, DriverOperationalExceptionActionTransport.Claim,
-                    7, "claim-key", "{}"
+                    DELIVERY_ID,
+                    EXCEPTION_ID,
+                    DriverOperationalExceptionActionTransport.Claim,
+                    7,
+                    "claim-key",
+                    "{}"
                 )
             )
             assertTrue(server.requestCount == 2)
@@ -293,7 +326,12 @@ class NexaDriverDeliveryOperationalExceptionsGatewayTest {
         severity: String = "BLOCKING",
         resolution: String? = null,
         outcome: String? = null
-    ) = """{"deliveryId":"$DELIVERY_ID","deliveryVersion":$version,"exception":{"id":"$EXCEPTION_ID","sourceKind":"DRIVER_INCIDENT","sourceIncidentId":"$INCIDENT_ID","affectedObjectType":"DELIVERY","affectedObjectId":"$DELIVERY_ID","type":"$type","severity":"$severity","status":"$status","reason":"Road closure","description":"The delivery cannot reach its destination.","place":"North entrance","resolution":${resolution?.let(::jsonString) ?: "null"},"outcome":${outcome?.let(::jsonString) ?: "null"},"reportedByMembershipId":"$MEMBERSHIP_ID","occurredAt":"2026-10-01T16:55:00Z","reportedAt":"2026-10-01T16:58:00Z","responsibleMembershipId":"$MEMBERSHIP_ID","claimedAt":"2026-10-01T17:01:00Z","underReviewByMembershipId":${if (reviewed) "\"$MEMBERSHIP_ID\"" else "null"},"underReviewAt":${if (reviewed) "\"2026-10-01T17:02:00Z\"" else "null"},"evidenceObjectIds":[]},"replayed":$replayed}"""
+    ) =
+        """{"deliveryId":"$DELIVERY_ID","deliveryVersion":$version,"exception":{"id":"$EXCEPTION_ID","sourceKind":"DRIVER_INCIDENT","sourceIncidentId":"$INCIDENT_ID","affectedObjectType":"DELIVERY","affectedObjectId":"$DELIVERY_ID","type":"$type","severity":"$severity","status":"$status","reason":"Road closure","description":"The delivery cannot reach its destination.","place":"North entrance","resolution":${resolution?.let(
+            ::jsonString
+        ) ?: "null"},"outcome":${outcome?.let(
+            ::jsonString
+        ) ?: "null"},"reportedByMembershipId":"$MEMBERSHIP_ID","occurredAt":"2026-10-01T16:55:00Z","reportedAt":"2026-10-01T16:58:00Z","responsibleMembershipId":"$MEMBERSHIP_ID","claimedAt":"2026-10-01T17:01:00Z","underReviewByMembershipId":${if (reviewed) "\"$MEMBERSHIP_ID\"" else "null"},"underReviewAt":${if (reviewed) "\"2026-10-01T17:02:00Z\"" else "null"},"evidenceObjectIds":[]},"replayed":$replayed}"""
 
     private fun jsonString(value: String) = JsonPrimitive(value).toString()
 
@@ -302,7 +340,9 @@ class NexaDriverDeliveryOperationalExceptionsGatewayTest {
         private val lease = AccessTokenLease("session-1", generation = 1, epoch = 1)
         override suspend fun currentAccess(): AccessTokenLease = lease
         override suspend fun isEpochCurrent(epoch: Long): Boolean = lease.epoch == epoch
-        override suspend fun recoverAfterUnauthorized(observed: AccessTokenLease): AccessTokenLease? = null
+        override suspend fun recoverAfterUnauthorized(
+            observed: AccessTokenLease
+        ): AccessTokenLease? = null
         override suspend fun rejectCurrentAccess(observed: AccessTokenLease) = Unit
     }
 

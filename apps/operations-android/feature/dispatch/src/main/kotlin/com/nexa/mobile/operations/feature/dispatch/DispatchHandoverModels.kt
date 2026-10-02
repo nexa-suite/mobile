@@ -45,7 +45,8 @@ data class DispatchHandoverSnapshot(
         get() = readiness.ready && readiness.fulfillmentStatus == READY_FOR_DISPATCH &&
             readiness.physicalAllocationStatus == ALLOCATED &&
             allocation.id == readiness.physicalAllocationId &&
-            allocation.version == readiness.physicalAllocationVersion && allocation.status == ALLOCATED &&
+            allocation.version == readiness.physicalAllocationVersion &&
+            allocation.status == ALLOCATED &&
             driverAssignment?.let {
                 it.fulfillmentId == readiness.fulfillmentId &&
                     it.fulfillmentVersion == readiness.fulfillmentVersion &&
@@ -95,10 +96,12 @@ data class DispatchHandoverUiState(
     val hasPendingCommand: Boolean = false
 ) {
     val canConfirm: Boolean
-        get() = status == DispatchHandoverStatus.Current && snapshot?.canConfirm == true && !hasPendingCommand
+        get() = status == DispatchHandoverStatus.Current && snapshot?.canConfirm == true &&
+            !hasPendingCommand
 
     val canReplay: Boolean
-        get() = status == DispatchHandoverStatus.UnknownOutcome && pendingCommand != null && hasPendingCommand
+        get() = status == DispatchHandoverStatus.UnknownOutcome && pendingCommand != null &&
+            hasPendingCommand
 
     override fun toString(): String = "DispatchHandoverUiState(status=$status, " +
         "ready=${snapshot?.canConfirm == true}, deliveryRecorded=${receipt != null})"
@@ -115,7 +118,8 @@ data class DispatchHandoverCommand(
     val idempotencyKey: String,
     val exactRequestBody: String
 ) {
-    override fun toString(): String = "DispatchHandoverCommand(REDACTED, version=$expectedFulfillmentVersion)"
+    override fun toString(): String =
+        "DispatchHandoverCommand(REDACTED, version=$expectedFulfillmentVersion)"
 
     fun toRequestBody(): String = buildString {
         append("{\"physicalAllocationId\":\"").append(physicalAllocationId)
@@ -126,9 +130,14 @@ data class DispatchHandoverCommand(
     }
 
     fun isValid(): Boolean = listOf(
-        fulfillmentId, physicalAllocationId, driverAssignmentId, outgoingGoodsCheckId
-    ).all(UUID_PATTERN::matches) && expectedFulfillmentVersion >= 0 && physicalAllocationVersion >= 0 &&
-        driverAssignmentVersion >= 0 && idempotencyKey.isNotBlank() && idempotencyKey.length <= 160 &&
+        fulfillmentId,
+        physicalAllocationId,
+        driverAssignmentId,
+        outgoingGoodsCheckId
+    ).all(UUID_PATTERN::matches) && expectedFulfillmentVersion >= 0 &&
+        physicalAllocationVersion >= 0 &&
+        driverAssignmentVersion >= 0 &&
+        idempotencyKey.isNotBlank() && idempotencyKey.length <= 160 &&
         exactRequestBody == toRequestBody()
 
     private companion object {
@@ -149,7 +158,12 @@ sealed interface DispatchHandoverMetadataRead {
     data object Unavailable : DispatchHandoverMetadataRead
 }
 
-enum class DispatchHandoverMetadataWrite { Saved, Conflict, Stale, Unavailable }
+enum class DispatchHandoverMetadataWrite {
+    Saved,
+    Conflict,
+    Stale,
+    Unavailable
+}
 
 /** Separate encrypted purpose from assignment and outgoing-check commands. */
 interface DispatchHandoverMetadataStore {
@@ -169,7 +183,8 @@ interface DispatchHandoverMetadataStore {
 
 sealed interface DispatchHandoverGatewayResult {
     data class Snapshot(val value: DispatchHandoverSnapshot) : DispatchHandoverGatewayResult
-    data class AlreadyCompleted(val receipt: DispatchHandoverReceipt) : DispatchHandoverGatewayResult
+    data class AlreadyCompleted(val receipt: DispatchHandoverReceipt) :
+        DispatchHandoverGatewayResult
     data class Dispatched(val receipt: DispatchHandoverReceipt) : DispatchHandoverGatewayResult
     data object UnknownOutcome : DispatchHandoverGatewayResult
     data object NetworkUnavailable : DispatchHandoverGatewayResult

@@ -25,7 +25,10 @@ class NexaLotSubstitutionGatewayTest {
             val request = server.takeRequest()
 
             assertEquals("POST", request.method)
-            assertEquals("/api/v1/inventory/physical-allocation-substitution-requests", request.requestUrl?.encodedPath)
+            assertEquals(
+                "/api/v1/inventory/physical-allocation-substitution-requests",
+                request.requestUrl?.encodedPath
+            )
             assertEquals(body, request.body.readUtf8())
             assertEquals(KEY, request.getHeader("Idempotency-Key"))
             assertEquals("\"8\"", request.getHeader("If-Match"))
@@ -40,7 +43,9 @@ class NexaLotSubstitutionGatewayTest {
             server.enqueue(
                 MockResponse().setResponseCode(412)
                     .addHeader("Content-Type", "application/problem+json")
-                    .setBody("""{"status":412,"code":"CONCURRENCY_CONFLICT","category":"CONFLICT"}""")
+                    .setBody(
+                        """{"status":412,"code":"CONCURRENCY_CONFLICT","category":"CONFLICT"}"""
+                    )
             )
             val gateway = gateway(server)
 
@@ -49,7 +54,10 @@ class NexaLotSubstitutionGatewayTest {
                 gateway.request(command("{}"))
             )
             assertEquals(0, server.requestCount)
-            assertEquals(LotSubstitutionNetworkOutcome.Stale(), gateway.request(command(frozenBody())))
+            assertEquals(
+                LotSubstitutionNetworkOutcome.Stale(),
+                gateway.request(command(frozenBody()))
+            )
             assertEquals(1, server.requestCount)
         }
     }
@@ -66,9 +74,11 @@ class NexaLotSubstitutionGatewayTest {
         "4.000", "EA", "Expected lot could not supply prepared work", body
     )
 
-    private fun frozenBody() = """{"fulfillmentId":"$FULFILLMENT_ID","allocationId":"$ALLOCATION_ID","physicalAllocationLineId":"$LINE_ID","expectedLotId":"$EXPECTED_LOT_ID","alternativeLotId":"$ALTERNATIVE_LOT_ID","quantity":4.000,"unit":"EA","reason":"Expected lot could not supply prepared work"}"""
+    private fun frozenBody() =
+        """{"fulfillmentId":"$FULFILLMENT_ID","allocationId":"$ALLOCATION_ID","physicalAllocationLineId":"$LINE_ID","expectedLotId":"$EXPECTED_LOT_ID","alternativeLotId":"$ALTERNATIVE_LOT_ID","quantity":4.000,"unit":"EA","reason":"Expected lot could not supply prepared work"}"""
 
-    private fun requestResponse() = """{"id":"$REQUEST_ID","expectedLotId":"$EXPECTED_LOT_ID","alternativeLotId":"$ALTERNATIVE_LOT_ID","quantity":4.000,"reason":"Expected lot could not supply prepared work","status":"REQUESTED","currentAllocationVersion":8}"""
+    private fun requestResponse() =
+        """{"id":"$REQUEST_ID","expectedLotId":"$EXPECTED_LOT_ID","alternativeLotId":"$ALTERNATIVE_LOT_ID","quantity":4.000,"reason":"Expected lot could not supply prepared work","status":"REQUESTED","currentAllocationVersion":8}"""
 
     private fun response(body: String) = MockResponse()
         .setResponseCode(201)
@@ -79,7 +89,9 @@ class NexaLotSubstitutionGatewayTest {
         override val sessionState: StateFlow<SessionState> = MutableStateFlow(SessionState.Active)
         private val lease = AccessTokenLease("access-1", generation = 1, epoch = 1)
         override suspend fun currentAccess(): AccessTokenLease = lease
-        override suspend fun recoverAfterUnauthorized(observed: AccessTokenLease): AccessTokenLease? = null
+        override suspend fun recoverAfterUnauthorized(
+            observed: AccessTokenLease
+        ): AccessTokenLease? = null
         override suspend fun rejectCurrentAccess(observed: AccessTokenLease) = Unit
         override suspend fun isEpochCurrent(epoch: Long): Boolean = epoch == 1L
     }

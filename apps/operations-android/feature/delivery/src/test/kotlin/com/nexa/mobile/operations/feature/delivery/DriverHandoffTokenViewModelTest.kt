@@ -24,7 +24,8 @@ class DriverHandoffTokenViewModelTest {
         val gateway = FakeGateway().apply {
             issueResult = DriverHandoffIssueResult.TokenUnavailable(receipt())
         }
-        val viewModel = DriverHandoffTokenViewModel(gateway, store, keyFactory = { "must-not-be-used" })
+        val viewModel =
+            DriverHandoffTokenViewModel(gateway, store, keyFactory = { "must-not-be-used" })
         viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
         advanceUntilIdle()
 
@@ -106,9 +107,8 @@ class DriverHandoffTokenViewModelTest {
         assertEquals(listOf(frozen), gateway.issued)
     }
 
-    private class FakeGateway(
-        private val events: MutableList<String> = mutableListOf()
-    ) : DriverHandoffTokenGateway {
+    private class FakeGateway(private val events: MutableList<String> = mutableListOf()) :
+        DriverHandoffTokenGateway {
         var activeAttemptId: String? = ATTEMPT_ID
         var issueResult: DriverHandoffIssueResult = DriverHandoffIssueResult.UnknownOutcome
         var pendingIssue: CompletableDeferred<DriverHandoffIssueResult>? = null
@@ -131,9 +131,8 @@ class DriverHandoffTokenViewModelTest {
         }
     }
 
-    private class FakeMetadataStore(
-        private val events: MutableList<String> = mutableListOf()
-    ) : DriverHandoffTokenMetadataStore {
+    private class FakeMetadataStore(private val events: MutableList<String> = mutableListOf()) :
+        DriverHandoffTokenMetadataStore {
         val commands = mutableListOf<DriverHandoffIssueCommand>()
 
         override suspend fun load(
@@ -163,8 +162,9 @@ class DriverHandoffTokenViewModelTest {
             attemptId: String,
             idempotencyKey: String
         ): DriverHandoffMetadataWrite {
-            val current = commands.firstOrNull { it.deliveryId == deliveryId && it.attemptId == attemptId }
-                ?: return DriverHandoffMetadataWrite.Saved
+            val current =
+                commands.firstOrNull { it.deliveryId == deliveryId && it.attemptId == attemptId }
+                    ?: return DriverHandoffMetadataWrite.Saved
             if (current.idempotencyKey != idempotencyKey) return DriverHandoffMetadataWrite.Stale
             commands.remove(current)
             return DriverHandoffMetadataWrite.Saved
@@ -181,17 +181,28 @@ class DriverHandoffTokenViewModelTest {
         const val OTHER_ATTEMPT_ID = "77777777-7777-4777-8777-777777777777"
         const val HANDOFF_ID = "88888888-8888-4888-8888-888888888888"
         val AUTHORITY = DriverDeliveryAuthority(
-            USER_ID, TENANT_ID, WORKSPACE_ID, MEMBERSHIP_ID,
-            setOf("dispatch.read", "dispatch.start_route", "logistics:write"), authorityEpoch = 12
+            USER_ID,
+            TENANT_ID,
+            WORKSPACE_ID,
+            MEMBERSHIP_ID,
+            setOf("dispatch.read", "dispatch.start_route", "logistics:write"),
+            authorityEpoch = 12
         )
 
         fun command() = DriverHandoffIssueCommand(
-            DELIVERY_ID, ATTEMPT_ID, 7, "stable-key", driverHandoffIssueBody(ATTEMPT_ID)
+            DELIVERY_ID,
+            ATTEMPT_ID,
+            7,
+            "stable-key",
+            driverHandoffIssueBody(ATTEMPT_ID)
         )
 
         fun receipt() = DriverHandoffTokenReceipt(
-            HANDOFF_ID, DELIVERY_ID, ATTEMPT_ID,
-            Instant.now().plusSeconds(120).toString(), "ACTIVE"
+            HANDOFF_ID,
+            DELIVERY_ID,
+            ATTEMPT_ID,
+            Instant.now().plusSeconds(120).toString(),
+            "ACTIVE"
         )
     }
 }

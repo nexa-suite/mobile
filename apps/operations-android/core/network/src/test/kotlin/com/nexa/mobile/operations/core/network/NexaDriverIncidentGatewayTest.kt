@@ -22,7 +22,9 @@ class NexaDriverIncidentGatewayTest {
                 MockResponse().setResponseCode(201)
                     .setHeader("Content-Type", "application/json")
                     .setHeader("ETag", "\"8\"")
-                    .setBody(response(version = 8, replayed = false, evidence = "[\"$EVIDENCE_ID\"]"))
+                    .setBody(
+                        response(version = 8, replayed = false, evidence = "[\"$EVIDENCE_ID\"]")
+                    )
             )
             val command = command()
 
@@ -50,8 +52,10 @@ class NexaDriverIncidentGatewayTest {
     fun replayKeepsSameKeyVersionAndFrozenPayloadAndUncertainPostIsNotRetried() = runTest {
         MockWebServer().use { server ->
             server.start()
-            server.enqueue(MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json")
-                .setHeader("ETag", "\"8\"").setBody(response(version = 8, replayed = true)))
+            server.enqueue(
+                MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json")
+                    .setHeader("ETag", "\"8\"").setBody(response(version = 8, replayed = true))
+            )
             server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST))
             val command = command()
 
@@ -84,11 +88,20 @@ class NexaDriverIncidentGatewayTest {
     fun preTypeIntentReplaysExactUnclassifiedBodyWithoutAddingClassification() = runTest {
         MockWebServer().use { server ->
             server.start()
-            server.enqueue(MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json")
-                .setHeader("ETag", "\"7\"").setBody(legacyResponse(version = 7, replayed = true)))
+            server.enqueue(
+                MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json")
+                    .setHeader(
+                        "ETag",
+                        "\"7\""
+                    ).setBody(legacyResponse(version = 7, replayed = true))
+            )
             val legacy = command().copy(
                 type = null,
-                frozenBody = """{"reason":"Road closure","description":"Route blocked at the north entrance","place":"North entrance"}"""
+                frozenBody = listOf(
+                    """{"reason":"Road closure",""",
+                    """"description":"Route blocked at the north entrance",""",
+                    """"place":"North entrance"}"""
+                ).joinToString(separator = "")
             )
 
             val result = gateway(server).record(legacy) as DriverIncidentNetworkOutcome.Recorded
@@ -107,10 +120,18 @@ class NexaDriverIncidentGatewayTest {
     fun typedRequestRejectsUnclassifiedResponseAsUnknown() = runTest {
         MockWebServer().use { server ->
             server.start()
-            server.enqueue(MockResponse().setResponseCode(201).setHeader("Content-Type", "application/json")
-                .setHeader("ETag", "\"8\"").setBody(legacyResponse(version = 8, replayed = false)))
+            server.enqueue(
+                MockResponse().setResponseCode(201).setHeader("Content-Type", "application/json")
+                    .setHeader(
+                        "ETag",
+                        "\"8\""
+                    ).setBody(legacyResponse(version = 8, replayed = false))
+            )
 
-            assertEquals(DriverIncidentNetworkOutcome.UnknownOutcome, gateway(server).record(command()))
+            assertEquals(
+                DriverIncidentNetworkOutcome.UnknownOutcome,
+                gateway(server).record(command())
+            )
         }
     }
 
@@ -140,7 +161,9 @@ class NexaDriverIncidentGatewayTest {
         private val lease = AccessTokenLease("session-1", generation = 1, epoch = 1)
         override suspend fun currentAccess(): AccessTokenLease = lease
         override suspend fun isEpochCurrent(epoch: Long): Boolean = lease.epoch == epoch
-        override suspend fun recoverAfterUnauthorized(observed: AccessTokenLease): AccessTokenLease? = null
+        override suspend fun recoverAfterUnauthorized(
+            observed: AccessTokenLease
+        ): AccessTokenLease? = null
         override suspend fun rejectCurrentAccess(observed: AccessTokenLease) = Unit
     }
 

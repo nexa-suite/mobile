@@ -124,32 +124,40 @@ class TemperatureEvidenceMetadataStoreCoreTest {
         storage.records[key] = original.clone().also { it[0] = (it[0].toInt() xor 1).toByte() }
         val corrupted = storage.records.getValue(key).clone()
         assertEquals(TemperatureMetadataRead.Unavailable, store.loadIntent(scope))
-        assertEquals(TemperatureMetadataWrite.Unavailable, store.clearIntent(scope, pending.idempotencyKey))
+        assertEquals(
+            TemperatureMetadataWrite.Unavailable,
+            store.clearIntent(scope, pending.idempotencyKey)
+        )
         assertTrue(storage.records.getValue(key).contentEquals(corrupted))
     }
 
     @Test
-    fun separateStoreInstancesSerializeConcurrentReadModifyWriteForSamePathAndScope() = runBlocking {
-        val records = ConcurrentHashMap<String, ByteArray>()
-        val firstStorage = FakeStorage("same-path", records)
-        val secondStorage = FakeStorage("same-path", records)
-        val first = TemperatureEvidenceMetadataStoreCore(firstStorage, FakeCipher(), Dispatchers.IO)
-        val second = TemperatureEvidenceMetadataStoreCore(secondStorage, FakeCipher(), Dispatchers.IO)
-        val scope = scope()
-        val results = (0 until 80).map { index ->
-            async(Dispatchers.Default) {
-                if (index % 2 == 0) {
-                    first.saveDraft(scope, draft(value = "value-$index"))
-                } else {
-                    second.saveIntent(intent(scope))
+    fun separateStoreInstancesSerializeConcurrentReadModifyWriteForSamePathAndScope() =
+        runBlocking {
+            val records = ConcurrentHashMap<String, ByteArray>()
+            val firstStorage = FakeStorage("same-path", records)
+            val secondStorage = FakeStorage("same-path", records)
+            val first =
+                TemperatureEvidenceMetadataStoreCore(firstStorage, FakeCipher(), Dispatchers.IO)
+            val second =
+                TemperatureEvidenceMetadataStoreCore(secondStorage, FakeCipher(), Dispatchers.IO)
+            val scope = scope()
+            val results = (0 until 80).map { index ->
+                async(Dispatchers.Default) {
+                    if (index % 2 == 0) {
+                        first.saveDraft(scope, draft(value = "value-$index"))
+                    } else {
+                        second.saveIntent(intent(scope))
+                    }
                 }
-            }
-        }.awaitAll()
+            }.awaitAll()
 
-        assertTrue(results.all { it == TemperatureMetadataWrite.Saved })
-        assertTrue((first.loadDraft(scope) as TemperatureMetadataRead.Available).value != null)
-        assertTrue((second.loadIntent(scope) as TemperatureMetadataRead.Available).value != null)
-    }
+            assertTrue(results.all { it == TemperatureMetadataWrite.Saved })
+            assertTrue((first.loadDraft(scope) as TemperatureMetadataRead.Available).value != null)
+            assertTrue(
+                (second.loadIntent(scope) as TemperatureMetadataRead.Available).value != null
+            )
+        }
 
     private fun store() =
         TemperatureEvidenceMetadataStoreCore(FakeStorage(), FakeCipher(), Dispatchers.IO)
@@ -164,21 +172,19 @@ class TemperatureEvidenceMetadataStoreCoreTest {
         "2026-09-30T15:22:33Z"
     )
 
-    private fun intent(
-        scope: TemperatureMetadataScope,
-        key: String = "temperature-intent-01"
-    ) = TemperatureEvidenceIntentRecord(
-        scope,
-        key,
-        TemperatureEvidenceCommandPayload(
-            StoredTemperatureSubjectType.LOT,
-            SUBJECT_ID,
-            "-18.765432100",
-            StoredTemperatureUnit.CELSIUS,
-            "2026-09-30T15:22:33Z"
-        ),
-        TemperatureEvidenceIntentStatus.Pending
-    )
+    private fun intent(scope: TemperatureMetadataScope, key: String = "temperature-intent-01") =
+        TemperatureEvidenceIntentRecord(
+            scope,
+            key,
+            TemperatureEvidenceCommandPayload(
+                StoredTemperatureSubjectType.LOT,
+                SUBJECT_ID,
+                "-18.765432100",
+                StoredTemperatureUnit.CELSIUS,
+                "2026-09-30T15:22:33Z"
+            ),
+            TemperatureEvidenceIntentStatus.Pending
+        )
 
     private fun assertFails(block: () -> Unit) {
         try {
@@ -211,8 +217,10 @@ class TemperatureEvidenceMetadataStoreCoreTest {
         override fun encrypt(scope: TemperatureMetadataScope, plaintext: ByteArray): ByteArray =
             plaintext.clone()
 
-        override fun decrypt(scope: TemperatureMetadataScope, encryptedRecord: ByteArray): ByteArray =
-            encryptedRecord.clone()
+        override fun decrypt(
+            scope: TemperatureMetadataScope,
+            encryptedRecord: ByteArray
+        ): ByteArray = encryptedRecord.clone()
     }
 
     private companion object {

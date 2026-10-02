@@ -26,7 +26,11 @@ class NexaFulfillmentDispatchGatewayTest {
             )
             val endpoint = ApiEndpoint(server.url("/").toString())
             val gateway = NexaFulfillmentDispatchGateway(
-                ProtectedCallExecutor(endpoint, ApiHttpClient.create(endpoint), FakeAccessTokenSource())
+                ProtectedCallExecutor(
+                    endpoint,
+                    ApiHttpClient.create(endpoint),
+                    FakeAccessTokenSource()
+                )
             )
 
             val result = gateway.currentHandoffEvidence(FULFILLMENT_ID) as
@@ -34,7 +38,10 @@ class NexaFulfillmentDispatchGatewayTest {
             val request = server.takeRequest()
 
             assertEquals("GET", request.method)
-            assertEquals("/api/v1/fulfillments/$FULFILLMENT_ID/handoff-evidence/current", request.requestUrl?.encodedPath)
+            assertEquals(
+                "/api/v1/fulfillments/$FULFILLMENT_ID/handoff-evidence/current",
+                request.requestUrl?.encodedPath
+            )
             assertEquals(EVIDENCE_ID, result.value.id)
             assertEquals(WAREHOUSE_MEMBERSHIP_ID, result.value.warehouseActorMembershipId)
             assertEquals(DRIVER_MEMBERSHIP_ID, result.value.driverMembershipId)
@@ -57,16 +64,27 @@ class NexaFulfillmentDispatchGatewayTest {
             )
             val endpoint = ApiEndpoint(server.url("/").toString())
             val gateway = NexaFulfillmentDispatchGateway(
-                ProtectedCallExecutor(endpoint, ApiHttpClient.create(endpoint), FakeAccessTokenSource())
+                ProtectedCallExecutor(
+                    endpoint,
+                    ApiHttpClient.create(endpoint),
+                    FakeAccessTokenSource()
+                )
             )
 
-            val exactBody = """{"physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,"driverAssignmentId":"$ASSIGNMENT_ID","driverAssignmentVersion":12,"outgoingGoodsCheckId":"$CHECK_ID"}"""
+            val exactBody = listOf(
+                """{"physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,""",
+                """"driverAssignmentId":"$ASSIGNMENT_ID","driverAssignmentVersion":12,""",
+                """"outgoingGoodsCheckId":"$CHECK_ID"}"""
+            ).joinToString(separator = "")
             val outcome = gateway.dispatch(FULFILLMENT_ID, 12, "dispatch-key", exactBody) as
                 FulfillmentDispatchNetworkOutcome.Dispatched
             val request = server.takeRequest()
 
             assertEquals("POST", request.method)
-            assertEquals("/api/v1/fulfillments/$FULFILLMENT_ID/dispatches", request.requestUrl?.encodedPath)
+            assertEquals(
+                "/api/v1/fulfillments/$FULFILLMENT_ID/dispatches",
+                request.requestUrl?.encodedPath
+            )
             assertEquals("\"12\"", request.getHeader("If-Match"))
             assertEquals("dispatch-key", request.getHeader("Idempotency-Key"))
             assertEquals(exactBody, request.body.readUtf8())
@@ -81,7 +99,9 @@ class NexaFulfillmentDispatchGatewayTest {
         private val lease = AccessTokenLease("access-1", generation = 1, epoch = 1)
 
         override suspend fun currentAccess(): AccessTokenLease = lease
-        override suspend fun recoverAfterUnauthorized(observed: AccessTokenLease): AccessTokenLease? = null
+        override suspend fun recoverAfterUnauthorized(
+            observed: AccessTokenLease
+        ): AccessTokenLease? = null
         override suspend fun rejectCurrentAccess(observed: AccessTokenLease) = Unit
         override suspend fun isEpochCurrent(epoch: Long): Boolean = epoch == 1L
     }

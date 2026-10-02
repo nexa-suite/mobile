@@ -212,4 +212,5 @@
     <string name="dispatch_plan_status_service">Nexa no confirmó todos los datos requeridos.</string>
     <string name="dispatch_plan_status_context">El contexto de trabajo cambió.</string>
     <string name="dispatch_plan_status_session">La sesión dejó de estar disponible.</string>
+    <string name="dispatch_readiness_open_instructions">Delivery instructions</string>
 </resources>

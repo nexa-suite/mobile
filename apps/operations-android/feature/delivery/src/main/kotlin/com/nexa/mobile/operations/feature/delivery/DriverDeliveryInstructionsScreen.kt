@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionAcknowledgementStatus as InstructionAcknowledgementStatus
 
 @Composable
 fun DriverDeliveryInstructionsScreen(
@@ -66,27 +67,33 @@ fun DriverDeliveryInstructionsScreen(
                 }
 
                 DriverDeliveryInstructionsLoadStatus.NotFound -> InstructionNotice(
-                    stringResource(R.string.driver_instruction_not_found), isError = true
+                    stringResource(R.string.driver_instruction_not_found),
+                    isError = true
                 )
 
                 DriverDeliveryInstructionsLoadStatus.NetworkUnavailable -> InstructionNotice(
-                    stringResource(R.string.driver_instruction_network), isError = true
+                    stringResource(R.string.driver_instruction_network),
+                    isError = true
                 )
 
                 DriverDeliveryInstructionsLoadStatus.ServiceUnavailable -> InstructionNotice(
-                    stringResource(R.string.driver_instruction_service), isError = true
+                    stringResource(R.string.driver_instruction_service),
+                    isError = true
                 )
 
                 DriverDeliveryInstructionsLoadStatus.PermissionDenied -> InstructionNotice(
-                    stringResource(R.string.driver_instruction_permission), isError = true
+                    stringResource(R.string.driver_instruction_permission),
+                    isError = true
                 )
 
                 DriverDeliveryInstructionsLoadStatus.ContextInvalidated -> InstructionNotice(
-                    stringResource(R.string.driver_delivery_context), isError = true
+                    stringResource(R.string.driver_delivery_context),
+                    isError = true
                 )
 
                 DriverDeliveryInstructionsLoadStatus.SessionInvalidated -> InstructionNotice(
-                    stringResource(R.string.driver_delivery_session), isError = true
+                    stringResource(R.string.driver_delivery_session),
+                    isError = true
                 )
 
                 DriverDeliveryInstructionsLoadStatus.NotRequested,
@@ -119,10 +126,10 @@ fun DriverDeliveryInstructionsScreen(
                             !state.hasRecoverableAcknowledgement &&
                             !state.unresolvedAcknowledgementForOtherDelivery &&
                             state.acknowledgementStatus !in setOf(
-                                DriverDeliveryInstructionAcknowledgementStatus.Pending,
-                                DriverDeliveryInstructionAcknowledgementStatus.PersistingIntent,
-                                DriverDeliveryInstructionAcknowledgementStatus.UnknownOutcome,
-                                DriverDeliveryInstructionAcknowledgementStatus.PersistenceUnavailable
+                                InstructionAcknowledgementStatus.Pending,
+                                InstructionAcknowledgementStatus.PersistingIntent,
+                                InstructionAcknowledgementStatus.UnknownOutcome,
+                                InstructionAcknowledgementStatus.PersistenceUnavailable
                             ),
                         onSelected = { onSelectInstruction(instruction.id, it) }
                     )
@@ -130,34 +137,47 @@ fun DriverDeliveryInstructionsScreen(
             }
 
             if (!state.canRead) {
-                InstructionNotice(stringResource(R.string.driver_instruction_permission), isError = true)
+                InstructionNotice(
+                    stringResource(R.string.driver_instruction_permission),
+                    isError = true
+                )
             }
             if (state.unresolvedAcknowledgementForOtherDelivery) {
-                InstructionNotice(stringResource(R.string.driver_instruction_other_pending), isError = true)
+                InstructionNotice(
+                    stringResource(R.string.driver_instruction_other_pending),
+                    isError = true
+                )
             }
             when (state.acknowledgementStatus) {
-                DriverDeliveryInstructionAcknowledgementStatus.PersistingIntent -> InstructionNotice(
+                InstructionAcknowledgementStatus.PersistingIntent -> InstructionNotice(
                     stringResource(R.string.driver_instruction_persisting)
                 )
 
-                DriverDeliveryInstructionAcknowledgementStatus.Pending -> InstructionNotice(
+                InstructionAcknowledgementStatus.Pending -> InstructionNotice(
                     stringResource(R.string.driver_instruction_pending)
                 )
 
-                DriverDeliveryInstructionAcknowledgementStatus.UnknownOutcome -> {
-                    InstructionNotice(stringResource(R.string.driver_instruction_unknown), isError = true)
+                InstructionAcknowledgementStatus.UnknownOutcome -> {
+                    InstructionNotice(
+                        stringResource(R.string.driver_instruction_unknown),
+                        isError = true
+                    )
                     if (state.hasRecoverableAcknowledgement) {
-                        OutlinedButton(onClick = onRetryUnknownAcknowledgement, enabled = state.canAcknowledge) {
+                        OutlinedButton(
+                            onClick = onRetryUnknownAcknowledgement,
+                            enabled = state.canAcknowledge
+                        ) {
                             Text(stringResource(R.string.driver_instruction_retry_same))
                         }
                     }
                 }
 
-                DriverDeliveryInstructionAcknowledgementStatus.PersistenceUnavailable -> InstructionNotice(
-                    stringResource(R.string.driver_instruction_storage_unavailable), isError = true
+                InstructionAcknowledgementStatus.PersistenceUnavailable -> InstructionNotice(
+                    stringResource(R.string.driver_instruction_storage_unavailable),
+                    isError = true
                 )
 
-                DriverDeliveryInstructionAcknowledgementStatus.Acknowledged -> {
+                InstructionAcknowledgementStatus.Acknowledged -> {
                     InstructionNotice(
                         if (state.acknowledgementReplayed) {
                             stringResource(R.string.driver_instruction_replayed)
@@ -166,27 +186,33 @@ fun DriverDeliveryInstructionsScreen(
                         }
                     )
                     if (state.hasRecoverableAcknowledgement) {
-                        OutlinedButton(onClick = onRetryUnknownAcknowledgement, enabled = state.canAcknowledge) {
+                        OutlinedButton(
+                            onClick = onRetryUnknownAcknowledgement,
+                            enabled = state.canAcknowledge
+                        ) {
                             Text(stringResource(R.string.driver_instruction_retry_same))
                         }
                     }
                 }
 
-                DriverDeliveryInstructionAcknowledgementStatus.Rejected -> InstructionNotice(
+                InstructionAcknowledgementStatus.Rejected -> InstructionNotice(
                     state.rejectionCode?.let {
                         stringResource(R.string.driver_instruction_rejected_code, it)
                     } ?: stringResource(R.string.driver_instruction_rejected),
                     isError = true
                 )
 
-                DriverDeliveryInstructionAcknowledgementStatus.StaleVersion -> InstructionNotice(
-                    stringResource(R.string.driver_instruction_stale), isError = true
+                InstructionAcknowledgementStatus.StaleVersion -> InstructionNotice(
+                    stringResource(R.string.driver_instruction_stale),
+                    isError = true
                 )
 
-                DriverDeliveryInstructionAcknowledgementStatus.Idle -> Unit
+                InstructionAcknowledgementStatus.Idle -> Unit
             }
 
-            if (state.acknowledgementStatus == DriverDeliveryInstructionAcknowledgementStatus.StaleVersion) {
+            if (state.acknowledgementStatus ==
+                InstructionAcknowledgementStatus.StaleVersion
+            ) {
                 InstructionNotice(stringResource(R.string.driver_instruction_fresh_decision))
             }
             Button(onClick = onAcknowledgeSelected, enabled = state.canAcknowledgeSelected) {
@@ -215,12 +241,21 @@ private fun InstructionCard(
             )
             Text(instruction.content)
             instruction.sourceKind?.let { source ->
-                Text(stringResource(R.string.driver_instruction_source, source,
-                    instruction.recordedByMembershipId.orEmpty(), instruction.recordedAt.orEmpty()),
-                    style = MaterialTheme.typography.labelMedium)
+                Text(
+                    stringResource(
+                        R.string.driver_instruction_source,
+                        source,
+                        instruction.recordedByMembershipId.orEmpty(),
+                        instruction.recordedAt.orEmpty()
+                    ),
+                    style = MaterialTheme.typography.labelMedium
+                )
             }
             Text(
-                stringResource(R.string.driver_instruction_revision, instruction.instructionVersion),
+                stringResource(
+                    R.string.driver_instruction_revision,
+                    instruction.instructionVersion
+                ),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -235,7 +270,11 @@ private fun InstructionCard(
                     )
                 } else {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Checkbox(checked = selected, onCheckedChange = onSelected, enabled = enabled)
+                        Checkbox(
+                            checked = selected,
+                            onCheckedChange = onSelected,
+                            enabled = enabled
+                        )
                         Text(
                             stringResource(R.string.driver_instruction_read_confirmation),
                             modifier = Modifier.padding(top = 12.dp)
@@ -250,18 +289,37 @@ private fun InstructionCard(
 @Composable
 private fun DriverDeliveryInstructionKind.localizedName(): String = when (this) {
     DriverDeliveryInstructionKind.NORMAL -> stringResource(R.string.driver_instruction_kind_normal)
-    DriverDeliveryInstructionKind.COLD_CHAIN -> stringResource(R.string.driver_instruction_kind_cold_chain)
-    DriverDeliveryInstructionKind.ACCESS_RESTRICTION -> stringResource(R.string.driver_instruction_kind_access)
-    DriverDeliveryInstructionKind.SPECIAL_UNLOADING -> stringResource(R.string.driver_instruction_kind_unloading)
-    DriverDeliveryInstructionKind.CUSTOMER_SAFETY -> stringResource(R.string.driver_instruction_kind_safety)
-    DriverDeliveryInstructionKind.GOODS_HANDLING -> stringResource(R.string.driver_instruction_kind_goods)
+
+    DriverDeliveryInstructionKind.COLD_CHAIN -> stringResource(
+        R.string.driver_instruction_kind_cold_chain
+    )
+
+    DriverDeliveryInstructionKind.ACCESS_RESTRICTION -> stringResource(
+        R.string.driver_instruction_kind_access
+    )
+
+    DriverDeliveryInstructionKind.SPECIAL_UNLOADING -> stringResource(
+        R.string.driver_instruction_kind_unloading
+    )
+
+    DriverDeliveryInstructionKind.CUSTOMER_SAFETY -> stringResource(
+        R.string.driver_instruction_kind_safety
+    )
+
+    DriverDeliveryInstructionKind.GOODS_HANDLING -> stringResource(
+        R.string.driver_instruction_kind_goods
+    )
 }
 
 @Composable
 private fun InstructionNotice(message: String, isError: Boolean = false) {
     Text(
         message,
-        color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (isError) {
+            MaterialTheme.colorScheme.error
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
         style = MaterialTheme.typography.bodyMedium
     )
 }

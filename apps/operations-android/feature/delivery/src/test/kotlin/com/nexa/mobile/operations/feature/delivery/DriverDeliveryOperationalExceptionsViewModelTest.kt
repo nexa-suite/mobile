@@ -1,5 +1,7 @@
 package com.nexa.mobile.operations.feature.delivery
 
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionAction as OperationalExceptionAction
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionMutationResult as ExceptionMutationResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -31,7 +33,10 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
         viewModel.claim(open.id)
         advanceUntilIdle()
 
-        assertEquals(DriverDeliveryOperationalExceptionCommandStatus.Claimed, viewModel.state.value.commandStatus)
+        assertEquals(
+            DriverDeliveryOperationalExceptionCommandStatus.Claimed,
+            viewModel.state.value.commandStatus
+        )
         assertEquals(listOf("persist", "post"), events)
         val claim = store.savedIntents.first()
         assertEquals(USER_ID, claim.scope.userId)
@@ -40,7 +45,7 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
         assertEquals(MEMBERSHIP_ID, claim.scope.membershipId)
         assertEquals(MEMBERSHIP_ID, claim.initiatedByMembershipId)
         assertEquals("2026-10-01T17:00:00Z", claim.initiatedAt)
-        assertEquals(DriverDeliveryOperationalExceptionAction.Claim, claim.command.action)
+        assertEquals(OperationalExceptionAction.Claim, claim.command.action)
         assertEquals(7L, claim.command.expectedDeliveryVersion)
         assertEquals("claim-key", claim.command.idempotencyKey)
         assertEquals("{}", claim.command.frozenBody)
@@ -53,14 +58,20 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
         viewModel.sendForReview(claimed.id)
         advanceUntilIdle()
 
-        assertEquals(DriverDeliveryOperationalExceptionCommandStatus.UnderReview, viewModel.state.value.commandStatus)
+        assertEquals(
+            DriverDeliveryOperationalExceptionCommandStatus.UnderReview,
+            viewModel.state.value.commandStatus
+        )
         assertEquals(listOf("persist", "post", "persist", "post"), events)
         val review = store.savedIntents.last()
-        assertEquals(DriverDeliveryOperationalExceptionAction.Review, review.command.action)
+        assertEquals(OperationalExceptionAction.Review, review.command.action)
         assertEquals(8L, review.command.expectedDeliveryVersion)
         assertEquals("review-key", review.command.idempotencyKey)
         assertEquals("UNDER_REVIEW", viewModel.state.value.snapshot?.exceptions?.single()?.status)
-        assertEquals(MEMBERSHIP_ID, viewModel.state.value.snapshot?.exceptions?.single()?.underReviewByMembershipId)
+        assertEquals(
+            MEMBERSHIP_ID,
+            viewModel.state.value.snapshot?.exceptions?.single()?.underReviewByMembershipId
+        )
         assertNull(store.intent)
     }
 
@@ -79,7 +90,7 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
             readResults += DriverDeliveryOperationalExceptionsLoadResult.Loaded(
                 snapshot().copy(exceptions = listOf(warning))
             )
-            mutationResults += DriverDeliveryOperationalExceptionMutationResult.Changed(
+            mutationResults += ExceptionMutationResult.Changed(
                 mutation(
                     version = 8,
                     exception = warning.copy(
@@ -89,7 +100,7 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
                     )
                 )
             )
-            mutationResults += DriverDeliveryOperationalExceptionMutationResult.Changed(
+            mutationResults += ExceptionMutationResult.Changed(
                 mutation(
                     version = 9,
                     exception = warning.copy(
@@ -113,7 +124,7 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
 
         val resolutionCommand = store.savedIntents.last().command
         assertEquals(
-            DriverDeliveryOperationalExceptionAction.ResolveWarning,
+            OperationalExceptionAction.ResolveWarning,
             resolutionCommand.action
         )
         assertEquals(7L, resolutionCommand.expectedDeliveryVersion)
@@ -121,21 +132,34 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
         assertEquals("{\"resolution\":\"Path cleared\"}", resolutionCommand.frozenBody)
         assertEquals(listOf("persist", "post"), events)
         assertEquals("RESOLVED", viewModel.state.value.snapshot?.exceptions?.single()?.status)
-        assertEquals(DriverDeliveryOperationalExceptionCommandStatus.Resolved, viewModel.state.value.commandStatus)
-        assertTrue(viewModel.state.value.canCloseWarning(viewModel.state.value.snapshot!!.exceptions.single()))
+        assertEquals(
+            DriverDeliveryOperationalExceptionCommandStatus.Resolved,
+            viewModel.state.value.commandStatus
+        )
+        assertTrue(
+            viewModel.state.value.canCloseWarning(
+                viewModel.state.value.snapshot!!.exceptions.single()
+            )
+        )
 
         viewModel.closeWarning(row.id)
         advanceUntilIdle()
 
         val closureCommand = store.savedIntents.last().command
-        assertEquals(DriverDeliveryOperationalExceptionAction.CloseWarning, closureCommand.action)
+        assertEquals(OperationalExceptionAction.CloseWarning, closureCommand.action)
         assertEquals(8L, closureCommand.expectedDeliveryVersion)
         assertEquals("close-key", closureCommand.idempotencyKey)
         assertEquals("", closureCommand.frozenBody)
         assertEquals(listOf("persist", "post", "persist", "post"), events)
         assertEquals("CLOSED", viewModel.state.value.snapshot?.exceptions?.single()?.status)
-        assertEquals("Path cleared", viewModel.state.value.snapshot?.exceptions?.single()?.resolution)
-        assertEquals(DriverDeliveryOperationalExceptionCommandStatus.Closed, viewModel.state.value.commandStatus)
+        assertEquals(
+            "Path cleared",
+            viewModel.state.value.snapshot?.exceptions?.single()?.resolution
+        )
+        assertEquals(
+            DriverDeliveryOperationalExceptionCommandStatus.Closed,
+            viewModel.state.value.commandStatus
+        )
         assertNull(store.intent)
     }
 
@@ -159,7 +183,11 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
         assertTrue(state.canResolveWarning(row))
         assertFalse(state.canResolveWarning(row.copy(type = "SITE_ACCESS")))
         assertFalse(state.canResolveWarning(row.copy(severity = "BLOCKING")))
-        assertFalse(state.canResolveWarning(row.copy(responsibleMembershipId = "66666666-6666-4666-8666-666666666666")))
+        assertFalse(
+            state.canResolveWarning(
+                row.copy(responsibleMembershipId = "66666666-6666-4666-8666-666666666666")
+            )
+        )
         assertTrue(state.canCloseWarning(row.copy(status = "RESOLVED")))
         assertFalse(state.canCloseWarning(row.copy(status = "RESOLVED", severity = "CRITICAL")))
 
@@ -184,15 +212,26 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
         val original = intent(DriverDeliveryOperationalExceptionIntentStatus.UnknownOutcome)
         val store = FakeMetadataStore().apply { intent = original }
         val gateway = FakeGateway().apply {
-            mutationResults += DriverDeliveryOperationalExceptionMutationResult.Changed(
-                mutation(version = 8, exception = exception(status = "CLAIMED", responsible = MEMBERSHIP_ID, claimedAt = "2026-10-01T17:01:00Z"), replayed = true)
+            mutationResults += ExceptionMutationResult.Changed(
+                mutation(
+                    version = 8,
+                    exception = exception(
+                        status = "CLAIMED",
+                        responsible = MEMBERSHIP_ID,
+                        claimedAt = "2026-10-01T17:01:00Z"
+                    ),
+                    replayed = true
+                )
             )
         }
         val viewModel = viewModel(gateway, store)
         viewModel.activate(AUTHORITY, DELIVERY_ID)
         advanceUntilIdle()
 
-        assertEquals(DriverDeliveryOperationalExceptionCommandStatus.UnknownOutcome, viewModel.state.value.commandStatus)
+        assertEquals(
+            DriverDeliveryOperationalExceptionCommandStatus.UnknownOutcome,
+            viewModel.state.value.commandStatus
+        )
         assertTrue(gateway.commands.isEmpty())
         assertEquals("OPEN", viewModel.state.value.snapshot?.exceptions?.single()?.status)
 
@@ -210,7 +249,7 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
     fun restoredWarningResolutionRetriesExactFrozenReasonAndKey() = runTest {
         val original = intent(
             DriverDeliveryOperationalExceptionIntentStatus.UnknownOutcome,
-            action = DriverDeliveryOperationalExceptionAction.ResolveWarning,
+            action = OperationalExceptionAction.ResolveWarning,
             frozenBody = "{\"resolution\":\"Path cleared\"}"
         )
         val resolved = exception(
@@ -224,7 +263,7 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
         )
         val store = FakeMetadataStore().apply { intent = original }
         val gateway = FakeGateway().apply {
-            mutationResults += DriverDeliveryOperationalExceptionMutationResult.Changed(
+            mutationResults += ExceptionMutationResult.Changed(
                 mutation(version = 8, exception = resolved, replayed = true)
             )
         }
@@ -232,7 +271,10 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
         viewModel.activate(AUTHORITY, DELIVERY_ID)
         advanceUntilIdle()
 
-        assertEquals(DriverDeliveryOperationalExceptionCommandStatus.UnknownOutcome, viewModel.state.value.commandStatus)
+        assertEquals(
+            DriverDeliveryOperationalExceptionCommandStatus.UnknownOutcome,
+            viewModel.state.value.commandStatus
+        )
         assertTrue(gateway.commands.isEmpty())
 
         viewModel.retrySameCommand()
@@ -249,11 +291,20 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
     fun staleVersionRefreshesWithoutRetryAndRequiresFreshClaimDecision() = runTest {
         val store = FakeMetadataStore()
         val gateway = FakeGateway().apply {
-            readResults += DriverDeliveryOperationalExceptionsLoadResult.Loaded(snapshot(version = 7))
-            mutationResults += DriverDeliveryOperationalExceptionMutationResult.StaleVersion
-            readResults += DriverDeliveryOperationalExceptionsLoadResult.Loaded(snapshot(version = 8))
-            mutationResults += DriverDeliveryOperationalExceptionMutationResult.Changed(
-                mutation(version = 9, exception = exception(status = "CLAIMED", responsible = MEMBERSHIP_ID, claimedAt = "2026-10-01T17:02:00Z"))
+            readResults +=
+                DriverDeliveryOperationalExceptionsLoadResult.Loaded(snapshot(version = 7))
+            mutationResults += ExceptionMutationResult.StaleVersion
+            readResults +=
+                DriverDeliveryOperationalExceptionsLoadResult.Loaded(snapshot(version = 8))
+            mutationResults += ExceptionMutationResult.Changed(
+                mutation(
+                    version = 9,
+                    exception = exception(
+                        status = "CLAIMED",
+                        responsible = MEMBERSHIP_ID,
+                        claimedAt = "2026-10-01T17:02:00Z"
+                    )
+                )
             )
         }
         val keys = ArrayDeque(listOf("stale-key", "fresh-key"))
@@ -265,7 +316,10 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
 
         assertEquals(2, gateway.reads)
         assertEquals(1, gateway.commands.size)
-        assertEquals(DriverDeliveryOperationalExceptionCommandStatus.StaleVersion, viewModel.state.value.commandStatus)
+        assertEquals(
+            DriverDeliveryOperationalExceptionCommandStatus.StaleVersion,
+            viewModel.state.value.commandStatus
+        )
         assertEquals(8L, viewModel.state.value.snapshot?.deliveryVersion)
         assertFalse(viewModel.state.value.hasRecoverableCommand)
         assertNull(store.intent)
@@ -283,7 +337,15 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
         val anotherMember = "66666666-6666-4666-8666-666666666666"
         val gateway = FakeGateway().apply {
             readResults += DriverDeliveryOperationalExceptionsLoadResult.Loaded(
-                snapshot().copy(exceptions = listOf(exception(status = "CLAIMED", responsible = anotherMember, claimedAt = "2026-10-01T17:01:00Z")))
+                snapshot().copy(
+                    exceptions = listOf(
+                        exception(
+                            status = "CLAIMED",
+                            responsible = anotherMember,
+                            claimedAt = "2026-10-01T17:01:00Z"
+                        )
+                    )
+                )
             )
         }
         val viewModel = viewModel(gateway, FakeMetadataStore())
@@ -303,7 +365,7 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
     @Test
     fun serverAccessRevocationClearsPreviouslyLoadedExceptionDetails() = runTest {
         val gateway = FakeGateway().apply {
-            mutationResults += DriverDeliveryOperationalExceptionMutationResult.PermissionDenied
+            mutationResults += ExceptionMutationResult.PermissionDenied
         }
         val viewModel = viewModel(gateway, FakeMetadataStore())
         viewModel.activate(AUTHORITY, DELIVERY_ID)
@@ -314,17 +376,22 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
         advanceUntilIdle()
 
         assertNull(viewModel.state.value.snapshot)
-        assertEquals(DriverDeliveryOperationalExceptionsLoadStatus.PermissionDenied, viewModel.state.value.loadStatus)
+        assertEquals(
+            DriverDeliveryOperationalExceptionsLoadStatus.PermissionDenied,
+            viewModel.state.value.loadStatus
+        )
     }
 
     @Test
     fun serverConflictRemainsVisibleAfterFreshReadAndDoesNotClaimException() = runTest {
         val gateway = FakeGateway().apply {
-            mutationResults += DriverDeliveryOperationalExceptionMutationResult.Rejected(
+            mutationResults += ExceptionMutationResult.Rejected(
                 "DELIVERY_CRITICAL_INSTRUCTION_ACK_REQUIRED"
             )
-            readResults += DriverDeliveryOperationalExceptionsLoadResult.Loaded(snapshot(version = 7))
-            readResults += DriverDeliveryOperationalExceptionsLoadResult.Loaded(snapshot(version = 8))
+            readResults +=
+                DriverDeliveryOperationalExceptionsLoadResult.Loaded(snapshot(version = 7))
+            readResults +=
+                DriverDeliveryOperationalExceptionsLoadResult.Loaded(snapshot(version = 8))
         }
         val viewModel = viewModel(gateway, FakeMetadataStore())
         viewModel.activate(AUTHORITY, DELIVERY_ID)
@@ -335,8 +402,14 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
 
         assertEquals(2, gateway.reads)
         assertEquals(1, gateway.commands.size)
-        assertEquals(DriverDeliveryOperationalExceptionCommandStatus.Rejected, viewModel.state.value.commandStatus)
-        assertEquals("DELIVERY_CRITICAL_INSTRUCTION_ACK_REQUIRED", viewModel.state.value.rejectionCode)
+        assertEquals(
+            DriverDeliveryOperationalExceptionCommandStatus.Rejected,
+            viewModel.state.value.commandStatus
+        )
+        assertEquals(
+            "DELIVERY_CRITICAL_INSTRUCTION_ACK_REQUIRED",
+            viewModel.state.value.rejectionCode
+        )
         assertEquals(8L, viewModel.state.value.snapshot?.deliveryVersion)
         assertEquals("OPEN", viewModel.state.value.snapshot?.exceptions?.single()?.status)
     }
@@ -369,7 +442,7 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
     private class FakeGateway(private val events: MutableList<String> = mutableListOf()) :
         DriverDeliveryOperationalExceptionsGateway {
         val readResults = mutableListOf<DriverDeliveryOperationalExceptionsLoadResult>()
-        val mutationResults = mutableListOf<DriverDeliveryOperationalExceptionMutationResult>()
+        val mutationResults = mutableListOf<ExceptionMutationResult>()
         val commands = mutableListOf<DriverDeliveryOperationalExceptionCommand>()
         var pendingRead: CompletableDeferred<DriverDeliveryOperationalExceptionsLoadResult>? = null
         var reads = 0
@@ -386,27 +459,36 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
         override suspend fun mutate(
             command: DriverDeliveryOperationalExceptionCommand,
             authority: DriverDeliveryAuthority
-        ): DriverDeliveryOperationalExceptionMutationResult {
+        ): ExceptionMutationResult {
             events += "post"
             commands += command
             return mutationResults.removeFirstOrNull() ?: when (command.action) {
-                DriverDeliveryOperationalExceptionAction.Claim -> DriverDeliveryOperationalExceptionMutationResult.Changed(
-                    mutation(version = 8, exception = exception(status = "CLAIMED", responsible = MEMBERSHIP_ID, claimedAt = "2026-10-01T17:01:00Z"))
+                OperationalExceptionAction.Claim -> ExceptionMutationResult.Changed(
+                    mutation(
+                        version = 8,
+                        exception = exception(
+                            status = "CLAIMED",
+                            responsible = MEMBERSHIP_ID,
+                            claimedAt = "2026-10-01T17:01:00Z"
+                        )
+                    )
                 )
 
-                DriverDeliveryOperationalExceptionAction.Review -> DriverDeliveryOperationalExceptionMutationResult.Changed(
+                OperationalExceptionAction.Review -> ExceptionMutationResult.Changed(
                     mutation(
                         version = 9,
                         exception = exception(
-                            status = "UNDER_REVIEW", responsible = MEMBERSHIP_ID,
-                            claimedAt = "2026-10-01T17:01:00Z", underReviewBy = MEMBERSHIP_ID,
+                            status = "UNDER_REVIEW",
+                            responsible = MEMBERSHIP_ID,
+                            claimedAt = "2026-10-01T17:01:00Z",
+                            underReviewBy = MEMBERSHIP_ID,
                             underReviewAt = "2026-10-01T17:02:00Z"
                         )
                     )
                 )
 
-                DriverDeliveryOperationalExceptionAction.ResolveWarning ->
-                    DriverDeliveryOperationalExceptionMutationResult.Changed(
+                OperationalExceptionAction.ResolveWarning ->
+                    ExceptionMutationResult.Changed(
                         mutation(
                             version = command.expectedDeliveryVersion + 1,
                             exception = exception(
@@ -415,14 +497,16 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
                                 claimedAt = "2026-10-01T17:01:00Z",
                                 underReviewBy = MEMBERSHIP_ID,
                                 underReviewAt = "2026-10-01T17:02:00Z",
-                                resolution = driverDeliveryOperationalExceptionResolutionFromBody(command.frozenBody),
+                                resolution = driverDeliveryOperationalExceptionResolutionFromBody(
+                                    command.frozenBody
+                                ),
                                 outcome = "WARNING_CONDITION_ADDRESSED"
                             )
                         )
                     )
 
-                DriverDeliveryOperationalExceptionAction.CloseWarning ->
-                    DriverDeliveryOperationalExceptionMutationResult.Changed(
+                OperationalExceptionAction.CloseWarning ->
+                    ExceptionMutationResult.Changed(
                         mutation(
                             version = command.expectedDeliveryVersion + 1,
                             exception = exception(
@@ -446,7 +530,12 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
         val savedIntents = mutableListOf<DriverDeliveryOperationalExceptionIntent>()
 
         override suspend fun loadIntent(scope: DriverAttemptScopeIdentity) =
-            DriverDeliveryOperationalExceptionMetadataRead.Available(intent?.takeIf { it.scope == scope })
+            DriverDeliveryOperationalExceptionMetadataRead.Available(
+                intent?.takeIf {
+                    it.scope ==
+                        scope
+                }
+            )
 
         override suspend fun saveIntent(intent: DriverDeliveryOperationalExceptionIntent) =
             DriverDeliveryOperationalExceptionMetadataWrite.Saved.also {
@@ -470,23 +559,28 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
 
     private fun intent(
         status: DriverDeliveryOperationalExceptionIntentStatus,
-        action: DriverDeliveryOperationalExceptionAction = DriverDeliveryOperationalExceptionAction.Claim,
+        action: OperationalExceptionAction = OperationalExceptionAction.Claim,
         frozenBody: String = "{}"
-    ) =
-        DriverDeliveryOperationalExceptionIntent(
-            scope = DriverAttemptScopeIdentity(USER_ID, TENANT_ID, WORKSPACE_ID, MEMBERSHIP_ID),
-            command = DriverDeliveryOperationalExceptionCommand(
-                deliveryId = DELIVERY_ID,
-                exceptionId = EXCEPTION_ID,
-                action = action,
-                expectedDeliveryVersion = 7,
-                idempotencyKey = if (action == DriverDeliveryOperationalExceptionAction.ResolveWarning) "warning-key" else "original-key",
-                frozenBody = frozenBody
-            ),
-            initiatedByMembershipId = MEMBERSHIP_ID,
-            initiatedAt = "2026-10-01T17:00:00Z",
-            status = status
-        )
+    ) = DriverDeliveryOperationalExceptionIntent(
+        scope = DriverAttemptScopeIdentity(USER_ID, TENANT_ID, WORKSPACE_ID, MEMBERSHIP_ID),
+        command = DriverDeliveryOperationalExceptionCommand(
+            deliveryId = DELIVERY_ID,
+            exceptionId = EXCEPTION_ID,
+            action = action,
+            expectedDeliveryVersion = 7,
+            idempotencyKey = if (action ==
+                OperationalExceptionAction.ResolveWarning
+            ) {
+                "warning-key"
+            } else {
+                "original-key"
+            },
+            frozenBody = frozenBody
+        ),
+        initiatedByMembershipId = MEMBERSHIP_ID,
+        initiatedAt = "2026-10-01T17:00:00Z",
+        status = status
+    )
 
     private companion object {
         const val DELIVERY_ID = "22222222-2222-4222-8222-222222222222"
@@ -498,8 +592,12 @@ class DriverDeliveryOperationalExceptionsViewModelTest {
         const val MEMBERSHIP_ID = "88888888-8888-4888-8888-888888888888"
 
         val AUTHORITY = DriverDeliveryAuthority(
-            USER_ID, TENANT_ID, WORKSPACE_ID, MEMBERSHIP_ID,
-            setOf("dispatch.read", "dispatch.start_route"), 5L
+            USER_ID,
+            TENANT_ID,
+            WORKSPACE_ID,
+            MEMBERSHIP_ID,
+            setOf("dispatch.read", "dispatch.start_route"),
+            5L
         )
 
         fun snapshot(version: Long = 7) = DriverDeliveryOperationalExceptionsSnapshot(

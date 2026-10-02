@@ -97,8 +97,10 @@ class DispatchAssignmentViewModelTest {
 
         assertEquals(DispatchAssignmentUiState(), viewModel.state.value)
         assertNull(viewModel.state.value.assignment)
-        assertEquals(DispatchAssignmentIntentStatus.Pending,
-            metadata.current(scope(), FULFILLMENT_ID)?.status)
+        assertEquals(
+            DispatchAssignmentIntentStatus.Pending,
+            metadata.current(scope(), FULFILLMENT_ID)?.status
+        )
     }
 
     @Test
@@ -121,17 +123,29 @@ class DispatchAssignmentViewModelTest {
         runCurrent()
 
         assertEquals(frozen.idempotencyKey, gateway.replayedIntent?.idempotencyKey)
-        assertEquals(frozen.expectedFulfillmentVersion, gateway.replayedIntent?.expectedFulfillmentVersion)
+        assertEquals(
+            frozen.expectedFulfillmentVersion,
+            gateway.replayedIntent?.expectedFulfillmentVersion
+        )
         assertEquals(frozen.physicalAllocationId, gateway.replayedIntent?.physicalAllocationId)
-        assertEquals(frozen.physicalAllocationVersion, gateway.replayedIntent?.physicalAllocationVersion)
-        assertEquals(frozen.responsibleMembershipId, gateway.replayedIntent?.responsibleMembershipId)
+        assertEquals(
+            frozen.physicalAllocationVersion,
+            gateway.replayedIntent?.physicalAllocationVersion
+        )
+        assertEquals(
+            frozen.responsibleMembershipId,
+            gateway.replayedIntent?.responsibleMembershipId
+        )
         assertNull(metadata.current(scope(), FULFILLMENT_ID))
         assertEquals(DispatchAssignmentStatus.Current, viewModel.state.value.status)
     }
 
     @Test
     fun unavailableMetadataPreventsAssignmentRequest() = runTest {
-        val metadata = FakeMetadataStore().apply { saveResult = DispatchAssignmentMetadataWrite.Unavailable }
+        val metadata = FakeMetadataStore().apply {
+            saveResult =
+                DispatchAssignmentMetadataWrite.Unavailable
+        }
         val gateway = FakeGateway(snapshot())
         val viewModel = DispatchAssignmentViewModel(gateway, metadata)
         viewModel.activate(FULFILLMENT_ID, context())
@@ -195,7 +209,8 @@ class DispatchAssignmentViewModelTest {
 
     private fun snapshot() = DispatchAssignmentSnapshot(readiness(), listOf(candidate()), null)
 
-    private fun scope() = DispatchAssignmentScopeIdentity(USER_ID, TENANT_ID, WORKSPACE_ID, ACTOR_MEMBERSHIP_ID)
+    private fun scope() =
+        DispatchAssignmentScopeIdentity(USER_ID, TENANT_ID, WORKSPACE_ID, ACTOR_MEMBERSHIP_ID)
 
     private fun intent(status: DispatchAssignmentIntentStatus) = DispatchAssignmentIntent(
         scope = scope(),
@@ -211,8 +226,7 @@ class DispatchAssignmentViewModelTest {
     private class FakeGateway(
         private val value: DispatchAssignmentSnapshot,
         private val events: MutableList<String> = mutableListOf()
-    ) :
-        DispatchAssignmentGateway {
+    ) : DispatchAssignmentGateway {
         var assignedFulfillment: DispatchReadiness? = null
         var assignedMembershipId: String? = null
         var idempotencyKey: String? = null
@@ -259,10 +273,10 @@ class DispatchAssignmentViewModelTest {
         }
     }
 
-    private class FakeMetadataStore(
-        private val events: MutableList<String> = mutableListOf()
-    ) : DispatchAssignmentMetadataStore {
-        private val intents = mutableMapOf<Pair<DispatchAssignmentScopeIdentity, String>, DispatchAssignmentIntent>()
+    private class FakeMetadataStore(private val events: MutableList<String> = mutableListOf()) :
+        DispatchAssignmentMetadataStore {
+        private val intents =
+            mutableMapOf<Pair<DispatchAssignmentScopeIdentity, String>, DispatchAssignmentIntent>()
         var saveResult = DispatchAssignmentMetadataWrite.Saved
 
         override suspend fun loadIntent(
@@ -279,7 +293,9 @@ class DispatchAssignmentViewModelTest {
             return DispatchAssignmentMetadataRead.Available(current)
         }
 
-        override suspend fun saveIntent(intent: DispatchAssignmentIntent): DispatchAssignmentMetadataWrite {
+        override suspend fun saveIntent(
+            intent: DispatchAssignmentIntent
+        ): DispatchAssignmentMetadataWrite {
             events += "save"
             if (saveResult != DispatchAssignmentMetadataWrite.Saved) return saveResult
             val key = intent.scope to intent.fulfillmentId
@@ -289,7 +305,9 @@ class DispatchAssignmentViewModelTest {
             }
             if (existing?.status == DispatchAssignmentIntentStatus.UnknownOutcome &&
                 intent.status == DispatchAssignmentIntentStatus.Pending
-            ) return DispatchAssignmentMetadataWrite.Conflict
+            ) {
+                return DispatchAssignmentMetadataWrite.Conflict
+            }
             intents[key] = intent
             return DispatchAssignmentMetadataWrite.Saved
         }
@@ -302,7 +320,11 @@ class DispatchAssignmentViewModelTest {
             events += "clear"
             val key = scope to fulfillmentId
             val existing = intents[key] ?: return DispatchAssignmentMetadataWrite.Saved
-            if (existing.idempotencyKey != idempotencyKey) return DispatchAssignmentMetadataWrite.Stale
+            if (existing.idempotencyKey !=
+                idempotencyKey
+            ) {
+                return DispatchAssignmentMetadataWrite.Stale
+            }
             intents.remove(key)
             return DispatchAssignmentMetadataWrite.Saved
         }

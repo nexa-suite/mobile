@@ -31,9 +31,13 @@ class DispatchOutgoingGoodsViewModelTest {
         runCurrent()
 
         assertEquals(listOf("load", "read", "save", "post", "clear"), events)
-        assertEquals("{\"physicalAllocationId\":\"$ALLOCATION_ID\",\"physicalAllocationVersion\":7," +
-            "\"observations\":[{\"physicalAllocationLineId\":\"$LINE_ID\",\"observedLotId\":\"$LOT_ID\"," +
-            "\"observedQuantity\":2.50}]}", gateway.posted?.exactRequestBody)
+        assertEquals(
+            "{\"physicalAllocationId\":\"$ALLOCATION_ID\",\"physicalAllocationVersion\":7," +
+                "\"observations\":[{\"physicalAllocationLineId\":\"$LINE_ID\"," +
+                "\"observedLotId\":\"$LOT_ID\"," +
+                "\"observedQuantity\":2.50}]}",
+            gateway.posted?.exactRequestBody
+        )
         assertEquals(KEY, gateway.posted?.idempotencyKey)
         assertEquals(DispatchOutgoingGoodsStatus.Current, viewModel.state.value.status)
         assertFalse(viewModel.state.value.hasPendingCommand)
@@ -68,18 +72,43 @@ class DispatchOutgoingGoodsViewModelTest {
     fun resolutionRequiresMatchingReinspectionAndSavesExactIntentBeforePost() = runTest {
         val events = mutableListOf<String>()
         val discrepancy = DispatchOutgoingGoodsDiscrepancy(
-            DISCREPANCY_ID, 12, ALLOCATION_ID, 7, ACTOR_MEMBERSHIP_ID, AS_OF.minusSeconds(60),
-            listOf(DispatchOutgoingGoodsCheckLine(LINE_ID, LOT_ID, LOT_ID,
-                BigDecimal("2.50"), BigDecimal("3.50"), "each", false))
+            DISCREPANCY_ID,
+            12,
+            ALLOCATION_ID,
+            7,
+            ACTOR_MEMBERSHIP_ID,
+            AS_OF.minusSeconds(60),
+            listOf(
+                DispatchOutgoingGoodsCheckLine(
+                    LINE_ID,
+                    LOT_ID,
+                    LOT_ID,
+                    BigDecimal("2.50"),
+                    BigDecimal("3.50"),
+                    "each",
+                    false
+                )
+            )
         )
         val current = DispatchOutgoingGoodsCheck(
             CHECK_ID, FULFILLMENT_ID, 12, ALLOCATION_ID, 7, true, true, true, AS_OF,
-            listOf(DispatchOutgoingGoodsCheckLine(LINE_ID, LOT_ID, LOT_ID,
-                BigDecimal("2.50"), BigDecimal("2.50"), "each", true)), false, discrepancy
+            listOf(
+                DispatchOutgoingGoodsCheckLine(
+                    LINE_ID,
+                    LOT_ID,
+                    LOT_ID,
+                    BigDecimal("2.50"),
+                    BigDecimal("2.50"),
+                    "each",
+                    true
+                )
+            ),
+            false, discrepancy
         )
         val gateway = FakeGateway(events, allocation(), current)
         val metadata = FakeMetadata(events)
-        val viewModel = DispatchOutgoingGoodsViewModel(gateway, metadata, newCommandKey = { RESOLUTION_KEY })
+        val viewModel =
+            DispatchOutgoingGoodsViewModel(gateway, metadata, newCommandKey = { RESOLUTION_KEY })
         viewModel.activate(fulfillment(), context())
         runCurrent()
         assertFalse(viewModel.state.value.canResolveDiscrepancy)
@@ -90,9 +119,14 @@ class DispatchOutgoingGoodsViewModelTest {
         runCurrent()
 
         assertEquals(listOf("load", "read", "save", "resolve", "clear"), events)
-        assertEquals(DispatchOutgoingGoodsCommandType.ResolveDiscrepancy, gateway.resolutionPosted?.type)
-        assertEquals("""{"physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,"discrepancyCheckId":"$DISCREPANCY_ID","matchingCheckId":"$CHECK_ID","reason":"Recount confirmed the allocated goods."}""",
-            gateway.resolutionPosted?.exactRequestBody)
+        assertEquals(
+            DispatchOutgoingGoodsCommandType.ResolveDiscrepancy,
+            gateway.resolutionPosted?.type
+        )
+        assertEquals(
+            """{"physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,"discrepancyCheckId":"$DISCREPANCY_ID","matchingCheckId":"$CHECK_ID","reason":"Recount confirmed the allocated goods."}""",
+            gateway.resolutionPosted?.exactRequestBody
+        )
         assertEquals(RESOLUTION_ID, viewModel.state.value.currentResolution?.id)
         assertFalse(viewModel.state.value.currentCheck?.openDiscrepancy ?: true)
         assertEquals(null, metadata.intent)
@@ -163,11 +197,14 @@ class DispatchOutgoingGoodsViewModelTest {
         status
     )
 
-    private fun requestBody() = "{\"physicalAllocationId\":\"$ALLOCATION_ID\",\"physicalAllocationVersion\":7," +
-        "\"observations\":[{\"physicalAllocationLineId\":\"$LINE_ID\",\"observedLotId\":\"$LOT_ID\"," +
-        "\"observedQuantity\":2.50}]}"
+    private fun requestBody() =
+        "{\"physicalAllocationId\":\"$ALLOCATION_ID\",\"physicalAllocationVersion\":7," +
+            "\"observations\":[{\"physicalAllocationLineId\":\"$LINE_ID\"," +
+            "\"observedLotId\":\"$LOT_ID\"," +
+            "\"observedQuantity\":2.50}]}"
 
-    private fun scope() = DispatchOutgoingGoodsScopeIdentity(USER_ID, TENANT_ID, WORKSPACE_ID, ACTOR_MEMBERSHIP_ID)
+    private fun scope() =
+        DispatchOutgoingGoodsScopeIdentity(USER_ID, TENANT_ID, WORKSPACE_ID, ACTOR_MEMBERSHIP_ID)
 
     private class FakeGateway(
         private val events: MutableList<String>,
@@ -182,7 +219,9 @@ class DispatchOutgoingGoodsViewModelTest {
             context: DispatchAuthorityContext
         ): DispatchOutgoingGoodsGatewayResult {
             events += "read"
-            return DispatchOutgoingGoodsGatewayResult.Snapshot(DispatchOutgoingGoodsSnapshot(allocation, check))
+            return DispatchOutgoingGoodsGatewayResult.Snapshot(
+                DispatchOutgoingGoodsSnapshot(allocation, check)
+            )
         }
 
         override suspend fun record(
@@ -227,20 +266,22 @@ class DispatchOutgoingGoodsViewModelTest {
         ): DispatchOutgoingGoodsGatewayResult {
             events += "resolve"
             resolutionPosted = command
-            return DispatchOutgoingGoodsGatewayResult.Resolved(DispatchOutgoingGoodsResolution(
-                id = RESOLUTION_ID,
-                fulfillmentId = command.fulfillmentId,
-                fulfillmentVersion = command.expectedFulfillmentVersion,
-                physicalAllocationId = command.physicalAllocationId,
-                physicalAllocationVersion = command.physicalAllocationVersion,
-                discrepancyCheckId = command.discrepancyCheckId.orEmpty(),
-                matchingCheckId = command.matchingCheckId.orEmpty(),
-                actorMembershipId = context.identity?.membershipId.orEmpty(),
-                reason = command.reason.orEmpty(),
-                resolvedAt = AS_OF,
-                current = true,
-                replayed = false
-            ))
+            return DispatchOutgoingGoodsGatewayResult.Resolved(
+                DispatchOutgoingGoodsResolution(
+                    id = RESOLUTION_ID,
+                    fulfillmentId = command.fulfillmentId,
+                    fulfillmentVersion = command.expectedFulfillmentVersion,
+                    physicalAllocationId = command.physicalAllocationId,
+                    physicalAllocationVersion = command.physicalAllocationVersion,
+                    discrepancyCheckId = command.discrepancyCheckId.orEmpty(),
+                    matchingCheckId = command.matchingCheckId.orEmpty(),
+                    actorMembershipId = context.identity?.membershipId.orEmpty(),
+                    reason = command.reason.orEmpty(),
+                    resolvedAt = AS_OF,
+                    current = true,
+                    replayed = false
+                )
+            )
         }
     }
 

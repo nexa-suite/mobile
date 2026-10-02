@@ -36,7 +36,8 @@ class AndroidTemperatureEvidenceMetadataStore internal constructor(
     }
 }
 
-private class AtomicTemperatureRecordStorage(private val directory: File) : TemperatureRecordStorage {
+private class AtomicTemperatureRecordStorage(private val directory: File) :
+    TemperatureRecordStorage {
     override val lockNamespace: String = directory.absoluteFile.normalize().path
 
     override fun read(fileKey: String): ByteArray? {
@@ -113,10 +114,7 @@ private class AndroidKeystoreTemperatureRecordCipher(private val keyAlias: Strin
             .array()
     }
 
-    override fun decrypt(
-        scope: TemperatureMetadataScope,
-        encryptedRecord: ByteArray
-    ): ByteArray {
+    override fun decrypt(scope: TemperatureMetadataScope, encryptedRecord: ByteArray): ByteArray {
         require(encryptedRecord.size in MIN_RECORD_BYTES..MAX_ENCRYPTED_RECORD_BYTES)
         val header = envelopeHeader()
         val input = ByteBuffer.wrap(encryptedRecord).order(ByteOrder.BIG_ENDIAN)

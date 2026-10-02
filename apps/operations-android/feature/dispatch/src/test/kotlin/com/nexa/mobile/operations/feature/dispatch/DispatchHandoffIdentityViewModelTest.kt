@@ -76,7 +76,12 @@ class DispatchHandoffIdentityViewModelTest {
 
         viewModel.issueReplacement()
         runCurrent()
-        assertEquals(listOf("prior-key", "replacement-key"), gateway.issueCommands.map { it.idempotencyKey })
+        assertEquals(
+            listOf("prior-key", "replacement-key"),
+            gateway.issueCommands.map {
+                it.idempotencyKey
+            }
+        )
         assertEquals("dsp_new_token", viewModel.state.value.oneTimeToken)
     }
 
@@ -145,7 +150,10 @@ class DispatchHandoffIdentityViewModelTest {
     )
 
     private fun command(key: String) = DispatchHandoffIdentityCommand(
-        DELIVERY_ID, ASSIGNMENT_ID, key, dispatchHandoffIssueBody(ASSIGNMENT_ID)
+        DELIVERY_ID,
+        ASSIGNMENT_ID,
+        key,
+        dispatchHandoffIssueBody(ASSIGNMENT_ID)
     )
 
     private fun identity(deliveryId: String = DELIVERY_ID, assignmentId: String = ASSIGNMENT_ID) =
@@ -180,10 +188,13 @@ class DispatchHandoffIdentityViewModelTest {
             val existing = commands.firstOrNull {
                 it.deliveryId == command.deliveryId && it.assignmentId == command.assignmentId
             }
-            if (existing == null) commands += command
-            else if (existing.idempotencyKey == replacingIdempotencyKey) {
+            if (existing == null) {
+                commands += command
+            } else if (existing.idempotencyKey == replacingIdempotencyKey) {
                 commands[commands.indexOf(existing)] = command
-            } else if (existing != command) return DispatchHandoffMetadataWrite.Conflict
+            } else if (existing != command) {
+                return DispatchHandoffMetadataWrite.Conflict
+            }
             serializedIntent = listOfNotNull(
                 command.idempotencyKey,
                 command.frozenBody
@@ -206,11 +217,17 @@ class DispatchHandoffIdentityViewModelTest {
         }
     }
 
-    private inner class FakeGateway(private val store: FakeMetadataStore) : DispatchHandoffIdentityGateway {
+    private inner class FakeGateway(private val store: FakeMetadataStore) :
+        DispatchHandoffIdentityGateway {
         val issueCommands = mutableListOf<DispatchHandoffIdentityCommand>()
         val events = store.events
         val issueResponses = ArrayDeque<DispatchHandoffIssueResult>()
-        var validateResult: suspend (String, String, String, DispatchAuthorityContext) -> DispatchHandoffValidationResult =
+        var validateResult: suspend (
+            String,
+            String,
+            String,
+            DispatchAuthorityContext
+        ) -> DispatchHandoffValidationResult =
             { _, _, _, _ -> DispatchHandoffValidationResult.Rejected("HANDOFF_TOKEN_INVALID") }
 
         override suspend fun issue(
@@ -221,7 +238,8 @@ class DispatchHandoffIdentityViewModelTest {
             events += "issue:${command.idempotencyKey}"
             issueCommands += command
             return issueResponses.removeFirstOrNull() ?: DispatchHandoffIssueResult.Issued(
-                identity(), "dsp_one_time_secret"
+                identity(),
+                "dsp_one_time_secret"
             )
         }
 
@@ -230,7 +248,8 @@ class DispatchHandoffIdentityViewModelTest {
             assignmentId: String,
             token: String,
             context: DispatchAuthorityContext
-        ): DispatchHandoffValidationResult = validateResult(deliveryId, assignmentId, token, context)
+        ): DispatchHandoffValidationResult =
+            validateResult(deliveryId, assignmentId, token, context)
     }
 
     private companion object {

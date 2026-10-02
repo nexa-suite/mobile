@@ -151,7 +151,13 @@ internal class TemperatureEvidenceMetadataStoreCore(
             SnapshotRead.Available(TemperatureMetadataSnapshot(scope, draft = null, intent = null))
         } else {
             val snapshot = TemperatureEvidenceMetadataCodec.decode(cipher.decrypt(scope, encrypted))
-            if (snapshot.scope == scope) SnapshotRead.Available(snapshot) else SnapshotRead.Unavailable
+            if (snapshot.scope ==
+                scope
+            ) {
+                SnapshotRead.Available(snapshot)
+            } else {
+                SnapshotRead.Unavailable
+            }
         }
     } catch (_: Exception) {
         SnapshotRead.Unavailable

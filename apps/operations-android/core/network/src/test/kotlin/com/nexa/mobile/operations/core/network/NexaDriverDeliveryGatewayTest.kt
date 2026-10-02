@@ -127,11 +127,20 @@ class NexaDriverDeliveryGatewayTest {
     fun outcomeUsesFrozenBodyAttemptPathAndVersionThenParsesServerResult() = runTest {
         MockWebServer().use { server ->
             server.start()
-            val body = """{"outcome":"PARTIAL","attemptedAt":"2026-09-30T20:00:00Z","lines":[{"fulfillmentLineId":"$FULFILLMENT_LINE_ID","skuId":"$SKU_ID","attemptedQuantity":1.250,"deliveredQuantity":1.250,"rejectedQuantity":0,"cancelledQuantity":0,"unit":"UNIT"}]}"""
+            val body = listOf(
+                """{"outcome":"PARTIAL","attemptedAt":"2026-09-30T20:00:00Z","lines":[{""",
+                """"fulfillmentLineId":"$FULFILLMENT_LINE_ID","skuId":"$SKU_ID",""",
+                """"attemptedQuantity":1.250,"deliveredQuantity":1.250,"rejectedQuantity":0,""",
+                """"cancelledQuantity":0,"unit":"UNIT"}]}"""
+            ).joinToString(separator = "")
             server.enqueue(jsonResponse(200, outcomeJson(version = 10)).setHeader("ETag", "\"10\""))
 
             val result = gateway(server).recordOutcome(
-                DELIVERY_ID, ATTEMPT_ID, 9, "outcome-same-key", body
+                DELIVERY_ID,
+                ATTEMPT_ID,
+                9,
+                "outcome-same-key",
+                body
             ) as DriverDeliveryNetworkOutcome.OutcomeRecorded
             val request = server.takeRequest()
 
@@ -153,13 +162,22 @@ class NexaDriverDeliveryGatewayTest {
     fun eligibleUnauthorizedOutcomeReplayKeepsExactKeyVersionAndDecimalBody() = runTest {
         MockWebServer().use { server ->
             server.start()
-            val body = """{"outcome":"PARTIAL","attemptedAt":"2026-09-30T20:00:00Z","lines":[{"fulfillmentLineId":"$FULFILLMENT_LINE_ID","skuId":"$SKU_ID","attemptedQuantity":1.250,"deliveredQuantity":1.250,"rejectedQuantity":0,"cancelledQuantity":0,"unit":"UNIT"}]}"""
+            val body = listOf(
+                """{"outcome":"PARTIAL","attemptedAt":"2026-09-30T20:00:00Z","lines":[{""",
+                """"fulfillmentLineId":"$FULFILLMENT_LINE_ID","skuId":"$SKU_ID",""",
+                """"attemptedQuantity":1.250,"deliveredQuantity":1.250,"rejectedQuantity":0,""",
+                """"cancelledQuantity":0,"unit":"UNIT"}]}"""
+            ).joinToString(separator = "")
             server.enqueue(problemResponse(401, "TOKEN_EXPIRED"))
             server.enqueue(jsonResponse(200, outcomeJson(version = 10)).setHeader("ETag", "\"10\""))
             val tokens = FakeAccessTokenSource()
 
             val result = gateway(server, tokens).recordOutcome(
-                DELIVERY_ID, ATTEMPT_ID, 9, "outcome-401", body
+                DELIVERY_ID,
+                ATTEMPT_ID,
+                9,
+                "outcome-401",
+                body
             )
 
             assertTrue(result is DriverDeliveryNetworkOutcome.OutcomeRecorded)
@@ -183,10 +201,19 @@ class NexaDriverDeliveryGatewayTest {
     fun arrivalUsesCurrentAttemptRouteAndFrozenIdentityAndParsesServerFact() = runTest {
         MockWebServer().use { server ->
             server.start()
-            server.enqueue(jsonResponse(201, arrivalJson(version = 10, replayed = false)).setHeader("ETag", "\"10\""))
+            server.enqueue(
+                jsonResponse(
+                    201,
+                    arrivalJson(version = 10, replayed = false)
+                ).setHeader("ETag", "\"10\"")
+            )
 
             val result = gateway(server).signalArrival(
-                DELIVERY_ID, ATTEMPT_ID, 9, "arrival-same-key", "{}"
+                DELIVERY_ID,
+                ATTEMPT_ID,
+                9,
+                "arrival-same-key",
+                "{}"
             ) as DriverDeliveryNetworkOutcome.ArrivalRecorded
             val request = server.takeRequest()
 
@@ -211,11 +238,20 @@ class NexaDriverDeliveryGatewayTest {
         MockWebServer().use { server ->
             server.start()
             server.enqueue(problemResponse(401, "TOKEN_EXPIRED"))
-            server.enqueue(jsonResponse(200, arrivalJson(version = 10, replayed = true)).setHeader("ETag", "\"10\""))
+            server.enqueue(
+                jsonResponse(
+                    200,
+                    arrivalJson(version = 10, replayed = true)
+                ).setHeader("ETag", "\"10\"")
+            )
             val tokens = FakeAccessTokenSource()
 
             val result = gateway(server, tokens).signalArrival(
-                DELIVERY_ID, ATTEMPT_ID, 9, "arrival-401", "{}"
+                DELIVERY_ID,
+                ATTEMPT_ID,
+                9,
+                "arrival-401",
+                "{}"
             )
 
             assertTrue(result is DriverDeliveryNetworkOutcome.ArrivalRecorded)
@@ -255,7 +291,8 @@ class NexaDriverDeliveryGatewayTest {
         "\"activeAttempt\":$activeAttemptJson"
     )},"attempt":$activeAttemptJson,"replayed":false}"""
 
-    private fun outcomeJson(version: Long) = """{"attemptId":"$ATTEMPT_ID","delivery":{"id":"$DELIVERY_ID","version":$version,"attempts":[{"id":"$ATTEMPT_ID","outcome":"PARTIAL","attemptedAt":"2026-09-30T20:00:00Z"}]},"partial":true,"remainingLines":[{"fulfillmentLineId":"$FULFILLMENT_LINE_ID","skuId":"$SKU_ID","catalogItemId":"CAT-100","quantity":0.250,"unit":"UNIT"}]}"""
+    private fun outcomeJson(version: Long) =
+        """{"attemptId":"$ATTEMPT_ID","delivery":{"id":"$DELIVERY_ID","version":$version,"attempts":[{"id":"$ATTEMPT_ID","outcome":"PARTIAL","attemptedAt":"2026-09-30T20:00:00Z"}]},"partial":true,"remainingLines":[{"fulfillmentLineId":"$FULFILLMENT_LINE_ID","skuId":"$SKU_ID","catalogItemId":"CAT-100","quantity":0.250,"unit":"UNIT"}]}"""
 
     private fun arrivalJson(version: Long, replayed: Boolean) =
         """{"id":"$ARRIVAL_ID","deliveryId":"$DELIVERY_ID","attemptId":"$ATTEMPT_ID","actorMembershipId":"$MEMBERSHIP_ID","arrivedAt":"2026-09-30T20:00:00Z","deliveryVersion":$version,"replayed":$replayed}"""

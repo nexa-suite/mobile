@@ -307,7 +307,10 @@ class NexaPickingGateway(private val protectedCalls: ProtectedCallExecutor) {
         }
     }
 
-    private fun String?.toWorkListProjection(requestedPage: Int, requestedSize: Int): PickingWorkListProjection? {
+    private fun String?.toWorkListProjection(
+        requestedPage: Int,
+        requestedSize: Int
+    ): PickingWorkListProjection? {
         return try {
             val root = this?.let(pickingJson::parseToJsonElement)?.jsonObject ?: return null
             val page = root.long("page")?.takeIf { it in 0..Int.MAX_VALUE.toLong() }?.toInt()
@@ -319,7 +322,8 @@ class NexaPickingGateway(private val protectedCalls: ProtectedCallExecutor) {
             val items = root["items"]?.jsonArray?.map { it.toWorkListItem() ?: return null }
                 ?: return null
             if (page != requestedPage || size != requestedSize || items.size > size ||
-                totalItems < items.size || items.map { it.fulfillmentId }.distinct().size != items.size
+                totalItems < items.size ||
+                items.map { it.fulfillmentId }.distinct().size != items.size
             ) {
                 return null
             }
@@ -493,13 +497,21 @@ class NexaPickingGateway(private val protectedCalls: ProtectedCallExecutor) {
         else -> PickingNetworkOutcome.ServiceUnavailable
     }
 
-    private fun ClientFailure.toWorkListOutcome(): PickingWorkListNetworkOutcome = when (toReadOutcome()) {
-        PickingNetworkOutcome.NetworkUnavailable -> PickingWorkListNetworkOutcome.NetworkUnavailable
-        PickingNetworkOutcome.PermissionDenied -> PickingWorkListNetworkOutcome.PermissionDenied
-        PickingNetworkOutcome.ContextInvalidated -> PickingWorkListNetworkOutcome.ContextInvalidated
-        PickingNetworkOutcome.SessionInvalidated -> PickingWorkListNetworkOutcome.SessionInvalidated
-        else -> PickingWorkListNetworkOutcome.ServiceUnavailable
-    }
+    private fun ClientFailure.toWorkListOutcome(): PickingWorkListNetworkOutcome =
+        when (toReadOutcome()) {
+            PickingNetworkOutcome.NetworkUnavailable ->
+                PickingWorkListNetworkOutcome.NetworkUnavailable
+
+            PickingNetworkOutcome.PermissionDenied -> PickingWorkListNetworkOutcome.PermissionDenied
+
+            PickingNetworkOutcome.ContextInvalidated ->
+                PickingWorkListNetworkOutcome.ContextInvalidated
+
+            PickingNetworkOutcome.SessionInvalidated ->
+                PickingWorkListNetworkOutcome.SessionInvalidated
+
+            else -> PickingWorkListNetworkOutcome.ServiceUnavailable
+        }
 
     private fun ClientFailure.toMutationOutcome(): PickingNetworkOutcome = when {
         kind == FailureKind.UnknownOutcome || kind == FailureKind.NetworkUnavailable ||

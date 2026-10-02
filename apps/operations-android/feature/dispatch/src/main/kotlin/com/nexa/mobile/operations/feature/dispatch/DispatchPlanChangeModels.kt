@@ -23,10 +23,14 @@ data class DispatchPlanChangeUiState(
         get() {
             val current = assignment ?: return false
             val readiness = readiness ?: return false
-            if (status != DispatchPlanChangeStatus.Current || !current.current || !readiness.ready ||
+            if (status != DispatchPlanChangeStatus.Current ||
+                !current.current || !readiness.ready ||
                 readiness.fulfillmentStatus != "READY_FOR_DISPATCH" || pendingIntent != null
-            ) return false
-            val membershipChanged = canReassign && selectedMembershipId != current.responsibleMembershipId
+            ) {
+                return false
+            }
+            val membershipChanged =
+                canReassign && selectedMembershipId != current.responsibleMembershipId
             val dispatchAt = plannedDispatchAtText.toInstantOrNull()
             val scheduleChanged = canSchedule && dispatchAt != null &&
                 dispatchAt != current.plannedDispatchAt
@@ -78,7 +82,10 @@ data class DispatchPlanChangeScopeIdentity(
     override fun toString(): String = "DispatchPlanChangeScopeIdentity(REDACTED)"
 }
 
-enum class DispatchPlanChangeIntentStatus { Pending, UnknownOutcome }
+enum class DispatchPlanChangeIntentStatus {
+    Pending,
+    UnknownOutcome
+}
 
 /** Exact request body and authority snapshots frozen before the first POST. */
 data class DispatchPlanChangeIntent(
@@ -109,7 +116,12 @@ sealed interface DispatchPlanChangeMetadataRead {
     data object Unavailable : DispatchPlanChangeMetadataRead
 }
 
-enum class DispatchPlanChangeMetadataWrite { Saved, Conflict, Stale, Unavailable }
+enum class DispatchPlanChangeMetadataWrite {
+    Saved,
+    Conflict,
+    Stale,
+    Unavailable
+}
 
 interface DispatchPlanChangeMetadataStore {
     suspend fun loadIntent(

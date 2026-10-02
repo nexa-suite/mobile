@@ -100,11 +100,13 @@ data class DispatchHandoffIdentityUiState(
 }
 
 sealed interface DispatchHandoffIssueResult {
-    data class Issued(val identity: DispatchHandoffIdentity, val token: String) : DispatchHandoffIssueResult {
+    data class Issued(val identity: DispatchHandoffIdentity, val token: String) :
+        DispatchHandoffIssueResult {
         override fun toString(): String = "DispatchHandoffIssueResult.Issued(token=REDACTED)"
     }
 
-    data class AcceptedWithoutToken(val identity: DispatchHandoffIdentity) : DispatchHandoffIssueResult
+    data class AcceptedWithoutToken(val identity: DispatchHandoffIdentity) :
+        DispatchHandoffIssueResult
     data class Rejected(val code: String?) : DispatchHandoffIssueResult
     data object NotFound : DispatchHandoffIssueResult
     data object UnknownOutcome : DispatchHandoffIssueResult

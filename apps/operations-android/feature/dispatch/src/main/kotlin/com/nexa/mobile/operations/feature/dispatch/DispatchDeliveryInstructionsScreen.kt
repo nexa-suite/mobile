@@ -35,6 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionKind as DeliveryInstructionKind
+import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionsStatus as DeliveryInstructionsStatus
 
 @Composable
 fun DispatchDeliveryInstructionsScreen(
@@ -45,7 +47,7 @@ fun DispatchDeliveryInstructionsScreen(
     onRefresh: () -> Unit,
     onNewInstruction: () -> Unit,
     onEditInstruction: (String) -> Unit,
-    onKindChanged: (DispatchDeliveryInstructionKind) -> Unit,
+    onKindChanged: (DeliveryInstructionKind) -> Unit,
     onContentChanged: (String) -> Unit,
     onPublish: () -> Unit,
     onRetryUnknownOutcome: () -> Unit,
@@ -56,12 +58,16 @@ fun DispatchDeliveryInstructionsScreen(
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding()
+            modifier = Modifier.fillMaxSize().windowInsetsPadding(
+                WindowInsets.safeDrawing
+            ).imePadding()
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                TextButton(onClick = onBack) { Text(stringResource(R.string.dispatch_delivery_instructions_back)) }
+                TextButton(onClick = onBack) {
+                    Text(stringResource(R.string.dispatch_delivery_instructions_back))
+                }
                 Text(
                     stringResource(R.string.dispatch_delivery_instructions_title),
                     style = MaterialTheme.typography.headlineSmall,
@@ -78,23 +84,29 @@ fun DispatchDeliveryInstructionsScreen(
                 OutlinedTextField(
                     value = state.deliveryIdInput,
                     onValueChange = onDeliveryIdChanged,
-                    label = { Text(stringResource(R.string.dispatch_delivery_instructions_delivery_id)) },
-                    supportingText = { Text(stringResource(R.string.dispatch_delivery_instructions_delivery_id_help)) },
+                    label = {
+                        Text(stringResource(R.string.dispatch_delivery_instructions_delivery_id))
+                    },
+                    supportingText = {
+                        Text(
+                            stringResource(R.string.dispatch_delivery_instructions_delivery_id_help)
+                        )
+                    },
                     singleLine = true,
-                    enabled = state.status != DispatchDeliveryInstructionsStatus.Saving,
+                    enabled = state.status != DeliveryInstructionsStatus.Saving,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Button(
                     onClick = onLoadDelivery,
                     enabled = state.canRead && state.status !in setOf(
-                        DispatchDeliveryInstructionsStatus.Loading,
-                        DispatchDeliveryInstructionsStatus.Saving
+                        DeliveryInstructionsStatus.Loading,
+                        DeliveryInstructionsStatus.Saving
                     ),
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                 ) { Text(stringResource(R.string.dispatch_delivery_instructions_load)) }
             }
-            if (state.status == DispatchDeliveryInstructionsStatus.Loading ||
-                state.status == DispatchDeliveryInstructionsStatus.Saving
+            if (state.status == DeliveryInstructionsStatus.Loading ||
+                state.status == DeliveryInstructionsStatus.Saving
             ) {
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -103,7 +115,7 @@ fun DispatchDeliveryInstructionsScreen(
                     }
                 }
             }
-            if (state.status == DispatchDeliveryInstructionsStatus.UnknownOutcome) {
+            if (state.status == DeliveryInstructionsStatus.UnknownOutcome) {
                 item {
                     OutlinedButton(
                         onClick = onRetryUnknownOutcome,
@@ -114,9 +126,9 @@ fun DispatchDeliveryInstructionsScreen(
             }
             val snapshot = state.snapshot
             if (snapshot != null && state.status in setOf(
-                    DispatchDeliveryInstructionsStatus.Current,
-                    DispatchDeliveryInstructionsStatus.UnknownOutcome,
-                    DispatchDeliveryInstructionsStatus.Saving
+                    DeliveryInstructionsStatus.Current,
+                    DeliveryInstructionsStatus.UnknownOutcome,
+                    DeliveryInstructionsStatus.Saving
                 )
             ) {
                 item {
@@ -131,24 +143,39 @@ fun DispatchDeliveryInstructionsScreen(
                         )
                         TextButton(
                             onClick = onRefresh,
-                            enabled = state.status != DispatchDeliveryInstructionsStatus.Saving
+                            enabled = state.status != DeliveryInstructionsStatus.Saving
                         ) { Text(stringResource(R.string.dispatch_delivery_instructions_refresh)) }
                     }
-                    if (state.canPublish && state.status == DispatchDeliveryInstructionsStatus.Current) {
-                        OutlinedButton(onClick = onNewInstruction, modifier = Modifier.fillMaxWidth()) {
+                    if (state.canPublish &&
+                        state.status == DeliveryInstructionsStatus.Current
+                    ) {
+                        OutlinedButton(
+                            onClick = onNewInstruction,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Text(stringResource(R.string.dispatch_delivery_instructions_new))
                         }
                     }
                 }
                 if (snapshot.instructions.isEmpty()) {
-                    item { InstructionInfoCard(stringResource(R.string.dispatch_delivery_instructions_empty)) }
+                    item {
+                        InstructionInfoCard(
+                            stringResource(R.string.dispatch_delivery_instructions_empty)
+                        )
+                    }
                 }
                 items(snapshot.instructions, key = { it.id.lowercase() }) { instruction ->
-                    InstructionCard(instruction, state.canPublish && state.status == DispatchDeliveryInstructionsStatus.Current) {
+                    InstructionCard(
+                        instruction,
+                        state.canPublish &&
+                            state.status == DeliveryInstructionsStatus.Current
+                    ) {
                         onEditInstruction(instruction.id)
                     }
                 }
-                if (state.canPublish && state.status == DispatchDeliveryInstructionsStatus.Current) {
+                if (state.canPublish &&
+                    state.status == DeliveryInstructionsStatus.Current
+                ) {
                     item {
                         InstructionEditor(
                             state = state,
@@ -166,23 +193,44 @@ fun DispatchDeliveryInstructionsScreen(
 @Composable
 private fun InstructionStatusCard(state: DispatchDeliveryInstructionsUiState) {
     val message = when (state.status) {
-        DispatchDeliveryInstructionsStatus.Initial -> R.string.dispatch_delivery_instructions_initial
-        DispatchDeliveryInstructionsStatus.Loading -> R.string.dispatch_delivery_instructions_loading
-        DispatchDeliveryInstructionsStatus.Current -> R.string.dispatch_delivery_instructions_current
-        DispatchDeliveryInstructionsStatus.Saving -> R.string.dispatch_delivery_instructions_saving
-        DispatchDeliveryInstructionsStatus.UnknownOutcome -> R.string.dispatch_delivery_instructions_unknown
-        DispatchDeliveryInstructionsStatus.InvalidDeliveryId -> R.string.dispatch_delivery_instructions_invalid_id
-        DispatchDeliveryInstructionsStatus.NotFound -> R.string.dispatch_delivery_instructions_not_found
-        DispatchDeliveryInstructionsStatus.StaleVersion -> R.string.dispatch_delivery_instructions_stale
-        DispatchDeliveryInstructionsStatus.Conflict -> R.string.dispatch_delivery_instructions_conflict
-        DispatchDeliveryInstructionsStatus.PermissionDenied -> R.string.dispatch_delivery_instructions_permission
-        DispatchDeliveryInstructionsStatus.NetworkUnavailable -> R.string.dispatch_delivery_instructions_network
-        DispatchDeliveryInstructionsStatus.ServiceUnavailable -> R.string.dispatch_delivery_instructions_service
-        DispatchDeliveryInstructionsStatus.ContextInvalidated -> R.string.dispatch_delivery_instructions_context
-        DispatchDeliveryInstructionsStatus.SessionInvalidated -> R.string.dispatch_delivery_instructions_session
+        DeliveryInstructionsStatus.Initial -> R.string.dispatch_delivery_instructions_initial
+
+        DeliveryInstructionsStatus.Loading -> R.string.dispatch_delivery_instructions_loading
+
+        DeliveryInstructionsStatus.Current -> R.string.dispatch_delivery_instructions_current
+
+        DeliveryInstructionsStatus.Saving -> R.string.dispatch_delivery_instructions_saving
+
+        DeliveryInstructionsStatus.UnknownOutcome -> R.string.dispatch_delivery_instructions_unknown
+
+        DeliveryInstructionsStatus.InvalidDeliveryId ->
+            R.string.dispatch_delivery_instructions_invalid_id
+
+        DeliveryInstructionsStatus.NotFound -> R.string.dispatch_delivery_instructions_not_found
+
+        DeliveryInstructionsStatus.StaleVersion -> R.string.dispatch_delivery_instructions_stale
+
+        DeliveryInstructionsStatus.Conflict -> R.string.dispatch_delivery_instructions_conflict
+
+        DeliveryInstructionsStatus.PermissionDenied ->
+            R.string.dispatch_delivery_instructions_permission
+
+        DeliveryInstructionsStatus.NetworkUnavailable ->
+            R.string.dispatch_delivery_instructions_network
+
+        DeliveryInstructionsStatus.ServiceUnavailable ->
+            R.string.dispatch_delivery_instructions_service
+
+        DeliveryInstructionsStatus.ContextInvalidated ->
+            R.string.dispatch_delivery_instructions_context
+
+        DeliveryInstructionsStatus.SessionInvalidated ->
+            R.string.dispatch_delivery_instructions_session
     }
     InstructionInfoCard(stringResource(message)) {
-        state.errorCode?.let { Text(stringResource(R.string.dispatch_delivery_instructions_error_code, it)) }
+        state.errorCode?.let {
+            Text(stringResource(R.string.dispatch_delivery_instructions_error_code, it))
+        }
     }
 }
 
@@ -195,9 +243,14 @@ private fun InstructionCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
     ) {
-        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Text(
                 stringResource(
                     R.string.dispatch_delivery_instructions_kind,
@@ -210,8 +263,11 @@ private fun InstructionCard(
             Text(instruction.content, style = MaterialTheme.typography.bodyLarge)
             Text(
                 stringResource(
-                    if (instruction.critical) R.string.dispatch_delivery_instructions_critical
-                    else R.string.dispatch_delivery_instructions_normal
+                    if (instruction.critical) {
+                        R.string.dispatch_delivery_instructions_critical
+                    } else {
+                        R.string.dispatch_delivery_instructions_normal
+                    }
                 ),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -227,11 +283,16 @@ private fun InstructionCard(
             if (instruction.acknowledged) {
                 Text(stringResource(R.string.dispatch_delivery_instructions_acknowledged))
             }
-            if (instruction.sourceKind == DispatchDeliveryInstructionsUiState.OPERATIONAL_DISPATCH_SOURCE && canEdit) {
+            if (instruction.sourceKind ==
+                DispatchDeliveryInstructionsUiState.OPERATIONAL_DISPATCH_SOURCE &&
+                canEdit
+            ) {
                 OutlinedButton(onClick = onEdit, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.dispatch_delivery_instructions_edit))
                 }
-            } else if (instruction.sourceKind != DispatchDeliveryInstructionsUiState.OPERATIONAL_DISPATCH_SOURCE) {
+            } else if (instruction.sourceKind !=
+                DispatchDeliveryInstructionsUiState.OPERATIONAL_DISPATCH_SOURCE
+            ) {
                 Text(stringResource(R.string.dispatch_delivery_instructions_read_only))
             }
         }
@@ -241,7 +302,7 @@ private fun InstructionCard(
 @Composable
 private fun InstructionEditor(
     state: DispatchDeliveryInstructionsUiState,
-    onKindChanged: (DispatchDeliveryInstructionKind) -> Unit,
+    onKindChanged: (DeliveryInstructionKind) -> Unit,
     onContentChanged: (String) -> Unit,
     onPublish: () -> Unit
 ) {
@@ -249,23 +310,35 @@ private fun InstructionEditor(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
     ) {
-        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             Text(
                 stringResource(
-                    if (state.isEditingOperationalInstruction) R.string.dispatch_delivery_instructions_edit_title
-                    else R.string.dispatch_delivery_instructions_new_title
+                    if (state.isEditingOperationalInstruction) {
+                        R.string.dispatch_delivery_instructions_edit_title
+                    } else {
+                        R.string.dispatch_delivery_instructions_new_title
+                    }
                 ),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
             Box {
-                OutlinedButton(onClick = { expanded.value = true }, modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = {
+                    expanded.value = true
+                }, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(state.selectedKind.labelResource))
                 }
-                DropdownMenu(expanded = expanded.value, onDismissRequest = { expanded.value = false }) {
-                    DispatchDeliveryInstructionKind.entries.forEach { kind ->
+                DropdownMenu(expanded = expanded.value, onDismissRequest = {
+                    expanded.value = false
+                }) {
+                    DeliveryInstructionKind.entries.forEach { kind ->
                         DropdownMenuItem(
                             text = { Text(stringResource(kind.labelResource)) },
                             onClick = {
@@ -281,7 +354,12 @@ private fun InstructionEditor(
                 onValueChange = onContentChanged,
                 label = { Text(stringResource(R.string.dispatch_delivery_instructions_content)) },
                 supportingText = {
-                    Text(stringResource(R.string.dispatch_delivery_instructions_content_count, state.content.length))
+                    Text(
+                        stringResource(
+                            R.string.dispatch_delivery_instructions_content_count,
+                            state.content.length
+                        )
+                    )
                 },
                 minLines = 3,
                 maxLines = 6,
@@ -301,29 +379,46 @@ private fun InstructionInfoCard(message: String, content: @Composable () -> Unit
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
     ) {
-        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Text(message)
             content()
         }
     }
 }
 
-private val DispatchDeliveryInstructionKind.labelResource: Int
+private val DeliveryInstructionKind.labelResource: Int
     get() = when (this) {
-        DispatchDeliveryInstructionKind.NORMAL -> R.string.dispatch_delivery_instructions_kind_normal
-        DispatchDeliveryInstructionKind.COLD_CHAIN -> R.string.dispatch_delivery_instructions_kind_cold_chain
-        DispatchDeliveryInstructionKind.ACCESS_RESTRICTION -> R.string.dispatch_delivery_instructions_kind_access
-        DispatchDeliveryInstructionKind.SPECIAL_UNLOADING -> R.string.dispatch_delivery_instructions_kind_unloading
-        DispatchDeliveryInstructionKind.CUSTOMER_SAFETY -> R.string.dispatch_delivery_instructions_kind_safety
-        DispatchDeliveryInstructionKind.GOODS_HANDLING -> R.string.dispatch_delivery_instructions_kind_handling
+        DeliveryInstructionKind.NORMAL -> R.string.dispatch_delivery_instructions_kind_normal
+
+        DeliveryInstructionKind.COLD_CHAIN ->
+            R.string.dispatch_delivery_instructions_kind_cold_chain
+
+        DeliveryInstructionKind.ACCESS_RESTRICTION ->
+            R.string.dispatch_delivery_instructions_kind_access
+
+        DeliveryInstructionKind.SPECIAL_UNLOADING ->
+            R.string.dispatch_delivery_instructions_kind_unloading
+
+        DeliveryInstructionKind.CUSTOMER_SAFETY ->
+            R.string.dispatch_delivery_instructions_kind_safety
+
+        DeliveryInstructionKind.GOODS_HANDLING ->
+            R.string.dispatch_delivery_instructions_kind_handling
     }
 
 private val String?.sourceResource: Int
     get() = when (this) {
         "BUYER" -> R.string.dispatch_delivery_instructions_source_buyer
+
         "CUSTOMER_REPORTED_BY_SALES" -> R.string.dispatch_delivery_instructions_source_sales
+
         DispatchDeliveryInstructionsUiState.OPERATIONAL_DISPATCH_SOURCE ->
             R.string.dispatch_delivery_instructions_source_dispatch
 

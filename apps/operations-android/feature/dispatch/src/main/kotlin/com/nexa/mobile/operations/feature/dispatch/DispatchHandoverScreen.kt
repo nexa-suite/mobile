@@ -1,11 +1,11 @@
 package com.nexa.mobile.operations.feature.dispatch
 
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -25,41 +25,66 @@ fun DispatchHandoverScreen(
         modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(stringResource(R.string.dispatch_handover_title), style = MaterialTheme.typography.headlineSmall)
+        Text(
+            stringResource(R.string.dispatch_handover_title),
+            style = MaterialTheme.typography.headlineSmall
+        )
         Text(stringResource(R.string.dispatch_handover_authority))
-        state.fulfillmentId?.let { Text(stringResource(R.string.dispatch_handover_fulfillment, it)) }
+        state.fulfillmentId?.let {
+            Text(stringResource(R.string.dispatch_handover_fulfillment, it))
+        }
         Text(stringResource(statusLabel(state.status)))
         state.snapshot?.let { snapshot ->
-            Text(stringResource(
-                R.string.dispatch_handover_versions,
-                snapshot.readiness.fulfillmentVersion,
-                snapshot.allocation.version
-            ))
-            Text(stringResource(
-                R.string.dispatch_handover_assignment,
-                snapshot.driverAssignment?.responsibleDisplayName ?: stringResource(R.string.dispatch_handover_missing)
-            ))
-            Text(stringResource(
-                R.string.dispatch_handover_check,
-                if (snapshot.outgoingCheck?.current == true && snapshot.outgoingCheck.matches) {
-                    stringResource(R.string.dispatch_handover_confirmed)
-                } else {
-                    stringResource(R.string.dispatch_handover_missing)
-                }
-            ))
+            Text(
+                stringResource(
+                    R.string.dispatch_handover_versions,
+                    snapshot.readiness.fulfillmentVersion,
+                    snapshot.allocation.version
+                )
+            )
+            Text(
+                stringResource(
+                    R.string.dispatch_handover_assignment,
+                    snapshot.driverAssignment?.responsibleDisplayName
+                        ?: stringResource(R.string.dispatch_handover_missing)
+                )
+            )
+            Text(
+                stringResource(
+                    R.string.dispatch_handover_check,
+                    if (snapshot.outgoingCheck?.current == true && snapshot.outgoingCheck.matches) {
+                        stringResource(R.string.dispatch_handover_confirmed)
+                    } else {
+                        stringResource(R.string.dispatch_handover_missing)
+                    }
+                )
+            )
         }
         state.receipt?.let { receipt ->
-            Text(stringResource(R.string.dispatch_handover_completed, receipt.deliveryId, receipt.recordedAt.toString()))
+            Text(
+                stringResource(
+                    R.string.dispatch_handover_completed,
+                    receipt.deliveryId,
+                    receipt.recordedAt.toString()
+                )
+            )
             receipt.evidence?.let { evidence ->
-                Text(stringResource(
-                    R.string.dispatch_handover_evidence,
-                    evidence.warehouseActorMembershipId,
-                    evidence.driverMembershipId,
-                    evidence.outgoingGoodsCheckId,
-                    evidence.occurredAt.toString(),
-                    stringResource(if (evidence.current) R.string.dispatch_handover_current_fact
-                        else R.string.dispatch_handover_historical_fact)
-                ))
+                Text(
+                    stringResource(
+                        R.string.dispatch_handover_evidence,
+                        evidence.warehouseActorMembershipId,
+                        evidence.driverMembershipId,
+                        evidence.outgoingGoodsCheckId,
+                        evidence.occurredAt.toString(),
+                        stringResource(
+                            if (evidence.current) {
+                                R.string.dispatch_handover_current_fact
+                            } else {
+                                R.string.dispatch_handover_historical_fact
+                            }
+                        )
+                    )
+                )
             }
         }
         Button(onClick = onRefresh, enabled = state.status != DispatchHandoverStatus.Loading) {

@@ -27,7 +27,8 @@ data class DriverHandoffIssueCommand(
         require(frozenBody == driverHandoffIssueBody(attemptId))
     }
 
-    override fun toString(): String = "DriverHandoffIssueCommand(version=$expectedVersion, key=REDACTED)"
+    override fun toString(): String =
+        "DriverHandoffIssueCommand(version=$expectedVersion, key=REDACTED)"
 }
 
 fun driverHandoffIssueBody(attemptId: String): String =
@@ -74,19 +75,27 @@ data class DriverHandoffTokenUiState(
     val busy: Boolean = false
 ) {
     val canIssue: Boolean
-        get() = status == DriverHandoffUiStatus.Ready && command == null && delivery != null && !busy
+        get() = status == DriverHandoffUiStatus.Ready && command == null && delivery != null &&
+            !busy
 
     val canRetrySame: Boolean
         get() = token.isNullOrBlank() && command != null && !busy &&
-            status in setOf(DriverHandoffUiStatus.UnknownOutcome, DriverHandoffUiStatus.TokenUnavailable,
-                DriverHandoffUiStatus.Cleared, DriverHandoffUiStatus.TokenExpired)
+            status in
+            setOf(
+                DriverHandoffUiStatus.UnknownOutcome,
+                DriverHandoffUiStatus.TokenUnavailable,
+                DriverHandoffUiStatus.Cleared,
+                DriverHandoffUiStatus.TokenExpired
+            )
 
     override fun toString(): String =
-        "DriverHandoffTokenUiState(status=$status, delivery=" + (deliveryId != null) + ", token=REDACTED)"
+        "DriverHandoffTokenUiState(status=$status, delivery=" + (deliveryId != null) +
+            ", token=REDACTED)"
 }
 
 sealed interface DriverHandoffCurrentDeliveryResult {
-    data class Loaded(val delivery: DriverHandoffCurrentDelivery) : DriverHandoffCurrentDeliveryResult
+    data class Loaded(val delivery: DriverHandoffCurrentDelivery) :
+        DriverHandoffCurrentDeliveryResult
     data object NotFound : DriverHandoffCurrentDeliveryResult
     data object Unavailable : DriverHandoffCurrentDeliveryResult
     data object PermissionDenied : DriverHandoffCurrentDeliveryResult
@@ -95,7 +104,8 @@ sealed interface DriverHandoffCurrentDeliveryResult {
 }
 
 sealed interface DriverHandoffIssueResult {
-    data class Issued(val receipt: DriverHandoffTokenReceipt, val token: String) : DriverHandoffIssueResult
+    data class Issued(val receipt: DriverHandoffTokenReceipt, val token: String) :
+        DriverHandoffIssueResult
     data class TokenUnavailable(val receipt: DriverHandoffTokenReceipt) : DriverHandoffIssueResult
     data class Rejected(val code: String?) : DriverHandoffIssueResult
     data object NotFound : DriverHandoffIssueResult

@@ -63,10 +63,8 @@ class NexaPickingWorkListGatewayTest {
         )
     }
 
-    private fun listJson(
-        page: Int = 1,
-        fulfillmentId: String = FULFILLMENT_ID
-    ) = """{"items":[{"fulfillmentId":"$fulfillmentId","salesOrderId":"$SALES_ORDER_ID","status":"PICKING","version":12,"physicalAllocationId":"$ALLOCATION_ID","allocationVersion":8,"lineCount":2}],"page":$page,"size":25,"totalItems":26,"asOf":"2026-09-30T12:00:00Z"}"""
+    private fun listJson(page: Int = 1, fulfillmentId: String = FULFILLMENT_ID) =
+        """{"items":[{"fulfillmentId":"$fulfillmentId","salesOrderId":"$SALES_ORDER_ID","status":"PICKING","version":12,"physicalAllocationId":"$ALLOCATION_ID","allocationVersion":8,"lineCount":2}],"page":$page,"size":25,"totalItems":26,"asOf":"2026-09-30T12:00:00Z"}"""
 
     private fun jsonResponse(status: Int, body: String) = MockResponse()
         .setResponseCode(status)
@@ -76,7 +74,8 @@ class NexaPickingWorkListGatewayTest {
     private class TestAccessTokenSource : AccessTokenSource {
         override val sessionState: StateFlow<SessionState> = MutableStateFlow(SessionState.Active)
 
-        override suspend fun currentAccess() = AccessTokenLease("access-1", generation = 1, epoch = 1)
+        override suspend fun currentAccess() =
+            AccessTokenLease("access-1", generation = 1, epoch = 1)
 
         override suspend fun recoverAfterUnauthorized(observed: AccessTokenLease) = observed
 

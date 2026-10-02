@@ -77,7 +77,8 @@ data class TemperatureEvidenceIntentRecord(
         require(idempotencyKey.toByteArray(Charsets.UTF_8).size <= MAX_KEY_BYTES)
     }
 
-    override fun toString(): String = "TemperatureEvidenceIntentRecord(status=$status, key=REDACTED)"
+    override fun toString(): String =
+        "TemperatureEvidenceIntentRecord(status=$status, key=REDACTED)"
 
     internal companion object {
         const val MAX_KEY_BYTES = 160

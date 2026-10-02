@@ -24,9 +24,12 @@ class DispatchHandoverViewModel(
     private var generation = 0L
 
     fun activate(fulfillment: DispatchReadiness, context: DispatchAuthorityContext) {
-        if (activeContext == context && originalFulfillment?.fulfillmentId == fulfillment.fulfillmentId &&
+        if (activeContext == context &&
+            originalFulfillment?.fulfillmentId == fulfillment.fulfillmentId &&
             mutableState.value.status !in INVALIDATED
-        ) return
+        ) {
+            return
+        }
         generation++
         activeContext = context
         originalFulfillment = fulfillment
@@ -60,6 +63,7 @@ class DispatchHandoverViewModel(
             if (!isCurrent(request, context, fulfillment.fulfillmentId)) return@launch
             val intent = when (stored) {
                 is DispatchHandoverMetadataRead.Available -> stored.intent
+
                 DispatchHandoverMetadataRead.Unavailable, null -> {
                     fail(DispatchHandoverStatus.ServiceUnavailable)
                     return@launch
@@ -67,13 +71,21 @@ class DispatchHandoverViewModel(
             }
             if (intent != null && intent.scope != scope) {
                 pendingIntent = intent
-                fail(DispatchHandoverStatus.Stale, hasPending = true, pendingCommand = intent.command)
+                fail(
+                    DispatchHandoverStatus.Stale,
+                    hasPending = true,
+                    pendingCommand = intent.command
+                )
                 return@launch
             }
             pendingIntent = intent
             when (val result = safe { gateway.load(fulfillment, context) }) {
                 is DispatchHandoverGatewayResult.Snapshot -> {
-                    if (!result.value.readiness.fulfillmentId.equals(fulfillment.fulfillmentId, true)) {
+                    if (!result.value.readiness.fulfillmentId.equals(
+                            fulfillment.fulfillmentId,
+                            true
+                        )
+                    ) {
                         fail(DispatchHandoverStatus.Stale, intent != null, intent?.command)
                     } else if (intent != null) {
                         mutableState.value = DispatchHandoverUiState(
@@ -106,25 +118,81 @@ class DispatchHandoverViewModel(
 
                 DispatchHandoverGatewayResult.UnknownOutcome ->
                     fail(DispatchHandoverStatus.UnknownOutcome, intent != null, intent?.command)
+
                 DispatchHandoverGatewayResult.NetworkUnavailable ->
-                    fail(if (intent != null) DispatchHandoverStatus.UnknownOutcome else DispatchHandoverStatus.NetworkUnavailable,
-                        intent != null, intent?.command)
+                    fail(
+                        if (intent !=
+                            null
+                        ) {
+                            DispatchHandoverStatus.UnknownOutcome
+                        } else {
+                            DispatchHandoverStatus.NetworkUnavailable
+                        },
+                        intent != null,
+                        intent?.command
+                    )
+
                 DispatchHandoverGatewayResult.ServiceUnavailable ->
-                    fail(if (intent != null) DispatchHandoverStatus.UnknownOutcome else DispatchHandoverStatus.ServiceUnavailable,
-                        intent != null, intent?.command)
+                    fail(
+                        if (intent !=
+                            null
+                        ) {
+                            DispatchHandoverStatus.UnknownOutcome
+                        } else {
+                            DispatchHandoverStatus.ServiceUnavailable
+                        },
+                        intent != null,
+                        intent?.command
+                    )
+
                 DispatchHandoverGatewayResult.PermissionDenied ->
                     fail(DispatchHandoverStatus.PermissionDenied, intent != null, intent?.command)
+
                 DispatchHandoverGatewayResult.Stale ->
-                    fail(if (intent != null) DispatchHandoverStatus.UnknownOutcome else DispatchHandoverStatus.Stale,
-                        intent != null, intent?.command)
+                    fail(
+                        if (intent !=
+                            null
+                        ) {
+                            DispatchHandoverStatus.UnknownOutcome
+                        } else {
+                            DispatchHandoverStatus.Stale
+                        },
+                        intent != null,
+                        intent?.command
+                    )
+
                 DispatchHandoverGatewayResult.Conflict ->
-                    fail(if (intent != null) DispatchHandoverStatus.UnknownOutcome else DispatchHandoverStatus.Conflict,
-                        intent != null, intent?.command)
+                    fail(
+                        if (intent !=
+                            null
+                        ) {
+                            DispatchHandoverStatus.UnknownOutcome
+                        } else {
+                            DispatchHandoverStatus.Conflict
+                        },
+                        intent != null,
+                        intent?.command
+                    )
+
                 DispatchHandoverGatewayResult.ContextInvalidated -> invalidateContext()
+
                 DispatchHandoverGatewayResult.SessionInvalidated -> invalidateSession()
-                is DispatchHandoverGatewayResult.Dispatched -> fail(DispatchHandoverStatus.ServiceUnavailable)
-                null -> fail(if (intent != null) DispatchHandoverStatus.UnknownOutcome else DispatchHandoverStatus.ServiceUnavailable,
-                    intent != null, intent?.command)
+
+                is DispatchHandoverGatewayResult.Dispatched -> fail(
+                    DispatchHandoverStatus.ServiceUnavailable
+                )
+
+                null -> fail(
+                    if (intent !=
+                        null
+                    ) {
+                        DispatchHandoverStatus.UnknownOutcome
+                    } else {
+                        DispatchHandoverStatus.ServiceUnavailable
+                    },
+                    intent != null,
+                    intent?.command
+                )
             }
         }
     }
@@ -164,10 +232,17 @@ class DispatchHandoverViewModel(
                     pendingIntent = intent
                     send(intent, context, snapshot, replay = false, fulfillment = fulfillment)
                 }
+
                 DispatchHandoverMetadataWrite.Conflict,
-                DispatchHandoverMetadataWrite.Stale -> if (isCurrent(request, context, fulfillment.fulfillmentId)) {
+                DispatchHandoverMetadataWrite.Stale -> if (isCurrent(
+                        request,
+                        context,
+                        fulfillment.fulfillmentId
+                    )
+                ) {
                     fail(DispatchHandoverStatus.Conflict)
                 }
+
                 DispatchHandoverMetadataWrite.Unavailable,
                 null -> if (isCurrent(request, context, fulfillment.fulfillmentId)) {
                     fail(DispatchHandoverStatus.ServiceUnavailable)
@@ -183,7 +258,9 @@ class DispatchHandoverViewModel(
         val fulfillment = originalFulfillment ?: return
         if (!mutableState.value.canReplay || intent.scope != context.scopeIdentity() ||
             !context.hasDispatchAuthority() || !intent.command.isValid()
-        ) return
+        ) {
+            return
+        }
         send(intent, context, null, replay = true, fulfillment = fulfillment)
     }
 
@@ -221,7 +298,8 @@ class DispatchHandoverViewModel(
         fulfillment: DispatchReadiness
     ) {
         if (!context.hasDispatchAuthority() || intent.scope != context.scopeIdentity() ||
-            !intent.command.isValid() || (replay && snapshot != null) || (!replay && snapshot == null)
+            !intent.command.isValid() || (replay && snapshot != null) ||
+            (!replay && snapshot == null)
         ) {
             fail(DispatchHandoverStatus.Stale, hasPending = true, pendingCommand = intent.command)
             return
@@ -238,8 +316,11 @@ class DispatchHandoverViewModel(
                         is DispatchHandoverGatewayResult.AlreadyCompleted -> result.receipt
                         else -> error("Unreachable")
                     }
-                    val cleared = metadata.clearIntent(intent.scope, fulfillment.fulfillmentId,
-                        intent.command.idempotencyKey) == DispatchHandoverMetadataWrite.Saved
+                    val cleared = metadata.clearIntent(
+                        intent.scope,
+                        fulfillment.fulfillmentId,
+                        intent.command.idempotencyKey
+                    ) == DispatchHandoverMetadataWrite.Saved
                     if (cleared) pendingIntent = null
                     mutableState.value = DispatchHandoverUiState(
                         authorityEpoch = context.authorityEpoch,
@@ -250,27 +331,46 @@ class DispatchHandoverViewModel(
                         hasPendingCommand = !cleared
                     )
                 }
+
                 DispatchHandoverGatewayResult.UnknownOutcome,
                 DispatchHandoverGatewayResult.NetworkUnavailable,
                 DispatchHandoverGatewayResult.ServiceUnavailable -> {
-                    metadata.saveIntent(intent.copy(status = DispatchOutgoingGoodsIntentStatus.UnknownOutcome))
-                    pendingIntent = intent.copy(status = DispatchOutgoingGoodsIntentStatus.UnknownOutcome)
+                    metadata.saveIntent(
+                        intent.copy(status = DispatchOutgoingGoodsIntentStatus.UnknownOutcome)
+                    )
+                    pendingIntent =
+                        intent.copy(status = DispatchOutgoingGoodsIntentStatus.UnknownOutcome)
                     fail(DispatchHandoverStatus.UnknownOutcome, true, intent.command)
                 }
+
                 DispatchHandoverGatewayResult.Stale,
                 DispatchHandoverGatewayResult.Conflict -> {
-                    metadata.clearIntent(intent.scope, fulfillment.fulfillmentId, intent.command.idempotencyKey)
+                    metadata.clearIntent(
+                        intent.scope,
+                        fulfillment.fulfillmentId,
+                        intent.command.idempotencyKey
+                    )
                     pendingIntent = null
                     fail(DispatchHandoverStatus.Stale)
                 }
+
                 DispatchHandoverGatewayResult.PermissionDenied ->
                     fail(DispatchHandoverStatus.PermissionDenied, true, intent.command)
+
                 DispatchHandoverGatewayResult.ContextInvalidated -> invalidateContext()
+
                 DispatchHandoverGatewayResult.SessionInvalidated -> invalidateSession()
-                is DispatchHandoverGatewayResult.Snapshot -> fail(DispatchHandoverStatus.ServiceUnavailable)
+
+                is DispatchHandoverGatewayResult.Snapshot -> fail(
+                    DispatchHandoverStatus.ServiceUnavailable
+                )
+
                 null -> {
-                    metadata.saveIntent(intent.copy(status = DispatchOutgoingGoodsIntentStatus.UnknownOutcome))
-                    pendingIntent = intent.copy(status = DispatchOutgoingGoodsIntentStatus.UnknownOutcome)
+                    metadata.saveIntent(
+                        intent.copy(status = DispatchOutgoingGoodsIntentStatus.UnknownOutcome)
+                    )
+                    pendingIntent =
+                        intent.copy(status = DispatchOutgoingGoodsIntentStatus.UnknownOutcome)
                     fail(DispatchHandoverStatus.UnknownOutcome, true, intent.command)
                 }
             }
@@ -281,8 +381,16 @@ class DispatchHandoverViewModel(
         scope: DispatchOutgoingGoodsScopeIdentity,
         intent: DispatchHandoverIntent?
     ) {
-        if (intent != null && metadata.clearIntent(scope, intent.command.fulfillmentId,
-                intent.command.idempotencyKey) == DispatchHandoverMetadataWrite.Saved) pendingIntent = null
+        if (intent != null &&
+            metadata.clearIntent(
+                scope,
+                intent.command.fulfillmentId,
+                intent.command.idempotencyKey
+            ) == DispatchHandoverMetadataWrite.Saved
+        ) {
+            pendingIntent =
+                null
+        }
     }
 
     private fun fail(
@@ -307,25 +415,49 @@ class DispatchHandoverViewModel(
         null
     }
 
-    private fun isCurrent(request: Long, context: DispatchAuthorityContext, fulfillmentId: String): Boolean =
-        generation == request && activeContext == context &&
-            originalFulfillment?.fulfillmentId == fulfillmentId
+    private fun isCurrent(
+        request: Long,
+        context: DispatchAuthorityContext,
+        fulfillmentId: String
+    ): Boolean = generation == request && activeContext == context &&
+        originalFulfillment?.fulfillmentId == fulfillmentId
 
     private fun DispatchAuthorityContext.hasDispatchAuthority(): Boolean {
         val identity = identity ?: return false
-        return authorityEpoch > 0 && listOf(identity.userId, identity.tenantId, identity.workspaceId,
-            identity.membershipId).none(String::isBlank) &&
+        return authorityEpoch > 0 &&
+            listOf(
+                identity.userId,
+                identity.tenantId,
+                identity.workspaceId,
+                identity.membershipId
+            ).none(String::isBlank) &&
             "dispatch.read" in identity.permissions && "fulfillment.manage" in identity.permissions
     }
 
     private fun DispatchAuthorityContext.scopeIdentity(): DispatchOutgoingGoodsScopeIdentity? {
         val value = identity ?: return null
-        if (authorityEpoch <= 0 || listOf(value.userId, value.tenantId, value.workspaceId,
-                value.membershipId).any(String::isBlank)) return null
-        return DispatchOutgoingGoodsScopeIdentity(value.userId, value.tenantId, value.workspaceId, value.membershipId)
+        if (authorityEpoch <= 0 || listOf(
+                value.userId,
+                value.tenantId,
+                value.workspaceId,
+                value.membershipId
+            ).any(String::isBlank)
+        ) {
+            return null
+        }
+        return DispatchOutgoingGoodsScopeIdentity(
+            value.userId,
+            value.tenantId,
+            value.workspaceId,
+            value.membershipId
+        )
     }
 
     private companion object {
-        val INVALIDATED = setOf(DispatchHandoverStatus.ContextInvalidated, DispatchHandoverStatus.SessionInvalidated)
+        val INVALIDATED =
+            setOf(
+                DispatchHandoverStatus.ContextInvalidated,
+                DispatchHandoverStatus.SessionInvalidated
+            )
     }
 }

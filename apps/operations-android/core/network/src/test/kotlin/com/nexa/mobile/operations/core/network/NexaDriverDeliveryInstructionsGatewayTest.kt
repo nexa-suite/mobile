@@ -51,11 +51,21 @@ class NexaDriverDeliveryInstructionsGatewayTest {
             val body = """{"instructionIds":["$CRITICAL_INSTRUCTION_ID"]}"""
 
             val result = gateway(server).acknowledgeCriticalInstructions(
-                DELIVERY_ID, 7, listOf(CRITICAL_INSTRUCTION_ID), "ack-key-1", body
+                DELIVERY_ID,
+                7,
+                listOf(CRITICAL_INSTRUCTION_ID),
+                "ack-key-1",
+                body
             ) as DriverDeliveryInstructionsNetworkOutcome.Acknowledged
 
-            assertEquals(MEMBERSHIP_ID, result.value.acknowledgements.single().acknowledgedByMembershipId)
-            assertEquals("2026-10-01T17:30:00Z", result.value.acknowledgements.single().acknowledgedAt)
+            assertEquals(
+                MEMBERSHIP_ID,
+                result.value.acknowledgements.single().acknowledgedByMembershipId
+            )
+            assertEquals(
+                "2026-10-01T17:30:00Z",
+                result.value.acknowledgements.single().acknowledgedAt
+            )
             val request = server.takeRequest()
             assertEquals("POST", request.method)
             assertEquals(
@@ -78,7 +88,10 @@ class NexaDriverDeliveryInstructionsGatewayTest {
                     .setBody("""{"status":412,"code":"PRECONDITION_FAILED"}""")
             )
             val result = gateway(server).acknowledgeCriticalInstructions(
-                DELIVERY_ID, 7, listOf(CRITICAL_INSTRUCTION_ID), "ack-key-1",
+                DELIVERY_ID,
+                7,
+                listOf(CRITICAL_INSTRUCTION_ID),
+                "ack-key-1",
                 """{"instructionIds":["$CRITICAL_INSTRUCTION_ID"]}"""
             )
             assertEquals(DriverDeliveryInstructionsNetworkOutcome.StaleVersion, result)
@@ -98,7 +111,11 @@ class NexaDriverDeliveryInstructionsGatewayTest {
             )
             val read = gateway(server).currentInstructions(DELIVERY_ID)
             val invalidAck = gateway(server).acknowledgeCriticalInstructions(
-                DELIVERY_ID, 7, listOf(CRITICAL_INSTRUCTION_ID), "ack-key-1", "{}"
+                DELIVERY_ID,
+                7,
+                listOf(CRITICAL_INSTRUCTION_ID),
+                "ack-key-1",
+                "{}"
             )
             assertEquals(DriverDeliveryInstructionsNetworkOutcome.ServiceUnavailable, read)
             assertEquals(DriverDeliveryInstructionsNetworkOutcome.ServiceUnavailable, invalidAck)
@@ -110,15 +127,26 @@ class NexaDriverDeliveryInstructionsGatewayTest {
     fun sourceProvenanceRequiresRealActorAndTimestampWhenPresent() = runTest {
         MockWebServer().use { server ->
             server.start()
-            val sourced = instructionsResponse().replace("\"acknowledged\":false",
-                "\"acknowledged\":false,\"sourceKind\":\"BUYER\",\"recordedByMembershipId\":\"$MEMBERSHIP_ID\",\"recordedAt\":\"2026-10-01T17:30:00Z\"")
-            server.enqueue(MockResponse().setResponseCode(200).setHeader("ETag", "\"7\"").setBody(sourced))
-            val valid = gateway(server).currentInstructions(DELIVERY_ID) as DriverDeliveryInstructionsNetworkOutcome.Loaded
+            val sourced = instructionsResponse().replace(
+                "\"acknowledged\":false",
+                "\"acknowledged\":false,\"sourceKind\":\"BUYER\",\"recordedByMembershipId\":\"$MEMBERSHIP_ID\",\"recordedAt\":\"2026-10-01T17:30:00Z\""
+            )
+            server.enqueue(
+                MockResponse().setResponseCode(200).setHeader("ETag", "\"7\"").setBody(sourced)
+            )
+            val valid = gateway(
+                server
+            ).currentInstructions(DELIVERY_ID) as DriverDeliveryInstructionsNetworkOutcome.Loaded
             assertEquals("BUYER", valid.value.instructions.first().sourceKind)
             assertEquals(MEMBERSHIP_ID, valid.value.instructions.first().recordedByMembershipId)
-            server.enqueue(MockResponse().setResponseCode(200).setHeader("ETag", "\"7\"")
-                .setBody(sourced.replace("2026-10-01T17:30:00Z", "unverified")))
-            assertEquals(DriverDeliveryInstructionsNetworkOutcome.ServiceUnavailable, gateway(server).currentInstructions(DELIVERY_ID))
+            server.enqueue(
+                MockResponse().setResponseCode(200).setHeader("ETag", "\"7\"")
+                    .setBody(sourced.replace("2026-10-01T17:30:00Z", "unverified"))
+            )
+            assertEquals(
+                DriverDeliveryInstructionsNetworkOutcome.ServiceUnavailable,
+                gateway(server).currentInstructions(DELIVERY_ID)
+            )
         }
     }
 
@@ -141,7 +169,9 @@ class NexaDriverDeliveryInstructionsGatewayTest {
         private val lease = AccessTokenLease("session-1", generation = 1, epoch = 1)
         override suspend fun currentAccess(): AccessTokenLease = lease
         override suspend fun isEpochCurrent(epoch: Long): Boolean = lease.epoch == epoch
-        override suspend fun recoverAfterUnauthorized(observed: AccessTokenLease): AccessTokenLease? = null
+        override suspend fun recoverAfterUnauthorized(
+            observed: AccessTokenLease
+        ): AccessTokenLease? = null
         override suspend fun rejectCurrentAccess(observed: AccessTokenLease) = Unit
     }
 

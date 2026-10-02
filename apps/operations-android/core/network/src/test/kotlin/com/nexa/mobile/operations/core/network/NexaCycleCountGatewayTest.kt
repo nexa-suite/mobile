@@ -39,7 +39,10 @@ class NexaCycleCountGatewayTest {
             val countRequest = server.takeRequest()
 
             assertEquals("POST", countRequest.method)
-            assertEquals("/api/v1/inventory/lots/$LOT_ID/cycle-counts", countRequest.requestUrl?.encodedPath)
+            assertEquals(
+                "/api/v1/inventory/lots/$LOT_ID/cycle-counts",
+                countRequest.requestUrl?.encodedPath
+            )
             assertEquals(body, countRequest.body.readUtf8())
             assertEquals(COUNT_KEY, countRequest.getHeader("Idempotency-Key"))
             assertEquals("\"7\"", countRequest.getHeader("If-Match"))
@@ -61,7 +64,10 @@ class NexaCycleCountGatewayTest {
             )
             val correctionRequest = server.takeRequest()
             assertEquals("POST", correctionRequest.method)
-            assertEquals("/api/v1/inventory/cycle-counts/$COUNT_ID/corrections", correctionRequest.requestUrl?.encodedPath)
+            assertEquals(
+                "/api/v1/inventory/cycle-counts/$COUNT_ID/corrections",
+                correctionRequest.requestUrl?.encodedPath
+            )
             assertEquals("", correctionRequest.body.readUtf8())
             assertEquals(CORRECTION_KEY, correctionRequest.getHeader("Idempotency-Key"))
             assertEquals("\"7\"", correctionRequest.getHeader("If-Match"))
@@ -106,15 +112,19 @@ class NexaCycleCountGatewayTest {
         .addHeader("Content-Type", "application/json; charset=utf-8")
         .setBody(body)
 
-    private fun countResponse() = """{"id":"$COUNT_ID","lotId":"$LOT_ID","warehouseId":"$WAREHOUSE_ID","zoneId":"$ZONE_ID","lotVersion":7,"expectedQuantity":5.000,"observedQuantity":4.250,"unit":"EA","status":"REQUESTED","actorMembershipId":"$MEMBERSHIP_ID","recordedAt":"2026-09-30T10:00:00Z"}"""
+    private fun countResponse() =
+        """{"id":"$COUNT_ID","lotId":"$LOT_ID","warehouseId":"$WAREHOUSE_ID","zoneId":"$ZONE_ID","lotVersion":7,"expectedQuantity":5.000,"observedQuantity":4.250,"unit":"EA","status":"REQUESTED","actorMembershipId":"$MEMBERSHIP_ID","recordedAt":"2026-09-30T10:00:00Z"}"""
 
-    private fun correctionResponse() = """{"id":"$CORRECTION_ID","cycleCountId":"$COUNT_ID","lotId":"$LOT_ID","warehouseId":"$WAREHOUSE_ID","zoneId":"$ZONE_ID","lotVersionBefore":7,"lotVersionAfter":8,"quantityBefore":5.000,"quantityAfter":4.250,"quantityDelta":-0.750,"unit":"EA","actorMembershipId":"$MEMBERSHIP_ID","recordedAt":"2026-09-30T10:00:00Z"}"""
+    private fun correctionResponse() =
+        """{"id":"$CORRECTION_ID","cycleCountId":"$COUNT_ID","lotId":"$LOT_ID","warehouseId":"$WAREHOUSE_ID","zoneId":"$ZONE_ID","lotVersionBefore":7,"lotVersionAfter":8,"quantityBefore":5.000,"quantityAfter":4.250,"quantityDelta":-0.750,"unit":"EA","actorMembershipId":"$MEMBERSHIP_ID","recordedAt":"2026-09-30T10:00:00Z"}"""
 
     private class FakeAccessTokenSource : AccessTokenSource {
         override val sessionState: StateFlow<SessionState> = MutableStateFlow(SessionState.Active)
         private val lease = AccessTokenLease("access-1", generation = 1, epoch = 1)
         override suspend fun currentAccess(): AccessTokenLease = lease
-        override suspend fun recoverAfterUnauthorized(observed: AccessTokenLease): AccessTokenLease? = null
+        override suspend fun recoverAfterUnauthorized(
+            observed: AccessTokenLease
+        ): AccessTokenLease? = null
         override suspend fun rejectCurrentAccess(observed: AccessTokenLease) = Unit
         override suspend fun isEpochCurrent(epoch: Long): Boolean = epoch == 1L
     }

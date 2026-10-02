@@ -150,7 +150,9 @@ class DispatchAssignmentViewModel(
         val membershipId = current.selectedMembershipId ?: return
         if (!current.canAssign || current.status == DispatchAssignmentStatus.Saving ||
             pendingIntent != null
-        ) return
+        ) {
+            return
+        }
         val intent = DispatchAssignmentIntent(
             scope = context.scopeIdentity() ?: return,
             fulfillmentId = fulfillment.fulfillmentId,
@@ -167,6 +169,7 @@ class DispatchAssignmentViewModel(
             if (!isCurrent(request, context, fulfillmentId)) return@launch
             when (saved) {
                 DispatchAssignmentMetadataWrite.Saved -> pendingIntent = intent
+
                 DispatchAssignmentMetadataWrite.Conflict -> {
                     fail(DispatchAssignmentStatus.Conflict)
                     return@launch
@@ -183,7 +186,10 @@ class DispatchAssignmentViewModel(
                 }
             }
             if (!isCurrent(request, context, fulfillmentId)) return@launch
-            val result = safeCall { gateway.assign(fulfillment, membershipId, context, intent.idempotencyKey) }
+            val result =
+                safeCall {
+                    gateway.assign(fulfillment, membershipId, context, intent.idempotencyKey)
+                }
             if (!isCurrent(request, context, fulfillmentId)) return@launch
             handleCommandResult(result, intent, request, context, fulfillmentId)
         }
@@ -196,7 +202,9 @@ class DispatchAssignmentViewModel(
         val current = mutableState.value
         if (!current.canReplay || intent.fulfillmentId != fulfillmentId ||
             intent.scope != context.scopeIdentity()
-        ) return
+        ) {
+            return
+        }
         val request = ++generation
         mutableState.value = current.copy(status = DispatchAssignmentStatus.Saving)
         viewModelScope.launch {
@@ -215,10 +223,7 @@ class DispatchAssignmentViewModel(
         mutableState.value = DispatchAssignmentUiState()
     }
 
-    private fun restoreIntentAndRefresh(
-        fulfillmentId: String,
-        context: DispatchAuthorityContext
-    ) {
+    private fun restoreIntentAndRefresh(fulfillmentId: String, context: DispatchAuthorityContext) {
         val scope = context.scopeIdentity() ?: return
         val request = generation
         restoringMetadata = true
@@ -233,8 +238,10 @@ class DispatchAssignmentViewModel(
 
                 is DispatchAssignmentMetadataRead.Available -> {
                     val loaded = read.intent
-                    if (loaded != null && (loaded.scope != scope ||
-                            loaded.fulfillmentId != fulfillmentId)
+                    if (loaded != null && (
+                            loaded.scope != scope ||
+                                loaded.fulfillmentId != fulfillmentId
+                            )
                     ) {
                         restoringMetadata = false
                         fail(DispatchAssignmentStatus.ServiceUnavailable)
@@ -281,7 +288,11 @@ class DispatchAssignmentViewModel(
                     markUnknown(intent, request, context, fulfillmentId)
                 } else {
                     metadataCall {
-                        metadata.clearIntent(intent.scope, intent.fulfillmentId, intent.idempotencyKey)
+                        metadata.clearIntent(
+                            intent.scope,
+                            intent.fulfillmentId,
+                            intent.idempotencyKey
+                        )
                     }
                     if (!isCurrent(request, context, fulfillmentId)) return
                     pendingIntent = null
@@ -294,30 +305,55 @@ class DispatchAssignmentViewModel(
                 }
             }
 
-            is DispatchAssignmentGatewayResult.Snapshot -> fail(DispatchAssignmentStatus.ServiceUnavailable)
+            is DispatchAssignmentGatewayResult.Snapshot -> fail(
+                DispatchAssignmentStatus.ServiceUnavailable
+            )
+
             DispatchAssignmentGatewayResult.NotReady -> rejectIntent(
-                intent, DispatchAssignmentStatus.NotReady, request, context, fulfillmentId
+                intent,
+                DispatchAssignmentStatus.NotReady,
+                request,
+                context,
+                fulfillmentId
             )
 
             DispatchAssignmentGatewayResult.Stale -> rejectIntent(
-                intent, DispatchAssignmentStatus.Stale, request, context, fulfillmentId
+                intent,
+                DispatchAssignmentStatus.Stale,
+                request,
+                context,
+                fulfillmentId
             )
 
             DispatchAssignmentGatewayResult.Conflict -> rejectIntent(
-                intent, DispatchAssignmentStatus.Conflict, request, context, fulfillmentId
+                intent,
+                DispatchAssignmentStatus.Conflict,
+                request,
+                context,
+                fulfillmentId
             )
 
             DispatchAssignmentGatewayResult.UnknownOutcome -> markUnknown(
-                intent, request, context, fulfillmentId
+                intent,
+                request,
+                context,
+                fulfillmentId
             )
 
             DispatchAssignmentGatewayResult.NetworkUnavailable -> markUnknown(
-                intent, request, context, fulfillmentId
+                intent,
+                request,
+                context,
+                fulfillmentId
             )
 
             DispatchAssignmentGatewayResult.ServiceUnavailable -> markUnknown(
-                intent, request, context, fulfillmentId
+                intent,
+                request,
+                context,
+                fulfillmentId
             )
+
             DispatchAssignmentGatewayResult.PermissionDenied -> invalidate(
                 DispatchAssignmentStatus.PermissionDenied
             )
@@ -390,7 +426,9 @@ class DispatchAssignmentViewModel(
         val value = identity ?: return null
         if (listOf(value.userId, value.tenantId, value.workspaceId, value.membershipId)
                 .any(String::isBlank)
-        ) return null
+        ) {
+            return null
+        }
         return DispatchAssignmentScopeIdentity(
             value.userId,
             value.tenantId,
@@ -454,8 +492,7 @@ class DispatchAssignmentViewModel(
         ) {
             return DispatchAssignmentStatus.PermissionUnknown
         }
-        return if (DISPATCH_READ_PERMISSION in identity.permissions
-        ) {
+        return if (DISPATCH_READ_PERMISSION in identity.permissions) {
             DispatchAssignmentStatus.Loading
         } else {
             DispatchAssignmentStatus.PermissionDenied

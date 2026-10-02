@@ -1,5 +1,7 @@
 package com.nexa.mobile.operations.core.network
 
+import com.nexa.mobile.operations.core.network.PublishedOperationalDeliveryInstructionTransport as DeliveryInstructionTransport
+import java.time.Instant
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -10,7 +12,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
-import java.time.Instant
 
 private const val OPERATIONAL_DELIVERY_INSTRUCTIONS_PATH = "/api/v1/deliveries"
 private val operationalInstructionJson = Json { ignoreUnknownKeys = true }
@@ -51,8 +52,10 @@ data class PublishedOperationalDeliveryInstructionTransport(
 )
 
 sealed interface OperationalDeliveryInstructionsNetworkResult {
-    data class Current(val value: OperationalDeliveryInstructionsTransport) : OperationalDeliveryInstructionsNetworkResult
-    data class Published(val value: PublishedOperationalDeliveryInstructionTransport) : OperationalDeliveryInstructionsNetworkResult
+    data class Current(val value: OperationalDeliveryInstructionsTransport) :
+        OperationalDeliveryInstructionsNetworkResult
+    data class Published(val value: DeliveryInstructionTransport) :
+        OperationalDeliveryInstructionsNetworkResult
     data class Rejected(val code: String?) : OperationalDeliveryInstructionsNetworkResult
     data object NotFound : OperationalDeliveryInstructionsNetworkResult
     data object StaleVersion : OperationalDeliveryInstructionsNetworkResult
@@ -65,8 +68,12 @@ sealed interface OperationalDeliveryInstructionsNetworkResult {
 }
 
 /** Protected transport for Dispatch's current instruction projection and immutable publication. */
-class NexaOperationalDeliveryInstructionsGateway(private val protectedCalls: ProtectedCallExecutor) {
-    suspend fun currentInstructions(deliveryId: String): OperationalDeliveryInstructionsNetworkResult {
+class NexaOperationalDeliveryInstructionsGateway(
+    private val protectedCalls: ProtectedCallExecutor
+) {
+    suspend fun currentInstructions(
+        deliveryId: String
+    ): OperationalDeliveryInstructionsNetworkResult {
         if (!operationalInstructionUuid.matches(deliveryId)) {
             return OperationalDeliveryInstructionsNetworkResult.ServiceUnavailable
         }
@@ -79,6 +86,7 @@ class NexaOperationalDeliveryInstructionsGateway(private val protectedCalls: Pro
             )
         ) {
             is ProtectedResult.Failure -> result.error.toReadOutcome()
+
             is ProtectedResult.Success -> {
                 val body = result.body.toObject()
                     ?: return OperationalDeliveryInstructionsNetworkResult.ServiceUnavailable
@@ -119,13 +127,16 @@ class NexaOperationalDeliveryInstructionsGateway(private val protectedCalls: Pro
             )
         ) {
             is ProtectedResult.Failure -> result.error.toPublishOutcome()
+
             is ProtectedResult.Success -> {
                 if (result.status !in setOf(200, 201)) {
                     return OperationalDeliveryInstructionsNetworkResult.UnknownOutcome
                 }
                 val value = result.body.toObject()?.toPublishedInstruction()
                     ?: return OperationalDeliveryInstructionsNetworkResult.UnknownOutcome
-                if (value.deliveryId != deliveryId || value.deliveryVersion != expectedDeliveryVersion + 1) {
+                if (value.deliveryId != deliveryId ||
+                    value.deliveryVersion != expectedDeliveryVersion + 1
+                ) {
                     OperationalDeliveryInstructionsNetworkResult.UnknownOutcome
                 } else {
                     OperationalDeliveryInstructionsNetworkResult.Published(value)
@@ -141,15 +152,23 @@ class NexaOperationalDeliveryInstructionsGateway(private val protectedCalls: Pro
     }
 
     private fun JsonObject.toInstructions(): OperationalDeliveryInstructionsTransport? = try {
-        val deliveryId = requiredText("deliveryId")?.takeIf(operationalInstructionUuid::matches) ?: return null
+        val deliveryId =
+            requiredText("deliveryId")?.takeIf(operationalInstructionUuid::matches) ?: return null
         val deliveryVersion = requiredLong("deliveryVersion") ?: return null
         val instructionSetVersion = requiredLong("instructionSetVersion") ?: return null
         val rows = this["instructions"]?.jsonArray ?: return null
         val instructions = rows.map { it.jsonObject.toInstruction() ?: return null }
         if (deliveryVersion < 0 || instructionSetVersion < 0 ||
             instructions.map { it.id.lowercase() }.distinct().size != instructions.size
-        ) return null
-        OperationalDeliveryInstructionsTransport(deliveryId, deliveryVersion, instructionSetVersion, instructions)
+        ) {
+            return null
+        }
+        OperationalDeliveryInstructionsTransport(
+            deliveryId,
+            deliveryVersion,
+            instructionSetVersion,
+            instructions
+        )
     } catch (_: Exception) {
         null
     }
@@ -168,15 +187,25 @@ class NexaOperationalDeliveryInstructionsGateway(private val protectedCalls: Pro
         val recordedAt = optionalText("recordedAt")
         val hasSource = listOf(sourceKind, recordedBy, recordedAt).any { it != null }
         val acknowledgementFactsValid = if (acknowledged) {
-            !acknowledgedAt.isNullOrBlank() && !acknowledgedBy.isNullOrBlank() && acknowledgedAt.isIsoInstant()
+            !acknowledgedAt.isNullOrBlank() && !acknowledgedBy.isNullOrBlank() &&
+                acknowledgedAt.isIsoInstant()
         } else {
-            this["acknowledgedAt"].isNullOrMissing() && this["acknowledgedByMembershipId"].isNullOrMissing()
+            this["acknowledgedAt"].isNullOrMissing() &&
+                this["acknowledgedByMembershipId"].isNullOrMissing()
         }
-        if (instructionVersion < 1 || critical != (kind != "NORMAL") || !acknowledgementFactsValid ||
+        if (instructionVersion < 1 || critical != (kind != "NORMAL") ||
+            !acknowledgementFactsValid ||
             (acknowledgedBy != null && !operationalInstructionUuid.matches(acknowledgedBy)) ||
-            hasSource && (sourceKind !in SOURCE_KINDS || recordedBy == null ||
-                !operationalInstructionUuid.matches(recordedBy) || recordedAt == null || !recordedAt.isIsoInstant())
-        ) return null
+            (
+                hasSource && (
+                    sourceKind !in SOURCE_KINDS || recordedBy == null ||
+                        !operationalInstructionUuid.matches(recordedBy) || recordedAt == null ||
+                        !recordedAt.isIsoInstant()
+                    )
+                )
+        ) {
+            return null
+        }
         OperationalDeliveryInstructionTransport(
             id, kind, content, instructionVersion, critical, acknowledged,
             acknowledgedAt, acknowledgedBy, sourceKind, recordedBy, recordedAt
@@ -185,9 +214,13 @@ class NexaOperationalDeliveryInstructionsGateway(private val protectedCalls: Pro
         null
     }
 
-    private fun JsonObject.toPublishedInstruction(): PublishedOperationalDeliveryInstructionTransport? = try {
-        val deliveryId = requiredText("deliveryId")?.takeIf(operationalInstructionUuid::matches) ?: return null
-        val instructionId = requiredText("instructionId")?.takeIf(operationalInstructionUuid::matches) ?: return null
+    private fun JsonObject.toPublishedInstruction(): DeliveryInstructionTransport? = try {
+        val deliveryId =
+            requiredText("deliveryId")?.takeIf(operationalInstructionUuid::matches)
+                ?: return null
+        val instructionId =
+            requiredText("instructionId")?.takeIf(operationalInstructionUuid::matches)
+                ?: return null
         val kind = requiredText("kind")?.takeIf { it in INSTRUCTION_KINDS } ?: return null
         val content = requiredText("content") ?: return null
         val instructionVersion = requiredLong("instructionVersion") ?: return null
@@ -197,8 +230,10 @@ class NexaOperationalDeliveryInstructionsGateway(private val protectedCalls: Pro
         val replayed = requiredBoolean("replayed") ?: return null
         if (instructionVersion < 1 || deliveryVersion < 1 || instructionSetVersion < 1 ||
             critical != (kind != "NORMAL")
-        ) return null
-        PublishedOperationalDeliveryInstructionTransport(
+        ) {
+            return null
+        }
+        DeliveryInstructionTransport(
             deliveryId, instructionId, kind, content, instructionVersion, critical,
             deliveryVersion, instructionSetVersion, replayed
         )
@@ -221,7 +256,8 @@ class NexaOperationalDeliveryInstructionsGateway(private val protectedCalls: Pro
     private fun JsonObject.requiredBoolean(key: String): Boolean? = this[key]?.jsonPrimitive
         ?.takeUnless(JsonPrimitive::isString)?.booleanOrNull
 
-    private fun kotlinx.serialization.json.JsonElement?.isNullOrMissing(): Boolean = this == null || this == JsonNull
+    private fun kotlinx.serialization.json.JsonElement?.isNullOrMissing(): Boolean =
+        this == null || this == JsonNull
 
     private fun String?.toStrongVersion(): Long? {
         val tag = this?.trim()?.takeUnless { it.startsWith("W/", ignoreCase = true) } ?: return null
@@ -233,7 +269,10 @@ class NexaOperationalDeliveryInstructionsGateway(private val protectedCalls: Pro
         val root = operationalInstructionJson.parseToJsonElement(body).jsonObject
         val id = when (val value = root["instructionId"]) {
             null, JsonNull -> null
-            is JsonPrimitive -> value.contentOrNull?.takeIf(operationalInstructionUuid::matches) ?: return false
+
+            is JsonPrimitive -> value.contentOrNull?.takeIf(operationalInstructionUuid::matches)
+                ?: return false
+
             else -> return false
         }
         val kind = root.requiredText("kind")?.takeIf { it in INSTRUCTION_KINDS } ?: return false
@@ -254,32 +293,63 @@ class NexaOperationalDeliveryInstructionsGateway(private val protectedCalls: Pro
     }
 
     private fun ClientFailure.toReadOutcome(): OperationalDeliveryInstructionsNetworkResult = when {
-        kind == FailureKind.AuthenticationRequired -> OperationalDeliveryInstructionsNetworkResult.SessionInvalidated
-        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID -> OperationalDeliveryInstructionsNetworkResult.ContextInvalidated
-        kind == FailureKind.AuthorizationFailure -> OperationalDeliveryInstructionsNetworkResult.PermissionDenied
-        kind == FailureKind.ResourceUnavailable -> OperationalDeliveryInstructionsNetworkResult.NotFound
-        kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout -> OperationalDeliveryInstructionsNetworkResult.NetworkUnavailable
+        kind == FailureKind.AuthenticationRequired ->
+            OperationalDeliveryInstructionsNetworkResult.SessionInvalidated
+
+        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
+            OperationalDeliveryInstructionsNetworkResult.ContextInvalidated
+
+        kind == FailureKind.AuthorizationFailure ->
+            OperationalDeliveryInstructionsNetworkResult.PermissionDenied
+
+        kind == FailureKind.ResourceUnavailable ->
+            OperationalDeliveryInstructionsNetworkResult.NotFound
+
+        kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
+            OperationalDeliveryInstructionsNetworkResult.NetworkUnavailable
+
         else -> OperationalDeliveryInstructionsNetworkResult.ServiceUnavailable
     }
 
-    private fun ClientFailure.toPublishOutcome(): OperationalDeliveryInstructionsNetworkResult = when {
-        kind == FailureKind.AuthenticationRequired -> OperationalDeliveryInstructionsNetworkResult.SessionInvalidated
-        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID -> OperationalDeliveryInstructionsNetworkResult.ContextInvalidated
-        kind == FailureKind.AuthorizationFailure -> OperationalDeliveryInstructionsNetworkResult.PermissionDenied
-        kind == FailureKind.StaleState -> OperationalDeliveryInstructionsNetworkResult.StaleVersion
-        kind == FailureKind.ResourceUnavailable -> OperationalDeliveryInstructionsNetworkResult.NotFound
-        kind == FailureKind.ValidationFailure || kind == FailureKind.BusinessConflict ||
-            kind == FailureKind.PreconditionRequired -> OperationalDeliveryInstructionsNetworkResult.Rejected(problemCode)
-        kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ||
-            kind == FailureKind.UnknownOutcome || kind == FailureKind.RetryableServerFailure ->
-            OperationalDeliveryInstructionsNetworkResult.UnknownOutcome
-        else -> OperationalDeliveryInstructionsNetworkResult.ServiceUnavailable
-    }
+    private fun ClientFailure.toPublishOutcome(): OperationalDeliveryInstructionsNetworkResult =
+        when {
+            kind == FailureKind.AuthenticationRequired ->
+                OperationalDeliveryInstructionsNetworkResult.SessionInvalidated
+
+            httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
+                OperationalDeliveryInstructionsNetworkResult.ContextInvalidated
+
+            kind == FailureKind.AuthorizationFailure ->
+                OperationalDeliveryInstructionsNetworkResult.PermissionDenied
+
+            kind == FailureKind.StaleState ->
+                OperationalDeliveryInstructionsNetworkResult.StaleVersion
+
+            kind == FailureKind.ResourceUnavailable ->
+                OperationalDeliveryInstructionsNetworkResult.NotFound
+
+            kind == FailureKind.ValidationFailure || kind == FailureKind.BusinessConflict ||
+                kind == FailureKind.PreconditionRequired ->
+                OperationalDeliveryInstructionsNetworkResult.Rejected(
+                    problemCode
+                )
+
+            kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ||
+                kind == FailureKind.UnknownOutcome || kind == FailureKind.RetryableServerFailure ->
+                OperationalDeliveryInstructionsNetworkResult.UnknownOutcome
+
+            else -> OperationalDeliveryInstructionsNetworkResult.ServiceUnavailable
+        }
 
     private companion object {
         const val ACCESS_CONTEXT_INVALID = "ACCESS_CONTEXT_INVALID"
         val INSTRUCTION_KINDS = setOf(
-            "NORMAL", "COLD_CHAIN", "ACCESS_RESTRICTION", "SPECIAL_UNLOADING", "CUSTOMER_SAFETY", "GOODS_HANDLING"
+            "NORMAL",
+            "COLD_CHAIN",
+            "ACCESS_RESTRICTION",
+            "SPECIAL_UNLOADING",
+            "CUSTOMER_SAFETY",
+            "GOODS_HANDLING"
         )
         val SOURCE_KINDS = setOf("BUYER", "CUSTOMER_REPORTED_BY_SALES", "OPERATIONAL_DISPATCH")
     }

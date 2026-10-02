@@ -24,7 +24,8 @@ data class DriverProofCreateCommand(
     val receiverName: String,
     val capturedAt: String
 ) {
-    override fun toString(): String = "DriverProofCreateCommand(version=$expectedVersion, key=REDACTED)"
+    override fun toString(): String =
+        "DriverProofCreateCommand(version=$expectedVersion, key=REDACTED)"
 }
 
 @Immutable
@@ -50,7 +51,8 @@ data class DriverProofAttachCommand(
     val idempotencyKey: String,
     val frozenBody: String
 ) {
-    override fun toString(): String = "DriverProofAttachCommand(version=$expectedVersion, key=REDACTED)"
+    override fun toString(): String =
+        "DriverProofAttachCommand(version=$expectedVersion, key=REDACTED)"
 }
 
 @Immutable
@@ -128,7 +130,8 @@ data class DriverProofIntentMetadata(
         require((evidenceId == null) || evidenceId.isNotBlank())
     }
 
-    override fun toString(): String = "DriverProofIntentMetadata(stage=$stage, status=$status, payload=REDACTED)"
+    override fun toString(): String =
+        "DriverProofIntentMetadata(stage=$stage, status=$status, payload=REDACTED)"
 }
 
 sealed interface DriverProofMetadataRead {

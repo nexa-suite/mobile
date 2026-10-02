@@ -36,7 +36,10 @@ data class DriverDeliveryInstruction(
         require(content.isNotBlank())
         require(instructionVersion >= 0)
         require(critical == (kind != DriverDeliveryInstructionKind.NORMAL))
-        require(acknowledged == (!acknowledgedAt.isNullOrBlank() && !acknowledgedByMembershipId.isNullOrBlank()))
+        require(
+            acknowledged ==
+                (!acknowledgedAt.isNullOrBlank() && !acknowledgedByMembershipId.isNullOrBlank())
+        )
     }
 }
 
@@ -68,9 +71,16 @@ data class DriverDeliveryInstructionAcknowledgementCommand(
         require(instructionUuidPattern.matches(deliveryId))
         require(instructionSetVersion >= 0)
         require(instructionVersions.isNotEmpty())
-        require(instructionVersions.all { (id, version) -> instructionUuidPattern.matches(id) && version >= 0 })
+        require(
+            instructionVersions.all { (id, version) ->
+                instructionUuidPattern.matches(id) &&
+                    version >= 0
+            }
+        )
         require(idempotencyKey.isNotBlank() && idempotencyKey.length <= 160)
-        require(frozenBody == driverDeliveryInstructionAcknowledgementBody(instructionVersions.keys))
+        require(
+            frozenBody == driverDeliveryInstructionAcknowledgementBody(instructionVersions.keys)
+        )
     }
 
     override fun toString(): String =
@@ -110,7 +120,10 @@ data class DriverDeliveryInstructionAcknowledgementSummary(
     init {
         require(instructionUuidPattern.matches(deliveryId))
         require(instructionSetVersion >= 0)
-        require(acknowledgements.map { it.instructionId.lowercase() }.distinct().size == acknowledgements.size)
+        require(
+            acknowledgements.map { it.instructionId.lowercase() }.distinct().size ==
+                acknowledgements.size
+        )
     }
 }
 
@@ -151,7 +164,9 @@ sealed interface DriverDeliveryInstructionMetadataWrite {
 
 interface DriverDeliveryInstructionMetadataStore {
     suspend fun loadIntent(scope: DriverAttemptScopeIdentity): DriverDeliveryInstructionMetadataRead
-    suspend fun saveIntent(intent: DriverDeliveryInstructionIntentMetadata): DriverDeliveryInstructionMetadataWrite
+    suspend fun saveIntent(
+        intent: DriverDeliveryInstructionIntentMetadata
+    ): DriverDeliveryInstructionMetadataWrite
     suspend fun clearIntent(
         scope: DriverAttemptScopeIdentity,
         idempotencyKey: String
@@ -159,7 +174,8 @@ interface DriverDeliveryInstructionMetadataStore {
 }
 
 sealed interface DriverDeliveryInstructionsLoadResult {
-    data class Loaded(val snapshot: DriverDeliveryInstructionsSnapshot) : DriverDeliveryInstructionsLoadResult
+    data class Loaded(val snapshot: DriverDeliveryInstructionsSnapshot) :
+        DriverDeliveryInstructionsLoadResult
     data object NotFound : DriverDeliveryInstructionsLoadResult
     data object NetworkUnavailable : DriverDeliveryInstructionsLoadResult
     data object ServiceUnavailable : DriverDeliveryInstructionsLoadResult

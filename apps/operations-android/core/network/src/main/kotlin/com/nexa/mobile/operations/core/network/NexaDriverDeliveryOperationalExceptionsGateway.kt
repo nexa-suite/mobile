@@ -56,8 +56,10 @@ data class DriverOperationalExceptionMutationTransport(
 )
 
 sealed interface DriverOperationalExceptionsNetworkOutcome {
-    data class Loaded(val value: DriverOperationalExceptionsTransport) : DriverOperationalExceptionsNetworkOutcome
-    data class Changed(val value: DriverOperationalExceptionMutationTransport) : DriverOperationalExceptionsNetworkOutcome
+    data class Loaded(val value: DriverOperationalExceptionsTransport) :
+        DriverOperationalExceptionsNetworkOutcome
+    data class Changed(val value: DriverOperationalExceptionMutationTransport) :
+        DriverOperationalExceptionsNetworkOutcome
     data class Rejected(val code: String?) : DriverOperationalExceptionsNetworkOutcome
     data object NotFound : DriverOperationalExceptionsNetworkOutcome
     data object StaleVersion : DriverOperationalExceptionsNetworkOutcome
@@ -70,7 +72,9 @@ sealed interface DriverOperationalExceptionsNetworkOutcome {
 }
 
 /** Protected transport for current Driver Delivery operational exception reads and response actions. */
-class NexaDriverDeliveryOperationalExceptionsGateway(private val protectedCalls: ProtectedCallExecutor) {
+class NexaDriverDeliveryOperationalExceptionsGateway(
+    private val protectedCalls: ProtectedCallExecutor
+) {
     suspend fun currentExceptions(deliveryId: String): DriverOperationalExceptionsNetworkOutcome {
         if (!operationalExceptionUuid.matches(deliveryId)) {
             return DriverOperationalExceptionsNetworkOutcome.ServiceUnavailable
@@ -84,11 +88,16 @@ class NexaDriverDeliveryOperationalExceptionsGateway(private val protectedCalls:
             )
         ) {
             is ProtectedResult.Failure -> result.error.toOperationalExceptionReadOutcome()
+
             is ProtectedResult.Success -> {
-                val root = result.body.toObject() ?: return DriverOperationalExceptionsNetworkOutcome.ServiceUnavailable
+                val root =
+                    result.body.toObject()
+                        ?: return DriverOperationalExceptionsNetworkOutcome.ServiceUnavailable
                 val value = root.toExceptions()
                     ?: return DriverOperationalExceptionsNetworkOutcome.ServiceUnavailable
-                if (value.deliveryId != deliveryId || result.etag.toStrongDeliveryVersion() != value.deliveryVersion) {
+                if (value.deliveryId != deliveryId ||
+                    result.etag.toStrongDeliveryVersion() != value.deliveryVersion
+                ) {
                     DriverOperationalExceptionsNetworkOutcome.ServiceUnavailable
                 } else {
                     DriverOperationalExceptionsNetworkOutcome.Loaded(value)
@@ -105,10 +114,14 @@ class NexaDriverDeliveryOperationalExceptionsGateway(private val protectedCalls:
         idempotencyKey: String,
         frozenBody: String
     ): DriverOperationalExceptionsNetworkOutcome {
-        if (!operationalExceptionUuid.matches(deliveryId) || !operationalExceptionUuid.matches(exceptionId) ||
-            expectedDeliveryVersion < 0 || idempotencyKey.isBlank() || idempotencyKey.length > 160 ||
+        if (!operationalExceptionUuid.matches(deliveryId) ||
+            !operationalExceptionUuid.matches(exceptionId) ||
+            expectedDeliveryVersion < 0 || idempotencyKey.isBlank() ||
+            idempotencyKey.length > 160 ||
             !frozenBody.isValidFor(action)
-        ) return DriverOperationalExceptionsNetworkOutcome.ServiceUnavailable
+        ) {
+            return DriverOperationalExceptionsNetworkOutcome.ServiceUnavailable
+        }
 
         val actionPath = when (action) {
             DriverOperationalExceptionActionTransport.Claim -> "claims"
@@ -120,21 +133,28 @@ class NexaDriverDeliveryOperationalExceptionsGateway(private val protectedCalls:
             val result = protectedCalls.execute(
                 ProtectedRequest(
                     method = ProtectedMethod.POST,
-                    path = "$DRIVER_OPERATIONAL_EXCEPTIONS_PATH/$deliveryId/operational-exceptions/$exceptionId/$actionPath",
-                    payload = frozenBody.takeUnless { action == DriverOperationalExceptionActionTransport.CloseWarning },
+                    path = "$DRIVER_OPERATIONAL_EXCEPTIONS_PATH/$deliveryId/" +
+                        "operational-exceptions/$exceptionId/$actionPath",
+                    payload = frozenBody.takeUnless {
+                        action ==
+                            DriverOperationalExceptionActionTransport.CloseWarning
+                    },
                     idempotencyKey = idempotencyKey,
                     ifMatch = "\"$expectedDeliveryVersion\""
                 )
             )
         ) {
             is ProtectedResult.Failure -> result.error.toOperationalExceptionMutationOutcome()
+
             is ProtectedResult.Success -> {
                 if (result.status !in setOf(200, 201)) {
                     return DriverOperationalExceptionsNetworkOutcome.UnknownOutcome
                 }
                 val root = result.body.toObject()
                     ?: return DriverOperationalExceptionsNetworkOutcome.UnknownOutcome
-                val value = root.toMutation() ?: return DriverOperationalExceptionsNetworkOutcome.UnknownOutcome
+                val value =
+                    root.toMutation()
+                        ?: return DriverOperationalExceptionsNetworkOutcome.UnknownOutcome
                 if (value.deliveryId != deliveryId || value.exception.id != exceptionId ||
                     result.etag.toStrongDeliveryVersion() != value.deliveryVersion ||
                     value.replayed != (result.status == 200)
@@ -154,39 +174,56 @@ class NexaDriverDeliveryOperationalExceptionsGateway(private val protectedCalls:
     }
 
     private fun JsonObject.toExceptions(): DriverOperationalExceptionsTransport? = try {
-        val deliveryId = requiredText("deliveryId")?.takeIf(operationalExceptionUuid::matches) ?: return null
+        val deliveryId =
+            requiredText("deliveryId")?.takeIf(operationalExceptionUuid::matches) ?: return null
         val deliveryVersion = requiredLong("deliveryVersion") ?: return null
         val rows = this["exceptions"]?.jsonArray ?: return null
         val exceptions = rows.map { it.jsonObject.toOperationalException() ?: return null }
-        if (deliveryVersion < 0 || exceptions.map { it.id.lowercase() }.distinct().size != exceptions.size) return null
+        if (deliveryVersion < 0 ||
+            exceptions.map { it.id.lowercase() }.distinct().size != exceptions.size
+        ) {
+            return null
+        }
         DriverOperationalExceptionsTransport(deliveryId, deliveryVersion, exceptions)
     } catch (_: Exception) {
         null
     }
 
     private fun JsonObject.toMutation(): DriverOperationalExceptionMutationTransport? = try {
-        val deliveryId = requiredText("deliveryId")?.takeIf(operationalExceptionUuid::matches) ?: return null
+        val deliveryId =
+            requiredText("deliveryId")?.takeIf(operationalExceptionUuid::matches) ?: return null
         val deliveryVersion = requiredLong("deliveryVersion") ?: return null
         val exception = this["exception"]?.jsonObject?.toOperationalException() ?: return null
         val replayed = requiredBoolean("replayed") ?: return null
         if (deliveryVersion < 0) return null
-        DriverOperationalExceptionMutationTransport(deliveryId, deliveryVersion, exception, replayed)
+        DriverOperationalExceptionMutationTransport(
+            deliveryId,
+            deliveryVersion,
+            exception,
+            replayed
+        )
     } catch (_: Exception) {
         null
     }
 
     private fun JsonObject.toOperationalException(): DriverOperationalExceptionTransport? = try {
         val id = requiredText("id")?.takeIf(operationalExceptionUuid::matches) ?: return null
-        val sourceKind = requiredText("sourceKind")?.takeIf { it in setOf("DISPATCH_INCIDENT", "DRIVER_INCIDENT") }
-            ?: return null
+        val sourceKind =
+            requiredText("sourceKind")?.takeIf {
+                it in setOf("DISPATCH_INCIDENT", "DRIVER_INCIDENT")
+            }
+                ?: return null
         val sourceIncidentId = requiredText("sourceIncidentId")
             ?.takeIf(operationalExceptionUuid::matches) ?: return null
         val affectedObjectType = requiredText("affectedObjectType") ?: return null
-        val affectedObjectId = requiredText("affectedObjectId")?.takeIf(operationalExceptionUuid::matches) ?: return null
+        val affectedObjectId =
+            requiredText("affectedObjectId")?.takeIf(operationalExceptionUuid::matches)
+                ?: return null
         val type = requiredText("type") ?: return null
         val severity = requiredText("severity") ?: return null
         val status = requiredText("status")
-            ?.takeIf { it in setOf("OPEN", "CLAIMED", "UNDER_REVIEW", "RESOLVED", "CLOSED") } ?: return null
+            ?.takeIf { it in setOf("OPEN", "CLAIMED", "UNDER_REVIEW", "RESOLVED", "CLOSED") }
+            ?: return null
         val reason = requiredNullableText("reason")
         val description = requiredText("description") ?: return null
         val place = requiredNullableText("place")
@@ -201,15 +238,21 @@ class NexaDriverDeliveryOperationalExceptionsGateway(private val protectedCalls:
         val underReviewBy = requiredNullableText("underReviewByMembershipId")
         val underReviewAt = requiredNullableInstant("underReviewAt")
         val evidenceObjectIds = this["evidenceObjectIds"]?.jsonArray
-            ?.map { it.jsonPrimitive.contentOrNull?.takeIf(operationalExceptionUuid::matches) ?: return null }
+            ?.map {
+                it.jsonPrimitive.contentOrNull?.takeIf(operationalExceptionUuid::matches)
+                    ?: return null
+            }
             ?: return null
-        if (responsible != null && !operationalExceptionUuid.matches(responsible) ||
-            underReviewBy != null && !operationalExceptionUuid.matches(underReviewBy) ||
+        if ((responsible != null && !operationalExceptionUuid.matches(responsible)) ||
+            (underReviewBy != null && !operationalExceptionUuid.matches(underReviewBy)) ||
             affectedObjectType != "DELIVERY" ||
             evidenceObjectIds.distinct().size != evidenceObjectIds.size
-        ) return null
+        ) {
+            return null
+        }
         DriverOperationalExceptionTransport(
-            id, sourceKind, sourceIncidentId, affectedObjectType, affectedObjectId, type, severity, status,
+            id, sourceKind, sourceIncidentId, affectedObjectType, affectedObjectId, type,
+            severity, status,
             reason, description, place, resolution, outcome, reportedBy, occurredAt, reportedAt,
             responsible, claimedAt, underReviewBy, underReviewAt, evidenceObjectIds
         )
@@ -226,21 +269,29 @@ class NexaDriverDeliveryOperationalExceptionsGateway(private val protectedCalls:
     private fun JsonObject.requiredBoolean(key: String): Boolean? = this[key]?.jsonPrimitive
         ?.takeUnless(JsonPrimitive::isString)?.booleanOrNull
 
-    private fun JsonObject.requiredNullableText(key: String): String? = when (val value = this[key]) {
-        null -> throw IllegalArgumentException("Missing $key")
-        JsonNull -> null
-        is JsonPrimitive -> value.takeIf(JsonPrimitive::isString)?.contentOrNull
-            ?.takeIf(String::isNotBlank) ?: throw IllegalArgumentException("Invalid $key")
-        else -> throw IllegalArgumentException("Invalid $key")
-    }
+    private fun JsonObject.requiredNullableText(key: String): String? =
+        when (val value = this[key]) {
+            null -> throw IllegalArgumentException("Missing $key")
 
-    private fun JsonObject.requiredNullableInstant(key: String): String? = when (val value = this[key]) {
-        null -> throw IllegalArgumentException("Missing $key")
-        JsonNull -> null
-        is JsonPrimitive -> value.takeIf(JsonPrimitive::isString)?.contentOrNull
-            ?.takeIf { it.isIsoInstant() } ?: throw IllegalArgumentException("Invalid $key")
-        else -> throw IllegalArgumentException("Invalid $key")
-    }
+            JsonNull -> null
+
+            is JsonPrimitive -> value.takeIf(JsonPrimitive::isString)?.contentOrNull
+                ?.takeIf(String::isNotBlank) ?: throw IllegalArgumentException("Invalid $key")
+
+            else -> throw IllegalArgumentException("Invalid $key")
+        }
+
+    private fun JsonObject.requiredNullableInstant(key: String): String? =
+        when (val value = this[key]) {
+            null -> throw IllegalArgumentException("Missing $key")
+
+            JsonNull -> null
+
+            is JsonPrimitive -> value.takeIf(JsonPrimitive::isString)?.contentOrNull
+                ?.takeIf { it.isIsoInstant() } ?: throw IllegalArgumentException("Invalid $key")
+
+            else -> throw IllegalArgumentException("Invalid $key")
+        }
 
     private fun String.isIsoInstant(): Boolean = try {
         Instant.parse(this)
@@ -255,48 +306,76 @@ class NexaDriverDeliveryOperationalExceptionsGateway(private val protectedCalls:
         return tag.removeSurrounding("\"").toLongOrNull()?.takeIf { it >= 0 }
     }
 
-    private fun String.isValidFor(action: DriverOperationalExceptionActionTransport): Boolean = when (action) {
-        DriverOperationalExceptionActionTransport.Claim,
-        DriverOperationalExceptionActionTransport.Review -> this == EMPTY_BODY
+    private fun String.isValidFor(action: DriverOperationalExceptionActionTransport): Boolean =
+        when (action) {
+            DriverOperationalExceptionActionTransport.Claim,
+            DriverOperationalExceptionActionTransport.Review -> this == EMPTY_BODY
 
-        DriverOperationalExceptionActionTransport.CloseWarning -> isEmpty()
-        DriverOperationalExceptionActionTransport.ResolveWarning -> isResolutionBody()
-    }
+            DriverOperationalExceptionActionTransport.CloseWarning -> isEmpty()
 
-    private fun String.isResolutionBody(): Boolean {
-        return try {
-            val root = operationalExceptionJson.parseToJsonElement(this).jsonObject
-            val resolution = root["resolution"]?.jsonPrimitive
-                ?.takeIf(JsonPrimitive::isString)?.contentOrNull
-            root.keys == setOf("resolution") && resolution != null && resolution.isNotBlank() &&
-                resolution.trim().length <= WARNING_RESOLUTION_MAX_CHARS
-        } catch (_: Exception) {
-            false
+            DriverOperationalExceptionActionTransport.ResolveWarning -> isResolutionBody()
         }
+
+    private fun String.isResolutionBody(): Boolean = try {
+        val root = operationalExceptionJson.parseToJsonElement(this).jsonObject
+        val resolution = root["resolution"]?.jsonPrimitive
+            ?.takeIf(JsonPrimitive::isString)?.contentOrNull
+        root.keys == setOf("resolution") && resolution != null && resolution.isNotBlank() &&
+            resolution.trim().length <= WARNING_RESOLUTION_MAX_CHARS
+    } catch (_: Exception) {
+        false
     }
 
-    private fun ClientFailure.toOperationalExceptionReadOutcome(): DriverOperationalExceptionsNetworkOutcome = when {
-        kind == FailureKind.AuthenticationRequired -> DriverOperationalExceptionsNetworkOutcome.SessionInvalidated
-        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID -> DriverOperationalExceptionsNetworkOutcome.ContextInvalidated
-        kind == FailureKind.AuthorizationFailure -> DriverOperationalExceptionsNetworkOutcome.PermissionDenied
-        kind == FailureKind.ResourceUnavailable -> DriverOperationalExceptionsNetworkOutcome.NotFound
-        kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout -> DriverOperationalExceptionsNetworkOutcome.NetworkUnavailable
-        else -> DriverOperationalExceptionsNetworkOutcome.ServiceUnavailable
-    }
+    private fun ClientFailure.toOperationalExceptionReadOutcome():
+        DriverOperationalExceptionsNetworkOutcome =
+        when {
+            kind == FailureKind.AuthenticationRequired ->
+                DriverOperationalExceptionsNetworkOutcome.SessionInvalidated
 
-    private fun ClientFailure.toOperationalExceptionMutationOutcome(): DriverOperationalExceptionsNetworkOutcome = when {
-        kind == FailureKind.AuthenticationRequired -> DriverOperationalExceptionsNetworkOutcome.SessionInvalidated
-        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID -> DriverOperationalExceptionsNetworkOutcome.ContextInvalidated
-        kind == FailureKind.AuthorizationFailure -> DriverOperationalExceptionsNetworkOutcome.PermissionDenied
-        kind == FailureKind.StaleState -> DriverOperationalExceptionsNetworkOutcome.StaleVersion
-        kind == FailureKind.ResourceUnavailable -> DriverOperationalExceptionsNetworkOutcome.NotFound
-        kind == FailureKind.ValidationFailure || kind == FailureKind.BusinessConflict ||
-            kind == FailureKind.PreconditionRequired -> DriverOperationalExceptionsNetworkOutcome.Rejected(problemCode)
-        kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ||
-            kind == FailureKind.UnknownOutcome || kind == FailureKind.RetryableServerFailure ->
-            DriverOperationalExceptionsNetworkOutcome.UnknownOutcome
-        else -> DriverOperationalExceptionsNetworkOutcome.ServiceUnavailable
-    }
+            httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
+                DriverOperationalExceptionsNetworkOutcome.ContextInvalidated
+
+            kind == FailureKind.AuthorizationFailure ->
+                DriverOperationalExceptionsNetworkOutcome.PermissionDenied
+
+            kind == FailureKind.ResourceUnavailable ->
+                DriverOperationalExceptionsNetworkOutcome.NotFound
+
+            kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
+                DriverOperationalExceptionsNetworkOutcome.NetworkUnavailable
+
+            else -> DriverOperationalExceptionsNetworkOutcome.ServiceUnavailable
+        }
+
+    private fun ClientFailure.toOperationalExceptionMutationOutcome():
+        DriverOperationalExceptionsNetworkOutcome =
+        when {
+            kind == FailureKind.AuthenticationRequired ->
+                DriverOperationalExceptionsNetworkOutcome.SessionInvalidated
+
+            httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
+                DriverOperationalExceptionsNetworkOutcome.ContextInvalidated
+
+            kind == FailureKind.AuthorizationFailure ->
+                DriverOperationalExceptionsNetworkOutcome.PermissionDenied
+
+            kind == FailureKind.StaleState -> DriverOperationalExceptionsNetworkOutcome.StaleVersion
+
+            kind == FailureKind.ResourceUnavailable ->
+                DriverOperationalExceptionsNetworkOutcome.NotFound
+
+            kind == FailureKind.ValidationFailure || kind == FailureKind.BusinessConflict ||
+                kind == FailureKind.PreconditionRequired ->
+                DriverOperationalExceptionsNetworkOutcome.Rejected(
+                    problemCode
+                )
+
+            kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ||
+                kind == FailureKind.UnknownOutcome || kind == FailureKind.RetryableServerFailure ->
+                DriverOperationalExceptionsNetworkOutcome.UnknownOutcome
+
+            else -> DriverOperationalExceptionsNetworkOutcome.ServiceUnavailable
+        }
 
     private companion object {
         const val EMPTY_BODY = "{}"

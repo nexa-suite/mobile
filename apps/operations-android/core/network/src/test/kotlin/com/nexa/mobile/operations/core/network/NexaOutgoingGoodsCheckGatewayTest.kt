@@ -24,7 +24,11 @@ class NexaOutgoingGoodsCheckGatewayTest {
                 ).addHeader("ETag", "\"12\"")
             )
             val gateway = gateway(server)
-            val body = """{"physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,"observations":[{"physicalAllocationLineId":"$LINE_ID","observedLotId":"$LOT_ID","observedQuantity":2.50}]}"""
+            val body = listOf(
+                """{"physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,""",
+                """"observations":[{"physicalAllocationLineId":"$LINE_ID",""",
+                """"observedLotId":"$LOT_ID","observedQuantity":2.50}]}"""
+            ).joinToString(separator = "")
 
             val outcome = gateway.record(
                 OutgoingGoodsCheckCommand(
@@ -82,27 +86,37 @@ class NexaOutgoingGoodsCheckGatewayTest {
     fun resolvesOnlyWithFrozenReasonAndBothCheckIdentities() = runTest {
         MockWebServer().use { server ->
             server.start()
-            server.enqueue(jsonResponse(
-                """{"id":"$RESOLUTION_ID","fulfillmentId":"$FULFILLMENT_ID","fulfillmentVersion":12,"physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,"discrepancyCheckId":"$DISCREPANCY_ID","matchingCheckId":"$CHECK_ID","actorMembershipId":"$MEMBERSHIP_ID","reason":"Recount confirmed the allocated goods.","resolvedAt":"2026-09-30T10:16:30Z","current":true,"replayed":false}"""
-            ).addHeader("ETag", "\"12\""))
-            val body = """{"physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,"discrepancyCheckId":"$DISCREPANCY_ID","matchingCheckId":"$CHECK_ID","reason":"Recount confirmed the allocated goods."}"""
+            server.enqueue(
+                jsonResponse(
+                    """{"id":"$RESOLUTION_ID","fulfillmentId":"$FULFILLMENT_ID","fulfillmentVersion":12,"physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,"discrepancyCheckId":"$DISCREPANCY_ID","matchingCheckId":"$CHECK_ID","actorMembershipId":"$MEMBERSHIP_ID","reason":"Recount confirmed the allocated goods.","resolvedAt":"2026-09-30T10:16:30Z","current":true,"replayed":false}"""
+                ).addHeader("ETag", "\"12\"")
+            )
+            val body = listOf(
+                """{"physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,""",
+                """"discrepancyCheckId":"$DISCREPANCY_ID","matchingCheckId":"$CHECK_ID",""",
+                """"reason":"Recount confirmed the allocated goods."}"""
+            ).joinToString(separator = "")
 
-            val result = gateway(server).resolve(OutgoingGoodsDiscrepancyResolutionCommand(
-                fulfillmentId = FULFILLMENT_ID,
-                expectedFulfillmentVersion = 12,
-                physicalAllocationId = ALLOCATION_ID,
-                physicalAllocationVersion = 7,
-                discrepancyCheckId = DISCREPANCY_ID,
-                matchingCheckId = CHECK_ID,
-                reason = "Recount confirmed the allocated goods.",
-                idempotencyKey = "outgoing-resolution-key",
-                exactRequestBody = body
-            )) as OutgoingGoodsCheckNetworkOutcome.Resolved
+            val result = gateway(server).resolve(
+                OutgoingGoodsDiscrepancyResolutionCommand(
+                    fulfillmentId = FULFILLMENT_ID,
+                    expectedFulfillmentVersion = 12,
+                    physicalAllocationId = ALLOCATION_ID,
+                    physicalAllocationVersion = 7,
+                    discrepancyCheckId = DISCREPANCY_ID,
+                    matchingCheckId = CHECK_ID,
+                    reason = "Recount confirmed the allocated goods.",
+                    idempotencyKey = "outgoing-resolution-key",
+                    exactRequestBody = body
+                )
+            ) as OutgoingGoodsCheckNetworkOutcome.Resolved
 
             val request = server.takeRequest()
             assertEquals("POST", request.method)
-            assertEquals("/api/v1/fulfillments/$FULFILLMENT_ID/outgoing-discrepancy-resolutions",
-                request.requestUrl?.encodedPath)
+            assertEquals(
+                "/api/v1/fulfillments/$FULFILLMENT_ID/outgoing-discrepancy-resolutions",
+                request.requestUrl?.encodedPath
+            )
             assertEquals("\"12\"", request.getHeader("If-Match"))
             assertEquals("outgoing-resolution-key", request.getHeader("Idempotency-Key"))
             assertEquals(body, request.body.readUtf8())
@@ -129,7 +143,9 @@ class NexaOutgoingGoodsCheckGatewayTest {
         private val lease = AccessTokenLease("access-1", generation = 1, epoch = 1)
 
         override suspend fun currentAccess(): AccessTokenLease = lease
-        override suspend fun recoverAfterUnauthorized(observed: AccessTokenLease): AccessTokenLease? = null
+        override suspend fun recoverAfterUnauthorized(
+            observed: AccessTokenLease
+        ): AccessTokenLease? = null
         override suspend fun rejectCurrentAccess(observed: AccessTokenLease) = Unit
         override suspend fun isEpochCurrent(epoch: Long): Boolean = epoch == 1L
     }

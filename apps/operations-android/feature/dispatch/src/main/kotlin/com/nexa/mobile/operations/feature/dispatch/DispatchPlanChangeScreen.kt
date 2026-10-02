@@ -117,8 +117,10 @@ fun DispatchPlanChangeScreen(
                         RadioButton(
                             selected = state.selectedMembershipId == candidate.membershipId,
                             onClick = { onSelectDriver(candidate.membershipId) },
-                            enabled = state.canReassign && state.status == DispatchPlanChangeStatus.Current &&
-                                state.readiness?.ready == true
+                            enabled =
+                                state.canReassign &&
+                                    state.status == DispatchPlanChangeStatus.Current &&
+                                    state.readiness?.ready == true
                         )
                         Column(modifier = Modifier.padding(top = 10.dp)) {
                             Text(candidate.displayName)
@@ -132,8 +134,9 @@ fun DispatchPlanChangeScreen(
                         value = state.plannedDispatchAtText,
                         onValueChange = onScheduleChanged,
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = state.canSchedule && state.status == DispatchPlanChangeStatus.Current &&
-                            state.readiness?.ready == true,
+                        enabled =
+                            state.canSchedule && state.status == DispatchPlanChangeStatus.Current &&
+                                state.readiness?.ready == true,
                         label = { Text(stringResource(R.string.dispatch_plan_schedule_label)) },
                         supportingText = {
                             Text(
@@ -163,7 +166,9 @@ fun DispatchPlanChangeScreen(
                 Text(stringResource(R.string.dispatch_plan_no_assignment))
             }
 
-            if (state.pendingIntent != null && state.status == DispatchPlanChangeStatus.UnknownOutcome) {
+            if (state.pendingIntent != null &&
+                state.status == DispatchPlanChangeStatus.UnknownOutcome
+            ) {
                 item {
                     Text(stringResource(R.string.dispatch_plan_unknown_outcome))
                     OutlinedButton(onClick = onReplay, enabled = state.canReplay) {
@@ -192,8 +197,11 @@ fun DispatchPlanChangeScreen(
                                     R.string.dispatch_plan_history_fact,
                                     entry.fulfillmentVersion,
                                     entry.assignedAt.toString(),
-                                    if (entry.current) stringResource(R.string.dispatch_plan_history_current)
-                                    else stringResource(R.string.dispatch_plan_history_prior)
+                                    if (entry.current) {
+                                        stringResource(R.string.dispatch_plan_history_current)
+                                    } else {
+                                        stringResource(R.string.dispatch_plan_history_prior)
+                                    }
                                 )
                             )
                         }

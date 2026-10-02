@@ -29,7 +29,10 @@ class NexaDispatchHandoffIdentityGatewayTest {
             val request = server.takeRequest()
 
             assertEquals("POST", request.method)
-            assertEquals("/api/v1/deliveries/$DELIVERY_ID/handoff-tokens", request.requestUrl?.encodedPath)
+            assertEquals(
+                "/api/v1/deliveries/$DELIVERY_ID/handoff-tokens",
+                request.requestUrl?.encodedPath
+            )
             assertEquals("issue-key-1", request.getHeader("Idempotency-Key"))
             assertEquals(
                 """{"purpose":"DISPATCH_HANDOFF","assignmentId":"$ASSIGNMENT_ID"}""",
@@ -97,11 +100,12 @@ class NexaDispatchHandoffIdentityGatewayTest {
         )
     )
 
-    private fun issueBody() =
-        """{"purpose":"DISPATCH_HANDOFF","assignmentId":"$ASSIGNMENT_ID"}"""
+    private fun issueBody() = """{"purpose":"DISPATCH_HANDOFF","assignmentId":"$ASSIGNMENT_ID"}"""
 
     private fun wire(deliveryId: String = DELIVERY_ID, token: String?) =
-        """{"purpose":"DISPATCH_HANDOFF","handoffId":"$HANDOFF_ID","deliveryId":"$deliveryId","assignmentId":"$ASSIGNMENT_ID","deliveryVersion":16,"expiresAt":"2030-10-01T12:00:00Z","status":"ACTIVE","token":${token?.let { "\"$it\"" } ?: "null"}}"""
+        """{"purpose":"DISPATCH_HANDOFF","handoffId":"$HANDOFF_ID","deliveryId":"$deliveryId","assignmentId":"$ASSIGNMENT_ID","deliveryVersion":16,"expiresAt":"2030-10-01T12:00:00Z","status":"ACTIVE","token":${token?.let {
+            "\"$it\""
+        } ?: "null"}}"""
 
     private fun jsonResponse(status: Int, body: String) = MockResponse()
         .setResponseCode(status)
@@ -117,7 +121,9 @@ class NexaDispatchHandoffIdentityGatewayTest {
         override val sessionState: StateFlow<SessionState> = MutableStateFlow(SessionState.Active)
         private val lease = AccessTokenLease("access-1", generation = 1, epoch = 1)
         override suspend fun currentAccess(): AccessTokenLease = lease
-        override suspend fun recoverAfterUnauthorized(observed: AccessTokenLease): AccessTokenLease? = null
+        override suspend fun recoverAfterUnauthorized(
+            observed: AccessTokenLease
+        ): AccessTokenLease? = null
         override suspend fun rejectCurrentAccess(observed: AccessTokenLease) = Unit
         override suspend fun isEpochCurrent(epoch: Long): Boolean = epoch == 1L
     }

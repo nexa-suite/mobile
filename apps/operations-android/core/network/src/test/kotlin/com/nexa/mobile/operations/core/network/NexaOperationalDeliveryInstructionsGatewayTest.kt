@@ -49,7 +49,10 @@ class NexaOperationalDeliveryInstructionsGatewayTest {
                     .setHeader("ETag", "\"10\"")
                     .setBody(publishedResponse())
             )
-            val body = """{"instructionId":"$INSTRUCTION_ID","kind":"COLD_CHAIN","content":"Keep chilled"}"""
+            val body = listOf(
+                """{"instructionId":"$INSTRUCTION_ID",""",
+                """"kind":"COLD_CHAIN","content":"Keep chilled"}"""
+            ).joinToString(separator = "")
 
             val result = gateway(server).publish(DELIVERY_ID, 9, "dispatch-instruction-key", body)
                 as OperationalDeliveryInstructionsNetworkResult.Published
@@ -75,7 +78,9 @@ class NexaOperationalDeliveryInstructionsGatewayTest {
                     .setBody("""{"status":412,"code":"PRECONDITION_FAILED"}""")
             )
             val stale = gateway(server).publish(
-                DELIVERY_ID, 9, "dispatch-instruction-key",
+                DELIVERY_ID,
+                9,
+                "dispatch-instruction-key",
                 """{"kind":"NORMAL","content":"Use the front entrance"}"""
             )
             val invalid = gateway(server).publish(DELIVERY_ID, 9, "another-key", "{}")
@@ -104,7 +109,9 @@ class NexaOperationalDeliveryInstructionsGatewayTest {
         private val lease = AccessTokenLease("session-1", generation = 1, epoch = 1)
         override suspend fun currentAccess(): AccessTokenLease = lease
         override suspend fun isEpochCurrent(epoch: Long): Boolean = lease.epoch == epoch
-        override suspend fun recoverAfterUnauthorized(observed: AccessTokenLease): AccessTokenLease? = null
+        override suspend fun recoverAfterUnauthorized(
+            observed: AccessTokenLease
+        ): AccessTokenLease? = null
         override suspend fun rejectCurrentAccess(observed: AccessTokenLease) = Unit
     }
 

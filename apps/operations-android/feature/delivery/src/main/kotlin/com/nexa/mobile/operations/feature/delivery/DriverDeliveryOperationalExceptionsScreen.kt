@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionCommandStatus as ExceptionCommandStatus
 
 @Composable
 fun DriverDeliveryOperationalExceptionsScreen(
@@ -72,27 +73,33 @@ fun DriverDeliveryOperationalExceptionsScreen(
                 }
 
                 DriverDeliveryOperationalExceptionsLoadStatus.NotFound -> ExceptionNotice(
-                    stringResource(R.string.driver_operational_exceptions_not_found), isError = true
+                    stringResource(R.string.driver_operational_exceptions_not_found),
+                    isError = true
                 )
 
                 DriverDeliveryOperationalExceptionsLoadStatus.NetworkUnavailable -> ExceptionNotice(
-                    stringResource(R.string.driver_operational_exceptions_network), isError = true
+                    stringResource(R.string.driver_operational_exceptions_network),
+                    isError = true
                 )
 
                 DriverDeliveryOperationalExceptionsLoadStatus.ServiceUnavailable -> ExceptionNotice(
-                    stringResource(R.string.driver_operational_exceptions_service), isError = true
+                    stringResource(R.string.driver_operational_exceptions_service),
+                    isError = true
                 )
 
                 DriverDeliveryOperationalExceptionsLoadStatus.PermissionDenied -> ExceptionNotice(
-                    stringResource(R.string.driver_operational_exceptions_permission), isError = true
+                    stringResource(R.string.driver_operational_exceptions_permission),
+                    isError = true
                 )
 
                 DriverDeliveryOperationalExceptionsLoadStatus.ContextInvalidated -> ExceptionNotice(
-                    stringResource(R.string.driver_delivery_context), isError = true
+                    stringResource(R.string.driver_delivery_context),
+                    isError = true
                 )
 
                 DriverDeliveryOperationalExceptionsLoadStatus.SessionInvalidated -> ExceptionNotice(
-                    stringResource(R.string.driver_delivery_session), isError = true
+                    stringResource(R.string.driver_delivery_session),
+                    isError = true
                 )
 
                 DriverDeliveryOperationalExceptionsLoadStatus.NotRequested,
@@ -105,7 +112,10 @@ fun DriverDeliveryOperationalExceptionsScreen(
 
             state.snapshot?.let { snapshot ->
                 Text(
-                    stringResource(R.string.driver_operational_exceptions_version, snapshot.deliveryVersion),
+                    stringResource(
+                        R.string.driver_operational_exceptions_version,
+                        snapshot.deliveryVersion
+                    ),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -128,25 +138,33 @@ fun DriverDeliveryOperationalExceptionsScreen(
             }
 
             if (!state.canRead) {
-                ExceptionNotice(stringResource(R.string.driver_operational_exceptions_permission), isError = true)
+                ExceptionNotice(
+                    stringResource(R.string.driver_operational_exceptions_permission),
+                    isError = true
+                )
             }
             if (state.unresolvedCommandForOtherDelivery) {
                 ExceptionNotice(
-                    stringResource(R.string.driver_operational_exceptions_other_pending), isError = true
+                    stringResource(R.string.driver_operational_exceptions_other_pending),
+                    isError = true
                 )
             }
             when (state.commandStatus) {
-                DriverDeliveryOperationalExceptionCommandStatus.Idle -> Unit
-                DriverDeliveryOperationalExceptionCommandStatus.PersistingIntent -> ExceptionNotice(
+                ExceptionCommandStatus.Idle -> Unit
+
+                ExceptionCommandStatus.PersistingIntent -> ExceptionNotice(
                     stringResource(R.string.driver_operational_exceptions_persisting)
                 )
 
-                DriverDeliveryOperationalExceptionCommandStatus.Pending -> ExceptionNotice(
+                ExceptionCommandStatus.Pending -> ExceptionNotice(
                     stringResource(R.string.driver_operational_exceptions_pending)
                 )
 
-                DriverDeliveryOperationalExceptionCommandStatus.UnknownOutcome -> {
-                    ExceptionNotice(stringResource(R.string.driver_operational_exceptions_unknown), isError = true)
+                ExceptionCommandStatus.UnknownOutcome -> {
+                    ExceptionNotice(
+                        stringResource(R.string.driver_operational_exceptions_unknown),
+                        isError = true
+                    )
                     if (state.hasRecoverableCommand) {
                         OutlinedButton(onClick = onRetrySameCommand, enabled = state.canRespond) {
                             Text(stringResource(R.string.driver_operational_exceptions_retry_same))
@@ -154,11 +172,12 @@ fun DriverDeliveryOperationalExceptionsScreen(
                     }
                 }
 
-                DriverDeliveryOperationalExceptionCommandStatus.PersistenceUnavailable -> ExceptionNotice(
-                    stringResource(R.string.driver_operational_exceptions_storage_unavailable), isError = true
+                ExceptionCommandStatus.PersistenceUnavailable -> ExceptionNotice(
+                    stringResource(R.string.driver_operational_exceptions_storage_unavailable),
+                    isError = true
                 )
 
-                DriverDeliveryOperationalExceptionCommandStatus.Claimed -> {
+                ExceptionCommandStatus.Claimed -> {
                     ExceptionNotice(
                         if (state.replayed) {
                             stringResource(R.string.driver_operational_exceptions_claim_replayed)
@@ -166,10 +185,15 @@ fun DriverDeliveryOperationalExceptionsScreen(
                             stringResource(R.string.driver_operational_exceptions_claimed)
                         }
                     )
-                    if (state.hasRecoverableCommand) RetrySameCommandButton(onRetrySameCommand, state.canRespond)
+                    if (state.hasRecoverableCommand) {
+                        RetrySameCommandButton(
+                            onRetrySameCommand,
+                            state.canRespond
+                        )
+                    }
                 }
 
-                DriverDeliveryOperationalExceptionCommandStatus.UnderReview -> {
+                ExceptionCommandStatus.UnderReview -> {
                     ExceptionNotice(
                         if (state.replayed) {
                             stringResource(R.string.driver_operational_exceptions_review_replayed)
@@ -177,10 +201,15 @@ fun DriverDeliveryOperationalExceptionsScreen(
                             stringResource(R.string.driver_operational_exceptions_under_review)
                         }
                     )
-                    if (state.hasRecoverableCommand) RetrySameCommandButton(onRetrySameCommand, state.canRespond)
+                    if (state.hasRecoverableCommand) {
+                        RetrySameCommandButton(
+                            onRetrySameCommand,
+                            state.canRespond
+                        )
+                    }
                 }
 
-                DriverDeliveryOperationalExceptionCommandStatus.Resolved -> ExceptionNotice(
+                ExceptionCommandStatus.Resolved -> ExceptionNotice(
                     if (state.replayed) {
                         stringResource(R.string.driver_operational_exceptions_resolution_replayed)
                     } else {
@@ -188,7 +217,7 @@ fun DriverDeliveryOperationalExceptionsScreen(
                     }
                 )
 
-                DriverDeliveryOperationalExceptionCommandStatus.Closed -> ExceptionNotice(
+                ExceptionCommandStatus.Closed -> ExceptionNotice(
                     if (state.replayed) {
                         stringResource(R.string.driver_operational_exceptions_closure_replayed)
                     } else {
@@ -196,19 +225,29 @@ fun DriverDeliveryOperationalExceptionsScreen(
                     }
                 )
 
-                DriverDeliveryOperationalExceptionCommandStatus.StaleVersion -> {
-                    ExceptionNotice(stringResource(R.string.driver_operational_exceptions_stale), isError = true)
-                    ExceptionNotice(stringResource(R.string.driver_operational_exceptions_fresh_decision))
+                ExceptionCommandStatus.StaleVersion -> {
+                    ExceptionNotice(
+                        stringResource(R.string.driver_operational_exceptions_stale),
+                        isError = true
+                    )
+                    ExceptionNotice(
+                        stringResource(R.string.driver_operational_exceptions_fresh_decision)
+                    )
                 }
 
-                DriverDeliveryOperationalExceptionCommandStatus.Rejected -> {
+                ExceptionCommandStatus.Rejected -> {
                     ExceptionNotice(
                         state.rejectionCode?.let {
                             stringResource(R.string.driver_operational_exceptions_rejected_code, it)
                         } ?: stringResource(R.string.driver_operational_exceptions_rejected),
                         isError = true
                     )
-                    if (state.hasRecoverableCommand) RetrySameCommandButton(onRetrySameCommand, state.canRespond)
+                    if (state.hasRecoverableCommand) {
+                        RetrySameCommandButton(
+                            onRetrySameCommand,
+                            state.canRespond
+                        )
+                    }
                 }
             }
         }
@@ -234,22 +273,39 @@ private fun OperationalExceptionCard(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                stringResource(R.string.driver_operational_exceptions_type_severity, exception.type, exception.severity),
+                stringResource(
+                    R.string.driver_operational_exceptions_type_severity,
+                    exception.type,
+                    exception.severity
+                ),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
             Text(stringResource(R.string.driver_operational_exceptions_status, exception.status))
             Text(exception.description)
-            Text(stringResource(
-                R.string.driver_operational_exceptions_source, exception.sourceKind, exception.sourceIncidentId
-            ))
-            Text(stringResource(
-                R.string.driver_operational_exceptions_affected_object,
-                exception.affectedObjectType,
-                exception.affectedObjectId
-            ))
-            exception.reason?.let { Text(stringResource(R.string.driver_operational_exceptions_reason, it)) }
-            Text(stringResource(R.string.driver_operational_exceptions_occurred_at, exception.occurredAt))
+            Text(
+                stringResource(
+                    R.string.driver_operational_exceptions_source,
+                    exception.sourceKind,
+                    exception.sourceIncidentId
+                )
+            )
+            Text(
+                stringResource(
+                    R.string.driver_operational_exceptions_affected_object,
+                    exception.affectedObjectType,
+                    exception.affectedObjectId
+                )
+            )
+            exception.reason?.let {
+                Text(stringResource(R.string.driver_operational_exceptions_reason, it))
+            }
+            Text(
+                stringResource(
+                    R.string.driver_operational_exceptions_occurred_at,
+                    exception.occurredAt
+                )
+            )
             Text(
                 stringResource(
                     R.string.driver_operational_exceptions_reported_by,
@@ -260,24 +316,44 @@ private fun OperationalExceptionCard(
             exception.responsibleMembershipId?.let {
                 Text(
                     exception.claimedAt?.let { claimedAt ->
-                        stringResource(R.string.driver_operational_exceptions_responsible_at, it, claimedAt)
+                        stringResource(
+                            R.string.driver_operational_exceptions_responsible_at,
+                            it,
+                            claimedAt
+                        )
                     } ?: stringResource(R.string.driver_operational_exceptions_responsible, it)
                 )
             }
-            exception.place?.let { Text(stringResource(R.string.driver_operational_exceptions_place, it)) }
-            exception.resolution?.let { Text(stringResource(R.string.driver_operational_exceptions_resolution, it)) }
-            exception.outcome?.let { Text(stringResource(R.string.driver_operational_exceptions_outcome, it)) }
+            exception.place?.let {
+                Text(stringResource(R.string.driver_operational_exceptions_place, it))
+            }
+            exception.resolution?.let {
+                Text(stringResource(R.string.driver_operational_exceptions_resolution, it))
+            }
+            exception.outcome?.let {
+                Text(stringResource(R.string.driver_operational_exceptions_outcome, it))
+            }
             if (exception.evidenceObjectIds.isNotEmpty()) {
-                Text(stringResource(
-                    R.string.driver_operational_exceptions_evidence,
-                    exception.evidenceObjectIds.joinToString()
-                ))
+                Text(
+                    stringResource(
+                        R.string.driver_operational_exceptions_evidence,
+                        exception.evidenceObjectIds.joinToString()
+                    )
+                )
             }
             exception.underReviewByMembershipId?.let { reviewer ->
                 Text(
                     exception.underReviewAt?.let { reviewedAt ->
-                        stringResource(R.string.driver_operational_exceptions_reviewed_at, reviewer, reviewedAt)
-                    } ?: stringResource(R.string.driver_operational_exceptions_reviewed_by, reviewer)
+                        stringResource(
+                            R.string.driver_operational_exceptions_reviewed_at,
+                            reviewer,
+                            reviewedAt
+                        )
+                    }
+                        ?: stringResource(
+                            R.string.driver_operational_exceptions_reviewed_by,
+                            reviewer
+                        )
                 )
             }
             if (canClaim) {
@@ -294,15 +370,25 @@ private fun OperationalExceptionCard(
                 OutlinedTextField(
                     value = resolution,
                     onValueChange = { candidate ->
-                        if (candidate.length <= DRIVER_WARNING_RESOLUTION_MAX_CHARS) resolution = candidate
-                    },
-                    label = { Text(stringResource(R.string.driver_operational_exceptions_resolution_input)) },
-                    supportingText = {
-                        Text(stringResource(
-                            R.string.driver_operational_exceptions_resolution_length,
-                            resolution.length,
+                        if (candidate.length <=
                             DRIVER_WARNING_RESOLUTION_MAX_CHARS
-                        ))
+                        ) {
+                            resolution = candidate
+                        }
+                    },
+                    label = {
+                        Text(
+                            stringResource(R.string.driver_operational_exceptions_resolution_input)
+                        )
+                    },
+                    supportingText = {
+                        Text(
+                            stringResource(
+                                R.string.driver_operational_exceptions_resolution_length,
+                                resolution.length,
+                                DRIVER_WARNING_RESOLUTION_MAX_CHARS
+                            )
+                        )
                     },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -330,7 +416,11 @@ private fun RetrySameCommandButton(onRetry: () -> Unit, enabled: Boolean) {
 private fun ExceptionNotice(message: String, isError: Boolean = false) {
     Text(
         message,
-        color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (isError) {
+            MaterialTheme.colorScheme.error
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
         style = MaterialTheme.typography.bodyMedium
     )
 }

@@ -34,7 +34,8 @@ class DriverDeliveryInstructionsViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf("persist", "post"), events)
-        val saved = store.savedIntents.singleOrNull() ?: error("Expected encrypted acknowledgement intent")
+        val saved =
+            store.savedIntents.singleOrNull() ?: error("Expected encrypted acknowledgement intent")
         assertEquals(USER_ID, saved.scope.userId)
         assertEquals(TENANT_ID, saved.scope.tenantId)
         assertEquals(WORKSPACE_ID, saved.scope.workspaceId)
@@ -47,10 +48,21 @@ class DriverDeliveryInstructionsViewModelTest {
             """{"instructionIds":["$CRITICAL_ID"]}""",
             gateway.acknowledged.single().frozenBody
         )
-        assertEquals(DriverDeliveryInstructionAcknowledgementStatus.Acknowledged, viewModel.state.value.acknowledgementStatus)
-        assertTrue(viewModel.state.value.snapshot?.instructions?.single { it.id == CRITICAL_ID }?.acknowledged == true)
-        assertEquals("2026-10-01T17:01:00Z", viewModel.state.value.snapshot?.instructions
-            ?.single { it.id == CRITICAL_ID }?.acknowledgedAt)
+        assertEquals(
+            DriverDeliveryInstructionAcknowledgementStatus.Acknowledged,
+            viewModel.state.value.acknowledgementStatus
+        )
+        assertTrue(
+            viewModel.state.value.snapshot?.instructions?.single {
+                it.id == CRITICAL_ID
+            }?.acknowledged ==
+                true
+        )
+        assertEquals(
+            "2026-10-01T17:01:00Z",
+            viewModel.state.value.snapshot?.instructions
+                ?.single { it.id == CRITICAL_ID }?.acknowledgedAt
+        )
     }
 
     @Test
@@ -67,7 +79,10 @@ class DriverDeliveryInstructionsViewModelTest {
         viewModel.activate(AUTHORITY, DELIVERY_ID)
         advanceUntilIdle()
 
-        assertEquals(DriverDeliveryInstructionAcknowledgementStatus.UnknownOutcome, viewModel.state.value.acknowledgementStatus)
+        assertEquals(
+            DriverDeliveryInstructionAcknowledgementStatus.UnknownOutcome,
+            viewModel.state.value.acknowledgementStatus
+        )
         assertTrue(gateway.acknowledged.isEmpty())
         viewModel.retryUnknownAcknowledgement()
         advanceUntilIdle()
@@ -76,7 +91,10 @@ class DriverDeliveryInstructionsViewModelTest {
         assertEquals("original-key", gateway.acknowledged.single().idempotencyKey)
         assertEquals(original.command.frozenBody, gateway.acknowledged.single().frozenBody)
         assertTrue(viewModel.state.value.acknowledgementReplayed)
-        assertEquals(DriverDeliveryInstructionAcknowledgementStatus.Acknowledged, viewModel.state.value.acknowledgementStatus)
+        assertEquals(
+            DriverDeliveryInstructionAcknowledgementStatus.Acknowledged,
+            viewModel.state.value.acknowledgementStatus
+        )
     }
 
     @Test
@@ -107,7 +125,11 @@ class DriverDeliveryInstructionsViewModelTest {
         }
         val gateway = FakeGateway().apply {
             readResults += DriverDeliveryInstructionsLoadResult.Loaded(
-                snapshot(version = 8, instructionVersion = 6, content = "Use the current cold storage bay")
+                snapshot(
+                    version = 8,
+                    instructionVersion = 6,
+                    content = "Use the current cold storage bay"
+                )
             )
         }
         val viewModel = viewModel(gateway, store)
@@ -116,7 +138,10 @@ class DriverDeliveryInstructionsViewModelTest {
 
         assertEquals(1, gateway.reads)
         assertTrue(gateway.acknowledged.isEmpty())
-        assertEquals(DriverDeliveryInstructionAcknowledgementStatus.StaleVersion, viewModel.state.value.acknowledgementStatus)
+        assertEquals(
+            DriverDeliveryInstructionAcknowledgementStatus.StaleVersion,
+            viewModel.state.value.acknowledgementStatus
+        )
         assertEquals(8L, viewModel.state.value.snapshot?.instructionSetVersion)
         assertEquals(null, store.intent)
         assertTrue(viewModel.state.value.selectedInstructionIds.isEmpty())
@@ -129,8 +154,18 @@ class DriverDeliveryInstructionsViewModelTest {
     fun staleAcknowledgementRefreshesAndRequiresNewExplicitDecision() = runTest {
         val store = FakeMetadataStore()
         val gateway = FakeGateway().apply {
-            readResults += DriverDeliveryInstructionsLoadResult.Loaded(snapshot(version = 7, instructionVersion = 5))
-            readResults += DriverDeliveryInstructionsLoadResult.Loaded(snapshot(version = 8, instructionVersion = 6, content = "Use cold storage bay 2"))
+            readResults +=
+                DriverDeliveryInstructionsLoadResult.Loaded(
+                    snapshot(version = 7, instructionVersion = 5)
+                )
+            readResults +=
+                DriverDeliveryInstructionsLoadResult.Loaded(
+                    snapshot(
+                        version = 8,
+                        instructionVersion = 6,
+                        content = "Use cold storage bay 2"
+                    )
+                )
             acknowledgementResult = DriverDeliveryInstructionAcknowledgementResult.StaleVersion
         }
         val keyFactoryCalls = mutableListOf<Int>()
@@ -146,10 +181,16 @@ class DriverDeliveryInstructionsViewModelTest {
 
         assertEquals(2, gateway.reads)
         assertEquals(1, gateway.acknowledged.size)
-        assertEquals(DriverDeliveryInstructionAcknowledgementStatus.StaleVersion, viewModel.state.value.acknowledgementStatus)
+        assertEquals(
+            DriverDeliveryInstructionAcknowledgementStatus.StaleVersion,
+            viewModel.state.value.acknowledgementStatus
+        )
         assertTrue(viewModel.state.value.selectedInstructionIds.isEmpty())
         assertEquals(8L, viewModel.state.value.snapshot?.instructionSetVersion)
-        assertEquals("Use cold storage bay 2", viewModel.state.value.snapshot?.instructions?.last()?.content)
+        assertEquals(
+            "Use cold storage bay 2",
+            viewModel.state.value.snapshot?.instructions?.last()?.content
+        )
         assertEquals(null, store.intent)
 
         viewModel.setInstructionSelected(CRITICAL_ID, true)
@@ -221,7 +262,9 @@ class DriverDeliveryInstructionsViewModelTest {
         var intent: DriverDeliveryInstructionIntentMetadata? = null
         val savedIntents = mutableListOf<DriverDeliveryInstructionIntentMetadata>()
 
-        override suspend fun loadIntent(scope: DriverAttemptScopeIdentity): DriverDeliveryInstructionMetadataRead =
+        override suspend fun loadIntent(
+            scope: DriverAttemptScopeIdentity
+        ): DriverDeliveryInstructionMetadataRead =
             DriverDeliveryInstructionMetadataRead.Available(intent?.takeIf { it.scope == scope })
 
         override suspend fun saveIntent(
@@ -229,7 +272,11 @@ class DriverDeliveryInstructionsViewModelTest {
         ): DriverDeliveryInstructionMetadataWrite {
             events += "persist"
             val current = this.intent
-            if (current != null && current.command != intent.command) return DriverDeliveryInstructionMetadataWrite.Conflict
+            if (current != null &&
+                current.command != intent.command
+            ) {
+                return DriverDeliveryInstructionMetadataWrite.Conflict
+            }
             this.intent = intent
             savedIntents += intent
             return DriverDeliveryInstructionMetadataWrite.Saved
@@ -257,45 +304,68 @@ class DriverDeliveryInstructionsViewModelTest {
         const val NORMAL_ID = "66666666-6666-4666-8666-666666666666"
         const val CRITICAL_ID = "77777777-7777-4777-8777-777777777777"
         val AUTHORITY = DriverDeliveryAuthority(
-            USER_ID, TENANT_ID, WORKSPACE_ID, MEMBERSHIP_ID,
-            setOf("dispatch.read", "dispatch.start_route"), authorityEpoch = 12
+            USER_ID,
+            TENANT_ID,
+            WORKSPACE_ID,
+            MEMBERSHIP_ID,
+            setOf("dispatch.read", "dispatch.start_route"),
+            authorityEpoch = 12
         )
 
-        fun snapshot(version: Long = 7, instructionVersion: Long = 5, content: String = "Keep chilled goods below 5 C") =
-            DriverDeliveryInstructionsSnapshot(
-                DELIVERY_ID,
-                deliveryVersion = 4,
-                instructionSetVersion = version,
-                instructions = listOf(
-                    DriverDeliveryInstruction(
-                        NORMAL_ID, DriverDeliveryInstructionKind.NORMAL, "Use the front entrance",
-                        2, critical = false, acknowledged = false, acknowledgedAt = null,
-                        acknowledgedByMembershipId = null
-                    ),
-                    DriverDeliveryInstruction(
-                        CRITICAL_ID, DriverDeliveryInstructionKind.COLD_CHAIN, content,
-                        instructionVersion, critical = true, acknowledged = false, acknowledgedAt = null,
-                        acknowledgedByMembershipId = null
-                    )
+        fun snapshot(
+            version: Long = 7,
+            instructionVersion: Long = 5,
+            content: String = "Keep chilled goods below 5 C"
+        ) = DriverDeliveryInstructionsSnapshot(
+            DELIVERY_ID,
+            deliveryVersion = 4,
+            instructionSetVersion = version,
+            instructions = listOf(
+                DriverDeliveryInstruction(
+                    NORMAL_ID,
+                    DriverDeliveryInstructionKind.NORMAL,
+                    "Use the front entrance",
+                    2,
+                    critical = false,
+                    acknowledged = false,
+                    acknowledgedAt = null,
+                    acknowledgedByMembershipId = null
+                ),
+                DriverDeliveryInstruction(
+                    CRITICAL_ID,
+                    DriverDeliveryInstructionKind.COLD_CHAIN,
+                    content,
+                    instructionVersion,
+                    critical = true,
+                    acknowledged = false,
+                    acknowledgedAt = null,
+                    acknowledgedByMembershipId = null
                 )
             )
+        )
 
         fun summary(version: Long = 7, instructionVersion: Long = 5, replayed: Boolean = false) =
             DriverDeliveryInstructionAcknowledgementSummary(
-            deliveryId = DELIVERY_ID,
-            instructionSetVersion = version,
-            acknowledgements = listOf(
-                DriverDeliveryInstructionAcknowledgementFact(
-                    CRITICAL_ID, instructionVersion, MEMBERSHIP_ID, "2026-10-01T17:01:00Z"
-                )
-            ),
-            replayed = replayed
-        )
+                deliveryId = DELIVERY_ID,
+                instructionSetVersion = version,
+                acknowledgements = listOf(
+                    DriverDeliveryInstructionAcknowledgementFact(
+                        CRITICAL_ID,
+                        instructionVersion,
+                        MEMBERSHIP_ID,
+                        "2026-10-01T17:01:00Z"
+                    )
+                ),
+                replayed = replayed
+            )
 
         fun intent() = DriverDeliveryInstructionIntentMetadata(
             scope = DriverAttemptScopeIdentity(USER_ID, TENANT_ID, WORKSPACE_ID, MEMBERSHIP_ID),
             command = DriverDeliveryInstructionAcknowledgementCommand(
-                DELIVERY_ID, 7, mapOf(CRITICAL_ID to 5), "original-key",
+                DELIVERY_ID,
+                7,
+                mapOf(CRITICAL_ID to 5),
+                "original-key",
                 driverDeliveryInstructionAcknowledgementBody(listOf(CRITICAL_ID))
             ),
             initiatedByMembershipId = MEMBERSHIP_ID,

@@ -52,10 +52,14 @@ class NexaDispatchHandoffIdentityGateway(private val protectedCalls: ProtectedCa
         idempotencyKey: String,
         frozenBody: String
     ): DispatchHandoffIdentityNetworkOutcome {
-        if (!dispatchHandoffUuid.matches(deliveryId) || !dispatchHandoffUuid.matches(assignmentId) ||
+        if (!dispatchHandoffUuid.matches(
+                deliveryId
+            ) || !dispatchHandoffUuid.matches(assignmentId) ||
             idempotencyKey.isBlank() || idempotencyKey.length > 160 ||
             !bodyMatches(frozenBody, assignmentId)
-        ) return DispatchHandoffIdentityNetworkOutcome.Unavailable
+        ) {
+            return DispatchHandoffIdentityNetworkOutcome.Unavailable
+        }
 
         return when (
             val result = protectedCalls.execute(
@@ -68,6 +72,7 @@ class NexaDispatchHandoffIdentityGateway(private val protectedCalls: ProtectedCa
             )
         ) {
             is ProtectedResult.Failure -> result.error.toHandoffOutcome()
+
             is ProtectedResult.Success -> {
                 if (result.status !in setOf(200, 201)) {
                     return DispatchHandoffIdentityNetworkOutcome.UnknownOutcome
@@ -91,11 +96,17 @@ class NexaDispatchHandoffIdentityGateway(private val protectedCalls: ProtectedCa
         assignmentId: String,
         token: String
     ): DispatchHandoffIdentityNetworkOutcome {
-        if (!dispatchHandoffUuid.matches(deliveryId) || !dispatchHandoffUuid.matches(assignmentId) ||
+        if (!dispatchHandoffUuid.matches(
+                deliveryId
+            ) || !dispatchHandoffUuid.matches(assignmentId) ||
             token.isBlank() || token.length > MAX_DISPATCH_HANDOFF_TOKEN_LENGTH
-        ) return DispatchHandoffIdentityNetworkOutcome.Rejected("HANDOFF_TOKEN_INVALID")
+        ) {
+            return DispatchHandoffIdentityNetworkOutcome.Rejected("HANDOFF_TOKEN_INVALID")
+        }
 
-        val body = """{"purpose":"$DISPATCH_HANDOFF_PURPOSE","token":${JsonPrimitive(token)},"deliveryId":"$deliveryId","assignmentId":"$assignmentId"}"""
+        val body = """{"purpose":"$DISPATCH_HANDOFF_PURPOSE","token":${JsonPrimitive(
+            token
+        )},"deliveryId":"$deliveryId","assignmentId":"$assignmentId"}"""
         return when (
             val result = protectedCalls.execute(
                 ProtectedRequest(
@@ -106,14 +117,22 @@ class NexaDispatchHandoffIdentityGateway(private val protectedCalls: ProtectedCa
             )
         ) {
             is ProtectedResult.Failure -> result.error.toHandoffOutcome()
+
             is ProtectedResult.Success -> {
-                if (result.status != 200) return DispatchHandoffIdentityNetworkOutcome.UnknownOutcome
+                if (result.status !=
+                    200
+                ) {
+                    return DispatchHandoffIdentityNetworkOutcome.UnknownOutcome
+                }
                 val projection = result.body.toProjection(allowToken = false)
                     ?: return DispatchHandoffIdentityNetworkOutcome.UnknownOutcome
                 if (!projection.deliveryId.equals(deliveryId, ignoreCase = true) ||
                     !projection.assignmentId.equals(assignmentId, ignoreCase = true)
-                ) DispatchHandoffIdentityNetworkOutcome.UnknownOutcome
-                else DispatchHandoffIdentityNetworkOutcome.Identity(projection)
+                ) {
+                    DispatchHandoffIdentityNetworkOutcome.UnknownOutcome
+                } else {
+                    DispatchHandoffIdentityNetworkOutcome.Identity(projection)
+                }
             }
         }
     }
@@ -127,30 +146,41 @@ class NexaDispatchHandoffIdentityGateway(private val protectedCalls: ProtectedCa
         false
     }
 
-    private fun String?.toProjection(allowToken: Boolean): DispatchHandoffIdentityProjection? = try {
-        val root = this?.let(dispatchHandoffJson::parseToJsonElement)?.jsonObject ?: return null
-        if (root.string("purpose") != DISPATCH_HANDOFF_PURPOSE) return null
-        val token = when (val value = root["token"]) {
-            null, JsonNull -> null
-            else -> value.jsonPrimitive.takeIf(JsonPrimitive::isString)?.contentOrNull ?: return null
+    private fun String?.toProjection(allowToken: Boolean): DispatchHandoffIdentityProjection? =
+        try {
+            val root = this?.let(dispatchHandoffJson::parseToJsonElement)?.jsonObject ?: return null
+            if (root.string("purpose") != DISPATCH_HANDOFF_PURPOSE) return null
+            val token = when (val value = root["token"]) {
+                null, JsonNull -> null
+
+                else -> value.jsonPrimitive.takeIf(JsonPrimitive::isString)?.contentOrNull
+                    ?: return null
+            }
+            if ((!allowToken && token != null) ||
+                token?.let { it.isBlank() || it.length > MAX_DISPATCH_HANDOFF_TOKEN_LENGTH } == true
+            ) {
+                return null
+            }
+            val expiresAt = root.string("expiresAt")
+            Instant.parse(expiresAt)
+            DispatchHandoffIdentityProjection(
+                handoffId = root.string("handoffId").also {
+                    require(dispatchHandoffUuid.matches(it))
+                },
+                deliveryId = root.string("deliveryId").also {
+                    require(dispatchHandoffUuid.matches(it))
+                },
+                assignmentId = root.string("assignmentId").also {
+                    require(dispatchHandoffUuid.matches(it))
+                },
+                deliveryVersion = root.long("deliveryVersion").also { require(it >= 0) },
+                expiresAt = expiresAt,
+                status = root.string("status").also { require(it == "ACTIVE") },
+                token = token
+            )
+        } catch (_: Exception) {
+            null
         }
-        if ((!allowToken && token != null) || token?.let { it.isBlank() || it.length > MAX_DISPATCH_HANDOFF_TOKEN_LENGTH } == true) {
-            return null
-        }
-        val expiresAt = root.string("expiresAt")
-        Instant.parse(expiresAt)
-        DispatchHandoffIdentityProjection(
-            handoffId = root.string("handoffId").also { require(dispatchHandoffUuid.matches(it)) },
-            deliveryId = root.string("deliveryId").also { require(dispatchHandoffUuid.matches(it)) },
-            assignmentId = root.string("assignmentId").also { require(dispatchHandoffUuid.matches(it)) },
-            deliveryVersion = root.long("deliveryVersion").also { require(it >= 0) },
-            expiresAt = expiresAt,
-            status = root.string("status").also { require(it == "ACTIVE") },
-            token = token
-        )
-    } catch (_: Exception) {
-        null
-    }
 
     private fun JsonObject.string(key: String): String =
         this[key]?.jsonPrimitive?.takeIf(JsonPrimitive::isString)?.contentOrNull
@@ -162,14 +192,20 @@ class NexaDispatchHandoffIdentityGateway(private val protectedCalls: ProtectedCa
     private fun ClientFailure.toHandoffOutcome(): DispatchHandoffIdentityNetworkOutcome = when {
         kind == FailureKind.AuthenticationRequired ->
             DispatchHandoffIdentityNetworkOutcome.SessionInvalidated
+
         httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
             DispatchHandoffIdentityNetworkOutcome.ContextInvalidated
-        kind == FailureKind.AuthorizationFailure -> DispatchHandoffIdentityNetworkOutcome.PermissionDenied
+
+        kind == FailureKind.AuthorizationFailure ->
+            DispatchHandoffIdentityNetworkOutcome.PermissionDenied
+
         httpStatus == 404 || kind == FailureKind.ResourceUnavailable ->
             DispatchHandoffIdentityNetworkOutcome.NotFound
+
         kind == FailureKind.ValidationFailure || kind == FailureKind.BusinessConflict ||
             kind == FailureKind.PreconditionRequired || kind == FailureKind.StaleState ->
             DispatchHandoffIdentityNetworkOutcome.Rejected(problemCode)
+
         else -> DispatchHandoffIdentityNetworkOutcome.UnknownOutcome
     }
 

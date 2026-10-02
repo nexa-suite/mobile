@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -24,14 +25,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
@@ -44,7 +44,12 @@ fun DriverDeliveryScreen(
     onBeginDelivery: () -> Unit,
     onRetryUnknownStart: () -> Unit,
     onOpenDirections: (String) -> Boolean = { false },
-    onRecordOutcome: (DriverOutcomeKind, Map<String, String>, String?, String?) -> Unit = { _, _, _, _ -> },
+    onRecordOutcome: (
+        DriverOutcomeKind,
+        Map<String, String>,
+        String?,
+        String?
+    ) -> Unit = { _, _, _, _ -> },
     onRetryUnknownOutcome: () -> Unit = {},
     onSignalArrival: () -> Unit = {},
     onRetryUnknownArrival: () -> Unit = {},
@@ -56,6 +61,7 @@ fun DriverDeliveryScreen(
     onAttachAvailableProofEvidence: () -> Unit = {},
     onOpenInstructions: ((String) -> Unit)? = null,
     onOpenOperationalExceptions: ((String) -> Unit)? = null,
+    onOpenExecutionTemperature: ((String) -> Unit)? = null,
     onOpenIncident: ((String, String, Long, Boolean) -> Unit)? = null,
     onOpenHandoffCode: ((String, String, Long) -> Unit)? = null
 ) {
@@ -224,7 +230,10 @@ fun DriverDeliveryScreen(
                 }
 
                 DriverOutcomeCommandStatus.PersistenceUnavailable -> {
-                    Notice(stringResource(R.string.driver_delivery_outcome_storage_unavailable), isError = true)
+                    Notice(
+                        stringResource(R.string.driver_delivery_outcome_storage_unavailable),
+                        isError = true
+                    )
                     if (state.hasRecoverableOutcome) {
                         OutlinedButton(onClick = onRetryUnknownOutcome, enabled = state.canStart) {
                             Text(stringResource(R.string.driver_delivery_outcome_retry_same))
@@ -277,7 +286,8 @@ fun DriverDeliveryScreen(
                 ) {
                     OutlinedButton(
                         onClick = { onOpenInstructions(delivery.id) },
-                        enabled = state.canRead && state.detailStatus == DriverDeliveryLoadStatus.Ready
+                        enabled =
+                            state.canRead && state.detailStatus == DriverDeliveryLoadStatus.Ready
                     ) {
                         Text(stringResource(R.string.driver_delivery_instructions_open))
                     }
@@ -287,9 +297,20 @@ fun DriverDeliveryScreen(
                 ) {
                     OutlinedButton(
                         onClick = { onOpenOperationalExceptions(delivery.id) },
-                        enabled = state.canRead && state.detailStatus == DriverDeliveryLoadStatus.Ready
+                        enabled =
+                            state.canRead && state.detailStatus == DriverDeliveryLoadStatus.Ready
                     ) {
                         Text(stringResource(R.string.driver_delivery_exceptions_open))
+                    }
+                }
+                if (onOpenExecutionTemperature != null && state.canRead && state.canStart &&
+                    state.detailStatus == DriverDeliveryLoadStatus.Ready
+                ) {
+                    OutlinedButton(
+                        onClick = { onOpenExecutionTemperature(delivery.id) },
+                        enabled = state.commandStatus !in FROZEN_COMMANDS
+                    ) {
+                        Text(stringResource(R.string.driver_delivery_execution_temperature_open))
                     }
                 }
                 delivery.activeAttempt?.let { attempt ->
@@ -333,7 +354,12 @@ fun DriverDeliveryScreen(
                     )
                     delivery.arrival?.let { arrival ->
                         if (arrival.attemptId == attempt.id) {
-                            Notice(stringResource(R.string.driver_delivery_arrival_confirmed, arrival.arrivedAt))
+                            Notice(
+                                stringResource(
+                                    R.string.driver_delivery_arrival_confirmed,
+                                    arrival.arrivedAt
+                                )
+                            )
                         }
                     }
                     when (state.arrivalCommandStatus) {
@@ -350,25 +376,51 @@ fun DriverDeliveryScreen(
                         )
 
                         DriverArrivalCommandStatus.UnknownOutcome -> {
-                            Notice(stringResource(R.string.driver_delivery_arrival_unknown), isError = true)
+                            Notice(
+                                stringResource(R.string.driver_delivery_arrival_unknown),
+                                isError = true
+                            )
                             if (state.hasRecoverableArrival) {
-                                OutlinedButton(onClick = onRetryUnknownArrival, enabled = state.canStart) {
-                                    Text(stringResource(R.string.driver_delivery_arrival_retry_same))
+                                OutlinedButton(
+                                    onClick = onRetryUnknownArrival,
+                                    enabled = state.canStart
+                                ) {
+                                    Text(
+                                        stringResource(R.string.driver_delivery_arrival_retry_same)
+                                    )
                                 }
                             }
                         }
 
                         DriverArrivalCommandStatus.PersistenceUnavailable -> {
-                            Notice(stringResource(R.string.driver_delivery_arrival_storage_unavailable), isError = true)
+                            Notice(
+                                stringResource(
+                                    R.string.driver_delivery_arrival_storage_unavailable
+                                ),
+                                isError = true
+                            )
                             if (state.hasRecoverableArrival) {
-                                OutlinedButton(onClick = onRetryUnknownArrival, enabled = state.canStart) {
-                                    Text(stringResource(R.string.driver_delivery_arrival_retry_same))
+                                OutlinedButton(
+                                    onClick = onRetryUnknownArrival,
+                                    enabled = state.canStart
+                                ) {
+                                    Text(
+                                        stringResource(R.string.driver_delivery_arrival_retry_same)
+                                    )
                                 }
                             }
                         }
 
-                        DriverArrivalCommandStatus.Recorded -> state.arrivalSummary?.let { arrival ->
-                            Notice(stringResource(R.string.driver_delivery_arrival_confirmed, arrival.arrivedAt))
+                        DriverArrivalCommandStatus.Recorded -> {
+                            val arrival = state.arrivalSummary
+                            if (arrival != null) {
+                                Notice(
+                                    stringResource(
+                                        R.string.driver_delivery_arrival_confirmed,
+                                        arrival.arrivedAt
+                                    )
+                                )
+                            }
                         }
 
                         DriverArrivalCommandStatus.Rejected -> Notice(
@@ -379,7 +431,8 @@ fun DriverDeliveryScreen(
                         )
 
                         DriverArrivalCommandStatus.StaleVersion -> Notice(
-                            stringResource(R.string.driver_delivery_arrival_stale), isError = true
+                            stringResource(R.string.driver_delivery_arrival_stale),
+                            isError = true
                         )
 
                         DriverArrivalCommandStatus.Idle -> Unit
@@ -430,26 +483,59 @@ fun DriverDeliveryScreen(
                     )
                 }
                 if (onOpenHandoffCode != null && delivery.activeAttempt != null) {
-                    OutlinedButton(onClick = { onOpenHandoffCode(delivery.id, delivery.activeAttempt.id, delivery.version) },
-                        enabled = state.canRead && state.detailStatus == DriverDeliveryLoadStatus.Ready &&
-                            state.outcomeCommandStatus !in setOf(DriverOutcomeCommandStatus.Pending, DriverOutcomeCommandStatus.UnknownOutcome)) {
+                    OutlinedButton(
+                        onClick = {
+                            onOpenHandoffCode(
+                                delivery.id,
+                                delivery.activeAttempt.id,
+                                delivery.version
+                            )
+                        },
+                        enabled =
+                            state.canRead && state.detailStatus == DriverDeliveryLoadStatus.Ready &&
+                                state.outcomeCommandStatus !in
+                                setOf(
+                                    DriverOutcomeCommandStatus.Pending,
+                                    DriverOutcomeCommandStatus.UnknownOutcome
+                                )
+                    ) {
                         Text("Presentar código de entrega")
                     }
                 }
                 val incidentAttemptId = delivery.activeAttempt?.id ?: state.outcomeSummary
-                    ?.takeIf { state.outcomeCommandStatus == DriverOutcomeCommandStatus.Recorded && it.deliveryVersion == delivery.version }
+                    ?.takeIf {
+                        state.outcomeCommandStatus == DriverOutcomeCommandStatus.Recorded &&
+                            it.deliveryVersion == delivery.version
+                    }
                     ?.attemptId
                 if (onOpenIncident != null && incidentAttemptId != null) {
-                    OutlinedButton(onClick = { onOpenIncident(delivery.id, incidentAttemptId, delivery.version, delivery.activeAttempt == null) },
-                        enabled = state.canRead && state.canStart && state.detailStatus == DriverDeliveryLoadStatus.Ready &&
-                            state.outcomeCommandStatus !in setOf(DriverOutcomeCommandStatus.Pending, DriverOutcomeCommandStatus.UnknownOutcome)) {
+                    OutlinedButton(
+                        onClick = {
+                            onOpenIncident(
+                                delivery.id,
+                                incidentAttemptId,
+                                delivery.version,
+                                delivery.activeAttempt == null
+                            )
+                        },
+                        enabled =
+                            state.canRead && state.canStart &&
+                                state.detailStatus == DriverDeliveryLoadStatus.Ready &&
+                                state.outcomeCommandStatus !in
+                                setOf(
+                                    DriverOutcomeCommandStatus.Pending,
+                                    DriverOutcomeCommandStatus.UnknownOutcome
+                                )
+                    ) {
                         Text("Registrar incidente para revisión")
                     }
                 }
                 if (delivery.status == "DELIVERED" || state.proofId != null) {
                     ProofEntry(
                         state = state,
-                        canCreate = state.canCaptureProof && state.detailStatus == DriverDeliveryLoadStatus.Ready,
+                        canCreate =
+                            state.canCaptureProof &&
+                                state.detailStatus == DriverDeliveryLoadStatus.Ready,
                         onCreateProof = onCreateProof,
                         onChooseProofFile = onChooseProofFile,
                         onUploadSelectedProofEvidence = onUploadSelectedProofEvidence,
@@ -535,7 +621,8 @@ fun DriverDeliveryScreen(
                 ) {
                     OutlinedButton(
                         onClick = { onOpenInstructions(delivery.id) },
-                        enabled = state.canRead && state.detailStatus == DriverDeliveryLoadStatus.Ready
+                        enabled =
+                            state.canRead && state.detailStatus == DriverDeliveryLoadStatus.Ready
                     ) {
                         Text(stringResource(R.string.driver_delivery_instructions_required))
                     }
@@ -577,7 +664,9 @@ private fun ProofEntry(
             style = MaterialTheme.typography.titleMedium
         )
         Notice(stringResource(R.string.driver_delivery_proof_policy_limit))
-        if (state.proofId == null && state.outcomeCommandStatus == DriverOutcomeCommandStatus.Recorded) {
+        if (state.proofId == null &&
+            state.outcomeCommandStatus == DriverOutcomeCommandStatus.Recorded
+        ) {
             OutlinedTextField(
                 value = receiverName,
                 onValueChange = { receiverName = it },
@@ -586,7 +675,11 @@ private fun ProofEntry(
                 enabled = canCreate,
                 modifier = Modifier.fillMaxWidth()
             )
-            Button(onClick = { onCreateProof(receiverName) }, enabled = canCreate && receiverName.isNotBlank()) {
+            Button(
+                onClick = { onCreateProof(receiverName) },
+                enabled =
+                    canCreate && receiverName.isNotBlank()
+            ) {
                 Text(stringResource(R.string.driver_delivery_proof_begin))
             }
         }
@@ -596,74 +689,121 @@ private fun ProofEntry(
                 DriverProofCommandStatus.CheckingCurrent -> Notice(
                     stringResource(R.string.driver_delivery_proof_checking)
                 )
+
                 DriverProofCommandStatus.PersistingIntent -> Notice(
                     stringResource(R.string.driver_delivery_proof_persisting)
                 )
+
                 DriverProofCommandStatus.Pending -> Notice(
                     stringResource(R.string.driver_delivery_proof_pending)
                 )
+
                 DriverProofCommandStatus.UnknownOutcome -> {
                     Notice(stringResource(R.string.driver_delivery_proof_unknown), isError = true)
                     if (state.hasRecoverableProof) {
-                        OutlinedButton(onClick = onRetryUnknownProof, enabled = state.canCaptureProof) {
+                        OutlinedButton(
+                            onClick = onRetryUnknownProof,
+                            enabled = state.canCaptureProof
+                        ) {
                             Text(stringResource(R.string.driver_delivery_proof_retry_same))
                         }
                     }
                     if (state.proofEvidenceId != null && state.canReadProofEvidence) {
-                        OutlinedButton(onClick = onRefreshProofEvidence, enabled = state.canCaptureProof) {
+                        OutlinedButton(
+                            onClick = onRefreshProofEvidence,
+                            enabled = state.canCaptureProof
+                        ) {
                             Text(stringResource(R.string.driver_delivery_proof_refresh_evidence))
                         }
                     }
                 }
+
                 DriverProofCommandStatus.PersistenceUnavailable -> Notice(
-                    stringResource(R.string.driver_delivery_proof_storage_unavailable), isError = true
+                    stringResource(R.string.driver_delivery_proof_storage_unavailable),
+                    isError = true
                 )
+
                 DriverProofCommandStatus.AwaitingEvidenceSelection -> {
                     Notice(stringResource(R.string.driver_delivery_proof_pending_selection))
                     OutlinedButton(onClick = onChooseProofFile, enabled = state.canCaptureProof) {
                         Text(stringResource(R.string.driver_delivery_proof_choose_file))
                     }
                 }
+
                 DriverProofCommandStatus.ReadyToUploadReview -> {
                     Notice(stringResource(R.string.driver_delivery_proof_review))
-                    OutlinedButton(onClick = onUploadSelectedProofEvidence, enabled = state.canCaptureProof) {
+                    OutlinedButton(
+                        onClick = onUploadSelectedProofEvidence,
+                        enabled = state.canCaptureProof
+                    ) {
                         Text(stringResource(R.string.driver_delivery_proof_upload))
                     }
                 }
+
                 DriverProofCommandStatus.WaitingForScan -> {
                     Notice(stringResource(R.string.driver_delivery_proof_waiting_scan))
                     if (state.canReadProofEvidence) {
-                        OutlinedButton(onClick = onRefreshProofEvidence, enabled = state.canCaptureProof) {
+                        OutlinedButton(
+                            onClick = onRefreshProofEvidence,
+                            enabled = state.canCaptureProof
+                        ) {
                             Text(stringResource(R.string.driver_delivery_proof_refresh_evidence))
                         }
                     }
                 }
+
                 DriverProofCommandStatus.EvidenceAvailable -> {
                     Notice(stringResource(R.string.driver_delivery_proof_available))
-                    OutlinedButton(onClick = onAttachAvailableProofEvidence, enabled = state.canCaptureProof) {
+                    OutlinedButton(
+                        onClick = onAttachAvailableProofEvidence,
+                        enabled = state.canCaptureProof
+                    ) {
                         Text(stringResource(R.string.driver_delivery_proof_attach))
                     }
                 }
+
                 DriverProofCommandStatus.Captured -> state.proofSummary?.let { proof ->
                     state.selectedDelivery?.let { delivery ->
                         Text(stringResource(R.string.driver_delivery_proof_delivery, delivery.id))
                     }
                     Text(stringResource(R.string.driver_delivery_proof_attempt, proof.attemptId))
-                    Text(stringResource(R.string.driver_delivery_proof_actor, proof.actorMembershipId))
-                    Text(stringResource(R.string.driver_delivery_proof_receiver_value, proof.receiverName))
-                    Notice(stringResource(R.string.driver_delivery_proof_captured, proof.capturedAt))
+                    Text(
+                        stringResource(
+                            R.string.driver_delivery_proof_actor,
+                            proof.actorMembershipId
+                        )
+                    )
+                    Text(
+                        stringResource(
+                            R.string.driver_delivery_proof_receiver_value,
+                            proof.receiverName
+                        )
+                    )
+                    Notice(
+                        stringResource(R.string.driver_delivery_proof_captured, proof.capturedAt)
+                    )
                     proof.photoEvidenceObjectId?.let { evidenceId ->
-                        Text(stringResource(R.string.driver_delivery_proof_photo_reference, evidenceId))
+                        Text(
+                            stringResource(
+                                R.string.driver_delivery_proof_photo_reference,
+                                evidenceId
+                            )
+                        )
                     }
                 }
+
                 DriverProofCommandStatus.Rejected -> Notice(
                     state.proofRejectionCode?.let {
                         stringResource(R.string.driver_delivery_proof_rejected_code, it)
-                    } ?: stringResource(R.string.driver_delivery_proof_rejected), isError = true
+                    } ?: stringResource(R.string.driver_delivery_proof_rejected),
+                    isError = true
                 )
+
                 DriverProofCommandStatus.StaleVersion -> Notice(
-                    stringResource(R.string.driver_delivery_proof_stale), isError = true
+                    stringResource(R.string.driver_delivery_proof_stale),
+                    isError = true
                 )
+
                 DriverProofCommandStatus.Idle -> Unit
             }
         }
@@ -727,7 +867,9 @@ private fun OutcomeEntry(
                 )
             }
         }
-        if (selected in setOf(DriverOutcomeKind.FAILED, DriverOutcomeKind.REFUSED, DriverOutcomeKind.ABSENT)) {
+        if (selected in
+            setOf(DriverOutcomeKind.FAILED, DriverOutcomeKind.REFUSED, DriverOutcomeKind.ABSENT)
+        ) {
             OutlinedTextField(
                 value = reason,
                 onValueChange = { reason = it },
@@ -749,7 +891,12 @@ private fun OutcomeEntry(
         ) {
             Text(stringResource(R.string.driver_delivery_outcome_submit))
         }
-        if (!state.canStart) Notice(stringResource(R.string.driver_delivery_start_permission), isError = true)
+        if (!state.canStart) {
+            Notice(
+                stringResource(R.string.driver_delivery_start_permission),
+                isError = true
+            )
+        }
     }
 }
 
@@ -765,7 +912,11 @@ private fun DriverOutcomeKind.label(): Int = when (this) {
 private fun Notice(text: String, isError: Boolean = false) {
     Text(
         text = text,
-        color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (isError) {
+            MaterialTheme.colorScheme.error
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
         style = MaterialTheme.typography.bodyMedium
     )
 }

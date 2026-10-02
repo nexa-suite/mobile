@@ -46,9 +46,15 @@ data class DriverDeliveryOperationalException(
         require(operationalExceptionUuid.matches(reportedByMembershipId))
         require(occurredAt.isNotBlank())
         require(reportedAt.isNotBlank())
-        require(responsibleMembershipId == null || operationalExceptionUuid.matches(responsibleMembershipId))
+        require(
+            responsibleMembershipId == null ||
+                operationalExceptionUuid.matches(responsibleMembershipId)
+        )
         require(claimedAt == null || claimedAt.isNotBlank())
-        require(underReviewByMembershipId == null || operationalExceptionUuid.matches(underReviewByMembershipId))
+        require(
+            underReviewByMembershipId == null ||
+                operationalExceptionUuid.matches(underReviewByMembershipId)
+        )
         require(underReviewAt == null || underReviewAt.isNotBlank())
         require(evidenceObjectIds.distinct().size == evidenceObjectIds.size)
         require(evidenceObjectIds.all(operationalExceptionUuid::matches))
@@ -87,7 +93,9 @@ data class DriverDeliveryOperationalExceptionCommand(
         require(
             when (action) {
                 DriverDeliveryOperationalExceptionAction.Claim,
-                DriverDeliveryOperationalExceptionAction.Review -> frozenBody == DRIVER_OPERATIONAL_EXCEPTION_EMPTY_BODY
+                DriverDeliveryOperationalExceptionAction.Review ->
+                    frozenBody ==
+                        DRIVER_OPERATIONAL_EXCEPTION_EMPTY_BODY
 
                 DriverDeliveryOperationalExceptionAction.ResolveWarning ->
                     driverDeliveryOperationalExceptionResolutionFromBody(frozenBody) != null
@@ -110,18 +118,19 @@ fun driverDeliveryOperationalExceptionResolutionBody(value: String): String {
     return JsonObject(mapOf("resolution" to JsonPrimitive(normalized))).toString()
 }
 
-fun driverDeliveryOperationalExceptionResolutionFromBody(body: String): String? {
-    return try {
-        val root = Json.parseToJsonElement(body).jsonObject
-        val value = root["resolution"]?.jsonPrimitive
-        if (root.keys != setOf("resolution") || value == null || !value.isString) {
-            null
-        } else {
-            value.content.trim().takeIf { it.isNotEmpty() && it.length <= DRIVER_WARNING_RESOLUTION_MAX_CHARS }
-        }
-    } catch (_: Exception) {
+fun driverDeliveryOperationalExceptionResolutionFromBody(body: String): String? = try {
+    val root = Json.parseToJsonElement(body).jsonObject
+    val value = root["resolution"]?.jsonPrimitive
+    if (root.keys != setOf("resolution") || value == null || !value.isString) {
         null
+    } else {
+        value.content.trim().takeIf {
+            it.isNotEmpty() &&
+                it.length <= DRIVER_WARNING_RESOLUTION_MAX_CHARS
+        }
     }
+} catch (_: Exception) {
+    null
 }
 
 const val DRIVER_OPERATIONAL_EXCEPTION_BODYLESS = ""

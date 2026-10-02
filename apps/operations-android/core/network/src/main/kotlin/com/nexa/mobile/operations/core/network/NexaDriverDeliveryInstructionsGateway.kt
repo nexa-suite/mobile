@@ -1,5 +1,7 @@
 package com.nexa.mobile.operations.core.network
 
+import com.nexa.mobile.operations.core.network.DriverDeliveryInstructionsNetworkOutcome as InstructionsNetworkOutcome
+import java.time.Instant
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
@@ -11,7 +13,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
-import java.time.Instant
 
 private const val DRIVER_DELIVERY_INSTRUCTIONS_PATH = "/api/v1/driver/deliveries"
 private val instructionTransportJson = Json { ignoreUnknownKeys = true }
@@ -54,27 +55,27 @@ data class DriverDeliveryInstructionAcknowledgementResponseTransport(
 )
 
 sealed interface DriverDeliveryInstructionsNetworkOutcome {
-    data class Loaded(val value: DriverDeliveryInstructionsTransport) : DriverDeliveryInstructionsNetworkOutcome
-    data class Acknowledged(
-        val value: DriverDeliveryInstructionAcknowledgementResponseTransport
-    ) : DriverDeliveryInstructionsNetworkOutcome
+    data class Loaded(val value: DriverDeliveryInstructionsTransport) :
+        InstructionsNetworkOutcome
+    data class Acknowledged(val value: DriverDeliveryInstructionAcknowledgementResponseTransport) :
+        InstructionsNetworkOutcome
 
-    data class Rejected(val code: String?) : DriverDeliveryInstructionsNetworkOutcome
-    data object NotFound : DriverDeliveryInstructionsNetworkOutcome
-    data object StaleVersion : DriverDeliveryInstructionsNetworkOutcome
-    data object UnknownOutcome : DriverDeliveryInstructionsNetworkOutcome
-    data object NetworkUnavailable : DriverDeliveryInstructionsNetworkOutcome
-    data object ServiceUnavailable : DriverDeliveryInstructionsNetworkOutcome
-    data object PermissionDenied : DriverDeliveryInstructionsNetworkOutcome
-    data object ContextInvalidated : DriverDeliveryInstructionsNetworkOutcome
-    data object SessionInvalidated : DriverDeliveryInstructionsNetworkOutcome
+    data class Rejected(val code: String?) : InstructionsNetworkOutcome
+    data object NotFound : InstructionsNetworkOutcome
+    data object StaleVersion : InstructionsNetworkOutcome
+    data object UnknownOutcome : InstructionsNetworkOutcome
+    data object NetworkUnavailable : InstructionsNetworkOutcome
+    data object ServiceUnavailable : InstructionsNetworkOutcome
+    data object PermissionDenied : InstructionsNetworkOutcome
+    data object ContextInvalidated : InstructionsNetworkOutcome
+    data object SessionInvalidated : InstructionsNetworkOutcome
 }
 
 /** Protected transport for current Driver delivery instructions and explicit critical acknowledgement. */
 class NexaDriverDeliveryInstructionsGateway(private val protectedCalls: ProtectedCallExecutor) {
-    suspend fun currentInstructions(deliveryId: String): DriverDeliveryInstructionsNetworkOutcome {
+    suspend fun currentInstructions(deliveryId: String): InstructionsNetworkOutcome {
         if (!instructionTransportUuid.matches(deliveryId)) {
-            return DriverDeliveryInstructionsNetworkOutcome.ServiceUnavailable
+            return InstructionsNetworkOutcome.ServiceUnavailable
         }
         return when (
             val result = protectedCalls.execute(
@@ -85,15 +86,18 @@ class NexaDriverDeliveryInstructionsGateway(private val protectedCalls: Protecte
             )
         ) {
             is ProtectedResult.Failure -> result.error.toInstructionReadOutcome()
+
             is ProtectedResult.Success -> {
                 val body = result.body.toInstructionObject()
-                    ?: return DriverDeliveryInstructionsNetworkOutcome.ServiceUnavailable
+                    ?: return InstructionsNetworkOutcome.ServiceUnavailable
                 val value = body.toInstructions()
-                    ?: return DriverDeliveryInstructionsNetworkOutcome.ServiceUnavailable
-                if (value.deliveryId != deliveryId || result.etag.toStrongVersion() != value.instructionSetVersion) {
-                    DriverDeliveryInstructionsNetworkOutcome.ServiceUnavailable
+                    ?: return InstructionsNetworkOutcome.ServiceUnavailable
+                if (value.deliveryId != deliveryId ||
+                    result.etag.toStrongVersion() != value.instructionSetVersion
+                ) {
+                    InstructionsNetworkOutcome.ServiceUnavailable
                 } else {
-                    DriverDeliveryInstructionsNetworkOutcome.Loaded(value)
+                    InstructionsNetworkOutcome.Loaded(value)
                 }
             }
         }
@@ -105,20 +109,23 @@ class NexaDriverDeliveryInstructionsGateway(private val protectedCalls: Protecte
         instructionIds: List<String>,
         idempotencyKey: String,
         frozenBody: String
-    ): DriverDeliveryInstructionsNetworkOutcome {
+    ): InstructionsNetworkOutcome {
         if (!instructionTransportUuid.matches(deliveryId) || instructionSetVersion < 0 ||
-            instructionIds.isEmpty() || instructionIds.any { !instructionTransportUuid.matches(it) } ||
+            instructionIds.isEmpty() || instructionIds.any {
+                !instructionTransportUuid.matches(it)
+            } ||
             instructionIds.map(String::lowercase).distinct().size != instructionIds.size ||
             idempotencyKey.isBlank() || idempotencyKey.length > 160 ||
             !frozenAcknowledgementBodyMatches(frozenBody, instructionIds)
         ) {
-            return DriverDeliveryInstructionsNetworkOutcome.ServiceUnavailable
+            return InstructionsNetworkOutcome.ServiceUnavailable
         }
         return when (
             val result = protectedCalls.execute(
                 ProtectedRequest(
                     method = ProtectedMethod.POST,
-                    path = "$DRIVER_DELIVERY_INSTRUCTIONS_PATH/$deliveryId/instruction-acknowledgements",
+                    path = "$DRIVER_DELIVERY_INSTRUCTIONS_PATH/$deliveryId/" +
+                        "instruction-acknowledgements",
                     payload = frozenBody,
                     idempotencyKey = idempotencyKey,
                     ifMatch = "\"$instructionSetVersion\""
@@ -126,19 +133,21 @@ class NexaDriverDeliveryInstructionsGateway(private val protectedCalls: Protecte
             )
         ) {
             is ProtectedResult.Failure -> result.error.toInstructionMutationOutcome()
+
             is ProtectedResult.Success -> {
                 if (result.status !in setOf(200, 201)) {
-                    return DriverDeliveryInstructionsNetworkOutcome.UnknownOutcome
+                    return InstructionsNetworkOutcome.UnknownOutcome
                 }
                 val value = result.body.toInstructionAcknowledgement()
-                    ?: return DriverDeliveryInstructionsNetworkOutcome.UnknownOutcome
-                if (value.deliveryId != deliveryId || value.instructionSetVersion != instructionSetVersion ||
+                    ?: return InstructionsNetworkOutcome.UnknownOutcome
+                if (value.deliveryId != deliveryId ||
+                    value.instructionSetVersion != instructionSetVersion ||
                     value.acknowledgements.map { it.instructionId.lowercase() }.toSet() !=
                     instructionIds.map(String::lowercase).toSet()
                 ) {
-                    DriverDeliveryInstructionsNetworkOutcome.UnknownOutcome
+                    InstructionsNetworkOutcome.UnknownOutcome
                 } else {
-                    DriverDeliveryInstructionsNetworkOutcome.Acknowledged(value)
+                    InstructionsNetworkOutcome.Acknowledged(value)
                 }
             }
         }
@@ -151,13 +160,19 @@ class NexaDriverDeliveryInstructionsGateway(private val protectedCalls: Protecte
     }
 
     private fun JsonObject.toInstructions(): DriverDeliveryInstructionsTransport? = try {
-        val deliveryId = requiredText("deliveryId")?.takeIf(instructionTransportUuid::matches) ?: return null
+        val deliveryId =
+            requiredText("deliveryId")?.takeIf(instructionTransportUuid::matches) ?: return null
         val deliveryVersion = requiredLong("deliveryVersion") ?: return null
         val instructionSetVersion = requiredLong("instructionSetVersion") ?: return null
         val rows = this["instructions"]?.jsonArray ?: return null
         val instructions = rows.map { it.jsonObject.toInstruction() ?: return null }
         if (instructions.map { it.id.lowercase() }.distinct().size != instructions.size) return null
-        DriverDeliveryInstructionsTransport(deliveryId, deliveryVersion, instructionSetVersion, instructions)
+        DriverDeliveryInstructionsTransport(
+            deliveryId,
+            deliveryVersion,
+            instructionSetVersion,
+            instructions
+        )
     } catch (_: Exception) {
         null
     }
@@ -175,9 +190,19 @@ class NexaDriverDeliveryInstructionsGateway(private val protectedCalls: Protecte
         val recordedBy = optionalText("recordedByMembershipId")
         val recordedAt = optionalText("recordedAt")
         val hasSource = listOf(sourceKind, recordedBy, recordedAt).any { it != null }
-        if (hasSource && (sourceKind !in setOf("BUYER", "CUSTOMER_REPORTED_BY_SALES", "OPERATIONAL_DISPATCH") ||
-                recordedBy == null || !instructionTransportUuid.matches(recordedBy) ||
-                recordedAt == null || !recordedAt.isIsoInstant())) return null
+        if (hasSource &&
+            (
+                sourceKind !in setOf(
+                    "BUYER",
+                    "CUSTOMER_REPORTED_BY_SALES",
+                    "OPERATIONAL_DISPATCH"
+                ) ||
+                    recordedBy == null || !instructionTransportUuid.matches(recordedBy) ||
+                    recordedAt == null || !recordedAt.isIsoInstant()
+                )
+        ) {
+            return null
+        }
 
         val acknowledgementFactsValid = if (acknowledged) {
             !acknowledgedAt.isNullOrBlank() && !acknowledgedBy.isNullOrBlank() &&
@@ -189,41 +214,65 @@ class NexaDriverDeliveryInstructionsGateway(private val protectedCalls: Protecte
         if (instructionVersion < 0 || critical != (kind != "NORMAL") ||
             !acknowledgementFactsValid ||
             (acknowledgedBy != null && !instructionTransportUuid.matches(acknowledgedBy))
-        ) return null
+        ) {
+            return null
+        }
         DriverDeliveryInstructionTransport(
-            id, kind, content, instructionVersion, critical, acknowledged, acknowledgedAt, acknowledgedBy,
+            id, kind, content, instructionVersion, critical, acknowledged,
+            acknowledgedAt, acknowledgedBy,
             sourceKind, recordedBy, recordedAt
         )
     } catch (_: Exception) {
         null
     }
 
-    private fun String?.toInstructionAcknowledgement(): DriverDeliveryInstructionAcknowledgementResponseTransport? = try {
-        val root = this?.let(instructionTransportJson::parseToJsonElement)?.jsonObject ?: return null
-        val deliveryId = root.requiredText("deliveryId")?.takeIf(instructionTransportUuid::matches) ?: return null
-        val version = root.requiredLong("instructionSetVersion") ?: return null
-        val replayed = root.requiredBoolean("replayed") ?: return null
-        val rows = root["acknowledgements"]?.jsonArray ?: return null
-        val acknowledgements = rows.map { it.jsonObject.toAcknowledgement() ?: return null }
-        if (version < 0 || acknowledgements.map { it.instructionId.lowercase() }.distinct().size != acknowledgements.size) {
-            return null
+    private fun String?.toInstructionAcknowledgement():
+        DriverDeliveryInstructionAcknowledgementResponseTransport? =
+        try {
+            val root =
+                this?.let(instructionTransportJson::parseToJsonElement)?.jsonObject ?: return null
+            val deliveryId =
+                root.requiredText("deliveryId")?.takeIf(instructionTransportUuid::matches)
+                    ?: return null
+            val version = root.requiredLong("instructionSetVersion") ?: return null
+            val replayed = root.requiredBoolean("replayed") ?: return null
+            val rows = root["acknowledgements"]?.jsonArray ?: return null
+            val acknowledgements = rows.map { it.jsonObject.toAcknowledgement() ?: return null }
+            if (version < 0 ||
+                acknowledgements.map { it.instructionId.lowercase() }.distinct().size !=
+                acknowledgements.size
+            ) {
+                return null
+            }
+            DriverDeliveryInstructionAcknowledgementResponseTransport(
+                deliveryId,
+                version,
+                acknowledgements,
+                replayed
+            )
+        } catch (_: Exception) {
+            null
         }
-        DriverDeliveryInstructionAcknowledgementResponseTransport(deliveryId, version, acknowledgements, replayed)
-    } catch (_: Exception) {
-        null
-    }
 
-    private fun JsonObject.toAcknowledgement(): DriverDeliveryInstructionAcknowledgementTransport? = try {
-        val instructionId = requiredText("instructionId")?.takeIf(instructionTransportUuid::matches) ?: return null
-        val version = requiredLong("instructionVersion") ?: return null
-        val membershipId = requiredText("acknowledgedByMembershipId")
-            ?.takeIf(instructionTransportUuid::matches) ?: return null
-        val acknowledgedAt = requiredText("acknowledgedAt") ?: return null
-        if (version < 0 || !acknowledgedAt.isIsoInstant()) return null
-        DriverDeliveryInstructionAcknowledgementTransport(instructionId, version, membershipId, acknowledgedAt)
-    } catch (_: Exception) {
-        null
-    }
+    private fun JsonObject.toAcknowledgement(): DriverDeliveryInstructionAcknowledgementTransport? =
+        try {
+            val instructionId =
+                requiredText("instructionId")?.takeIf(instructionTransportUuid::matches)
+                    ?: return null
+            val version = requiredLong("instructionVersion") ?: return null
+            val membershipId = requiredText("acknowledgedByMembershipId")
+                ?.takeIf(instructionTransportUuid::matches) ?: return null
+            val acknowledgedAt = requiredText("acknowledgedAt") ?: return null
+            if (version < 0 || !acknowledgedAt.isIsoInstant()) return null
+            DriverDeliveryInstructionAcknowledgementTransport(
+                instructionId,
+                version,
+                membershipId,
+                acknowledgedAt
+            )
+        } catch (_: Exception) {
+            null
+        }
 
     private fun JsonObject.requiredText(key: String): String? = this[key]?.jsonPrimitive
         ?.takeIf(JsonPrimitive::isString)?.contentOrNull?.takeIf(String::isNotBlank)
@@ -268,33 +317,62 @@ class NexaDriverDeliveryInstructionsGateway(private val protectedCalls: Protecte
         false
     }
 
-    private fun ClientFailure.toInstructionReadOutcome(): DriverDeliveryInstructionsNetworkOutcome = when {
-        kind == FailureKind.AuthenticationRequired -> DriverDeliveryInstructionsNetworkOutcome.SessionInvalidated
-        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID -> DriverDeliveryInstructionsNetworkOutcome.ContextInvalidated
-        kind == FailureKind.AuthorizationFailure -> DriverDeliveryInstructionsNetworkOutcome.PermissionDenied
-        kind == FailureKind.ResourceUnavailable -> DriverDeliveryInstructionsNetworkOutcome.NotFound
-        kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout -> DriverDeliveryInstructionsNetworkOutcome.NetworkUnavailable
-        else -> DriverDeliveryInstructionsNetworkOutcome.ServiceUnavailable
+    private fun ClientFailure.toInstructionReadOutcome(): InstructionsNetworkOutcome = when {
+        kind == FailureKind.AuthenticationRequired ->
+            InstructionsNetworkOutcome.SessionInvalidated
+
+        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
+            InstructionsNetworkOutcome.ContextInvalidated
+
+        kind == FailureKind.AuthorizationFailure ->
+            InstructionsNetworkOutcome.PermissionDenied
+
+        kind == FailureKind.ResourceUnavailable ->
+            InstructionsNetworkOutcome.NotFound
+
+        kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
+            InstructionsNetworkOutcome.NetworkUnavailable
+
+        else -> InstructionsNetworkOutcome.ServiceUnavailable
     }
 
-    private fun ClientFailure.toInstructionMutationOutcome(): DriverDeliveryInstructionsNetworkOutcome = when {
-        kind == FailureKind.AuthenticationRequired -> DriverDeliveryInstructionsNetworkOutcome.SessionInvalidated
-        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID -> DriverDeliveryInstructionsNetworkOutcome.ContextInvalidated
-        kind == FailureKind.AuthorizationFailure -> DriverDeliveryInstructionsNetworkOutcome.PermissionDenied
-        kind == FailureKind.StaleState -> DriverDeliveryInstructionsNetworkOutcome.StaleVersion
-        kind == FailureKind.ResourceUnavailable -> DriverDeliveryInstructionsNetworkOutcome.NotFound
+    private fun ClientFailure.toInstructionMutationOutcome(): InstructionsNetworkOutcome = when {
+        kind == FailureKind.AuthenticationRequired ->
+            InstructionsNetworkOutcome.SessionInvalidated
+
+        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
+            InstructionsNetworkOutcome.ContextInvalidated
+
+        kind == FailureKind.AuthorizationFailure ->
+            InstructionsNetworkOutcome.PermissionDenied
+
+        kind == FailureKind.StaleState -> InstructionsNetworkOutcome.StaleVersion
+
+        kind == FailureKind.ResourceUnavailable ->
+            InstructionsNetworkOutcome.NotFound
+
         kind == FailureKind.ValidationFailure || kind == FailureKind.BusinessConflict ||
-            kind == FailureKind.PreconditionRequired -> DriverDeliveryInstructionsNetworkOutcome.Rejected(problemCode)
+            kind == FailureKind.PreconditionRequired ->
+            InstructionsNetworkOutcome.Rejected(
+                problemCode
+            )
+
         kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ||
             kind == FailureKind.UnknownOutcome || kind == FailureKind.RetryableServerFailure ->
-            DriverDeliveryInstructionsNetworkOutcome.UnknownOutcome
-        else -> DriverDeliveryInstructionsNetworkOutcome.ServiceUnavailable
+            InstructionsNetworkOutcome.UnknownOutcome
+
+        else -> InstructionsNetworkOutcome.ServiceUnavailable
     }
 
     private companion object {
         const val ACCESS_CONTEXT_INVALID = "ACCESS_CONTEXT_INVALID"
         val INSTRUCTION_KINDS = setOf(
-            "NORMAL", "COLD_CHAIN", "ACCESS_RESTRICTION", "SPECIAL_UNLOADING", "CUSTOMER_SAFETY", "GOODS_HANDLING"
+            "NORMAL",
+            "COLD_CHAIN",
+            "ACCESS_RESTRICTION",
+            "SPECIAL_UNLOADING",
+            "CUSTOMER_SAFETY",
+            "GOODS_HANDLING"
         )
     }
 }

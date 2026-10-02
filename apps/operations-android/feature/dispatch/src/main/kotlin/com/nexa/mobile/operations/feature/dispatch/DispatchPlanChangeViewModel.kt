@@ -2,6 +2,7 @@ package com.nexa.mobile.operations.feature.dispatch
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeGatewayResult as ChangeGatewayResult
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -26,7 +27,9 @@ class DispatchPlanChangeViewModel(
     fun activate(fulfillmentId: String, context: DispatchAuthorityContext) {
         if (activeFulfillmentId == fulfillmentId && activeContext == context &&
             mutableState.value.status !in INVALIDATED_STATUSES
-        ) return
+        ) {
+            return
+        }
         activeFulfillmentId = fulfillmentId
         activeContext = context
         pendingIntent = null
@@ -55,7 +58,9 @@ class DispatchPlanChangeViewModel(
         val state = mutableState.value
         if (!state.canReassign || state.status != DispatchPlanChangeStatus.Current ||
             state.pendingIntent != null || state.candidates.none { it.membershipId == membershipId }
-        ) return
+        ) {
+            return
+        }
         mutableState.value = state.copy(selectedMembershipId = membershipId)
     }
 
@@ -63,7 +68,9 @@ class DispatchPlanChangeViewModel(
         val state = mutableState.value
         if (!state.canSchedule || state.status != DispatchPlanChangeStatus.Current ||
             state.pendingIntent != null
-        ) return
+        ) {
+            return
+        }
         mutableState.value = state.copy(
             plannedDispatchAtText = value,
             inputInvalid = value.isNotBlank() && value.toInstantOrNull() == null
@@ -96,7 +103,8 @@ class DispatchPlanChangeViewModel(
             physicalAllocationVersion = readiness.physicalAllocationVersion,
             requestedMembershipId = requestedMembership,
             requestedDispatchAt = requestedDispatchAt,
-            resultResponsibleMembershipId = requestedMembership ?: assignment.responsibleMembershipId,
+            resultResponsibleMembershipId =
+                requestedMembership ?: assignment.responsibleMembershipId,
             resultPlannedDispatchAt = requestedDispatchAt ?: assignment.plannedDispatchAt,
             requestBody = encodeBody(
                 assignment,
@@ -111,6 +119,7 @@ class DispatchPlanChangeViewModel(
         viewModelScope.launch {
             when (metadataCall { metadata.saveIntent(intent) }) {
                 DispatchPlanChangeMetadataWrite.Saved -> pendingIntent = intent
+
                 DispatchPlanChangeMetadataWrite.Conflict -> {
                     fail(DispatchPlanChangeStatus.Conflict)
                     return@launch
@@ -140,7 +149,9 @@ class DispatchPlanChangeViewModel(
         val state = mutableState.value
         if (!state.canReplay || intent.fulfillmentId != fulfillmentId ||
             intent.scope != context.scopeIdentity()
-        ) return
+        ) {
+            return
+        }
         val request = ++generation
         mutableState.value = state.copy(status = DispatchPlanChangeStatus.Saving)
         viewModelScope.launch {
@@ -164,7 +175,7 @@ class DispatchPlanChangeViewModel(
         mutableState.value = baseState(fulfillmentId, context, DispatchPlanChangeStatus.Loading)
         viewModelScope.launch {
             when (val result = safeCall { gateway.load(fulfillmentId, context) }) {
-                is DispatchPlanChangeGatewayResult.Snapshot -> {
+                is ChangeGatewayResult.Snapshot -> {
                     if (!isCurrent(request, context, fulfillmentId)) return@launch
                     val snapshot = result.value
                     if (!snapshot.isFor(fulfillmentId)) {
@@ -174,15 +185,19 @@ class DispatchPlanChangeViewModel(
                         mutableState.value = baseState(
                             fulfillmentId,
                             context,
-                            if (pendingIntent == null) DispatchPlanChangeStatus.Current else
+                            if (pendingIntent == null) {
+                                DispatchPlanChangeStatus.Current
+                            } else {
                                 DispatchPlanChangeStatus.UnknownOutcome
+                            }
                         ).copy(
                             readiness = snapshot.readiness,
                             candidates = snapshot.candidates,
                             assignment = current,
                             history = snapshot.history,
                             selectedMembershipId = current?.responsibleMembershipId,
-                            plannedDispatchAtText = current?.plannedDispatchAt?.toString().orEmpty(),
+                            plannedDispatchAtText =
+                                current?.plannedDispatchAt?.toString().orEmpty(),
                             pendingIntent = pendingIntent
                         )
                     }
@@ -208,7 +223,9 @@ class DispatchPlanChangeViewModel(
 
                 is DispatchPlanChangeMetadataRead.Available -> {
                     val loaded = read.intent
-                    if (loaded != null && (loaded.scope != scope || loaded.fulfillmentId != fulfillmentId)) {
+                    if (loaded != null &&
+                        (loaded.scope != scope || loaded.fulfillmentId != fulfillmentId)
+                    ) {
                         restoringMetadata = false
                         fail(DispatchPlanChangeStatus.ServiceUnavailable)
                         return@launch
@@ -233,14 +250,14 @@ class DispatchPlanChangeViewModel(
     }
 
     private suspend fun handleResult(
-        result: DispatchPlanChangeGatewayResult,
+        result: ChangeGatewayResult,
         intent: DispatchPlanChangeIntent,
         request: Long,
         context: DispatchAuthorityContext,
         fulfillmentId: String
     ) {
         when (result) {
-            is DispatchPlanChangeGatewayResult.Changed -> {
+            is ChangeGatewayResult.Changed -> {
                 if (!result.value.matches(intent)) {
                     markUnknown(intent, request, context, fulfillmentId)
                 } else {
@@ -257,36 +274,52 @@ class DispatchPlanChangeViewModel(
                 }
             }
 
-            DispatchPlanChangeGatewayResult.NotReady -> reject(
-                intent, DispatchPlanChangeStatus.NotReady, request, context, fulfillmentId
+            ChangeGatewayResult.NotReady -> reject(
+                intent,
+                DispatchPlanChangeStatus.NotReady,
+                request,
+                context,
+                fulfillmentId
             )
 
-            DispatchPlanChangeGatewayResult.Stale -> reject(
-                intent, DispatchPlanChangeStatus.Stale, request, context, fulfillmentId
+            ChangeGatewayResult.Stale -> reject(
+                intent,
+                DispatchPlanChangeStatus.Stale,
+                request,
+                context,
+                fulfillmentId
             )
 
-            DispatchPlanChangeGatewayResult.Conflict -> reject(
-                intent, DispatchPlanChangeStatus.Conflict, request, context, fulfillmentId
+            ChangeGatewayResult.Conflict -> reject(
+                intent,
+                DispatchPlanChangeStatus.Conflict,
+                request,
+                context,
+                fulfillmentId
             )
 
-            DispatchPlanChangeGatewayResult.PermissionDenied -> reject(
-                intent, DispatchPlanChangeStatus.PermissionDenied, request, context, fulfillmentId
+            ChangeGatewayResult.PermissionDenied -> reject(
+                intent,
+                DispatchPlanChangeStatus.PermissionDenied,
+                request,
+                context,
+                fulfillmentId
             )
 
-            DispatchPlanChangeGatewayResult.ContextInvalidated -> invalidate(
+            ChangeGatewayResult.ContextInvalidated -> invalidate(
                 DispatchPlanChangeStatus.ContextInvalidated
             )
 
-            DispatchPlanChangeGatewayResult.SessionInvalidated -> invalidate(
+            ChangeGatewayResult.SessionInvalidated -> invalidate(
                 DispatchPlanChangeStatus.SessionInvalidated
             )
 
-            DispatchPlanChangeGatewayResult.UnknownOutcome,
-            DispatchPlanChangeGatewayResult.NetworkUnavailable,
-            DispatchPlanChangeGatewayResult.ServiceUnavailable ->
+            ChangeGatewayResult.UnknownOutcome,
+            ChangeGatewayResult.NetworkUnavailable,
+            ChangeGatewayResult.ServiceUnavailable ->
                 markUnknown(intent, request, context, fulfillmentId)
 
-            is DispatchPlanChangeGatewayResult.Snapshot ->
+            is ChangeGatewayResult.Snapshot ->
                 fail(DispatchPlanChangeStatus.ServiceUnavailable)
         }
     }
@@ -352,8 +385,12 @@ class DispatchPlanChangeViewModel(
         append('{')
         append("\"expectedAssignmentId\":").append(jsonString(assignment.id)).append(',')
         append("\"expectedAssignmentVersion\":").append(assignment.fulfillmentVersion).append(',')
-        append("\"physicalAllocationId\":").append(jsonString(readiness.physicalAllocationId)).append(',')
-        append("\"physicalAllocationVersion\":").append(readiness.physicalAllocationVersion).append(',')
+        append(
+            "\"physicalAllocationId\":"
+        ).append(jsonString(readiness.physicalAllocationId)).append(',')
+        append(
+            "\"physicalAllocationVersion\":"
+        ).append(readiness.physicalAllocationVersion).append(',')
         append("\"responsibleMembershipId\":")
             .append(membershipId?.let(::jsonString) ?: "null").append(',')
         append("\"plannedDispatchAt\":")
@@ -389,21 +426,22 @@ class DispatchPlanChangeViewModel(
     ): Boolean = request == generation && activeContext == context &&
         activeFulfillmentId == fulfillmentId
 
-    private suspend fun safeCall(block: suspend () -> DispatchPlanChangeGatewayResult) = try {
+    private suspend fun safeCall(block: suspend () -> ChangeGatewayResult) = try {
         block()
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) {
-        DispatchPlanChangeGatewayResult.ServiceUnavailable
+        ChangeGatewayResult.ServiceUnavailable
     }
 
-    private suspend fun metadataReadCall(block: suspend () -> DispatchPlanChangeMetadataRead) = try {
-        block()
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (_: Exception) {
-        DispatchPlanChangeMetadataRead.Unavailable
-    }
+    private suspend fun metadataReadCall(block: suspend () -> DispatchPlanChangeMetadataRead) =
+        try {
+            block()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            DispatchPlanChangeMetadataRead.Unavailable
+        }
 
     private suspend fun metadataCall(block: suspend () -> DispatchPlanChangeMetadataWrite) = try {
         block()
@@ -414,14 +452,25 @@ class DispatchPlanChangeViewModel(
     }
 
     private fun DispatchPlanChangeSnapshot.isFor(fulfillmentId: String): Boolean =
-        readiness.subjectKind == "PREPARED_FULFILLMENT" && readiness.fulfillmentId == fulfillmentId &&
+        readiness.subjectKind == "PREPARED_FULFILLMENT" &&
+            readiness.fulfillmentId == fulfillmentId &&
             candidates.map { it.membershipId.lowercase() }.distinct().size == candidates.size &&
-            (assignment == null || assignment.fulfillmentId == fulfillmentId && assignment.current &&
-                assignment.physicalAllocationId == readiness.physicalAllocationId &&
-                assignment.physicalAllocationVersion == readiness.physicalAllocationVersion) &&
+            (
+                assignment == null ||
+                    (
+                        assignment.fulfillmentId == fulfillmentId && assignment.current &&
+                            assignment.physicalAllocationId == readiness.physicalAllocationId &&
+                            assignment.physicalAllocationVersion ==
+                            readiness.physicalAllocationVersion
+                        )
+                ) &&
             history.all { it.fulfillmentId == fulfillmentId } &&
-            if (assignment == null) history.isEmpty() else
-                history.count { it.current } == 1 && history.any { it.current && it.id == assignment.id }
+            if (assignment == null) {
+                history.isEmpty()
+            } else {
+                history.count { it.current } == 1 &&
+                    history.any { it.current && it.id == assignment.id }
+            }
 
     private fun PreparedFulfillmentDriverAssignment.matches(intent: DispatchPlanChangeIntent) =
         fulfillmentId == intent.fulfillmentId &&
@@ -431,18 +480,27 @@ class DispatchPlanChangeViewModel(
             responsibleMembershipId == intent.resultResponsibleMembershipId &&
             plannedDispatchAt == intent.resultPlannedDispatchAt
 
-    private fun DispatchPlanChangeGatewayResult.toStatus() = when (this) {
-        DispatchPlanChangeGatewayResult.NotReady -> DispatchPlanChangeStatus.NotReady
-        DispatchPlanChangeGatewayResult.Stale -> DispatchPlanChangeStatus.Stale
-        DispatchPlanChangeGatewayResult.Conflict -> DispatchPlanChangeStatus.Conflict
-        DispatchPlanChangeGatewayResult.UnknownOutcome -> DispatchPlanChangeStatus.UnknownOutcome
-        DispatchPlanChangeGatewayResult.NetworkUnavailable -> DispatchPlanChangeStatus.NetworkUnavailable
-        DispatchPlanChangeGatewayResult.ServiceUnavailable -> DispatchPlanChangeStatus.ServiceUnavailable
-        DispatchPlanChangeGatewayResult.PermissionDenied -> DispatchPlanChangeStatus.PermissionDenied
-        DispatchPlanChangeGatewayResult.ContextInvalidated -> DispatchPlanChangeStatus.ContextInvalidated
-        DispatchPlanChangeGatewayResult.SessionInvalidated -> DispatchPlanChangeStatus.SessionInvalidated
-        is DispatchPlanChangeGatewayResult.Snapshot,
-        is DispatchPlanChangeGatewayResult.Changed -> DispatchPlanChangeStatus.ServiceUnavailable
+    private fun ChangeGatewayResult.toStatus() = when (this) {
+        ChangeGatewayResult.NotReady -> DispatchPlanChangeStatus.NotReady
+
+        ChangeGatewayResult.Stale -> DispatchPlanChangeStatus.Stale
+
+        ChangeGatewayResult.Conflict -> DispatchPlanChangeStatus.Conflict
+
+        ChangeGatewayResult.UnknownOutcome -> DispatchPlanChangeStatus.UnknownOutcome
+
+        ChangeGatewayResult.NetworkUnavailable -> DispatchPlanChangeStatus.NetworkUnavailable
+
+        ChangeGatewayResult.ServiceUnavailable -> DispatchPlanChangeStatus.ServiceUnavailable
+
+        ChangeGatewayResult.PermissionDenied -> DispatchPlanChangeStatus.PermissionDenied
+
+        ChangeGatewayResult.ContextInvalidated -> DispatchPlanChangeStatus.ContextInvalidated
+
+        ChangeGatewayResult.SessionInvalidated -> DispatchPlanChangeStatus.SessionInvalidated
+
+        is ChangeGatewayResult.Snapshot,
+        is ChangeGatewayResult.Changed -> DispatchPlanChangeStatus.ServiceUnavailable
     }
 
     private fun DispatchAuthorityContext.readStatus(): DispatchPlanChangeStatus {
@@ -453,16 +511,25 @@ class DispatchPlanChangeViewModel(
                 identity.workspaceId,
                 identity.membershipId
             ).any(String::isBlank) || identity.permissions.isEmpty()
-        ) return DispatchPlanChangeStatus.ContextInvalidated
-        return if (DISPATCH_READ_PERMISSION in identity.permissions) DispatchPlanChangeStatus.Loading
-        else DispatchPlanChangeStatus.PermissionDenied
+        ) {
+            return DispatchPlanChangeStatus.ContextInvalidated
+        }
+        return if (DISPATCH_READ_PERMISSION in
+            identity.permissions
+        ) {
+            DispatchPlanChangeStatus.Loading
+        } else {
+            DispatchPlanChangeStatus.PermissionDenied
+        }
     }
 
     private fun DispatchAuthorityContext.scopeIdentity(): DispatchPlanChangeScopeIdentity? {
         val value = identity ?: return null
         if (listOf(value.userId, value.tenantId, value.workspaceId, value.membershipId)
                 .any(String::isBlank)
-        ) return null
+        ) {
+            return null
+        }
         return DispatchPlanChangeScopeIdentity(
             value.userId,
             value.tenantId,

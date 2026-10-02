@@ -1,10 +1,7 @@
 package com.nexa.mobile.operations.core.network
 
-import java.time.Instant
 import java.io.File
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.MultipartBody
-import okhttp3.RequestBody.Companion.asRequestBody
+import java.time.Instant
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -14,6 +11,9 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
 
 private const val DRIVER_INCIDENT_BASE = "/api/v1/driver/deliveries"
 private const val INCIDENT_EVIDENCE_BASE = "/api/v1/business-document-evidence"
@@ -49,9 +49,12 @@ data class DriverIncidentEvidenceProjection(
 
 sealed interface DriverIncidentNetworkOutcome {
     data class Recorded(val incident: DriverIncidentProjection) : DriverIncidentNetworkOutcome
-    data class EvidenceUploaded(val evidence: DriverIncidentEvidenceProjection) : DriverIncidentNetworkOutcome
-    data class EvidenceStatus(val evidence: DriverIncidentEvidenceProjection) : DriverIncidentNetworkOutcome
-    data class EvidenceAttached(val incident: DriverIncidentProjection) : DriverIncidentNetworkOutcome
+    data class EvidenceUploaded(val evidence: DriverIncidentEvidenceProjection) :
+        DriverIncidentNetworkOutcome
+    data class EvidenceStatus(val evidence: DriverIncidentEvidenceProjection) :
+        DriverIncidentNetworkOutcome
+    data class EvidenceAttached(val incident: DriverIncidentProjection) :
+        DriverIncidentNetworkOutcome
     data class Rejected(val code: String?) : DriverIncidentNetworkOutcome
     data object NotFound : DriverIncidentNetworkOutcome
     data object StaleVersion : DriverIncidentNetworkOutcome
@@ -69,9 +72,12 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
             command.expectedVersion < 0 || command.idempotencyKey.isBlank() ||
             command.idempotencyKey.length > 160 ||
             (command.type != null && command.type !in INCIDENT_TYPES) || !bodyMatches(command)
-        ) return DriverIncidentNetworkOutcome.Unavailable
+        ) {
+            return DriverIncidentNetworkOutcome.Unavailable
+        }
 
-        val path = "$DRIVER_INCIDENT_BASE/${command.deliveryId}/attempts/${command.attemptId}/incidents"
+        val path =
+            "$DRIVER_INCIDENT_BASE/${command.deliveryId}/attempts/${command.attemptId}/incidents"
         return when (
             val result = protectedCalls.execute(
                 ProtectedRequest(
@@ -84,11 +90,16 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
             )
         ) {
             is ProtectedResult.Failure -> result.error.toIncidentOutcome()
+
             is ProtectedResult.Success -> {
-                val incident = result.body.toIncidentProjection() ?: return DriverIncidentNetworkOutcome.UnknownOutcome
+                val incident =
+                    result.body.toIncidentProjection()
+                        ?: return DriverIncidentNetworkOutcome.UnknownOutcome
                 val etagVersion = result.etag.toVersion()
-                if (incident.deliveryId != command.deliveryId || incident.attemptId != command.attemptId ||
-                    incident.reason != command.reason || incident.description != command.description ||
+                if (incident.deliveryId != command.deliveryId ||
+                    incident.attemptId != command.attemptId ||
+                    incident.reason != command.reason ||
+                    incident.description != command.description ||
                     incident.place != command.place || incident.deliveryVersion != etagVersion ||
                     incident.deliveryVersion < command.expectedVersion ||
                     !classificationMatches(command, incident) ||
@@ -111,34 +122,53 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
         byteSize: Long,
         checksumSha256: String
     ): DriverIncidentNetworkOutcome {
-        if (!incidentUuid.matches(incidentId) || idempotencyKey.isBlank() || idempotencyKey.length > 160 ||
+        if (!incidentUuid.matches(incidentId) || idempotencyKey.isBlank() ||
+            idempotencyKey.length > 160 ||
             !file.isFile || file.length() != byteSize || byteSize !in 1..MAX_EVIDENCE_BYTES ||
-            declaredContentType !in ALLOWED_EVIDENCE_TYPES || !checksumSha256.matches(Regex("[0-9a-f]{64}")) ||
+            declaredContentType !in ALLOWED_EVIDENCE_TYPES ||
+            !checksumSha256.matches(Regex("[0-9a-f]{64}")) ||
             originalFilename.isBlank() || originalFilename.length > 255 ||
             originalFilename.any { it == '\r' || it == '\n' || it == '/' || it == '\\' }
-        ) return DriverIncidentNetworkOutcome.Unavailable
+        ) {
+            return DriverIncidentNetworkOutcome.Unavailable
+        }
         val body = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
             .addFormDataPart("subjectType", "DELIVERY_INCIDENT")
             .addFormDataPart("subjectId", incidentId)
-            .addFormDataPart("file", originalFilename, file.asRequestBody(declaredContentType.toMediaType()))
-            .build()
-        return when (val result = protectedCalls.execute(
-            ProtectedRequest(
-                method = ProtectedMethod.POST,
-                path = INCIDENT_EVIDENCE_BASE,
-                idempotencyKey = idempotencyKey,
-                requestBody = body
+            .addFormDataPart(
+                "file",
+                originalFilename,
+                file.asRequestBody(declaredContentType.toMediaType())
             )
-        )) {
+            .build()
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(
+                    method = ProtectedMethod.POST,
+                    path = INCIDENT_EVIDENCE_BASE,
+                    idempotencyKey = idempotencyKey,
+                    requestBody = body
+                )
+            )
+        ) {
             is ProtectedResult.Failure -> result.error.toIncidentOutcome()
+
             is ProtectedResult.Success -> {
-                if (result.status !in setOf(200, 201)) return DriverIncidentNetworkOutcome.UnknownOutcome
+                if (result.status !in
+                    setOf(200, 201)
+                ) {
+                    return DriverIncidentNetworkOutcome.UnknownOutcome
+                }
                 val evidence = result.body.toEvidenceProjection()
                     ?: return DriverIncidentNetworkOutcome.UnknownOutcome
-                if (evidence.subjectType != "DELIVERY_INCIDENT" || evidence.subjectId != incidentId ||
-                    evidence.declaredContentType != declaredContentType || evidence.byteSize != byteSize
-                ) return DriverIncidentNetworkOutcome.UnknownOutcome
+                if (evidence.subjectType != "DELIVERY_INCIDENT" ||
+                    evidence.subjectId != incidentId ||
+                    evidence.declaredContentType != declaredContentType ||
+                    evidence.byteSize != byteSize
+                ) {
+                    return DriverIncidentNetworkOutcome.UnknownOutcome
+                }
                 if (evidence.checksumSha256 != null && evidence.checksumSha256 != checksumSha256) {
                     return DriverIncidentNetworkOutcome.Rejected("IDEMPOTENCY_PAYLOAD_CONFLICT")
                 }
@@ -149,10 +179,13 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
 
     suspend fun evidenceStatus(evidenceId: String): DriverIncidentNetworkOutcome {
         if (!incidentUuid.matches(evidenceId)) return DriverIncidentNetworkOutcome.Unavailable
-        return when (val result = protectedCalls.execute(
-            ProtectedRequest(ProtectedMethod.GET, "$INCIDENT_EVIDENCE_BASE/$evidenceId")
-        )) {
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(ProtectedMethod.GET, "$INCIDENT_EVIDENCE_BASE/$evidenceId")
+            )
+        ) {
             is ProtectedResult.Failure -> result.error.toIncidentOutcome()
+
             is ProtectedResult.Success -> {
                 val evidence = result.body.toEvidenceProjection()
                     ?: return DriverIncidentNetworkOutcome.Unavailable
@@ -175,37 +208,62 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
         frozenBody: String
     ): DriverIncidentNetworkOutcome {
         if (!incidentUuid.matches(deliveryId) || !incidentUuid.matches(attemptId) ||
-            !incidentUuid.matches(incidentId) || !incidentUuid.matches(evidenceId) || expectedVersion < 0 ||
-            idempotencyKey.isBlank() || idempotencyKey.length > 160 || !attachBodyMatches(frozenBody, evidenceId)
-        ) return DriverIncidentNetworkOutcome.Unavailable
-        val path = "$DRIVER_INCIDENT_BASE/$deliveryId/attempts/$attemptId/incidents/$incidentId/evidence"
-        return when (val result = protectedCalls.execute(
-            ProtectedRequest(
-                method = ProtectedMethod.POST,
-                path = path,
-                payload = frozenBody,
-                idempotencyKey = idempotencyKey,
-                ifMatch = "\"$expectedVersion\""
+            !incidentUuid.matches(incidentId) || !incidentUuid.matches(evidenceId) ||
+            expectedVersion < 0 ||
+            idempotencyKey.isBlank() || idempotencyKey.length > 160 ||
+            !attachBodyMatches(frozenBody, evidenceId)
+        ) {
+            return DriverIncidentNetworkOutcome.Unavailable
+        }
+        val path =
+            "$DRIVER_INCIDENT_BASE/$deliveryId/attempts/$attemptId/incidents/$incidentId/evidence"
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(
+                    method = ProtectedMethod.POST,
+                    path = path,
+                    payload = frozenBody,
+                    idempotencyKey = idempotencyKey,
+                    ifMatch = "\"$expectedVersion\""
+                )
             )
-        )) {
+        ) {
             is ProtectedResult.Failure -> result.error.toIncidentOutcome()
+
             is ProtectedResult.Success -> {
-                if (result.status !in setOf(200, 201)) return DriverIncidentNetworkOutcome.UnknownOutcome
-                val incident = result.body.toIncidentProjection() ?: return DriverIncidentNetworkOutcome.UnknownOutcome
+                if (result.status !in
+                    setOf(200, 201)
+                ) {
+                    return DriverIncidentNetworkOutcome.UnknownOutcome
+                }
+                val incident =
+                    result.body.toIncidentProjection()
+                        ?: return DriverIncidentNetworkOutcome.UnknownOutcome
                 val replayed = result.status == 200
-                if (incident.id != incidentId || incident.deliveryId != deliveryId || incident.attemptId != attemptId ||
-                    evidenceId !in incident.evidenceObjectIds || incident.deliveryVersion < expectedVersion ||
-                    incident.replayed != replayed || result.etag.toVersion() != incident.deliveryVersion
-                ) DriverIncidentNetworkOutcome.UnknownOutcome
-                else DriverIncidentNetworkOutcome.EvidenceAttached(incident)
+                if (incident.id != incidentId || incident.deliveryId != deliveryId ||
+                    incident.attemptId != attemptId ||
+                    evidenceId !in incident.evidenceObjectIds ||
+                    incident.deliveryVersion < expectedVersion ||
+                    incident.replayed != replayed ||
+                    result.etag.toVersion() != incident.deliveryVersion
+                ) {
+                    DriverIncidentNetworkOutcome.UnknownOutcome
+                } else {
+                    DriverIncidentNetworkOutcome.EvidenceAttached(incident)
+                }
             }
         }
     }
 
     private fun bodyMatches(command: DriverIncidentWireCommand): Boolean = try {
         val body = incidentJson.parseToJsonElement(command.frozenBody).jsonObject
-        body.keys == (if (command.type == null) setOf("reason", "description", "place")
-        else setOf("type", "reason", "description", "place")) &&
+        body.keys == (
+            if (command.type == null) {
+                setOf("reason", "description", "place")
+            } else {
+                setOf("type", "reason", "description", "place")
+            }
+            ) &&
             (command.type == null || body.string("type") == command.type) &&
             body.string("reason") == command.reason &&
             body.string("description") == command.description &&
@@ -216,9 +274,15 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
 
     private fun String?.toIncidentProjection(): DriverIncidentProjection? = try {
         val root = this?.let(incidentJson::parseToJsonElement)?.jsonObject ?: return null
-        val evidence = root["evidenceObjectIds"]?.jsonArray?.map { it.jsonPrimitive.contentOrNull ?: return null }
-            ?: return null
-        if (evidence.size > 16 || evidence.distinct().size != evidence.size || evidence.any { !incidentUuid.matches(it) }) {
+        val evidence =
+            root["evidenceObjectIds"]?.jsonArray?.map {
+                it.jsonPrimitive.contentOrNull
+                    ?: return null
+            }
+                ?: return null
+        if (evidence.size > 16 || evidence.distinct().size != evidence.size ||
+            evidence.any { !incidentUuid.matches(it) }
+        ) {
             return null
         }
         val recordedAt = root.string("recordedAt")
@@ -239,7 +303,9 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
             reason = root.string("reason"),
             description = root.string("description"),
             place = root.string("place"),
-            recordedByMembershipId = root.string("recordedByMembershipId").also { require(incidentUuid.matches(it)) },
+            recordedByMembershipId = root.string("recordedByMembershipId").also {
+                require(incidentUuid.matches(it))
+            },
             recordedAt = recordedAt,
             evidenceObjectIds = evidence,
             deliveryVersion = version,
@@ -283,11 +349,13 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
         command: DriverIncidentWireCommand,
         incident: DriverIncidentProjection
     ): Boolean = if (command.type != null) {
-        incident.type == command.type && incident.severity?.let(INCIDENT_SEVERITIES::contains) == true &&
+        incident.type == command.type &&
+            incident.severity?.let(INCIDENT_SEVERITIES::contains) == true &&
             incident.operationalExceptionId != null
     } else {
         // A recovered pre-type idempotency intent may only return its original unclassified record.
-        incident.type == null && incident.severity == null && incident.operationalExceptionId == null
+        incident.type == null && incident.severity == null &&
+            incident.operationalExceptionId == null
     }
 
     private fun JsonObject.string(key: String): String =
@@ -296,6 +364,7 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
 
     private fun JsonObject.optionalString(key: String): String? = when (val value = this[key]) {
         null, kotlinx.serialization.json.JsonNull -> null
+
         else -> value.jsonPrimitive.takeIf { it.isString }?.contentOrNull
             ?: error("Driver incident response field is invalid")
     }
@@ -309,13 +378,23 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
         ?.removeSurrounding("\"")?.toLongOrNull()?.takeIf { it >= 0 }
 
     private fun ClientFailure.toIncidentOutcome(): DriverIncidentNetworkOutcome = when {
-        kind == FailureKind.AuthenticationRequired -> DriverIncidentNetworkOutcome.SessionInvalidated
-        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID -> DriverIncidentNetworkOutcome.ContextInvalidated
+        kind == FailureKind.AuthenticationRequired ->
+            DriverIncidentNetworkOutcome.SessionInvalidated
+
+        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
+            DriverIncidentNetworkOutcome.ContextInvalidated
+
         kind == FailureKind.AuthorizationFailure -> DriverIncidentNetworkOutcome.PermissionDenied
+
         kind == FailureKind.StaleState -> DriverIncidentNetworkOutcome.StaleVersion
+
         kind == FailureKind.ResourceUnavailable -> DriverIncidentNetworkOutcome.NotFound
+
         kind == FailureKind.ValidationFailure || kind == FailureKind.BusinessConflict ||
-            kind == FailureKind.PreconditionRequired -> DriverIncidentNetworkOutcome.Rejected(problemCode)
+            kind == FailureKind.PreconditionRequired -> DriverIncidentNetworkOutcome.Rejected(
+            problemCode
+        )
+
         else -> DriverIncidentNetworkOutcome.UnknownOutcome
     }
 
@@ -324,8 +403,13 @@ class NexaDriverIncidentGateway(private val protectedCalls: ProtectedCallExecuto
         const val MAX_EVIDENCE_BYTES = 10L * 1024L * 1024L
         val ALLOWED_EVIDENCE_TYPES = setOf("image/jpeg", "image/png", "image/webp")
         val INCIDENT_TYPES = setOf(
-            "DELAY", "INCOMPLETE_INSTRUCTION", "ACCESS_BLOCKED", "CUSTOMER_UNAVAILABLE",
-            "DELIVERY_NOT_EXECUTABLE", "TEMPERATURE_EXCURSION", "SAFETY_COMPROMISING_DAMAGE"
+            "DELAY",
+            "INCOMPLETE_INSTRUCTION",
+            "ACCESS_BLOCKED",
+            "CUSTOMER_UNAVAILABLE",
+            "DELIVERY_NOT_EXECUTABLE",
+            "TEMPERATURE_EXCURSION",
+            "SAFETY_COMPROMISING_DAMAGE"
         )
         val INCIDENT_SEVERITIES = setOf("WARNING", "BLOCKING", "CRITICAL")
     }

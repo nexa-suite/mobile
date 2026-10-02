@@ -2,6 +2,7 @@ package com.nexa.mobile.operations.feature.delivery
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.feature.delivery.DriverHandoffCurrentDeliveryResult as CurrentDeliveryResult
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -44,7 +45,9 @@ class DriverHandoffTokenViewModel(
             attemptId = attemptId,
             status = DriverHandoffUiStatus.Loading
         )
-        if (!canUse(currentAuthority) || deliveryId.isBlank() || attemptId.isBlank() || deliveryVersion < 0) {
+        if (!canUse(currentAuthority) || deliveryId.isBlank() || attemptId.isBlank() ||
+            deliveryVersion < 0
+        ) {
             mutableState.update { it.copy(status = DriverHandoffUiStatus.PermissionDenied) }
             return
         }
@@ -54,17 +57,29 @@ class DriverHandoffTokenViewModel(
                     command = stored.command
                     if (stored.command != null) {
                         mutableState.update {
-                            it.copy(command = stored.command, status = DriverHandoffUiStatus.UnknownOutcome)
+                            it.copy(
+                                command = stored.command,
+                                status = DriverHandoffUiStatus.UnknownOutcome
+                            )
                         }
                     }
                 }
+
                 DriverHandoffMetadataRead.Unavailable -> {
-                    mutableState.update { it.copy(status = DriverHandoffUiStatus.PersistenceUnavailable) }
+                    mutableState.update {
+                        it.copy(status = DriverHandoffUiStatus.PersistenceUnavailable)
+                    }
                     return@launch
                 }
             }
             if (!isCurrent(requestGeneration, currentAuthority)) return@launch
-            refreshCurrent(requestGeneration, currentAuthority, deliveryId, attemptId, deliveryVersion)
+            refreshCurrent(
+                requestGeneration,
+                currentAuthority,
+                deliveryId,
+                attemptId,
+                deliveryVersion
+            )
         }
     }
 
@@ -78,8 +93,13 @@ class DriverHandoffTokenViewModel(
         val requestGeneration = generation
         mutableState.update { it.copy(status = DriverHandoffUiStatus.Loading, errorCode = null) }
         viewModelScope.launch {
-            refreshCurrent(requestGeneration, currentAuthority, deliveryId, attemptId,
-                state.delivery?.version ?: 0L)
+            refreshCurrent(
+                requestGeneration,
+                currentAuthority,
+                deliveryId,
+                attemptId,
+                state.delivery?.version ?: 0L
+            )
         }
     }
 
@@ -87,7 +107,9 @@ class DriverHandoffTokenViewModel(
     fun issueOrRetrySame() {
         val currentAuthority = authority ?: return
         if (!canUse(currentAuthority)) {
-            mutableState.update { it.copy(status = DriverHandoffUiStatus.PermissionDenied, token = null) }
+            mutableState.update {
+                it.copy(status = DriverHandoffUiStatus.PermissionDenied, token = null)
+            }
             return
         }
         val current = mutableState.value
@@ -97,35 +119,60 @@ class DriverHandoffTokenViewModel(
         if (current.command == null && !current.canIssue) return
         if (current.command != null && !current.canRetrySame) return
         val requestGeneration = generation
-        mutableState.update { it.copy(busy = true, token = null, errorCode = null, status = DriverHandoffUiStatus.Issuing) }
+        mutableState.update {
+            it.copy(
+                busy = true,
+                token = null,
+                errorCode = null,
+                status = DriverHandoffUiStatus.Issuing
+            )
+        }
         viewModelScope.launch {
             val freshResult = safeCurrent(deliveryId, currentAuthority)
             if (!isCurrent(requestGeneration, currentAuthority)) return@launch
-            val fresh = (freshResult as? DriverHandoffCurrentDeliveryResult.Loaded)?.delivery
+            val fresh = (freshResult as? CurrentDeliveryResult.Loaded)?.delivery
             if (fresh == null) {
-                mutableState.update { it.copy(busy = false, status = freshResult.toStatus(), delivery = null) }
+                mutableState.update {
+                    it.copy(busy = false, status = freshResult.toStatus(), delivery = null)
+                }
                 return@launch
             }
             if (!fresh.matches(deliveryId, attemptId)) {
-                mutableState.update { it.copy(busy = false, delivery = fresh, status = DriverHandoffUiStatus.Stale) }
+                mutableState.update {
+                    it.copy(busy = false, delivery = fresh, status = DriverHandoffUiStatus.Stale)
+                }
                 return@launch
             }
             val frozen = command ?: run {
                 val key = keyFactory().takeIf { it.isNotBlank() && it.length <= 160 }
                 if (key == null) {
-                    mutableState.update { it.copy(busy = false, status = DriverHandoffUiStatus.Rejected,
-                        errorCode = "IDEMPOTENCY_KEY_INVALID") }
+                    mutableState.update {
+                        it.copy(
+                            busy = false,
+                            status = DriverHandoffUiStatus.Rejected,
+                            errorCode = "IDEMPOTENCY_KEY_INVALID"
+                        )
+                    }
                     return@launch
                 }
                 DriverHandoffIssueCommand(
-                    deliveryId, attemptId, fresh.version, key, driverHandoffIssueBody(attemptId)
+                    deliveryId,
+                    attemptId,
+                    fresh.version,
+                    key,
+                    driverHandoffIssueBody(attemptId)
                 )
             }
             if (command == null) {
                 val persisted = safePersist(currentAuthority.scopeIdentity, frozen)
                 if (persisted != DriverHandoffMetadataWrite.Saved) {
-                    mutableState.update { it.copy(busy = false, status = DriverHandoffUiStatus.PersistenceUnavailable,
-                        command = null) }
+                    mutableState.update {
+                        it.copy(
+                            busy = false,
+                            status = DriverHandoffUiStatus.PersistenceUnavailable,
+                            command = null
+                        )
+                    }
                     return@launch
                 }
                 command = frozen
@@ -146,60 +193,113 @@ class DriverHandoffTokenViewModel(
                         !isFuture(result.receipt.expiresAt)
                     ) {
                         mutableState.update {
-                            it.copy(busy = false, token = null, status = DriverHandoffUiStatus.UnknownOutcome,
-                                errorCode = "HANDOFF_RESPONSE_INVALID")
+                            it.copy(
+                                busy = false,
+                                token = null,
+                                status = DriverHandoffUiStatus.UnknownOutcome,
+                                errorCode = "HANDOFF_RESPONSE_INVALID"
+                            )
                         }
                     } else {
                         mutableState.update {
-                            it.copy(busy = false, receipt = result.receipt, token = result.token,
-                                status = DriverHandoffUiStatus.TokenVisible, errorCode = null)
+                            it.copy(
+                                busy = false,
+                                receipt = result.receipt,
+                                token = result.token,
+                                status = DriverHandoffUiStatus.TokenVisible,
+                                errorCode = null
+                            )
                         }
                         scheduleExpiry(requestGeneration, result.receipt.expiresAt)
                     }
                 }
+
                 is DriverHandoffIssueResult.TokenUnavailable -> {
                     if (!result.receipt.matches(frozen)) {
                         mutableState.update {
-                            it.copy(busy = false, status = DriverHandoffUiStatus.UnknownOutcome,
-                                errorCode = "HANDOFF_RESPONSE_INVALID")
+                            it.copy(
+                                busy = false,
+                                status = DriverHandoffUiStatus.UnknownOutcome,
+                                errorCode = "HANDOFF_RESPONSE_INVALID"
+                            )
                         }
                     } else {
                         mutableState.update {
-                            it.copy(busy = false, receipt = result.receipt, token = null,
+                            it.copy(
+                                busy = false,
+                                receipt = result.receipt,
+                                token = null,
                                 status = DriverHandoffUiStatus.TokenUnavailable,
-                                errorCode = "HANDOFF_TOKEN_NOT_RECOVERABLE")
+                                errorCode = "HANDOFF_TOKEN_NOT_RECOVERABLE"
+                            )
                         }
                     }
                 }
+
                 is DriverHandoffIssueResult.Rejected -> {
                     val cleared = safeClearKnownRejection(
-                        currentAuthority.scopeIdentity, frozen
+                        currentAuthority.scopeIdentity,
+                        frozen
                     ) == DriverHandoffMetadataWrite.Saved
                     if (cleared) command = null
                     mutableState.update {
-                        it.copy(busy = false, token = null, command = if (cleared) null else frozen,
-                            status = if (cleared) DriverHandoffUiStatus.Rejected else DriverHandoffUiStatus.PersistenceUnavailable,
-                            errorCode = result.code)
+                        it.copy(
+                            busy = false,
+                            token = null,
+                            command = if (cleared) null else frozen,
+                            status =
+                                if (cleared) {
+                                    DriverHandoffUiStatus.Rejected
+                                } else {
+                                    DriverHandoffUiStatus.PersistenceUnavailable
+                                },
+                            errorCode = result.code
+                        )
                     }
                 }
+
                 DriverHandoffIssueResult.NotFound -> {
                     val cleared = safeClearKnownRejection(currentAuthority.scopeIdentity, frozen) ==
                         DriverHandoffMetadataWrite.Saved
                     if (cleared) command = null
                     mutableState.update {
-                        it.copy(busy = false, token = null, command = if (cleared) null else frozen,
-                            status = if (cleared) DriverHandoffUiStatus.NotFound else DriverHandoffUiStatus.PersistenceUnavailable)
+                        it.copy(
+                            busy = false,
+                            token = null,
+                            command = if (cleared) null else frozen,
+                            status =
+                                if (cleared) {
+                                    DriverHandoffUiStatus.NotFound
+                                } else {
+                                    DriverHandoffUiStatus.PersistenceUnavailable
+                                }
+                        )
                     }
                 }
+
                 DriverHandoffIssueResult.PermissionDenied -> {
-                    mutableState.update { it.copy(busy = false, token = null, status = DriverHandoffUiStatus.PermissionDenied) }
+                    mutableState.update {
+                        it.copy(
+                            busy = false,
+                            token = null,
+                            status = DriverHandoffUiStatus.PermissionDenied
+                        )
+                    }
                 }
+
                 DriverHandoffIssueResult.ContextInvalidated,
                 DriverHandoffIssueResult.SessionInvalidated,
                 DriverHandoffIssueResult.UnknownOutcome,
                 DriverHandoffIssueResult.Unavailable -> {
-                    mutableState.update { it.copy(busy = false, token = null, command = frozen,
-                        status = DriverHandoffUiStatus.UnknownOutcome, errorCode = "HANDOFF_RESULT_UNKNOWN") }
+                    mutableState.update {
+                        it.copy(
+                            busy = false,
+                            token = null,
+                            command = frozen,
+                            status = DriverHandoffUiStatus.UnknownOutcome,
+                            errorCode = "HANDOFF_RESULT_UNKNOWN"
+                        )
+                    }
                 }
             }
         }
@@ -213,18 +313,31 @@ class DriverHandoffTokenViewModel(
         if (state.busy) {
             generation++
             mutableState.update {
-                it.copy(token = null, busy = false,
-                    status = if (it.command != null) DriverHandoffUiStatus.UnknownOutcome
-                    else if (it.delivery != null) DriverHandoffUiStatus.Ready else DriverHandoffUiStatus.Loading,
-                    errorCode = if (it.command != null) "HANDOFF_RESULT_UNKNOWN" else null)
+                it.copy(
+                    token = null,
+                    busy = false,
+                    status = if (it.command != null) {
+                        DriverHandoffUiStatus.UnknownOutcome
+                    } else if (it.delivery !=
+                        null
+                    ) {
+                        DriverHandoffUiStatus.Ready
+                    } else {
+                        DriverHandoffUiStatus.Loading
+                    },
+                    errorCode = if (it.command != null) "HANDOFF_RESULT_UNKNOWN" else null
+                )
             }
             return
         }
         if (state.token == null) return
         generation++
         mutableState.update {
-            it.copy(token = null, status = DriverHandoffUiStatus.Cleared,
-                errorCode = "HANDOFF_TOKEN_CLEARED")
+            it.copy(
+                token = null,
+                status = DriverHandoffUiStatus.Cleared,
+                errorCode = "HANDOFF_TOKEN_CLEARED"
+            )
         }
     }
 
@@ -246,35 +359,61 @@ class DriverHandoffTokenViewModel(
     ) {
         val result = safeCurrent(deliveryId, currentAuthority)
         if (!isCurrent(requestGeneration, currentAuthority)) return
-        val fresh = (result as? DriverHandoffCurrentDeliveryResult.Loaded)?.delivery
+        val fresh = (result as? CurrentDeliveryResult.Loaded)?.delivery
         if (fresh == null) {
-            mutableState.update { it.copy(status = result.toStatus(), delivery = null, busy = false) }
+            mutableState.update {
+                it.copy(status = result.toStatus(), delivery = null, busy = false)
+            }
             return
         }
         if (!fresh.matches(deliveryId, attemptId)) {
-            mutableState.update { it.copy(status = DriverHandoffUiStatus.Stale, delivery = fresh, busy = false) }
+            mutableState.update {
+                it.copy(status = DriverHandoffUiStatus.Stale, delivery = fresh, busy = false)
+            }
             return
         }
         if (fresh.version < selectedVersion) {
-            mutableState.update { it.copy(status = DriverHandoffUiStatus.Stale, delivery = fresh, busy = false) }
+            mutableState.update {
+                it.copy(status = DriverHandoffUiStatus.Stale, delivery = fresh, busy = false)
+            }
             return
         }
         mutableState.update {
-            it.copy(delivery = fresh, status = if (command == null) DriverHandoffUiStatus.Ready
-                else DriverHandoffUiStatus.UnknownOutcome, busy = false)
+            it.copy(
+                delivery = fresh,
+                status = if (command == null) {
+                    DriverHandoffUiStatus.Ready
+                } else {
+                    DriverHandoffUiStatus.UnknownOutcome
+                },
+                busy = false
+            )
         }
     }
 
     private fun scheduleExpiry(requestGeneration: Long, expiresAt: String) {
         expiryJob?.cancel()
-        val expiry = try { Instant.parse(expiresAt) } catch (_: Exception) { return }
+        val expiry = try {
+            Instant.parse(expiresAt)
+        } catch (_: Exception) {
+            return
+        }
         val remaining = Duration.between(Instant.now(), expiry).toMillis().coerceAtLeast(0)
         expiryJob = viewModelScope.launch {
             delay(remaining)
             if (generation == requestGeneration) {
                 mutableState.update {
-                    if (it.token == null) it else it.copy(token = null, status = DriverHandoffUiStatus.TokenExpired,
-                        errorCode = "HANDOFF_TOKEN_EXPIRED")
+                    if (it.token ==
+                        null
+                    ) {
+                        it
+                    } else {
+                        it.copy(
+                            token = null,
+                            status = DriverHandoffUiStatus.TokenExpired,
+                            errorCode = "HANDOFF_TOKEN_EXPIRED"
+                        )
+                    }
                 }
             }
         }
@@ -283,12 +422,15 @@ class DriverHandoffTokenViewModel(
     private fun canUse(authority: DriverDeliveryAuthority): Boolean =
         authority.canRead && authority.permissions.contains("logistics:write")
 
-    private fun DriverHandoffCurrentDelivery.matches(deliveryId: String, attemptId: String): Boolean =
-        this.deliveryId == deliveryId && activeAttemptId == attemptId &&
-            status in ACTIVE_DELIVERY_STATUSES && version >= 0
+    private fun DriverHandoffCurrentDelivery.matches(
+        deliveryId: String,
+        attemptId: String
+    ): Boolean = this.deliveryId == deliveryId && activeAttemptId == attemptId &&
+        status in ACTIVE_DELIVERY_STATUSES && version >= 0
 
-    private fun DriverHandoffIssueResult.Issued.matches(command: DriverHandoffIssueCommand): Boolean =
-        receipt.matches(command)
+    private fun DriverHandoffIssueResult.Issued.matches(
+        command: DriverHandoffIssueCommand
+    ): Boolean = receipt.matches(command)
 
     private fun DriverHandoffTokenReceipt.matches(command: DriverHandoffIssueCommand): Boolean =
         deliveryId == command.deliveryId && attemptId == command.attemptId &&
@@ -296,18 +438,21 @@ class DriverHandoffTokenViewModel(
 
     private fun validToken(token: String): Boolean = token.isNotBlank() && token.length <= 400
 
-    private fun isFuture(value: String): Boolean =
-        try { Instant.parse(value).isAfter(Instant.now()) } catch (_: Exception) { false }
+    private fun isFuture(value: String): Boolean = try {
+        Instant.parse(value).isAfter(Instant.now())
+    } catch (_: Exception) {
+        false
+    }
 
     private suspend fun safeCurrent(
         deliveryId: String,
         currentAuthority: DriverDeliveryAuthority
-    ): DriverHandoffCurrentDeliveryResult = try {
+    ): CurrentDeliveryResult = try {
         gateway.currentDelivery(deliveryId, currentAuthority)
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) {
-        DriverHandoffCurrentDeliveryResult.Unavailable
+        CurrentDeliveryResult.Unavailable
     }
 
     private suspend fun safeLoad(
@@ -337,25 +482,34 @@ class DriverHandoffTokenViewModel(
         scope: DriverAttemptScopeIdentity,
         command: DriverHandoffIssueCommand
     ): DriverHandoffMetadataWrite = try {
-        metadataStore?.clearKnownRejection(scope, command.deliveryId, command.attemptId,
-            command.idempotencyKey) ?: DriverHandoffMetadataWrite.Unavailable
+        metadataStore?.clearKnownRejection(
+            scope,
+            command.deliveryId,
+            command.attemptId,
+            command.idempotencyKey
+        ) ?: DriverHandoffMetadataWrite.Unavailable
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) {
         DriverHandoffMetadataWrite.Unavailable
     }
 
-    private fun DriverHandoffCurrentDeliveryResult.toStatus(): DriverHandoffUiStatus = when (this) {
-        DriverHandoffCurrentDeliveryResult.NotFound -> DriverHandoffUiStatus.NotFound
-        DriverHandoffCurrentDeliveryResult.PermissionDenied -> DriverHandoffUiStatus.PermissionDenied
-        DriverHandoffCurrentDeliveryResult.ContextInvalidated,
-        DriverHandoffCurrentDeliveryResult.SessionInvalidated,
-        DriverHandoffCurrentDeliveryResult.Unavailable -> DriverHandoffUiStatus.Unavailable
-        is DriverHandoffCurrentDeliveryResult.Loaded -> DriverHandoffUiStatus.Ready
+    private fun CurrentDeliveryResult.toStatus(): DriverHandoffUiStatus = when (this) {
+        CurrentDeliveryResult.NotFound -> DriverHandoffUiStatus.NotFound
+
+        CurrentDeliveryResult.PermissionDenied -> DriverHandoffUiStatus.PermissionDenied
+
+        CurrentDeliveryResult.ContextInvalidated,
+        CurrentDeliveryResult.SessionInvalidated,
+        CurrentDeliveryResult.Unavailable -> DriverHandoffUiStatus.Unavailable
+
+        is CurrentDeliveryResult.Loaded -> DriverHandoffUiStatus.Ready
     }
 
-    private fun isCurrent(requestGeneration: Long, currentAuthority: DriverDeliveryAuthority): Boolean =
-        generation == requestGeneration && authority == currentAuthority
+    private fun isCurrent(
+        requestGeneration: Long,
+        currentAuthority: DriverDeliveryAuthority
+    ): Boolean = generation == requestGeneration && authority == currentAuthority
 
     private companion object {
         val ACTIVE_DELIVERY_STATUSES = setOf("ASSIGNED", "DISPATCHED", "IN_TRANSIT", "PARTIAL")

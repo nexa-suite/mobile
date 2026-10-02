@@ -24,9 +24,12 @@ class DispatchOutgoingGoodsViewModel(
     private var pendingIntent: DispatchOutgoingGoodsIntent? = null
 
     fun activate(fulfillment: DispatchReadiness, context: DispatchAuthorityContext) {
-        if (activeContext == context && mutableState.value.fulfillment?.fulfillmentId == fulfillment.fulfillmentId &&
+        if (activeContext == context &&
+            mutableState.value.fulfillment?.fulfillmentId == fulfillment.fulfillmentId &&
             mutableState.value.status !in INVALIDATED_STATUS
-        ) return
+        ) {
+            return
+        }
         generation++
         activeContext = context
         pendingIntent = null
@@ -59,10 +62,12 @@ class DispatchOutgoingGoodsViewModel(
             if (!isCurrent(request, context, fulfillment.fulfillmentId)) return@launch
             val intent = when (stored) {
                 is DispatchOutgoingGoodsMetadataRead.Available -> stored.intent
+
                 DispatchOutgoingGoodsMetadataRead.Unavailable -> {
                     fail(DispatchOutgoingGoodsStatus.ServiceUnavailable)
                     return@launch
                 }
+
                 null -> {
                     fail(DispatchOutgoingGoodsStatus.ServiceUnavailable)
                     return@launch
@@ -81,17 +86,28 @@ class DispatchOutgoingGoodsViewModel(
                 is DispatchOutgoingGoodsGatewayResult.Snapshot -> {
                     val snapshot = result.value
                     if (!snapshotMatches(snapshot, fulfillment)) {
-                        fail(if (intent?.command?.type == DispatchOutgoingGoodsCommandType.ResolveDiscrepancy)
-                            DispatchOutgoingGoodsStatus.UnknownOutcome else DispatchOutgoingGoodsStatus.Stale,
-                            hasPending = intent != null)
-                    } else if (intent != null && !intent.matchesCurrent(fulfillment, snapshot.allocation)) {
+                        fail(
+                            if (intent?.command?.type ==
+                                DispatchOutgoingGoodsCommandType.ResolveDiscrepancy
+                            ) {
+                                DispatchOutgoingGoodsStatus.UnknownOutcome
+                            } else {
+                                DispatchOutgoingGoodsStatus.Stale
+                            },
+                            hasPending = intent != null
+                        )
+                    } else if (intent != null &&
+                        !intent.matchesCurrent(fulfillment, snapshot.allocation)
+                    ) {
                         fail(DispatchOutgoingGoodsStatus.Stale, hasPending = true)
                     } else if (intent != null) {
                         mutableState.value = DispatchOutgoingGoodsUiState(
                             authorityEpoch = context.authorityEpoch,
                             fulfillment = fulfillment,
                             status = DispatchOutgoingGoodsStatus.UnknownOutcome,
-                            allocation = snapshot.allocation.withObservations(intent.command.observations),
+                            allocation = snapshot.allocation.withObservations(
+                                intent.command.observations
+                            ),
                             currentCheck = snapshot.currentCheck,
                             observedAt = now(),
                             hasPendingCommand = true
@@ -112,28 +128,50 @@ class DispatchOutgoingGoodsViewModel(
                     fail(DispatchOutgoingGoodsStatus.UnknownOutcome, hasPending = intent != null)
 
                 DispatchOutgoingGoodsGatewayResult.NetworkUnavailable ->
-                    fail(DispatchOutgoingGoodsStatus.NetworkUnavailable, hasPending = intent != null)
+                    fail(
+                        DispatchOutgoingGoodsStatus.NetworkUnavailable,
+                        hasPending = intent != null
+                    )
 
                 DispatchOutgoingGoodsGatewayResult.ServiceUnavailable ->
-                    fail(DispatchOutgoingGoodsStatus.ServiceUnavailable, hasPending = intent != null)
+                    fail(
+                        DispatchOutgoingGoodsStatus.ServiceUnavailable,
+                        hasPending = intent != null
+                    )
 
                 DispatchOutgoingGoodsGatewayResult.PermissionDenied ->
                     fail(DispatchOutgoingGoodsStatus.PermissionDenied, hasPending = intent != null)
 
                 DispatchOutgoingGoodsGatewayResult.Stale ->
-                    fail(if (intent?.command?.type == DispatchOutgoingGoodsCommandType.ResolveDiscrepancy)
-                        DispatchOutgoingGoodsStatus.UnknownOutcome else DispatchOutgoingGoodsStatus.Stale,
-                        hasPending = intent != null)
+                    fail(
+                        if (intent?.command?.type ==
+                            DispatchOutgoingGoodsCommandType.ResolveDiscrepancy
+                        ) {
+                            DispatchOutgoingGoodsStatus.UnknownOutcome
+                        } else {
+                            DispatchOutgoingGoodsStatus.Stale
+                        },
+                        hasPending = intent != null
+                    )
 
                 DispatchOutgoingGoodsGatewayResult.Conflict ->
                     fail(DispatchOutgoingGoodsStatus.Conflict, hasPending = intent != null)
 
                 DispatchOutgoingGoodsGatewayResult.ContextInvalidated -> invalidateContext()
+
                 DispatchOutgoingGoodsGatewayResult.SessionInvalidated -> invalidateSession()
+
                 is DispatchOutgoingGoodsGatewayResult.Recorded ->
-                    fail(DispatchOutgoingGoodsStatus.ServiceUnavailable, hasPending = intent != null)
+                    fail(
+                        DispatchOutgoingGoodsStatus.ServiceUnavailable,
+                        hasPending = intent != null
+                    )
+
                 is DispatchOutgoingGoodsGatewayResult.Resolved ->
-                    fail(DispatchOutgoingGoodsStatus.ServiceUnavailable, hasPending = intent != null)
+                    fail(
+                        DispatchOutgoingGoodsStatus.ServiceUnavailable,
+                        hasPending = intent != null
+                    )
             }
         }
     }
@@ -148,7 +186,11 @@ class DispatchOutgoingGoodsViewModel(
 
     fun changeResolutionReason(value: String) {
         val current = mutableState.value
-        if (current.status != DispatchOutgoingGoodsStatus.Current || current.hasPendingCommand) return
+        if (current.status != DispatchOutgoingGoodsStatus.Current ||
+            current.hasPendingCommand
+        ) {
+            return
+        }
         mutableState.value = current.copy(resolutionReason = value.take(1000))
     }
 
@@ -250,7 +292,8 @@ class DispatchOutgoingGoodsViewModel(
         )
         val intent = DispatchOutgoingGoodsIntent(scope, command)
         val request = ++generation
-        mutableState.value = current.copy(status = DispatchOutgoingGoodsStatus.Submitting, hasPendingCommand = true)
+        mutableState.value =
+            current.copy(status = DispatchOutgoingGoodsStatus.Submitting, hasPendingCommand = true)
         viewModelScope.launch {
             when (safeMetadataCall { metadata.saveIntent(intent) }) {
                 DispatchOutgoingGoodsMetadataWrite.Saved -> {
@@ -258,10 +301,17 @@ class DispatchOutgoingGoodsViewModel(
                     pendingIntent = intent
                     send(intent, context, fulfillment, allocation)
                 }
+
                 DispatchOutgoingGoodsMetadataWrite.Conflict,
-                DispatchOutgoingGoodsMetadataWrite.Stale -> if (isCurrent(request, context, fulfillment.fulfillmentId)) {
+                DispatchOutgoingGoodsMetadataWrite.Stale -> if (isCurrent(
+                        request,
+                        context,
+                        fulfillment.fulfillmentId
+                    )
+                ) {
                     fail(DispatchOutgoingGoodsStatus.Conflict)
                 }
+
                 DispatchOutgoingGoodsMetadataWrite.Unavailable,
                 null -> if (isCurrent(request, context, fulfillment.fulfillmentId)) {
                     fail(DispatchOutgoingGoodsStatus.ServiceUnavailable)
@@ -279,12 +329,18 @@ class DispatchOutgoingGoodsViewModel(
         if (mutableState.value.status != DispatchOutgoingGoodsStatus.UnknownOutcome ||
             !context.hasCurrentManagePermission() ||
             intent.scope != context.scopeIdentity() ||
-            (intent.command.type == DispatchOutgoingGoodsCommandType.RecordCheck &&
-                (allocation == null || !intent.matchesCurrent(fulfillment, allocation))) ||
-            (intent.command.type == DispatchOutgoingGoodsCommandType.ResolveDiscrepancy &&
-                intent.command.fulfillmentId != fulfillment.fulfillmentId) ||
+            (
+                intent.command.type == DispatchOutgoingGoodsCommandType.RecordCheck &&
+                    (allocation == null || !intent.matchesCurrent(fulfillment, allocation))
+                ) ||
+            (
+                intent.command.type == DispatchOutgoingGoodsCommandType.ResolveDiscrepancy &&
+                    intent.command.fulfillmentId != fulfillment.fulfillmentId
+                ) ||
             intent.command.exactRequestBody != intent.command.toRequestBody()
-        ) return
+        ) {
+            return
+        }
         send(intent, context, fulfillment, allocation)
     }
 
@@ -319,9 +375,12 @@ class DispatchOutgoingGoodsViewModel(
         allocation: DispatchOutgoingGoodsAllocation?
     ) {
         val command = intent.command
-        if (!context.hasCurrentManagePermission() || command.fulfillmentId != fulfillment.fulfillmentId ||
-            (command.type == DispatchOutgoingGoodsCommandType.RecordCheck &&
-                (allocation == null || !intent.matchesCurrent(fulfillment, allocation)))
+        if (!context.hasCurrentManagePermission() ||
+            command.fulfillmentId != fulfillment.fulfillmentId ||
+            (
+                command.type == DispatchOutgoingGoodsCommandType.RecordCheck &&
+                    (allocation == null || !intent.matchesCurrent(fulfillment, allocation))
+                )
         ) {
             fail(DispatchOutgoingGoodsStatus.Stale, hasPending = true)
             return
@@ -380,16 +439,24 @@ class DispatchOutgoingGoodsViewModel(
                         fail(DispatchOutgoingGoodsStatus.UnknownOutcome, hasPending = true)
                     } else {
                         val cleared = safeMetadataCall {
-                            metadata.clearIntent(intent.scope, command.fulfillmentId, command.idempotencyKey)
+                            metadata.clearIntent(
+                                intent.scope,
+                                command.fulfillmentId,
+                                command.idempotencyKey
+                            )
                         } == DispatchOutgoingGoodsMetadataWrite.Saved
                         if (cleared) pendingIntent = null
                         val latest = mutableState.value
                         mutableState.value = latest.copy(
                             status = DispatchOutgoingGoodsStatus.Current,
-                            currentCheck = if (resolution.current) latest.currentCheck?.copy(
-                                openDiscrepancy = false,
-                                discrepancy = null
-                            ) else latest.currentCheck,
+                            currentCheck = if (resolution.current) {
+                                latest.currentCheck?.copy(
+                                    openDiscrepancy = false,
+                                    discrepancy = null
+                                )
+                            } else {
+                                latest.currentCheck
+                            },
                             currentResolution = resolution,
                             hasPendingCommand = !cleared
                         )
@@ -418,7 +485,9 @@ class DispatchOutgoingGoodsViewModel(
                     fail(DispatchOutgoingGoodsStatus.Conflict, hasPending = true)
 
                 DispatchOutgoingGoodsGatewayResult.ContextInvalidated -> invalidateContext()
+
                 DispatchOutgoingGoodsGatewayResult.SessionInvalidated -> invalidateSession()
+
                 is DispatchOutgoingGoodsGatewayResult.Snapshot ->
                     fail(DispatchOutgoingGoodsStatus.ServiceUnavailable, hasPending = true)
             }
@@ -430,12 +499,18 @@ class DispatchOutgoingGoodsViewModel(
         update: (DispatchOutgoingGoodsLine) -> DispatchOutgoingGoodsLine
     ) {
         val current = mutableState.value
-        if (current.status != DispatchOutgoingGoodsStatus.Current || current.hasPendingCommand) return
+        if (current.status != DispatchOutgoingGoodsStatus.Current ||
+            current.hasPendingCommand
+        ) {
+            return
+        }
         val allocation = current.allocation ?: return
         mutableState.value = current.copy(
-            allocation = allocation.copy(lines = allocation.lines.map {
-                if (it.physicalAllocationLineId == id) update(it) else it
-            })
+            allocation = allocation.copy(
+                lines = allocation.lines.map {
+                    if (it.physicalAllocationLineId == id) update(it) else it
+                }
+            )
         )
     }
 
@@ -452,13 +527,14 @@ class DispatchOutgoingGoodsViewModel(
         )
     }
 
-    private suspend fun safeGatewayCall(block: suspend () -> DispatchOutgoingGoodsGatewayResult) = try {
-        block()
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (_: Exception) {
-        DispatchOutgoingGoodsGatewayResult.ServiceUnavailable
-    }
+    private suspend fun safeGatewayCall(block: suspend () -> DispatchOutgoingGoodsGatewayResult) =
+        try {
+            block()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            DispatchOutgoingGoodsGatewayResult.ServiceUnavailable
+        }
 
     private suspend fun <T> safeMetadataCall(block: suspend () -> T): T? = try {
         block()
@@ -486,7 +562,9 @@ class DispatchOutgoingGoodsViewModel(
                 identity.workspaceId,
                 identity.membershipId
             ).any(String::isBlank)
-        ) return null
+        ) {
+            return null
+        }
         return DispatchOutgoingGoodsScopeIdentity(
             identity.userId,
             identity.tenantId,
@@ -519,19 +597,23 @@ class DispatchOutgoingGoodsViewModel(
         observations: List<DispatchOutgoingGoodsObservation>
     ): DispatchOutgoingGoodsAllocation {
         val byLine = observations.associateBy { it.physicalAllocationLineId }
-        return copy(lines = lines.map { line ->
-            val observed = byLine[line.physicalAllocationLineId] ?: return@map line
-            line.copy(
-                observedLotId = observed.observedLotId.orEmpty(),
-                observedQuantity = observed.observedQuantity.toPlainString()
-            )
-        })
+        return copy(
+            lines = lines.map { line ->
+                val observed = byLine[line.physicalAllocationLineId] ?: return@map line
+                line.copy(
+                    observedLotId = observed.observedLotId.orEmpty(),
+                    observedQuantity = observed.observedQuantity.toPlainString()
+                )
+            }
+        )
     }
 
     private fun DispatchOutgoingGoodsCommand.toRequestBody(): String =
         if (type == DispatchOutgoingGoodsCommandType.ResolveDiscrepancy) {
-            "{\"physicalAllocationId\":\"$physicalAllocationId\",\"physicalAllocationVersion\":$physicalAllocationVersion," +
-                "\"discrepancyCheckId\":\"${discrepancyCheckId.orEmpty()}\",\"matchingCheckId\":\"${matchingCheckId.orEmpty()}\"," +
+            "{\"physicalAllocationId\":\"$physicalAllocationId\"," +
+                "\"physicalAllocationVersion\":$physicalAllocationVersion," +
+                "\"discrepancyCheckId\":\"${discrepancyCheckId.orEmpty()}\"," +
+                "\"matchingCheckId\":\"${matchingCheckId.orEmpty()}\"," +
                 "\"reason\":\"${reason.orEmpty().jsonEscape()}\"}"
         } else {
             observations.toRequestBody(physicalAllocationId, physicalAllocationVersion)
@@ -553,15 +635,20 @@ class DispatchOutgoingGoodsViewModel(
                 .append("\",\"observedLotId\":")
             val lotId = observation.observedLotId
             if (lotId == null) append("null") else append('"').append(lotId).append('"')
-            append(",\"observedQuantity\":").append(observation.observedQuantity.toPlainString()).append('}')
+            append(
+                ",\"observedQuantity\":"
+            ).append(observation.observedQuantity.toPlainString()).append('}')
         }
         append("]}")
     }
 
-    private fun isCurrent(request: Long, context: DispatchAuthorityContext, fulfillmentId: String): Boolean =
-        request == generation && activeContext == context &&
-            mutableState.value.authorityEpoch == context.authorityEpoch &&
-            mutableState.value.fulfillment?.fulfillmentId == fulfillmentId
+    private fun isCurrent(
+        request: Long,
+        context: DispatchAuthorityContext,
+        fulfillmentId: String
+    ): Boolean = request == generation && activeContext == context &&
+        mutableState.value.authorityEpoch == context.authorityEpoch &&
+        mutableState.value.fulfillment?.fulfillmentId == fulfillmentId
 
     private companion object {
         val INVALIDATED_STATUS = setOf(

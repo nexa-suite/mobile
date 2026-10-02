@@ -46,7 +46,9 @@ fun DispatchReadinessScreen(
     onAssignFulfillment: ((String) -> Unit)? = null,
     onVerifyOutgoingGoods: ((String) -> Unit)? = null,
     onConfirmHandover: ((String) -> Unit)? = null,
-    onRecordTemperature: ((String) -> Unit)? = null
+    onRecordTemperature: ((String) -> Unit)? = null,
+    onEditDeliveryInstructions: ((String) -> Unit)? = null,
+    onReviewExecutionHold: ((String) -> Unit)? = null
 ) {
     val closeAction = rememberUpdatedState(onRouteClosed)
     DisposableEffect(Unit) {
@@ -116,20 +118,39 @@ fun DispatchReadinessScreen(
                     ) {
                         ReadinessDetail(state.detail, onClearSelection)
                         if (onVerifyOutgoingGoods != null) {
-                            TextButton(onClick = { onVerifyOutgoingGoods(state.detail.fulfillmentId) }) {
+                            TextButton(onClick = {
+                                onVerifyOutgoingGoods(state.detail.fulfillmentId)
+                            }) {
                                 Text("Verificar lote y cantidad de salida")
                             }
                         }
                         if (onRecordTemperature != null) {
-                            TextButton(onClick = { onRecordTemperature(state.detail.fulfillmentId) }) {
+                            TextButton(onClick = {
+                                onRecordTemperature(state.detail.fulfillmentId)
+                            }) {
                                 Text("Registrar temperatura de preparación")
                             }
                         }
                         if (onConfirmHandover != null) {
-                            TextButton(onClick = { onConfirmHandover(state.detail.fulfillmentId) }) { Text("Confirmar salida y handoff") }
+                            TextButton(onClick = {
+                                onConfirmHandover(state.detail.fulfillmentId)
+                            }) { Text("Confirmar salida y handoff") }
+                        }
+                        val deliveryId = state.detail.deliveryId
+                        if (deliveryId != null && onEditDeliveryInstructions != null) {
+                            TextButton(onClick = { onEditDeliveryInstructions(deliveryId) }) {
+                                Text(stringResource(R.string.dispatch_readiness_open_instructions))
+                            }
+                        }
+                        if (deliveryId != null && onReviewExecutionHold != null) {
+                            TextButton(onClick = { onReviewExecutionHold(deliveryId) }) {
+                                Text(stringResource(R.string.dispatch_readiness_execution_hold))
+                            }
                         }
                         if (onAssignFulfillment != null) {
-                            TextButton(onClick = { onAssignFulfillment(state.detail.fulfillmentId) }) {
+                            TextButton(onClick = {
+                                onAssignFulfillment(state.detail.fulfillmentId)
+                            }) {
                                 Text(stringResource(R.string.dispatch_assignment_title))
                             }
                         }

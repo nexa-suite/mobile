@@ -3,8 +3,8 @@ package com.nexa.mobile.operations.core.network
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.time.Instant
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
 private const val FULFILLMENT_DISPATCH_BASE = "/api/v1/fulfillments"
@@ -38,7 +38,8 @@ data class FulfillmentHandoffEvidenceProjection(
 )
 
 sealed interface FulfillmentHandoffEvidenceNetworkOutcome {
-    data class Evidence(val value: FulfillmentHandoffEvidenceProjection) : FulfillmentHandoffEvidenceNetworkOutcome
+    data class Evidence(val value: FulfillmentHandoffEvidenceProjection) :
+        FulfillmentHandoffEvidenceNetworkOutcome
     data object NetworkUnavailable : FulfillmentHandoffEvidenceNetworkOutcome
     data object ServiceUnavailable : FulfillmentHandoffEvidenceNetworkOutcome
     data object PermissionDenied : FulfillmentHandoffEvidenceNetworkOutcome
@@ -47,8 +48,10 @@ sealed interface FulfillmentHandoffEvidenceNetworkOutcome {
 }
 
 sealed interface FulfillmentDispatchNetworkOutcome {
-    data class Current(val fulfillment: FulfillmentDispatchProjection) : FulfillmentDispatchNetworkOutcome
-    data class Dispatched(val fulfillment: FulfillmentDispatchProjection) : FulfillmentDispatchNetworkOutcome
+    data class Current(val fulfillment: FulfillmentDispatchProjection) :
+        FulfillmentDispatchNetworkOutcome
+    data class Dispatched(val fulfillment: FulfillmentDispatchProjection) :
+        FulfillmentDispatchNetworkOutcome
     data object NetworkUnavailable : FulfillmentDispatchNetworkOutcome
     data object UnknownOutcome : FulfillmentDispatchNetworkOutcome
     data object ServiceUnavailable : FulfillmentDispatchNetworkOutcome
@@ -69,14 +72,22 @@ class NexaFulfillmentDispatchGateway(private val protectedCalls: ProtectedCallEx
         )
         return when (result) {
             is ProtectedResult.Failure -> result.error.toDispatchOutcome()
+
             is ProtectedResult.Success -> {
-                if (result.status != 200) return FulfillmentDispatchNetworkOutcome.ServiceUnavailable
+                if (result.status !=
+                    200
+                ) {
+                    return FulfillmentDispatchNetworkOutcome.ServiceUnavailable
+                }
                 val value = result.body.decode<FulfillmentDispatchWire>()?.toProjection()
                     ?: return FulfillmentDispatchNetworkOutcome.ServiceUnavailable
                 if (!value.fulfillmentId.equals(fulfillmentId, ignoreCase = true) ||
                     result.etag.toVersion() != value.version
-                ) FulfillmentDispatchNetworkOutcome.ServiceUnavailable
-                else FulfillmentDispatchNetworkOutcome.Current(value)
+                ) {
+                    FulfillmentDispatchNetworkOutcome.ServiceUnavailable
+                } else {
+                    FulfillmentDispatchNetworkOutcome.Current(value)
+                }
             }
         }
     }
@@ -91,7 +102,9 @@ class NexaFulfillmentDispatchGateway(private val protectedCalls: ProtectedCallEx
             idempotencyKey.isBlank() || idempotencyKey.length > 160 ||
             exactRequestBody.isBlank() || !exactRequestBody.trim().startsWith("{") ||
             !exactRequestBody.trim().endsWith("}")
-        ) return FulfillmentDispatchNetworkOutcome.ServiceUnavailable
+        ) {
+            return FulfillmentDispatchNetworkOutcome.ServiceUnavailable
+        }
         val encodedId = URLEncoder.encode(fulfillmentId, StandardCharsets.UTF_8.name())
         val result = protectedCalls.execute(
             ProtectedRequest(
@@ -104,6 +117,7 @@ class NexaFulfillmentDispatchGateway(private val protectedCalls: ProtectedCallEx
         )
         return when (result) {
             is ProtectedResult.Failure -> result.error.toDispatchOutcome()
+
             is ProtectedResult.Success -> {
                 if (result.status != 200 && result.status != 201) {
                     return FulfillmentDispatchNetworkOutcome.ServiceUnavailable
@@ -112,7 +126,8 @@ class NexaFulfillmentDispatchGateway(private val protectedCalls: ProtectedCallEx
                     ?: return FulfillmentDispatchNetworkOutcome.UnknownOutcome
                 if (!value.fulfillmentId.equals(fulfillmentId, ignoreCase = true) ||
                     value.status != HANDED_OVER || value.version < expectedFulfillmentVersion + 1 ||
-                    value.deliveryId == null || value.deliveryStatus == null || value.deliveryVersion == null ||
+                    value.deliveryId == null || value.deliveryStatus == null ||
+                    value.deliveryVersion == null ||
                     result.etag.toVersion() != value.version
                 ) {
                     FulfillmentDispatchNetworkOutcome.UnknownOutcome
@@ -123,8 +138,12 @@ class NexaFulfillmentDispatchGateway(private val protectedCalls: ProtectedCallEx
         }
     }
 
-    suspend fun currentHandoffEvidence(fulfillmentId: String): FulfillmentHandoffEvidenceNetworkOutcome {
-        if (!fulfillmentId.isUuid()) return FulfillmentHandoffEvidenceNetworkOutcome.ServiceUnavailable
+    suspend fun currentHandoffEvidence(
+        fulfillmentId: String
+    ): FulfillmentHandoffEvidenceNetworkOutcome {
+        if (!fulfillmentId.isUuid()) {
+            return FulfillmentHandoffEvidenceNetworkOutcome.ServiceUnavailable
+        }
         val encodedId = URLEncoder.encode(fulfillmentId, StandardCharsets.UTF_8.name())
         val result = protectedCalls.execute(
             ProtectedRequest(
@@ -134,14 +153,22 @@ class NexaFulfillmentDispatchGateway(private val protectedCalls: ProtectedCallEx
         )
         return when (result) {
             is ProtectedResult.Failure -> result.error.toHandoffEvidenceOutcome()
+
             is ProtectedResult.Success -> {
-                if (result.status != 200) return FulfillmentHandoffEvidenceNetworkOutcome.ServiceUnavailable
+                if (result.status !=
+                    200
+                ) {
+                    return FulfillmentHandoffEvidenceNetworkOutcome.ServiceUnavailable
+                }
                 val value = result.body.decode<HandoffEvidenceWire>()?.toProjection()
                     ?: return FulfillmentHandoffEvidenceNetworkOutcome.ServiceUnavailable
                 if (!value.fulfillmentId.equals(fulfillmentId, ignoreCase = true) ||
                     result.etag.toVersion() != value.fulfillmentVersion
-                ) FulfillmentHandoffEvidenceNetworkOutcome.ServiceUnavailable
-                else FulfillmentHandoffEvidenceNetworkOutcome.Evidence(value)
+                ) {
+                    FulfillmentHandoffEvidenceNetworkOutcome.ServiceUnavailable
+                } else {
+                    FulfillmentHandoffEvidenceNetworkOutcome.Evidence(value)
+                }
             }
         }
     }
@@ -150,44 +177,74 @@ class NexaFulfillmentDispatchGateway(private val protectedCalls: ProtectedCallEx
         val id = id?.takeIf { it.isUuid() } ?: return null
         val status = status?.takeIf(String::isNotBlank) ?: return null
         val version = version?.takeIf { it >= 0 } ?: return null
-        val updated = updatedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
+        val updated =
+            updatedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
         val delivery = deliveryId?.takeIf { it.isUuid() }
         val deliveryState = deliveryStatus?.takeIf(String::isNotBlank)
         val deliveryVersion = deliveryVersion?.takeIf { it >= 0 }
-        if (status == HANDED_OVER && (delivery == null || deliveryState == null || deliveryVersion == null)) {
+        if (status == HANDED_OVER &&
+            (delivery == null || deliveryState == null || deliveryVersion == null)
+        ) {
             return null
         }
-        if (status != HANDED_OVER && (delivery != null || deliveryState != null || deliveryVersion != null)) {
+        if (status != HANDED_OVER &&
+            (delivery != null || deliveryState != null || deliveryVersion != null)
+        ) {
             return null
         }
-        return FulfillmentDispatchProjection(id, status, version, updated, delivery, deliveryState, deliveryVersion)
+        return FulfillmentDispatchProjection(
+            id,
+            status,
+            version,
+            updated,
+            delivery,
+            deliveryState,
+            deliveryVersion
+        )
     }
 
     private fun ClientFailure.toDispatchOutcome(): FulfillmentDispatchNetworkOutcome = when {
-        kind == FailureKind.AuthenticationRequired -> FulfillmentDispatchNetworkOutcome.SessionInvalidated
+        kind == FailureKind.AuthenticationRequired ->
+            FulfillmentDispatchNetworkOutcome.SessionInvalidated
+
         httpStatus == 403 && problemCode == "ACCESS_CONTEXT_INVALID" ->
             FulfillmentDispatchNetworkOutcome.ContextInvalidated
+
         httpStatus == 403 || httpStatus == 404 || kind == FailureKind.AuthorizationFailure ||
-            kind == FailureKind.ResourceUnavailable -> FulfillmentDispatchNetworkOutcome.PermissionDenied
+            kind == FailureKind.ResourceUnavailable ->
+            FulfillmentDispatchNetworkOutcome.PermissionDenied
+
         httpStatus == 412 || httpStatus == 428 || kind == FailureKind.StaleState ||
             kind == FailureKind.PreconditionRequired -> FulfillmentDispatchNetworkOutcome.Stale
-        httpStatus == 409 || kind == FailureKind.BusinessConflict -> FulfillmentDispatchNetworkOutcome.Conflict
+
+        httpStatus == 409 || kind == FailureKind.BusinessConflict ->
+            FulfillmentDispatchNetworkOutcome.Conflict
+
         kind == FailureKind.UnknownOutcome -> FulfillmentDispatchNetworkOutcome.UnknownOutcome
+
         kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
             FulfillmentDispatchNetworkOutcome.NetworkUnavailable
+
         else -> FulfillmentDispatchNetworkOutcome.ServiceUnavailable
     }
 
-    private fun ClientFailure.toHandoffEvidenceOutcome(): FulfillmentHandoffEvidenceNetworkOutcome = when {
-        kind == FailureKind.AuthenticationRequired -> FulfillmentHandoffEvidenceNetworkOutcome.SessionInvalidated
-        httpStatus == 403 && problemCode == "ACCESS_CONTEXT_INVALID" ->
-            FulfillmentHandoffEvidenceNetworkOutcome.ContextInvalidated
-        httpStatus == 403 || httpStatus == 404 || kind == FailureKind.AuthorizationFailure ||
-            kind == FailureKind.ResourceUnavailable -> FulfillmentHandoffEvidenceNetworkOutcome.PermissionDenied
-        kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
-            FulfillmentHandoffEvidenceNetworkOutcome.NetworkUnavailable
-        else -> FulfillmentHandoffEvidenceNetworkOutcome.ServiceUnavailable
-    }
+    private fun ClientFailure.toHandoffEvidenceOutcome(): FulfillmentHandoffEvidenceNetworkOutcome =
+        when {
+            kind == FailureKind.AuthenticationRequired ->
+                FulfillmentHandoffEvidenceNetworkOutcome.SessionInvalidated
+
+            httpStatus == 403 && problemCode == "ACCESS_CONTEXT_INVALID" ->
+                FulfillmentHandoffEvidenceNetworkOutcome.ContextInvalidated
+
+            httpStatus == 403 || httpStatus == 404 || kind == FailureKind.AuthorizationFailure ||
+                kind == FailureKind.ResourceUnavailable ->
+                FulfillmentHandoffEvidenceNetworkOutcome.PermissionDenied
+
+            kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
+                FulfillmentHandoffEvidenceNetworkOutcome.NetworkUnavailable
+
+            else -> FulfillmentHandoffEvidenceNetworkOutcome.ServiceUnavailable
+        }
 
     private fun String.isUuid(): Boolean = fulfillmentDispatchUuid.matches(this)
 
@@ -202,13 +259,19 @@ class NexaFulfillmentDispatchGateway(private val protectedCalls: ProtectedCallEx
         val allocation = physicalAllocationId?.takeIf { it.isUuid() } ?: return null
         val allocationVersion = physicalAllocationVersion?.takeIf { it >= 0 } ?: return null
         val check = outgoingGoodsCheckId?.takeIf { it.isUuid() } ?: return null
-        val occurred = occurredAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
+        val occurred =
+            occurredAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
         val isCurrent = current ?: return null
-        return FulfillmentHandoffEvidenceProjection(evidenceId, workId, workVersion, delivery, warehouseActor,
-            assignment, driver, allocation, allocationVersion, check, occurred, isCurrent)
+        return FulfillmentHandoffEvidenceProjection(
+            evidenceId, workId, workVersion, delivery, warehouseActor,
+            assignment, driver, allocation, allocationVersion, check, occurred, isCurrent
+        )
     }
 
-    private fun String?.toVersion(): Long? = this?.removeSurrounding("\"")?.toLongOrNull()?.takeIf { it >= 0 }
+    private fun String?.toVersion(): Long? = this?.removeSurrounding("\"")?.toLongOrNull()?.takeIf {
+        it >=
+            0
+    }
 
     private inline fun <reified T> String?.decode(): T? = try {
         this?.let { fulfillmentDispatchJson.decodeFromString<T>(it) }

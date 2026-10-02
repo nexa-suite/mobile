@@ -146,10 +146,15 @@ fun DispatchAssignmentScreen(
                 item {
                     AssignmentFactCard(assignment)
                 }
-                if (onIdentifyHandoff != null && assignment.current && assignment.deliveryId != null &&
-                    state.status == DispatchAssignmentStatus.Current && state.pendingIntent == null) {
+                if (onIdentifyHandoff != null &&
+                    assignment.current && assignment.deliveryId != null &&
+                    state.status == DispatchAssignmentStatus.Current &&
+                    state.pendingIntent == null
+                ) {
                     item {
-                        OutlinedButton(onClick = onIdentifyHandoff) { Text("Identificar traspaso preparado") }
+                        OutlinedButton(onClick = onIdentifyHandoff) {
+                            Text("Identificar traspaso preparado")
+                        }
                     }
                 }
                 if (onChangePlan != null) {

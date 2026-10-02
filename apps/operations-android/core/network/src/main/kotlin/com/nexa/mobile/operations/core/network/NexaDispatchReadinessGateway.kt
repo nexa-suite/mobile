@@ -44,6 +44,9 @@ data class DispatchReadinessProjection(
     val deliveryId: String?,
     val deliveryStatus: String?,
     val deliveryVersion: Long?,
+    val windowStart: Instant?,
+    val windowEnd: Instant?,
+    val windowSource: String?,
     val allocationComplete: Boolean,
     val pickingComplete: Boolean,
     val pickingEvidenceComplete: Boolean,
@@ -177,6 +180,9 @@ class NexaDispatchReadinessGateway(private val protectedCalls: ProtectedCallExec
         val safeLines = lines?.map { it.toProjection() ?: return null } ?: return null
         val safeDeliveryId = deliveryId?.takeIf(String::isNotBlank)
         val safeDeliveryStatus = deliveryStatus?.takeIf(String::isNotBlank)
+        val safeWindowStart = windowStart?.requiredText()?.parseInstant()
+        val safeWindowEnd = windowEnd?.requiredText()?.parseInstant()
+        val safeWindowSource = windowSource?.requiredText()
         if ((deliveryId == null && (deliveryStatus != null || deliveryVersion != null)) ||
             (
                 deliveryId != null &&
@@ -184,6 +190,21 @@ class NexaDispatchReadinessGateway(private val protectedCalls: ProtectedCallExec
                         safeDeliveryId?.isUuid() != true || safeDeliveryStatus == null ||
                             deliveryVersion == null || deliveryVersion < 0
                         )
+                )
+        ) {
+            return null
+        }
+        if ((windowStart != null && safeWindowStart == null) ||
+            (windowEnd != null && safeWindowEnd == null) ||
+            safeWindowSource !in setOf(null, "COMMERCIAL", "DISPATCH_PLAN") ||
+            (safeWindowSource == null && (safeWindowStart != null || safeWindowEnd != null)) ||
+            (
+                safeWindowSource == "COMMERCIAL" && safeWindowStart == null &&
+                    safeWindowEnd == null
+                ) ||
+            (
+                safeWindowSource == "DISPATCH_PLAN" &&
+                    (safeWindowStart == null || safeWindowEnd == null)
                 )
         ) {
             return null
@@ -204,6 +225,9 @@ class NexaDispatchReadinessGateway(private val protectedCalls: ProtectedCallExec
             deliveryId = safeDeliveryId,
             deliveryStatus = safeDeliveryStatus,
             deliveryVersion = deliveryVersion,
+            windowStart = safeWindowStart,
+            windowEnd = safeWindowEnd,
+            windowSource = safeWindowSource,
             allocationComplete = safeAllocationComplete,
             pickingComplete = safePickingComplete,
             pickingEvidenceComplete = safeEvidenceComplete,
@@ -309,6 +333,9 @@ private data class DispatchReadinessWire(
     val deliveryId: String? = null,
     val deliveryStatus: String? = null,
     val deliveryVersion: Long? = null,
+    val windowStart: String? = null,
+    val windowEnd: String? = null,
+    val windowSource: String? = null,
     val allocationComplete: Boolean? = null,
     val pickingComplete: Boolean? = null,
     val pickingEvidenceComplete: Boolean? = null,

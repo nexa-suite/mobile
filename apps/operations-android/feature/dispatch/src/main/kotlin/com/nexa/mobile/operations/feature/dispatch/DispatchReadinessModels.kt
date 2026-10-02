@@ -57,7 +57,10 @@ data class DispatchReadiness(
     val ready: Boolean,
     val reasons: List<String>,
     val lines: List<DispatchReadinessLine>,
-    val asOf: Instant
+    val asOf: Instant,
+    val windowStart: Instant? = null,
+    val windowEnd: Instant? = null,
+    val windowSource: String? = null
 ) {
     override fun toString(): String = "DispatchReadiness(fulfillmentId=REDACTED, " +
         "status=$fulfillmentStatus, ready=$ready, reasons=${reasons.size}, lines=${lines.size})"

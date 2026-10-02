@@ -58,7 +58,9 @@ fun DispatchOutgoingGoodsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                TextButton(onClick = onBack) { Text(stringResource(R.string.dispatch_outgoing_back)) }
+                TextButton(onClick = onBack) {
+                    Text(stringResource(R.string.dispatch_outgoing_back))
+                }
                 Text(
                     stringResource(R.string.dispatch_outgoing_title),
                     style = MaterialTheme.typography.headlineSmall,
@@ -86,7 +88,10 @@ fun DispatchOutgoingGoodsScreen(
             state.currentCheck?.let { check ->
                 item {
                     Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Column(
+                            Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                             Text(
                                 if (check.openDiscrepancy) {
                                     stringResource(R.string.dispatch_outgoing_discrepancy_open)
@@ -97,23 +102,45 @@ fun DispatchOutgoingGoodsScreen(
                                 },
                                 fontWeight = FontWeight.SemiBold
                             )
-                            Text(stringResource(R.string.dispatch_outgoing_checked_at, formatInstant(check.checkedAt)))
+                            Text(
+                                stringResource(
+                                    R.string.dispatch_outgoing_checked_at,
+                                    formatInstant(check.checkedAt)
+                                )
+                            )
                         }
                     }
                 }
                 check.discrepancy?.let { discrepancy ->
                     item {
                         Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(stringResource(R.string.dispatch_outgoing_discrepancy_history),
-                                    fontWeight = FontWeight.SemiBold)
-                                Text(stringResource(R.string.dispatch_outgoing_discrepancy_identity,
-                                    discrepancy.id, discrepancy.checkedByMembershipId,
-                                    formatInstant(discrepancy.checkedAt)))
+                            Column(
+                                Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    stringResource(R.string.dispatch_outgoing_discrepancy_history),
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    stringResource(
+                                        R.string.dispatch_outgoing_discrepancy_identity,
+                                        discrepancy.id,
+                                        discrepancy.checkedByMembershipId,
+                                        formatInstant(discrepancy.checkedAt)
+                                    )
+                                )
                                 discrepancy.lines.forEach { line ->
-                                    Text(stringResource(R.string.dispatch_outgoing_discrepancy_line,
-                                        line.expectedLotId ?: "—", line.expectedQuantity.toPlainString(),
-                                        line.observedLotId ?: "—", line.observedQuantity.toPlainString(), line.unit))
+                                    Text(
+                                        stringResource(
+                                            R.string.dispatch_outgoing_discrepancy_line,
+                                            line.expectedLotId ?: "—",
+                                            line.expectedQuantity.toPlainString(),
+                                            line.observedLotId ?: "—",
+                                            line.observedQuantity.toPlainString(),
+                                            line.unit
+                                        )
+                                    )
                                 }
                             }
                         }
@@ -123,13 +150,25 @@ fun DispatchOutgoingGoodsScreen(
                             OutlinedTextField(
                                 value = state.resolutionReason,
                                 onValueChange = onResolutionReasonChanged,
-                                label = { Text(stringResource(R.string.dispatch_outgoing_resolution_reason)) },
-                                supportingText = { Text(stringResource(R.string.dispatch_outgoing_resolution_explainer)) },
+                                label = {
+                                    Text(
+                                        stringResource(R.string.dispatch_outgoing_resolution_reason)
+                                    )
+                                },
+                                supportingText = {
+                                    Text(
+                                        stringResource(
+                                            R.string.dispatch_outgoing_resolution_explainer
+                                        )
+                                    )
+                                },
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            Button(onClick = onResolveDiscrepancy,
+                            Button(
+                                onClick = onResolveDiscrepancy,
                                 enabled = state.canResolveDiscrepancy,
-                                modifier = Modifier.fillMaxWidth()) {
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
                                 Text(stringResource(R.string.dispatch_outgoing_resolve_discrepancy))
                             }
                         }
@@ -139,13 +178,27 @@ fun DispatchOutgoingGoodsScreen(
             state.currentResolution?.let { resolution ->
                 item {
                     Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(stringResource(R.string.dispatch_outgoing_resolution_recorded),
-                                fontWeight = FontWeight.SemiBold)
-                            Text(stringResource(R.string.dispatch_outgoing_resolution_identity,
-                                resolution.actorMembershipId, formatInstant(resolution.resolvedAt)))
+                        Column(
+                            Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                stringResource(R.string.dispatch_outgoing_resolution_recorded),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                stringResource(
+                                    R.string.dispatch_outgoing_resolution_identity,
+                                    resolution.actorMembershipId,
+                                    formatInstant(resolution.resolvedAt)
+                                )
+                            )
                             Text(resolution.reason)
-                            if (!resolution.current) Text(stringResource(R.string.dispatch_outgoing_resolution_historical))
+                            if (!resolution.current) {
+                                Text(
+                                    stringResource(R.string.dispatch_outgoing_resolution_historical)
+                                )
+                            }
                         }
                     }
                 }
@@ -153,10 +206,19 @@ fun DispatchOutgoingGoodsScreen(
             state.allocation?.let { allocation ->
                 item {
                     Text(
-                        stringResource(R.string.dispatch_outgoing_allocation, allocation.id, allocation.version),
+                        stringResource(
+                            R.string.dispatch_outgoing_allocation,
+                            allocation.id,
+                            allocation.version
+                        ),
                         style = MaterialTheme.typography.titleMedium
                     )
-                    Text(stringResource(R.string.dispatch_outgoing_as_of, formatInstant(allocation.asOf)))
+                    Text(
+                        stringResource(
+                            R.string.dispatch_outgoing_as_of,
+                            formatInstant(allocation.asOf)
+                        )
+                    )
                 }
                 items(allocation.lines, key = { it.physicalAllocationLineId }) { line ->
                     OutgoingLineCard(line, onObservedLotChanged, onObservedQuantityChanged)
@@ -202,7 +264,13 @@ private fun OutgoingLineCard(
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(line.catalogItemId, fontWeight = FontWeight.SemiBold)
-            Text(stringResource(R.string.dispatch_outgoing_expected_quantity, line.remainingQuantity.toPlainString(), line.unit))
+            Text(
+                stringResource(
+                    R.string.dispatch_outgoing_expected_quantity,
+                    line.remainingQuantity.toPlainString(),
+                    line.unit
+                )
+            )
             Text(stringResource(R.string.dispatch_outgoing_expected_lot, line.expectedLotId ?: "—"))
             OutlinedTextField(
                 value = line.observedLotId,
@@ -215,7 +283,9 @@ private fun OutgoingLineCard(
             OutlinedTextField(
                 value = line.observedQuantity,
                 onValueChange = { onObservedQuantityChanged(line.physicalAllocationLineId, it) },
-                label = { Text(stringResource(R.string.dispatch_outgoing_observed_quantity, line.unit)) },
+                label = {
+                    Text(stringResource(R.string.dispatch_outgoing_observed_quantity, line.unit))
+                },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -230,21 +300,60 @@ private fun OutgoingStatusPanel(
     hasPendingCommand: Boolean
 ) {
     val (title, body) = when (status) {
-        DispatchOutgoingGoodsStatus.Initial -> R.string.dispatch_outgoing_initial_title to R.string.dispatch_outgoing_initial_body
-        DispatchOutgoingGoodsStatus.Loading -> R.string.dispatch_outgoing_loading_title to R.string.dispatch_outgoing_busy
-        DispatchOutgoingGoodsStatus.Current -> R.string.dispatch_outgoing_current_title to R.string.dispatch_outgoing_current_body
-        DispatchOutgoingGoodsStatus.Submitting -> R.string.dispatch_outgoing_submitting_title to R.string.dispatch_outgoing_busy
-        DispatchOutgoingGoodsStatus.UnknownOutcome -> R.string.dispatch_outgoing_unknown_title to R.string.dispatch_outgoing_unknown_body
-        DispatchOutgoingGoodsStatus.NetworkUnavailable -> R.string.dispatch_outgoing_network_title to R.string.dispatch_outgoing_network_body
-        DispatchOutgoingGoodsStatus.ServiceUnavailable -> R.string.dispatch_outgoing_service_title to R.string.dispatch_outgoing_service_body
-        DispatchOutgoingGoodsStatus.PermissionDenied -> R.string.dispatch_outgoing_permission_title to R.string.dispatch_outgoing_permission_body
-        DispatchOutgoingGoodsStatus.Stale -> R.string.dispatch_outgoing_stale_title to R.string.dispatch_outgoing_stale_body
-        DispatchOutgoingGoodsStatus.Conflict -> R.string.dispatch_outgoing_conflict_title to R.string.dispatch_outgoing_conflict_body
-        DispatchOutgoingGoodsStatus.ContextInvalidated -> R.string.dispatch_outgoing_context_title to R.string.dispatch_outgoing_context_body
-        DispatchOutgoingGoodsStatus.SessionInvalidated -> R.string.dispatch_outgoing_session_title to R.string.dispatch_outgoing_session_body
+        DispatchOutgoingGoodsStatus.Initial ->
+            R.string.dispatch_outgoing_initial_title to
+                R.string.dispatch_outgoing_initial_body
+
+        DispatchOutgoingGoodsStatus.Loading ->
+            R.string.dispatch_outgoing_loading_title to
+                R.string.dispatch_outgoing_busy
+
+        DispatchOutgoingGoodsStatus.Current ->
+            R.string.dispatch_outgoing_current_title to
+                R.string.dispatch_outgoing_current_body
+
+        DispatchOutgoingGoodsStatus.Submitting ->
+            R.string.dispatch_outgoing_submitting_title to
+                R.string.dispatch_outgoing_busy
+
+        DispatchOutgoingGoodsStatus.UnknownOutcome ->
+            R.string.dispatch_outgoing_unknown_title to
+                R.string.dispatch_outgoing_unknown_body
+
+        DispatchOutgoingGoodsStatus.NetworkUnavailable ->
+            R.string.dispatch_outgoing_network_title to
+                R.string.dispatch_outgoing_network_body
+
+        DispatchOutgoingGoodsStatus.ServiceUnavailable ->
+            R.string.dispatch_outgoing_service_title to
+                R.string.dispatch_outgoing_service_body
+
+        DispatchOutgoingGoodsStatus.PermissionDenied ->
+            R.string.dispatch_outgoing_permission_title to
+                R.string.dispatch_outgoing_permission_body
+
+        DispatchOutgoingGoodsStatus.Stale ->
+            R.string.dispatch_outgoing_stale_title to
+                R.string.dispatch_outgoing_stale_body
+
+        DispatchOutgoingGoodsStatus.Conflict ->
+            R.string.dispatch_outgoing_conflict_title to
+                R.string.dispatch_outgoing_conflict_body
+
+        DispatchOutgoingGoodsStatus.ContextInvalidated ->
+            R.string.dispatch_outgoing_context_title to
+                R.string.dispatch_outgoing_context_body
+
+        DispatchOutgoingGoodsStatus.SessionInvalidated ->
+            R.string.dispatch_outgoing_session_title to
+                R.string.dispatch_outgoing_session_body
     }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(stringResource(title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(
+            stringResource(title),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
         Text(stringResource(body))
         if (status == DispatchOutgoingGoodsStatus.Current && observedAt != null) {
             Text(stringResource(R.string.dispatch_outgoing_observed_at, formatInstant(observedAt)))

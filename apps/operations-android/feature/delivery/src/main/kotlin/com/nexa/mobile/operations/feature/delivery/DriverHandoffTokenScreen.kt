@@ -28,7 +28,11 @@ fun DriverHandoffTokenScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, onClearToken) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) onClearToken()
+            if (event == Lifecycle.Event.ON_PAUSE ||
+                event == Lifecycle.Event.ON_STOP
+            ) {
+                onClearToken()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -83,17 +87,34 @@ fun DriverHandoffTokenScreen(
 @Composable
 private fun statusText(state: DriverHandoffTokenUiState): String = when (state.status) {
     DriverHandoffUiStatus.Loading -> stringResource(R.string.driver_handoff_loading)
+
     DriverHandoffUiStatus.Ready -> stringResource(R.string.driver_handoff_ready)
+
     DriverHandoffUiStatus.Issuing -> stringResource(R.string.driver_handoff_issuing)
+
     DriverHandoffUiStatus.TokenVisible -> stringResource(R.string.driver_handoff_visible)
+
     DriverHandoffUiStatus.UnknownOutcome -> stringResource(R.string.driver_handoff_unknown)
+
     DriverHandoffUiStatus.TokenUnavailable -> stringResource(R.string.driver_handoff_unavailable)
+
     DriverHandoffUiStatus.TokenExpired -> stringResource(R.string.driver_handoff_expired)
+
     DriverHandoffUiStatus.Cleared -> stringResource(R.string.driver_handoff_cleared)
+
     DriverHandoffUiStatus.Stale -> stringResource(R.string.driver_handoff_stale)
+
     DriverHandoffUiStatus.Rejected -> stringResource(R.string.driver_handoff_rejected)
+
     DriverHandoffUiStatus.NotFound -> stringResource(R.string.driver_handoff_not_found)
+
     DriverHandoffUiStatus.Unavailable -> stringResource(R.string.driver_handoff_service_unavailable)
-    DriverHandoffUiStatus.PermissionDenied -> stringResource(R.string.driver_handoff_permission_denied)
-    DriverHandoffUiStatus.PersistenceUnavailable -> stringResource(R.string.driver_handoff_persistence_unavailable)
+
+    DriverHandoffUiStatus.PermissionDenied -> stringResource(
+        R.string.driver_handoff_permission_denied
+    )
+
+    DriverHandoffUiStatus.PersistenceUnavailable -> stringResource(
+        R.string.driver_handoff_persistence_unavailable
+    )
 }

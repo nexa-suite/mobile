@@ -18,17 +18,31 @@ class NexaDriverHandoffTokenGatewayTest {
     fun issueUsesFrozenAttemptBodyAndReplayDoesNotExposeToken() = runTest {
         MockWebServer().use { server ->
             server.start()
-            server.enqueue(MockResponse().setResponseCode(201)
-                .setHeader("Content-Type", "application/json")
-                .setBody(response(token = "\"683291\"")))
-            server.enqueue(MockResponse().setResponseCode(200)
-                .setHeader("Content-Type", "application/json")
-                .setBody(response(token = "null")))
+            server.enqueue(
+                MockResponse().setResponseCode(201)
+                    .setHeader("Content-Type", "application/json")
+                    .setBody(response(token = "\"683291\""))
+            )
+            server.enqueue(
+                MockResponse().setResponseCode(200)
+                    .setHeader("Content-Type", "application/json")
+                    .setBody(response(token = "null"))
+            )
             val gateway = gateway(server)
             val body = """{"attemptId":"$ATTEMPT_ID"}"""
 
-            val first = gateway.issue(DELIVERY_ID, ATTEMPT_ID, KEY, body) as DriverHandoffTokenNetworkOutcome.Issued
-            val replay = gateway.issue(DELIVERY_ID, ATTEMPT_ID, KEY, body) as DriverHandoffTokenNetworkOutcome.Issued
+            val first = gateway.issue(
+                DELIVERY_ID,
+                ATTEMPT_ID,
+                KEY,
+                body
+            ) as DriverHandoffTokenNetworkOutcome.Issued
+            val replay = gateway.issue(
+                DELIVERY_ID,
+                ATTEMPT_ID,
+                KEY,
+                body
+            ) as DriverHandoffTokenNetworkOutcome.Issued
 
             assertEquals("683291", first.value.token)
             assertNull(replay.value.token)
@@ -70,7 +84,9 @@ class NexaDriverHandoffTokenGatewayTest {
         private val lease = AccessTokenLease("session-1", generation = 1, epoch = 1)
         override suspend fun currentAccess(): AccessTokenLease = lease
         override suspend fun isEpochCurrent(epoch: Long): Boolean = lease.epoch == epoch
-        override suspend fun recoverAfterUnauthorized(observed: AccessTokenLease): AccessTokenLease? = null
+        override suspend fun recoverAfterUnauthorized(
+            observed: AccessTokenLease
+        ): AccessTokenLease? = null
         override suspend fun rejectCurrentAccess(observed: AccessTokenLease) = Unit
     }
 

@@ -20,7 +20,12 @@ class DispatchHandoverViewModelTest {
     fun storesExactIntentBeforeDispatchAndClearsOnlyAfterConfirmedResult() = runTest {
         val events = mutableListOf<String>()
         val metadata = FakeMetadata(events)
-        val gateway = FakeGateway(events, snapshot(12, 7), DispatchHandoverGatewayResult.Dispatched(receipt()))
+        val gateway =
+            FakeGateway(
+                events,
+                snapshot(12, 7),
+                DispatchHandoverGatewayResult.Dispatched(receipt())
+            )
         val viewModel = DispatchHandoverViewModel(gateway, metadata, newCommandKey = { KEY })
         viewModel.activate(readiness(12, 7), context())
         runCurrent()
@@ -30,7 +35,13 @@ class DispatchHandoverViewModelTest {
         runCurrent()
 
         assertEquals(
-            listOf("metadata.load", "gateway.load", "metadata.save", "gateway.dispatch", "metadata.clear"),
+            listOf(
+                "metadata.load",
+                "gateway.load",
+                "metadata.save",
+                "gateway.dispatch",
+                "metadata.clear"
+            ),
             events
         )
         val sent = gateway.command ?: error("dispatch not called")
@@ -45,9 +56,20 @@ class DispatchHandoverViewModelTest {
     fun restoredIntentReplaysUnchangedBodyAfterCurrentFactsAdvance() = runTest {
         val events = mutableListOf<String>()
         val frozen = command()
-        val metadata = FakeMetadata(events, DispatchHandoverIntent(scope(), frozen,
-            DispatchOutgoingGoodsIntentStatus.UnknownOutcome))
-        val gateway = FakeGateway(events, snapshot(13, 8), DispatchHandoverGatewayResult.Dispatched(receipt()))
+        val metadata = FakeMetadata(
+            events,
+            DispatchHandoverIntent(
+                scope(),
+                frozen,
+                DispatchOutgoingGoodsIntentStatus.UnknownOutcome
+            )
+        )
+        val gateway =
+            FakeGateway(
+                events,
+                snapshot(13, 8),
+                DispatchHandoverGatewayResult.Dispatched(receipt())
+            )
         val viewModel = DispatchHandoverViewModel(gateway, metadata)
         viewModel.activate(readiness(12, 7), context())
         runCurrent()
@@ -102,12 +124,16 @@ class DispatchHandoverViewModelTest {
             fulfillmentId: String
         ): DispatchHandoverMetadataRead {
             events += "metadata.load"
-            return DispatchHandoverMetadataRead.Available(intent?.takeIf {
-                it.scope == scope && it.command.fulfillmentId == fulfillmentId
-            })
+            return DispatchHandoverMetadataRead.Available(
+                intent?.takeIf {
+                    it.scope == scope && it.command.fulfillmentId == fulfillmentId
+                }
+            )
         }
 
-        override suspend fun saveIntent(intent: DispatchHandoverIntent): DispatchHandoverMetadataWrite {
+        override suspend fun saveIntent(
+            intent: DispatchHandoverIntent
+        ): DispatchHandoverMetadataWrite {
             events += "metadata.save"
             this.intent = intent
             return DispatchHandoverMetadataWrite.Saved
@@ -149,8 +175,11 @@ class DispatchHandoverViewModelTest {
         return DispatchHandoverSnapshot(
             readiness = work,
             allocation = DispatchOutgoingGoodsAllocation(
-                id = ALLOCATION_ID, status = "ALLOCATED", version = allocationVersion,
-                asOf = AS_OF, lines = emptyList()
+                id = ALLOCATION_ID,
+                status = "ALLOCATED",
+                version = allocationVersion,
+                asOf = AS_OF,
+                lines = emptyList()
             ),
             outgoingCheck = DispatchOutgoingGoodsCheck(
                 id = CHECK_ID, fulfillmentId = FULFILLMENT_ID, fulfillmentVersion = version,
@@ -181,14 +210,26 @@ class DispatchHandoverViewModelTest {
 
     private fun context() = DispatchAuthorityContext(
         authorityEpoch = 3,
-        identity = DispatchAuthorityIdentity(USER_ID, TENANT_ID, WORKSPACE_ID, MEMBERSHIP_ID,
-            setOf("dispatch.read", "fulfillment.manage"))
+        identity = DispatchAuthorityIdentity(
+            USER_ID,
+            TENANT_ID,
+            WORKSPACE_ID,
+            MEMBERSHIP_ID,
+            setOf("dispatch.read", "fulfillment.manage")
+        )
     )
 
-    private fun scope() = DispatchOutgoingGoodsScopeIdentity(USER_ID, TENANT_ID, WORKSPACE_ID, MEMBERSHIP_ID)
+    private fun scope() =
+        DispatchOutgoingGoodsScopeIdentity(USER_ID, TENANT_ID, WORKSPACE_ID, MEMBERSHIP_ID)
 
     private fun receipt() = DispatchHandoverReceipt(
-        FULFILLMENT_ID, "HANDED_OVER", 13, DELIVERY_ID, "IN_TRANSIT", 0, AS_OF
+        FULFILLMENT_ID,
+        "HANDED_OVER",
+        13,
+        DELIVERY_ID,
+        "IN_TRANSIT",
+        0,
+        AS_OF
     )
 
     private companion object {

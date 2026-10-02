@@ -1,6 +1,7 @@
 package com.nexa.mobile.operations.feature.dispatch
 
 import androidx.compose.runtime.Immutable
+import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionIntentStatus as InstructionIntentStatus
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 
@@ -79,14 +80,19 @@ data class DispatchDeliveryInstructionsUiState(
             val selected = selectedInstructionId?.let { id ->
                 current.instructions.firstOrNull { it.id.equals(id, ignoreCase = true) }
             }
-            return status == DispatchDeliveryInstructionsStatus.Current && metadataReady && canPublish &&
-                pendingIntent == null && content.isNotBlank() && content.trim().length <= MAX_INSTRUCTION_CONTENT &&
-                (selectedInstructionId == null || selected?.sourceKind == OPERATIONAL_DISPATCH_SOURCE)
+            return status == DispatchDeliveryInstructionsStatus.Current && metadataReady &&
+                canPublish &&
+                pendingIntent == null && content.isNotBlank() &&
+                content.trim().length <= MAX_INSTRUCTION_CONTENT &&
+                (
+                    selectedInstructionId == null ||
+                        selected?.sourceKind == OPERATIONAL_DISPATCH_SOURCE
+                    )
         }
 
     val canRetryUnknownOutcome: Boolean
         get() = status == DispatchDeliveryInstructionsStatus.UnknownOutcome && metadataReady &&
-            pendingIntent?.status == DispatchDeliveryInstructionIntentStatus.UnknownOutcome &&
+            pendingIntent?.status == InstructionIntentStatus.UnknownOutcome &&
             canRead && canPublish
 
     override fun toString(): String = "DispatchDeliveryInstructionsUiState(status=$status, " +
@@ -107,7 +113,10 @@ data class DispatchDeliveryInstructionScopeIdentity(
     override fun toString(): String = "DispatchDeliveryInstructionScopeIdentity(REDACTED)"
 }
 
-enum class DispatchDeliveryInstructionIntentStatus { Pending, UnknownOutcome }
+enum class DispatchDeliveryInstructionIntentStatus {
+    Pending,
+    UnknownOutcome
+}
 
 /** Exact request, key and version frozen before first publication attempt. */
 data class DispatchDeliveryInstructionIntent(
@@ -119,18 +128,24 @@ data class DispatchDeliveryInstructionIntent(
     val content: String,
     val exactRequestBody: String,
     val idempotencyKey: String,
-    val status: DispatchDeliveryInstructionIntentStatus = DispatchDeliveryInstructionIntentStatus.Pending
+    val status: InstructionIntentStatus = InstructionIntentStatus.Pending
 ) {
     override fun toString(): String = "DispatchDeliveryInstructionIntent(deliveryId=REDACTED, " +
         "version=$expectedDeliveryVersion, status=$status)"
 }
 
 sealed interface DispatchDeliveryInstructionMetadataRead {
-    data class Available(val intent: DispatchDeliveryInstructionIntent?) : DispatchDeliveryInstructionMetadataRead
+    data class Available(val intent: DispatchDeliveryInstructionIntent?) :
+        DispatchDeliveryInstructionMetadataRead
     data object Unavailable : DispatchDeliveryInstructionMetadataRead
 }
 
-enum class DispatchDeliveryInstructionMetadataWrite { Saved, Conflict, Stale, Unavailable }
+enum class DispatchDeliveryInstructionMetadataWrite {
+    Saved,
+    Conflict,
+    Stale,
+    Unavailable
+}
 
 interface DispatchDeliveryInstructionMetadataStore {
     suspend fun loadIntent(
@@ -138,7 +153,9 @@ interface DispatchDeliveryInstructionMetadataStore {
         deliveryId: String
     ): DispatchDeliveryInstructionMetadataRead
 
-    suspend fun saveIntent(intent: DispatchDeliveryInstructionIntent): DispatchDeliveryInstructionMetadataWrite
+    suspend fun saveIntent(
+        intent: DispatchDeliveryInstructionIntent
+    ): DispatchDeliveryInstructionMetadataWrite
 
     suspend fun clearIntent(
         scope: DispatchDeliveryInstructionScopeIdentity,
@@ -148,8 +165,10 @@ interface DispatchDeliveryInstructionMetadataStore {
 }
 
 sealed interface DispatchDeliveryInstructionsGatewayResult {
-    data class Snapshot(val value: DispatchDeliveryInstructionsSnapshot) : DispatchDeliveryInstructionsGatewayResult
-    data class Published(val value: DispatchDeliveryInstructionReceipt) : DispatchDeliveryInstructionsGatewayResult
+    data class Snapshot(val value: DispatchDeliveryInstructionsSnapshot) :
+        DispatchDeliveryInstructionsGatewayResult
+    data class Published(val value: DispatchDeliveryInstructionReceipt) :
+        DispatchDeliveryInstructionsGatewayResult
     data class Rejected(val code: String?) : DispatchDeliveryInstructionsGatewayResult
     data object NotFound : DispatchDeliveryInstructionsGatewayResult
     data object StaleVersion : DispatchDeliveryInstructionsGatewayResult

@@ -49,10 +49,17 @@ fun DispatchHandoffIdentityScreen(
         modifier = modifier.padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(stringResource(R.string.dispatch_handoff_identity_title), fontWeight = FontWeight.SemiBold)
+        Text(
+            stringResource(R.string.dispatch_handoff_identity_title),
+            fontWeight = FontWeight.SemiBold
+        )
         Text(stringResource(R.string.dispatch_handoff_identity_scope_notice))
-        state.deliveryId?.let { Text(stringResource(R.string.dispatch_handoff_identity_delivery, it)) }
-        state.assignmentId?.let { Text(stringResource(R.string.dispatch_handoff_identity_assignment, it)) }
+        state.deliveryId?.let {
+            Text(stringResource(R.string.dispatch_handoff_identity_delivery, it))
+        }
+        state.assignmentId?.let {
+            Text(stringResource(R.string.dispatch_handoff_identity_assignment, it))
+        }
         Text(statusText(state.status))
         state.errorCode?.let { Text(stringResource(R.string.dispatch_handoff_identity_error, it)) }
         state.identity?.let {
@@ -61,7 +68,10 @@ fun DispatchHandoffIdentityScreen(
             Text(stringResource(R.string.dispatch_handoff_identity_expiry, it.expiresAt))
         }
         state.oneTimeToken?.let { token ->
-            Text(stringResource(R.string.dispatch_handoff_identity_token_label), fontWeight = FontWeight.SemiBold)
+            Text(
+                stringResource(R.string.dispatch_handoff_identity_token_label),
+                fontWeight = FontWeight.SemiBold
+            )
             Text(token, fontWeight = FontWeight.Bold)
             OutlinedButton(onClick = onHideToken, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.dispatch_handoff_identity_hide))
@@ -92,8 +102,11 @@ fun DispatchHandoffIdentityScreen(
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii)
             )
-            Button(onClick = onValidate, enabled = !state.busy && state.enteredToken.isNotBlank(),
-                modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = onValidate,
+                enabled = !state.busy && state.enteredToken.isNotBlank(),
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(stringResource(R.string.dispatch_handoff_identity_validate))
             }
         }
@@ -103,23 +116,71 @@ fun DispatchHandoffIdentityScreen(
 
 @Composable
 private fun statusText(status: DispatchHandoffIdentityStatus): String = when (status) {
-    DispatchHandoffIdentityStatus.Loading -> stringResource(R.string.dispatch_handoff_identity_loading)
+    DispatchHandoffIdentityStatus.Loading -> stringResource(
+        R.string.dispatch_handoff_identity_loading
+    )
+
     DispatchHandoffIdentityStatus.Ready -> stringResource(R.string.dispatch_handoff_identity_ready)
-    DispatchHandoffIdentityStatus.Issuing -> stringResource(R.string.dispatch_handoff_identity_issuing)
-    DispatchHandoffIdentityStatus.TokenVisible -> stringResource(R.string.dispatch_handoff_identity_token_visible)
-    DispatchHandoffIdentityStatus.Validating -> stringResource(R.string.dispatch_handoff_identity_validating)
-    DispatchHandoffIdentityStatus.IdentityValidated -> stringResource(R.string.dispatch_handoff_identity_validated)
-    DispatchHandoffIdentityStatus.UnknownOutcome -> stringResource(R.string.dispatch_handoff_identity_unknown)
-    DispatchHandoffIdentityStatus.ReissueRequired -> stringResource(R.string.dispatch_handoff_identity_reissue_required)
-    DispatchHandoffIdentityStatus.ValidationRejected -> stringResource(R.string.dispatch_handoff_identity_validation_rejected)
-    DispatchHandoffIdentityStatus.ValidationUnknown -> stringResource(R.string.dispatch_handoff_identity_validation_unknown)
-    DispatchHandoffIdentityStatus.Rejected -> stringResource(R.string.dispatch_handoff_identity_rejected)
-    DispatchHandoffIdentityStatus.NotFound -> stringResource(R.string.dispatch_handoff_identity_not_found)
-    DispatchHandoffIdentityStatus.Unavailable -> stringResource(R.string.dispatch_handoff_identity_unavailable)
-    DispatchHandoffIdentityStatus.PermissionDenied -> stringResource(R.string.dispatch_handoff_identity_permission_denied)
-    DispatchHandoffIdentityStatus.ContextInvalidated -> stringResource(R.string.dispatch_handoff_identity_context_invalid)
-    DispatchHandoffIdentityStatus.SessionInvalidated -> stringResource(R.string.dispatch_handoff_identity_session_invalid)
-    DispatchHandoffIdentityStatus.PersistenceUnavailable -> stringResource(R.string.dispatch_handoff_identity_persistence_unavailable)
+
+    DispatchHandoffIdentityStatus.Issuing -> stringResource(
+        R.string.dispatch_handoff_identity_issuing
+    )
+
+    DispatchHandoffIdentityStatus.TokenVisible -> stringResource(
+        R.string.dispatch_handoff_identity_token_visible
+    )
+
+    DispatchHandoffIdentityStatus.Validating -> stringResource(
+        R.string.dispatch_handoff_identity_validating
+    )
+
+    DispatchHandoffIdentityStatus.IdentityValidated -> stringResource(
+        R.string.dispatch_handoff_identity_validated
+    )
+
+    DispatchHandoffIdentityStatus.UnknownOutcome -> stringResource(
+        R.string.dispatch_handoff_identity_unknown
+    )
+
+    DispatchHandoffIdentityStatus.ReissueRequired -> stringResource(
+        R.string.dispatch_handoff_identity_reissue_required
+    )
+
+    DispatchHandoffIdentityStatus.ValidationRejected -> stringResource(
+        R.string.dispatch_handoff_identity_validation_rejected
+    )
+
+    DispatchHandoffIdentityStatus.ValidationUnknown -> stringResource(
+        R.string.dispatch_handoff_identity_validation_unknown
+    )
+
+    DispatchHandoffIdentityStatus.Rejected -> stringResource(
+        R.string.dispatch_handoff_identity_rejected
+    )
+
+    DispatchHandoffIdentityStatus.NotFound -> stringResource(
+        R.string.dispatch_handoff_identity_not_found
+    )
+
+    DispatchHandoffIdentityStatus.Unavailable -> stringResource(
+        R.string.dispatch_handoff_identity_unavailable
+    )
+
+    DispatchHandoffIdentityStatus.PermissionDenied -> stringResource(
+        R.string.dispatch_handoff_identity_permission_denied
+    )
+
+    DispatchHandoffIdentityStatus.ContextInvalidated -> stringResource(
+        R.string.dispatch_handoff_identity_context_invalid
+    )
+
+    DispatchHandoffIdentityStatus.SessionInvalidated -> stringResource(
+        R.string.dispatch_handoff_identity_session_invalid
+    )
+
+    DispatchHandoffIdentityStatus.PersistenceUnavailable -> stringResource(
+        R.string.dispatch_handoff_identity_persistence_unavailable
+    )
 }
 
 private val REISSUE_STATUSES = setOf(

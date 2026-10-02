@@ -44,18 +44,27 @@ class NexaDriverHandoffTokenGateway(private val protectedCalls: ProtectedCallExe
         if (!handoffUuid.matches(deliveryId) || !handoffUuid.matches(attemptId) ||
             idempotencyKey.isBlank() || idempotencyKey.length > 160 ||
             !bodyMatches(frozenBody, attemptId)
-        ) return DriverHandoffTokenNetworkOutcome.Unavailable
-        return when (val result = protectedCalls.execute(
-            ProtectedRequest(
-                method = ProtectedMethod.POST,
-                path = "$HANDOFF_DELIVERY_PATH/$deliveryId/handoff-tokens",
-                payload = frozenBody,
-                idempotencyKey = idempotencyKey
+        ) {
+            return DriverHandoffTokenNetworkOutcome.Unavailable
+        }
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(
+                    method = ProtectedMethod.POST,
+                    path = "$HANDOFF_DELIVERY_PATH/$deliveryId/handoff-tokens",
+                    payload = frozenBody,
+                    idempotencyKey = idempotencyKey
+                )
             )
-        )) {
+        ) {
             is ProtectedResult.Failure -> result.error.toHandoffOutcome()
+
             is ProtectedResult.Success -> {
-                if (result.status !in setOf(200, 201)) return DriverHandoffTokenNetworkOutcome.UnknownOutcome
+                if (result.status !in
+                    setOf(200, 201)
+                ) {
+                    return DriverHandoffTokenNetworkOutcome.UnknownOutcome
+                }
                 val projection = result.body.toHandoffProjection()
                     ?: return DriverHandoffTokenNetworkOutcome.UnknownOutcome
                 if (projection.deliveryId != deliveryId || projection.attemptId != attemptId ||
@@ -85,6 +94,7 @@ class NexaDriverHandoffTokenGateway(private val protectedCalls: ProtectedCallExe
         Instant.parse(expiresAt)
         val token = when (val value = root["token"]) {
             null, JsonNull -> null
+
             else -> value.jsonPrimitive.takeIf(JsonPrimitive::isString)?.contentOrNull
                 ?: return null
         }
@@ -101,18 +111,27 @@ class NexaDriverHandoffTokenGateway(private val protectedCalls: ProtectedCallExe
         null
     }
 
-    private fun JsonObject.string(key: String): String =
-        this[key]?.jsonPrimitive?.takeIf(JsonPrimitive::isString)?.contentOrNull?.takeIf(String::isNotBlank)
-            ?: error("handoff response field is invalid")
+    private fun JsonObject.string(key: String): String = this[key]?.jsonPrimitive?.takeIf(
+        JsonPrimitive::isString
+    )?.contentOrNull?.takeIf(String::isNotBlank)
+        ?: error("handoff response field is invalid")
 
     private fun ClientFailure.toHandoffOutcome(): DriverHandoffTokenNetworkOutcome = when {
-        kind == FailureKind.AuthenticationRequired -> DriverHandoffTokenNetworkOutcome.SessionInvalidated
-        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID -> DriverHandoffTokenNetworkOutcome.ContextInvalidated
-        kind == FailureKind.AuthorizationFailure -> DriverHandoffTokenNetworkOutcome.PermissionDenied
+        kind == FailureKind.AuthenticationRequired ->
+            DriverHandoffTokenNetworkOutcome.SessionInvalidated
+
+        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
+            DriverHandoffTokenNetworkOutcome.ContextInvalidated
+
+        kind == FailureKind.AuthorizationFailure ->
+            DriverHandoffTokenNetworkOutcome.PermissionDenied
+
         kind == FailureKind.ResourceUnavailable -> DriverHandoffTokenNetworkOutcome.NotFound
+
         kind == FailureKind.ValidationFailure || kind == FailureKind.BusinessConflict ||
             kind == FailureKind.PreconditionRequired || kind == FailureKind.StaleState ->
             DriverHandoffTokenNetworkOutcome.Rejected(problemCode)
+
         else -> DriverHandoffTokenNetworkOutcome.UnknownOutcome
     }
 

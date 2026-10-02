@@ -4,8 +4,8 @@ import java.math.BigDecimal
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.time.Instant
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
@@ -120,7 +120,8 @@ sealed interface OutgoingGoodsCheckNetworkOutcome {
     ) : OutgoingGoodsCheckNetworkOutcome
 
     data class Recorded(val check: OutgoingGoodsCheckProjection) : OutgoingGoodsCheckNetworkOutcome
-    data class Resolved(val resolution: OutgoingGoodsDiscrepancyResolutionProjection) : OutgoingGoodsCheckNetworkOutcome
+    data class Resolved(val resolution: OutgoingGoodsDiscrepancyResolutionProjection) :
+        OutgoingGoodsCheckNetworkOutcome
     data object NetworkUnavailable : OutgoingGoodsCheckNetworkOutcome
     data object UnknownOutcome : OutgoingGoodsCheckNetworkOutcome
     data object ServiceUnavailable : OutgoingGoodsCheckNetworkOutcome
@@ -137,9 +138,12 @@ class NexaOutgoingGoodsCheckGateway(private val protectedCalls: ProtectedCallExe
         if (!fulfillmentId.isUuid()) return OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
         val allocationPath = fulfillmentPath(fulfillmentId, "physical-allocation")
         val allocation = when (
-            val result = protectedCalls.execute(ProtectedRequest(ProtectedMethod.GET, allocationPath))
+            val result = protectedCalls.execute(
+                ProtectedRequest(ProtectedMethod.GET, allocationPath)
+            )
         ) {
             is ProtectedResult.Failure -> return result.error.toOutgoingOutcome(mutation = false)
+
             is ProtectedResult.Success -> {
                 if (result.status != 200) return OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
                 val value = result.body.decode<PhysicalAllocationWire>()?.toProjection()
@@ -160,8 +164,10 @@ class NexaOutgoingGoodsCheckGateway(private val protectedCalls: ProtectedCallExe
             )
         ) {
             is ProtectedResult.Failure -> return result.error.toOutgoingOutcome(mutation = false)
+
             is ProtectedResult.Success -> when (result.status) {
                 204 -> null
+
                 200 -> {
                     val value = result.body.decode<OutgoingGoodsCheckWire>()?.toProjection()
                         ?: return OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
@@ -172,6 +178,7 @@ class NexaOutgoingGoodsCheckGateway(private val protectedCalls: ProtectedCallExe
                     }
                     value
                 }
+
                 else -> return OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
             }
         }
@@ -196,6 +203,7 @@ class NexaOutgoingGoodsCheckGateway(private val protectedCalls: ProtectedCallExe
         )
         return when (result) {
             is ProtectedResult.Failure -> result.error.toOutgoingOutcome(mutation = true)
+
             is ProtectedResult.Success -> {
                 if (result.status != 200 && result.status != 201) {
                     return OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
@@ -204,7 +212,10 @@ class NexaOutgoingGoodsCheckGateway(private val protectedCalls: ProtectedCallExe
                     ?: return OutgoingGoodsCheckNetworkOutcome.UnknownOutcome
                 if (!check.fulfillmentId.equals(command.fulfillmentId, ignoreCase = true) ||
                     check.fulfillmentVersion != command.expectedFulfillmentVersion ||
-                    !check.physicalAllocationId.equals(command.physicalAllocationId, ignoreCase = true) ||
+                    !check.physicalAllocationId.equals(
+                        command.physicalAllocationId,
+                        ignoreCase = true
+                    ) ||
                     check.physicalAllocationVersion != command.physicalAllocationVersion ||
                     check.lines.map { it.physicalAllocationLineId.lowercase() }.toSet() !=
                     command.observations.map { it.physicalAllocationLineId.lowercase() }.toSet() ||
@@ -218,16 +229,24 @@ class NexaOutgoingGoodsCheckGateway(private val protectedCalls: ProtectedCallExe
         }
     }
 
-    suspend fun resolve(command: OutgoingGoodsDiscrepancyResolutionCommand): OutgoingGoodsCheckNetworkOutcome {
+    suspend fun resolve(
+        command: OutgoingGoodsDiscrepancyResolutionCommand
+    ): OutgoingGoodsCheckNetworkOutcome {
         if (!command.fulfillmentId.isUuid() || command.expectedFulfillmentVersion < 0 ||
             !command.physicalAllocationId.isUuid() || command.physicalAllocationVersion < 0 ||
             !command.discrepancyCheckId.isUuid() || !command.matchingCheckId.isUuid() ||
             command.discrepancyCheckId.equals(command.matchingCheckId, ignoreCase = true) ||
             command.reason.isBlank() || command.reason.length > 1000 ||
             command.idempotencyKey.isBlank() || command.idempotencyKey.length > 160
-        ) return OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
+        ) {
+            return OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
+        }
         val canonicalBody = command.toJson()
-        if (command.exactRequestBody != canonicalBody) return OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
+        if (command.exactRequestBody !=
+            canonicalBody
+        ) {
+            return OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
+        }
         val result = protectedCalls.execute(
             ProtectedRequest(
                 method = ProtectedMethod.POST,
@@ -239,10 +258,16 @@ class NexaOutgoingGoodsCheckGateway(private val protectedCalls: ProtectedCallExe
         )
         return when (result) {
             is ProtectedResult.Failure -> result.error.toOutgoingOutcome(mutation = true)
+
             is ProtectedResult.Success -> {
-                if (result.status != 200 && result.status != 201) return OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
-                val value = result.body.decode<OutgoingGoodsDiscrepancyResolutionWire>()?.toProjection()
-                    ?: return OutgoingGoodsCheckNetworkOutcome.UnknownOutcome
+                if (result.status != 200 &&
+                    result.status != 201
+                ) {
+                    return OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
+                }
+                val value =
+                    result.body.decode<OutgoingGoodsDiscrepancyResolutionWire>()?.toProjection()
+                        ?: return OutgoingGoodsCheckNetworkOutcome.UnknownOutcome
                 if (!value.fulfillmentId.equals(command.fulfillmentId, true) ||
                     value.fulfillmentVersion != command.expectedFulfillmentVersion ||
                     !value.physicalAllocationId.equals(command.physicalAllocationId, true) ||
@@ -250,8 +275,11 @@ class NexaOutgoingGoodsCheckGateway(private val protectedCalls: ProtectedCallExe
                     !value.discrepancyCheckId.equals(command.discrepancyCheckId, true) ||
                     !value.matchingCheckId.equals(command.matchingCheckId, true) ||
                     result.etag.toVersion() != value.fulfillmentVersion
-                ) OutgoingGoodsCheckNetworkOutcome.UnknownOutcome
-                else OutgoingGoodsCheckNetworkOutcome.Resolved(value)
+                ) {
+                    OutgoingGoodsCheckNetworkOutcome.UnknownOutcome
+                } else {
+                    OutgoingGoodsCheckNetworkOutcome.Resolved(value)
+                }
             }
         }
     }
@@ -264,21 +292,34 @@ class NexaOutgoingGoodsCheckGateway(private val protectedCalls: ProtectedCallExe
         val safeLines = lines?.map { line ->
             val id = line.physicalAllocationLineId?.takeIf { it.isUuid() } ?: return null
             val sku = line.skuId?.takeIf { it.isUuid() } ?: return null
-            val catalog = line.catalogItemId?.takeIf { it.matches(Regex("(?i)CAT-[A-Z0-9-]{1,63}")) }
-                ?: return null
+            val catalog =
+                line.catalogItemId?.takeIf { it.matches(Regex("(?i)CAT-[A-Z0-9-]{1,63}")) }
+                    ?: return null
             val lot = line.lotId
             if (lot != null && !lot.isUuid()) return null
             val quantity = line.quantity.decimalValue()?.takeIf { it.signum() >= 0 } ?: return null
-            val released = line.releasedQuantity.decimalValue()?.takeIf { it.signum() >= 0 } ?: return null
-            val consumed = line.consumedQuantity.decimalValue()?.takeIf { it.signum() >= 0 } ?: return null
-            val remaining = line.remainingQuantity.decimalValue()?.takeIf { it.signum() >= 0 } ?: return null
+            val released =
+                line.releasedQuantity.decimalValue()?.takeIf { it.signum() >= 0 } ?: return null
+            val consumed =
+                line.consumedQuantity.decimalValue()?.takeIf { it.signum() >= 0 } ?: return null
+            val remaining =
+                line.remainingQuantity.decimalValue()?.takeIf { it.signum() >= 0 } ?: return null
             val unit = line.unit?.takeIf(String::isNotBlank) ?: return null
             if (quantity.subtract(released).subtract(consumed).compareTo(remaining) != 0 ||
                 (remaining.signum() > 0 && lot == null)
-            ) return null
-            PhysicalAllocationLineProjection(id, sku, catalog, lot, quantity, released, consumed, remaining, unit)
+            ) {
+                return null
+            }
+            PhysicalAllocationLineProjection(
+                id, sku, catalog, lot, quantity, released,
+                consumed, remaining, unit
+            )
         } ?: return null
-        if (safeLines.isEmpty() || safeLines.map { it.id.lowercase() }.toSet().size != safeLines.size) return null
+        if (safeLines.isEmpty() ||
+            safeLines.map { it.id.lowercase() }.toSet().size != safeLines.size
+        ) {
+            return null
+        }
         return PhysicalAllocationProjection(safeId, safeStatus, safeVersion, safeAsOf, safeLines)
     }
 
@@ -289,7 +330,8 @@ class NexaOutgoingGoodsCheckGateway(private val protectedCalls: ProtectedCallExe
         val allocation = physicalAllocationId?.takeIf { it.isUuid() } ?: return null
         val allocationVersion = physicalAllocationVersion?.takeIf { it >= 0 } ?: return null
         checkedByMembershipId?.takeIf { it.isUuid() } ?: return null
-        val checked = checkedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
+        val checked =
+            checkedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
         val safeLines = lines?.map { line ->
             val lineId = line.physicalAllocationLineId?.takeIf { it.isUuid() } ?: return null
             val sku = line.skuId?.takeIf { it.isUuid() } ?: return null
@@ -297,15 +339,34 @@ class NexaOutgoingGoodsCheckGateway(private val protectedCalls: ProtectedCallExe
             val observedLot = line.observedLotId
             if ((expectedLot != null && !expectedLot.isUuid()) ||
                 (observedLot != null && !observedLot.isUuid())
-            ) return null
-            val expected = line.expectedQuantity.decimalValue()?.takeIf { it.signum() >= 0 } ?: return null
-            val observed = line.observedQuantity.decimalValue()?.takeIf { it.signum() >= 0 } ?: return null
+            ) {
+                return null
+            }
+            val expected =
+                line.expectedQuantity.decimalValue()?.takeIf { it.signum() >= 0 } ?: return null
+            val observed =
+                line.observedQuantity.decimalValue()?.takeIf { it.signum() >= 0 } ?: return null
             val unit = line.unit?.takeIf(String::isNotBlank) ?: return null
-            OutgoingGoodsCheckLineProjection(lineId, sku, expectedLot, observedLot, expected, observed, unit,
-                line.matches ?: return null)
+            OutgoingGoodsCheckLineProjection(
+                lineId,
+                sku,
+                expectedLot,
+                observedLot,
+                expected,
+                observed,
+                unit,
+                line.matches ?: return null
+            )
         } ?: return null
-        if (safeLines.isEmpty() || safeLines.map { it.physicalAllocationLineId.lowercase() }.toSet().size != safeLines.size) return null
-        val safeDiscrepancy = discrepancy?.toProjection() ?: if (discrepancy == null) null else return null
+        if (safeLines.isEmpty() ||
+            safeLines.map {
+                it.physicalAllocationLineId.lowercase()
+            }.toSet().size != safeLines.size
+        ) {
+            return null
+        }
+        val safeDiscrepancy =
+            discrepancy?.toProjection() ?: if (discrepancy == null) null else return null
         return OutgoingGoodsCheckProjection(
             safeId, fulfillment, fulfillmentVersion, allocation, allocationVersion,
             matches ?: return null, current ?: return null, openDiscrepancy ?: return null,
@@ -317,24 +378,49 @@ class NexaOutgoingGoodsCheckGateway(private val protectedCalls: ProtectedCallExe
         val safeId = id?.takeIf { it.isUuid() } ?: return null
         val safeAllocation = physicalAllocationId?.takeIf { it.isUuid() } ?: return null
         val actor = checkedByMembershipId?.takeIf { it.isUuid() } ?: return null
-        val checked = checkedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
+        val checked =
+            checkedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
         val safeLines = lines?.map { line ->
             val lineId = line.physicalAllocationLineId?.takeIf { it.isUuid() } ?: return null
             val sku = line.skuId?.takeIf { it.isUuid() } ?: return null
             val expectedLot = line.expectedLotId
             val observedLot = line.observedLotId
-            if ((expectedLot != null && !expectedLot.isUuid()) || (observedLot != null && !observedLot.isUuid())) return null
-            val expected = line.expectedQuantity.decimalValue()?.takeIf { it.signum() >= 0 } ?: return null
-            val observed = line.observedQuantity.decimalValue()?.takeIf { it.signum() >= 0 } ?: return null
-            OutgoingGoodsCheckLineProjection(lineId, sku, expectedLot, observedLot, expected, observed,
-                line.unit?.takeIf(String::isNotBlank) ?: return null, line.matches ?: return null)
+            if ((expectedLot != null && !expectedLot.isUuid()) ||
+                (observedLot != null && !observedLot.isUuid())
+            ) {
+                return null
+            }
+            val expected =
+                line.expectedQuantity.decimalValue()?.takeIf { it.signum() >= 0 } ?: return null
+            val observed =
+                line.observedQuantity.decimalValue()?.takeIf { it.signum() >= 0 } ?: return null
+            OutgoingGoodsCheckLineProjection(
+                lineId,
+                sku,
+                expectedLot,
+                observedLot,
+                expected,
+                observed,
+                line.unit?.takeIf(String::isNotBlank) ?: return null,
+                line.matches ?: return null
+            )
         } ?: return null
         if (safeLines.isEmpty()) return null
-        return OutgoingGoodsDiscrepancyProjection(safeId, fulfillmentVersion?.takeIf { it >= 0 } ?: return null,
-            safeAllocation, physicalAllocationVersion?.takeIf { it >= 0 } ?: return null, actor, checked, safeLines)
+        return OutgoingGoodsDiscrepancyProjection(
+            safeId,
+            fulfillmentVersion?.takeIf { it >= 0 } ?: return null,
+            safeAllocation,
+            physicalAllocationVersion?.takeIf {
+                it >= 0
+            } ?: return null,
+            actor,
+            checked,
+            safeLines
+        )
     }
 
-    private fun OutgoingGoodsDiscrepancyResolutionWire.toProjection(): OutgoingGoodsDiscrepancyResolutionProjection? {
+    private fun OutgoingGoodsDiscrepancyResolutionWire.toProjection():
+        OutgoingGoodsDiscrepancyResolutionProjection? {
         val safeId = id?.takeIf { it.isUuid() } ?: return null
         val fulfillment = fulfillmentId?.takeIf { it.isUuid() } ?: return null
         val safeFulfillmentVersion = fulfillmentVersion?.takeIf { it >= 0 } ?: return null
@@ -345,14 +431,18 @@ class NexaOutgoingGoodsCheckGateway(private val protectedCalls: ProtectedCallExe
         val actor = actorMembershipId?.takeIf { it.isUuid() } ?: return null
         val safeReason = reason?.takeIf(String::isNotBlank) ?: return null
         val at = resolvedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
-        return OutgoingGoodsDiscrepancyResolutionProjection(safeId, fulfillment, safeFulfillmentVersion,
+        return OutgoingGoodsDiscrepancyResolutionProjection(
+            safeId, fulfillment, safeFulfillmentVersion,
             allocation, safeAllocationVersion, discrepancy, matching, actor, safeReason, at,
-            current ?: return null, replayed ?: return null)
+            current ?: return null, replayed ?: return null
+        )
     }
 
     private fun OutgoingGoodsDiscrepancyResolutionCommand.toJson(): String =
-        "{\"physicalAllocationId\":\"$physicalAllocationId\",\"physicalAllocationVersion\":$physicalAllocationVersion," +
-            "\"discrepancyCheckId\":\"$discrepancyCheckId\",\"matchingCheckId\":\"$matchingCheckId\"," +
+        "{\"physicalAllocationId\":\"$physicalAllocationId\"," +
+            "\"physicalAllocationVersion\":$physicalAllocationVersion," +
+            "\"discrepancyCheckId\":\"$discrepancyCheckId\"," +
+            "\"matchingCheckId\":\"$matchingCheckId\"," +
             "\"reason\":\"${reason.jsonEscape()}\"}"
 
     private fun String.jsonEscape(): String = replace("\\", "\\\\").replace("\"", "\\\"")
@@ -366,38 +456,68 @@ class NexaOutgoingGoodsCheckGateway(private val protectedCalls: ProtectedCallExe
             if (index > 0) append(',')
             append("{\"physicalAllocationLineId\":\"").append(line.physicalAllocationLineId)
                 .append("\",\"observedLotId\":")
-            if (line.observedLotId == null) append("null") else append('"').append(line.observedLotId).append('"')
-            append(",\"observedQuantity\":").append(line.observedQuantity.toPlainString()).append('}')
+            if (line.observedLotId ==
+                null
+            ) {
+                append("null")
+            } else {
+                append('"').append(line.observedLotId).append('"')
+            }
+            append(
+                ",\"observedQuantity\":"
+            ).append(line.observedQuantity.toPlainString()).append('}')
         }
         append("]}")
     }
 
     private fun OutgoingGoodsCheckCommand.isValid(): Boolean =
-        fulfillmentId.isUuid() && expectedFulfillmentVersion >= 0 && physicalAllocationId.isUuid() &&
-            physicalAllocationVersion >= 0 && idempotencyKey.isNotBlank() && idempotencyKey.length <= 160 &&
+        fulfillmentId.isUuid() && expectedFulfillmentVersion >= 0 &&
+            physicalAllocationId.isUuid() &&
+            physicalAllocationVersion >= 0 && idempotencyKey.isNotBlank() &&
+            idempotencyKey.length <= 160 &&
             observations.isNotEmpty() && observations.all {
                 it.physicalAllocationLineId.isUuid() && it.observedQuantity.signum() >= 0 &&
-                    ((it.observedQuantity.signum() == 0 && it.observedLotId == null) ||
-                        (it.observedQuantity.signum() > 0 && it.observedLotId?.isUuid() == true))
-            } && observations.map { it.physicalAllocationLineId.lowercase() }.toSet().size == observations.size
+                    (
+                        (it.observedQuantity.signum() == 0 && it.observedLotId == null) ||
+                            (it.observedQuantity.signum() > 0 && it.observedLotId?.isUuid() == true)
+                        )
+            } &&
+            observations.map { it.physicalAllocationLineId.lowercase() }.toSet().size ==
+            observations.size
 
-    private fun ClientFailure.toOutgoingOutcome(mutation: Boolean): OutgoingGoodsCheckNetworkOutcome = when {
-        kind == FailureKind.AuthenticationRequired -> OutgoingGoodsCheckNetworkOutcome.SessionInvalidated
+    private fun ClientFailure.toOutgoingOutcome(
+        mutation: Boolean
+    ): OutgoingGoodsCheckNetworkOutcome = when {
+        kind == FailureKind.AuthenticationRequired ->
+            OutgoingGoodsCheckNetworkOutcome.SessionInvalidated
+
         httpStatus == 403 && problemCode == "ACCESS_CONTEXT_INVALID" ->
             OutgoingGoodsCheckNetworkOutcome.ContextInvalidated
+
         httpStatus == 403 || httpStatus == 404 || kind == FailureKind.AuthorizationFailure ||
-            kind == FailureKind.ResourceUnavailable -> OutgoingGoodsCheckNetworkOutcome.PermissionDenied
+            kind == FailureKind.ResourceUnavailable ->
+            OutgoingGoodsCheckNetworkOutcome.PermissionDenied
+
         httpStatus == 412 || httpStatus == 428 || kind == FailureKind.StaleState ||
             kind == FailureKind.PreconditionRequired -> OutgoingGoodsCheckNetworkOutcome.Stale
-        httpStatus == 409 || kind == FailureKind.BusinessConflict -> OutgoingGoodsCheckNetworkOutcome.Conflict
-        mutation && kind == FailureKind.UnknownOutcome -> OutgoingGoodsCheckNetworkOutcome.UnknownOutcome
+
+        httpStatus == 409 || kind == FailureKind.BusinessConflict ->
+            OutgoingGoodsCheckNetworkOutcome.Conflict
+
+        mutation && kind == FailureKind.UnknownOutcome ->
+            OutgoingGoodsCheckNetworkOutcome.UnknownOutcome
+
         kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
             OutgoingGoodsCheckNetworkOutcome.NetworkUnavailable
+
         else -> OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
     }
 
     private fun String.isUuid(): Boolean = outgoingUuid.matches(this)
-    private fun String?.toVersion(): Long? = this?.removeSurrounding("\"")?.toLongOrNull()?.takeIf { it >= 0 }
+    private fun String?.toVersion(): Long? = this?.removeSurrounding("\"")?.toLongOrNull()?.takeIf {
+        it >=
+            0
+    }
     private fun fulfillmentPath(id: String, suffix: String) =
         "$OUTGOING_FULFILLMENTS/${URLEncoder.encode(id, StandardCharsets.UTF_8.name())}/$suffix"
 

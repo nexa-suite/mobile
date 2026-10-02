@@ -2,6 +2,7 @@ package com.nexa.mobile.operations.feature.delivery
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.feature.delivery.DriverIncidentCurrentDeliveryResult as CurrentDeliveryResult
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,15 +70,24 @@ data class DriverDeliveryIncidentUiState(
 
     val canSelectEvidence: Boolean
         get() = canCaptureEvidence && draftSaved && command == null &&
-            status !in setOf(DriverIncidentUiStatus.CheckingCurrent, DriverIncidentUiStatus.SavingDraft,
-                DriverIncidentUiStatus.PersistingIntent, DriverIncidentUiStatus.Pending,
-                DriverIncidentUiStatus.UnknownOutcome, DriverIncidentUiStatus.PersistenceUnavailable,
-                DriverIncidentUiStatus.Recorded) && evidence == null
+            status !in
+            setOf(
+                DriverIncidentUiStatus.CheckingCurrent,
+                DriverIncidentUiStatus.SavingDraft,
+                DriverIncidentUiStatus.PersistingIntent,
+                DriverIncidentUiStatus.Pending,
+                DriverIncidentUiStatus.UnknownOutcome,
+                DriverIncidentUiStatus.PersistenceUnavailable,
+                DriverIncidentUiStatus.Recorded
+            ) && evidence == null
 
     val canUploadEvidence: Boolean
-        get() = !evidenceBusy && status == DriverIncidentUiStatus.Recorded && summary != null && evidence != null &&
-            (evidence.stage == DriverIncidentEvidenceStage.Staged ||
-                evidence.stage == DriverIncidentEvidenceStage.UploadUnknownOutcome)
+        get() = !evidenceBusy && status == DriverIncidentUiStatus.Recorded && summary != null &&
+            evidence != null &&
+            (
+                evidence.stage == DriverIncidentEvidenceStage.Staged ||
+                    evidence.stage == DriverIncidentEvidenceStage.UploadUnknownOutcome
+                )
 
     val canCheckEvidence: Boolean
         get() = !evidenceBusy && status == DriverIncidentUiStatus.Recorded &&
@@ -85,13 +95,17 @@ data class DriverDeliveryIncidentUiState(
 
     val canReviewEvidenceLink: Boolean
         get() = !evidenceBusy && status == DriverIncidentUiStatus.Recorded &&
-            evidence?.stage in setOf(DriverIncidentEvidenceStage.AvailableForReview,
-                DriverIncidentEvidenceStage.AttachUnknownOutcome)
+            evidence?.stage in setOf(
+                DriverIncidentEvidenceStage.AvailableForReview,
+                DriverIncidentEvidenceStage.AttachUnknownOutcome
+            )
 
     val canAttachEvidence: Boolean
         get() = !evidenceBusy && status == DriverIncidentUiStatus.Recorded &&
-            evidence?.stage in setOf(DriverIncidentEvidenceStage.AvailableForReview,
-                DriverIncidentEvidenceStage.AttachUnknownOutcome) && evidenceReviewedVersion != null &&
+            evidence?.stage in setOf(
+                DriverIncidentEvidenceStage.AvailableForReview,
+                DriverIncidentEvidenceStage.AttachUnknownOutcome
+            ) && evidenceReviewedVersion != null &&
             delivery?.version == evidenceReviewedVersion
 
     override fun toString(): String =
@@ -158,10 +172,13 @@ class DriverDeliveryIncidentViewModel(
                             }
                         )
                         recovered = recoveredCandidate
-                        if (recoveredCandidate.status == DriverIncidentRecordStatus.UnknownOutcome &&
+                        if (recoveredCandidate.status ==
+                            DriverIncidentRecordStatus.UnknownOutcome &&
                             recoveredCandidate != candidate
                         ) {
-                            if (safePersist(recoveredCandidate) != DriverIncidentMetadataWrite.Saved) {
+                            if (safePersist(recoveredCandidate) !=
+                                DriverIncidentMetadataWrite.Saved
+                            ) {
                                 mutableState.update {
                                     it.copy(status = DriverIncidentUiStatus.PersistenceUnavailable)
                                 }
@@ -172,7 +189,9 @@ class DriverDeliveryIncidentViewModel(
                 }
 
                 DriverIncidentMetadataRead.Unavailable -> {
-                    mutableState.update { it.copy(status = DriverIncidentUiStatus.PersistenceUnavailable) }
+                    mutableState.update {
+                        it.copy(status = DriverIncidentUiStatus.PersistenceUnavailable)
+                    }
                     return@launch
                 }
             }
@@ -181,7 +200,9 @@ class DriverDeliveryIncidentViewModel(
                 if (metadata.status == DriverIncidentRecordStatus.RecordedWithEvidence &&
                     metadata.toSummaryOrNull() == null
                 ) {
-                    mutableState.update { it.copy(status = DriverIncidentUiStatus.PersistenceUnavailable) }
+                    mutableState.update {
+                        it.copy(status = DriverIncidentUiStatus.PersistenceUnavailable)
+                    }
                     return@launch
                 }
                 targetVersion = metadata.draftVersion
@@ -197,12 +218,17 @@ class DriverDeliveryIncidentViewModel(
                         savedDraftVersion = metadata.draftVersion,
                         evidence = metadata.evidence,
                         summary = metadata.toSummaryOrNull(),
-                        evidenceLifecycleStatus = metadata.evidence?.let { it.stage.lifecycleLabel() },
+                        evidenceLifecycleStatus = metadata.evidence?.let {
+                            it.stage.lifecycleLabel()
+                        },
                         draftSaved = true,
                         command = metadata.command,
                         status = if (metadata.command == null) {
-                            if (metadata.incidentId != null) DriverIncidentUiStatus.Recorded
-                            else DriverIncidentUiStatus.NeedsReview
+                            if (metadata.incidentId != null) {
+                                DriverIncidentUiStatus.Recorded
+                            } else {
+                                DriverIncidentUiStatus.NeedsReview
+                            }
                         } else {
                             DriverIncidentUiStatus.UnknownOutcome
                         }
@@ -238,9 +264,16 @@ class DriverDeliveryIncidentViewModel(
         val attemptId = current.attemptId ?: return
         if (pendingCommand != null || current.status in FROZEN_STATUSES ||
             current.status == DriverIncidentUiStatus.Recorded
-        ) return
+        ) {
+            return
+        }
         if (!current.validDraft) {
-            mutableState.update { it.copy(status = DriverIncidentUiStatus.Rejected, rejectionCode = "INCIDENT_FIELDS_REQUIRED") }
+            mutableState.update {
+                it.copy(
+                    status = DriverIncidentUiStatus.Rejected,
+                    rejectionCode = "INCIDENT_FIELDS_REQUIRED"
+                )
+            }
             return
         }
         val version = current.delivery?.version ?: targetVersion
@@ -258,7 +291,9 @@ class DriverDeliveryIncidentViewModel(
             type = current.type
         )
         val requestGeneration = generation
-        mutableState.update { it.copy(status = DriverIncidentUiStatus.SavingDraft, rejectionCode = null) }
+        mutableState.update {
+            it.copy(status = DriverIncidentUiStatus.SavingDraft, rejectionCode = null)
+        }
         viewModelScope.launch {
             val result = safeSaveDraft(metadata)
             if (!isCurrent(requestGeneration, currentAuthority)) return@launch
@@ -276,8 +311,11 @@ class DriverDeliveryIncidentViewModel(
                             evidence = metadata.evidence,
                             draftSaved = true,
                             reviewedVersion = null,
-                            status = if (it.delivery == null) DriverIncidentUiStatus.DraftSaved
-                            else DriverIncidentUiStatus.NeedsReview
+                            status = if (it.delivery == null) {
+                                DriverIncidentUiStatus.DraftSaved
+                            } else {
+                                DriverIncidentUiStatus.NeedsReview
+                            }
                         )
                     }
                 }
@@ -301,9 +339,13 @@ class DriverDeliveryIncidentViewModel(
         val deliveryId = current.deliveryId ?: return
         if (!current.draftSaved || !current.validDraft || pendingCommand != null ||
             current.status in FROZEN_STATUSES
-        ) return
+        ) {
+            return
+        }
         val requestGeneration = generation
-        mutableState.update { it.copy(status = DriverIncidentUiStatus.CheckingCurrent, rejectionCode = null) }
+        mutableState.update {
+            it.copy(status = DriverIncidentUiStatus.CheckingCurrent, rejectionCode = null)
+        }
         viewModelScope.launch {
             loadCurrent(requestGeneration, currentAuthority, deliveryId, review = true)
         }
@@ -317,13 +359,21 @@ class DriverDeliveryIncidentViewModel(
         val attemptId = current.attemptId ?: return null
         val draftId = current.draftId ?: return null
         if (!currentAuthority.canCaptureProof || !current.draftSaved || current.command != null ||
-            current.status in FROZEN_STATUSES || current.status == DriverIncidentUiStatus.Recorded ||
+            current.status in FROZEN_STATUSES ||
+            current.status == DriverIncidentUiStatus.Recorded ||
             current.evidence != null || current.savedDraftVersion == null
-        ) return null
+        ) {
+            return null
+        }
         val version = current.savedDraftVersion
         return DriverIncidentSelectionContext(
-            currentAuthority.authorityEpoch, currentAuthority.scopeIdentity, deliveryId, attemptId,
-            version, confirmedTerminalOutcome, draftId
+            currentAuthority.authorityEpoch,
+            currentAuthority.scopeIdentity,
+            deliveryId,
+            attemptId,
+            version,
+            confirmedTerminalOutcome,
+            draftId
         )
     }
 
@@ -335,19 +385,32 @@ class DriverDeliveryIncidentViewModel(
             context.deliveryId != current.deliveryId || context.attemptId != current.attemptId ||
             context.draftId != current.draftId || context.deliveryVersion != targetVersion ||
             context.confirmedTerminalOutcome != confirmedTerminalOutcome
-        ) return
+        ) {
+            return
+        }
         val requestGeneration = generation
         viewModelScope.launch {
             val stored = safeLoad(currentAuthority.scopeIdentity)
             if (!isCurrent(requestGeneration, currentAuthority)) return@launch
             val metadata = (stored as? DriverIncidentMetadataRead.Available)?.metadata
-                ?.takeIf { it.draftId == context.draftId && it.deliveryId == context.deliveryId && it.attemptId == context.attemptId }
+                ?.takeIf {
+                    it.draftId == context.draftId && it.deliveryId == context.deliveryId &&
+                        it.attemptId == context.attemptId
+                }
                 ?: return@launch
             mutableState.update {
-                it.copy(evidence = metadata.evidence, draftSaved = true,
+                it.copy(
+                    evidence = metadata.evidence,
+                    draftSaved = true,
                     savedDraftVersion = metadata.draftVersion,
-                    status = if (it.delivery?.version == metadata.draftVersion) DriverIncidentUiStatus.NeedsReview
-                    else DriverIncidentUiStatus.Stale)
+                    status = if (it.delivery?.version ==
+                        metadata.draftVersion
+                    ) {
+                        DriverIncidentUiStatus.NeedsReview
+                    } else {
+                        DriverIncidentUiStatus.Stale
+                    }
+                )
             }
         }
     }
@@ -366,7 +429,9 @@ class DriverDeliveryIncidentViewModel(
                 evidenceFailure("INCIDENT_EVIDENCE_DRAFT_UNAVAILABLE")
                 return@launch
             }
-            val key = evidence.uploadIdempotencyKey ?: keyFactory().takeIf { it.isNotBlank() && it.length <= 160 }
+            val key =
+                evidence.uploadIdempotencyKey
+                    ?: keyFactory().takeIf { it.isNotBlank() && it.length <= 160 }
             if (key == null) {
                 evidenceFailure("IDEMPOTENCY_KEY_INVALID")
                 return@launch
@@ -384,17 +449,20 @@ class DriverDeliveryIncidentViewModel(
             mutableState.update { it.copy(evidence = uploadIntent) }
             val candidate = safeLoadCandidate(metadata)
             if (candidate == null) {
-                val reset = metadata.copy(evidence = uploadIntent.copy(
-                    stage = DriverIncidentEvidenceStage.Staged,
-                    uploadIdempotencyKey = null
-                ))
+                val reset = metadata.copy(
+                    evidence = uploadIntent.copy(
+                        stage = DriverIncidentEvidenceStage.Staged,
+                        uploadIdempotencyKey = null
+                    )
+                )
                 safeUpdateRecordedEvidence(reset)
                 evidenceFailure("INCIDENT_EVIDENCE_FILE_UNAVAILABLE")
                 return@launch
             }
             val result = try {
                 gateway.uploadEvidence(
-                    DriverIncidentEvidenceUploadCommand(incidentId, key, candidate), currentAuthority
+                    DriverIncidentEvidenceUploadCommand(incidentId, key, candidate),
+                    currentAuthority
                 )
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -404,16 +472,24 @@ class DriverDeliveryIncidentViewModel(
                 candidate.file.delete()
             }
             if (!isCurrent(requestGeneration, currentAuthority)) {
-                safeUpdateRecordedEvidence(metadata.copy(evidence = uploadIntent.copy(
-                    stage = DriverIncidentEvidenceStage.UploadUnknownOutcome
-                )))
+                safeUpdateRecordedEvidence(
+                    metadata.copy(
+                        evidence = uploadIntent.copy(
+                            stage = DriverIncidentEvidenceStage.UploadUnknownOutcome
+                        )
+                    )
+                )
                 return@launch
             }
             when (result) {
                 is DriverIncidentEvidenceResult.Uploaded -> {
                     val projection = result.evidence
                     if (!matchesEvidence(projection, incidentId, evidence)) {
-                        persistUploadUnknown(metadata, uploadIntent, "INCIDENT_EVIDENCE_RESPONSE_MISMATCH")
+                        persistUploadUnknown(
+                            metadata,
+                            uploadIntent,
+                            "INCIDENT_EVIDENCE_RESPONSE_MISMATCH"
+                        )
                     } else {
                         val awaiting = uploadIntent.copy(
                             stage = DriverIncidentEvidenceStage.AwaitingAvailability,
@@ -422,26 +498,59 @@ class DriverDeliveryIncidentViewModel(
                         val saved = safeUpdateRecordedEvidence(metadata.copy(evidence = awaiting))
                         if (saved == DriverIncidentMetadataWrite.Saved) {
                             mutableState.update {
-                                it.copy(evidence = awaiting, evidenceLifecycleStatus = projection.lifecycleStatus,
-                                    evidenceBusy = false, evidenceError = null, evidenceReviewedVersion = null)
+                                it.copy(
+                                    evidence = awaiting,
+                                    evidenceLifecycleStatus = projection.lifecycleStatus,
+                                    evidenceBusy = false,
+                                    evidenceError = null,
+                                    evidenceReviewedVersion = null
+                                )
                             }
-                        } else evidenceFailure("INCIDENT_EVIDENCE_STATE_NOT_SAVED")
+                        } else {
+                            evidenceFailure("INCIDENT_EVIDENCE_STATE_NOT_SAVED")
+                        }
                     }
                 }
+
                 is DriverIncidentEvidenceResult.Rejected ->
-                    persistUploadUnknown(metadata, uploadIntent, result.code ?: "EVIDENCE_UPLOAD_REJECTED")
-                DriverIncidentEvidenceResult.NotFound -> persistUploadUnknown(metadata, uploadIntent, "EVIDENCE_SUBJECT_NOT_FOUND")
-                DriverIncidentEvidenceResult.PermissionDenied -> persistUploadUnknown(metadata, uploadIntent, "DOCUMENT_UPLOAD_REQUIRED")
+                    persistUploadUnknown(
+                        metadata,
+                        uploadIntent,
+                        result.code ?: "EVIDENCE_UPLOAD_REJECTED"
+                    )
+
+                DriverIncidentEvidenceResult.NotFound -> persistUploadUnknown(
+                    metadata,
+                    uploadIntent,
+                    "EVIDENCE_SUBJECT_NOT_FOUND"
+                )
+
+                DriverIncidentEvidenceResult.PermissionDenied -> persistUploadUnknown(
+                    metadata,
+                    uploadIntent,
+                    "DOCUMENT_UPLOAD_REQUIRED"
+                )
+
                 DriverIncidentEvidenceResult.ContextInvalidated,
                 DriverIncidentEvidenceResult.SessionInvalidated,
                 DriverIncidentEvidenceResult.UnknownOutcome,
-                DriverIncidentEvidenceResult.Unavailable -> persistUploadUnknown(metadata, uploadIntent, "EVIDENCE_UPLOAD_UNKNOWN")
-                is DriverIncidentEvidenceResult.Current -> persistUploadUnknown(metadata, uploadIntent, "EVIDENCE_UPLOAD_RESPONSE_INVALID")
+                DriverIncidentEvidenceResult.Unavailable -> persistUploadUnknown(
+                    metadata,
+                    uploadIntent,
+                    "EVIDENCE_UPLOAD_UNKNOWN"
+                )
+
+                is DriverIncidentEvidenceResult.Current -> persistUploadUnknown(
+                    metadata,
+                    uploadIntent,
+                    "EVIDENCE_UPLOAD_RESPONSE_INVALID"
+                )
             }
         }
     }
 
-    /** A fresh status read is required; only the exact DELIVERY_INCIDENT subject in AVAILABLE can advance. */
+    /** A fresh status read is required; only the exact DELIVERY_INCIDENT subject in
+     AVAILABLE can advance. */
     fun checkEvidenceAvailability() {
         val currentAuthority = authority ?: return
         val current = mutableState.value
@@ -467,25 +576,51 @@ class DriverDeliveryIncidentViewModel(
                         evidenceFailure("INCIDENT_EVIDENCE_SUBJECT_MISMATCH")
                     } else if (projection.lifecycleStatus != "AVAILABLE") {
                         mutableState.update {
-                            it.copy(evidenceBusy = false, evidenceLifecycleStatus = projection.lifecycleStatus,
-                                evidenceError = "INCIDENT_EVIDENCE_NOT_AVAILABLE")
+                            it.copy(
+                                evidenceBusy = false,
+                                evidenceLifecycleStatus = projection.lifecycleStatus,
+                                evidenceError = "INCIDENT_EVIDENCE_NOT_AVAILABLE"
+                            )
                         }
                     } else {
-                        val available = evidence.copy(stage = DriverIncidentEvidenceStage.AvailableForReview)
-                        updateEvidenceState(currentAuthority, requestGeneration, current, available) {
-                            it.copy(evidenceLifecycleStatus = projection.lifecycleStatus,
-                                evidenceReviewedVersion = null, evidenceError = null)
+                        val available = evidence.copy(
+                            stage = DriverIncidentEvidenceStage.AvailableForReview
+                        )
+                        updateEvidenceState(
+                            currentAuthority,
+                            requestGeneration,
+                            current,
+                            available
+                        ) {
+                            it.copy(
+                                evidenceLifecycleStatus = projection.lifecycleStatus,
+                                evidenceReviewedVersion = null,
+                                evidenceError = null
+                            )
                         }
                     }
                 }
-                is DriverIncidentEvidenceResult.Rejected -> evidenceFailure(result.code ?: "EVIDENCE_STATUS_REJECTED")
+
+                is DriverIncidentEvidenceResult.Rejected -> evidenceFailure(
+                    result.code ?: "EVIDENCE_STATUS_REJECTED"
+                )
+
                 DriverIncidentEvidenceResult.NotFound -> evidenceFailure("EVIDENCE_NOT_FOUND")
-                DriverIncidentEvidenceResult.PermissionDenied -> evidenceFailure("DOCUMENT_READ_REQUIRED")
+
+                DriverIncidentEvidenceResult.PermissionDenied -> evidenceFailure(
+                    "DOCUMENT_READ_REQUIRED"
+                )
+
                 DriverIncidentEvidenceResult.ContextInvalidated,
-                DriverIncidentEvidenceResult.SessionInvalidated -> evidenceFailure("AUTHORITY_CHANGED")
+                DriverIncidentEvidenceResult.SessionInvalidated -> evidenceFailure(
+                    "AUTHORITY_CHANGED"
+                )
+
                 DriverIncidentEvidenceResult.UnknownOutcome,
                 DriverIncidentEvidenceResult.Unavailable,
-                is DriverIncidentEvidenceResult.Uploaded -> evidenceFailure("EVIDENCE_STATUS_UNAVAILABLE")
+                is DriverIncidentEvidenceResult.Uploaded -> evidenceFailure(
+                    "EVIDENCE_STATUS_UNAVAILABLE"
+                )
             }
         }
     }
@@ -501,14 +636,26 @@ class DriverDeliveryIncidentViewModel(
         val evidenceId = evidence.evidenceId ?: return
         if (!current.canReviewEvidenceLink) return
         val requestGeneration = generation
-        mutableState.update { it.copy(evidenceBusy = true, evidenceError = null, evidenceReviewedVersion = null) }
+        mutableState.update {
+            it.copy(evidenceBusy = true, evidenceError = null, evidenceReviewedVersion = null)
+        }
         viewModelScope.launch {
             val freshResult = safeCurrentDelivery(deliveryId, currentAuthority)
             if (!isCurrent(requestGeneration, currentAuthority)) return@launch
-            val fresh = (freshResult as? DriverIncidentCurrentDeliveryResult.Loaded)?.delivery
+            val fresh = (freshResult as? CurrentDeliveryResult.Loaded)?.delivery
             if (fresh == null || !matchesTarget(fresh, attemptId)) {
-                evidenceFailure(if (fresh == null) "DELIVERY_REFRESH_REQUIRED" else "DELIVERY_ATTEMPT_CHANGED")
-                mutableState.update { it.copy(status = DriverIncidentUiStatus.Stale, delivery = fresh) }
+                evidenceFailure(
+                    if (fresh ==
+                        null
+                    ) {
+                        "DELIVERY_REFRESH_REQUIRED"
+                    } else {
+                        "DELIVERY_ATTEMPT_CHANGED"
+                    }
+                )
+                mutableState.update {
+                    it.copy(status = DriverIncidentUiStatus.Stale, delivery = fresh)
+                }
                 return@launch
             }
             val statusResult = try {
@@ -530,19 +677,31 @@ class DriverDeliveryIncidentViewModel(
                 evidence.attachExpectedVersion != fresh.version
             ) {
                 evidenceFailure("ATTACH_REVIEW_VERSION_CHANGED")
-                mutableState.update { it.copy(delivery = fresh, evidenceLifecycleStatus = projection.lifecycleStatus) }
+                mutableState.update {
+                    it.copy(delivery = fresh, evidenceLifecycleStatus = projection.lifecycleStatus)
+                }
                 return@launch
             }
-            val available = if (evidence.stage == DriverIncidentEvidenceStage.AttachUnknownOutcome) evidence
-            else evidence.copy(stage = DriverIncidentEvidenceStage.AvailableForReview)
+            val available = if (evidence.stage ==
+                DriverIncidentEvidenceStage.AttachUnknownOutcome
+            ) {
+                evidence
+            } else {
+                evidence.copy(stage = DriverIncidentEvidenceStage.AvailableForReview)
+            }
             updateEvidenceState(currentAuthority, requestGeneration, current, available) {
-                it.copy(delivery = fresh, evidenceLifecycleStatus = projection.lifecycleStatus,
-                    evidenceReviewedVersion = fresh.version, evidenceError = null)
+                it.copy(
+                    delivery = fresh,
+                    evidenceLifecycleStatus = projection.lifecycleStatus,
+                    evidenceReviewedVersion = fresh.version,
+                    evidenceError = null
+                )
             }
         }
     }
 
-    /** Links only after a fresh review; an uncertain replay uses its original key, version and body. */
+    /** Links only after a fresh review; an uncertain replay uses its original key,
+     version and body. */
     fun attachEvidence() {
         val currentAuthority = authority ?: return
         val current = mutableState.value
@@ -553,14 +712,26 @@ class DriverDeliveryIncidentViewModel(
         val requestGeneration = generation
         mutableState.update { it.copy(evidenceBusy = true, evidenceError = null) }
         viewModelScope.launch {
-            val deliveryId = current.deliveryId ?: run { evidenceFailure("INCIDENT_CONTEXT_MISSING"); return@launch }
-            val attemptId = current.attemptId ?: run { evidenceFailure("INCIDENT_CONTEXT_MISSING"); return@launch }
+            val deliveryId =
+                current.deliveryId
+                    ?: run {
+                        evidenceFailure("INCIDENT_CONTEXT_MISSING")
+                        return@launch
+                    }
+            val attemptId =
+                current.attemptId
+                    ?: run {
+                        evidenceFailure("INCIDENT_CONTEXT_MISSING")
+                        return@launch
+                    }
             val freshResult = safeCurrentDelivery(deliveryId, currentAuthority)
             if (!isCurrent(requestGeneration, currentAuthority)) return@launch
-            val fresh = (freshResult as? DriverIncidentCurrentDeliveryResult.Loaded)?.delivery
+            val fresh = (freshResult as? CurrentDeliveryResult.Loaded)?.delivery
             if (fresh == null || !matchesTarget(fresh, attemptId)) {
                 evidenceFailure("DELIVERY_ATTEMPT_CHANGED")
-                mutableState.update { it.copy(status = DriverIncidentUiStatus.Stale, delivery = fresh) }
+                mutableState.update {
+                    it.copy(status = DriverIncidentUiStatus.Stale, delivery = fresh)
+                }
                 return@launch
             }
             val statusResult = try {
@@ -572,7 +743,8 @@ class DriverDeliveryIncidentViewModel(
             }
             if (!isCurrent(requestGeneration, currentAuthority)) return@launch
             val currentEvidence = (statusResult as? DriverIncidentEvidenceResult.Current)?.evidence
-            if (currentEvidence == null || !matchesEvidence(currentEvidence, summary.incidentId, evidence) ||
+            if (currentEvidence == null ||
+                !matchesEvidence(currentEvidence, summary.incidentId, evidence) ||
                 currentEvidence.lifecycleStatus != "AVAILABLE"
             ) {
                 evidenceFailure("EVIDENCE_REVIEW_REQUIRED")
@@ -584,7 +756,10 @@ class DriverDeliveryIncidentViewModel(
                     return@launch
                 }
                 DriverIncidentEvidenceAttachCommand(
-                    deliveryId, attemptId, summary.incidentId, evidenceId,
+                    deliveryId,
+                    attemptId,
+                    summary.incidentId,
+                    evidenceId,
                     evidence.attachExpectedVersion,
                     evidence.attachIdempotencyKey ?: return@launch,
                     evidence.attachBody ?: return@launch
@@ -593,21 +768,39 @@ class DriverDeliveryIncidentViewModel(
                 val version = current.evidenceReviewedVersion ?: return@launch
                 if (fresh.version != version) {
                     mutableState.update {
-                        it.copy(delivery = fresh, evidenceBusy = false, evidenceReviewedVersion = null,
-                            evidenceError = "ATTACH_REVIEW_VERSION_CHANGED")
+                        it.copy(
+                            delivery = fresh,
+                            evidenceBusy = false,
+                            evidenceReviewedVersion = null,
+                            evidenceError = "ATTACH_REVIEW_VERSION_CHANGED"
+                        )
                     }
                     return@launch
                 }
                 val key = keyFactory().takeIf { it.isNotBlank() && it.length <= 160 }
-                if (key == null) { evidenceFailure("IDEMPOTENCY_KEY_INVALID"); return@launch }
-                val body = JsonObject(mapOf("evidenceObjectIds" to JsonArray(listOf(JsonPrimitive(evidenceId))))).toString()
-                DriverIncidentEvidenceAttachCommand(deliveryId, attemptId, summary.incidentId,
-                    evidenceId, fresh.version, key, body)
+                if (key == null) {
+                    evidenceFailure("IDEMPOTENCY_KEY_INVALID")
+                    return@launch
+                }
+                val body = JsonObject(
+                    mapOf("evidenceObjectIds" to JsonArray(listOf(JsonPrimitive(evidenceId))))
+                ).toString()
+                DriverIncidentEvidenceAttachCommand(
+                    deliveryId,
+                    attemptId,
+                    summary.incidentId,
+                    evidenceId,
+                    fresh.version,
+                    key,
+                    body
+                )
             }
-            val attaching = evidence.copy(stage = DriverIncidentEvidenceStage.AttachPending,
+            val attaching = evidence.copy(
+                stage = DriverIncidentEvidenceStage.AttachPending,
                 attachIdempotencyKey = command.idempotencyKey,
                 attachExpectedVersion = command.expectedVersion,
-                attachBody = command.frozenBody)
+                attachBody = command.frozenBody
+            )
             val metadata = loadRecordedMetadata(currentAuthority, current) ?: run {
                 evidenceFailure("INCIDENT_EVIDENCE_DRAFT_UNAVAILABLE")
                 return@launch
@@ -626,45 +819,85 @@ class DriverDeliveryIncidentViewModel(
                 DriverIncidentResult.UnknownOutcome
             }
             if (!isCurrent(requestGeneration, currentAuthority)) {
-                safeUpdateRecordedEvidence(intentMetadata.copy(evidence = attaching.copy(
-                    stage = DriverIncidentEvidenceStage.AttachUnknownOutcome
-                )))
+                safeUpdateRecordedEvidence(
+                    intentMetadata.copy(
+                        evidence = attaching.copy(
+                            stage = DriverIncidentEvidenceStage.AttachUnknownOutcome
+                        )
+                    )
+                )
                 return@launch
             }
             when (result) {
                 is DriverIncidentResult.Recorded -> {
                     if (result.summary.incidentId != summary.incidentId ||
-                        result.summary.deliveryId != deliveryId || result.summary.attemptId != attemptId ||
+                        result.summary.deliveryId != deliveryId ||
+                        result.summary.attemptId != attemptId ||
                         evidenceId !in result.summary.evidenceObjectIds
                     ) {
-                        persistAttachUnknown(intentMetadata, attaching, "INCIDENT_EVIDENCE_LINK_RESPONSE_MISMATCH")
+                        persistAttachUnknown(
+                            intentMetadata,
+                            attaching,
+                            "INCIDENT_EVIDENCE_LINK_RESPONSE_MISMATCH"
+                        )
                     } else {
                         val linked = attaching.copy(stage = DriverIncidentEvidenceStage.Linked)
-                        val linkedMetadata = intentMetadata.copy(evidence = linked,
-                            deliveryVersion = result.summary.deliveryVersion)
-                        if (safeUpdateRecordedEvidence(linkedMetadata) == DriverIncidentMetadataWrite.Saved) {
+                        val linkedMetadata = intentMetadata.copy(
+                            evidence = linked,
+                            deliveryVersion = result.summary.deliveryVersion
+                        )
+                        if (safeUpdateRecordedEvidence(linkedMetadata) ==
+                            DriverIncidentMetadataWrite.Saved
+                        ) {
                             safeClearCandidate(linkedMetadata)
                             mutableState.update {
-                                it.copy(summary = result.summary, evidence = linked,
-                                    evidenceLifecycleStatus = "AVAILABLE", evidenceBusy = false,
-                                    evidenceError = null, evidenceReviewedVersion = null,
-                                    delivery = fresh.copy(version = result.summary.deliveryVersion))
+                                it.copy(
+                                    summary = result.summary,
+                                    evidence = linked,
+                                    evidenceLifecycleStatus = "AVAILABLE",
+                                    evidenceBusy = false,
+                                    evidenceError = null,
+                                    evidenceReviewedVersion = null,
+                                    delivery = fresh.copy(version = result.summary.deliveryVersion)
+                                )
                             }
-                        } else evidenceFailure("INCIDENT_EVIDENCE_LINK_STATE_NOT_SAVED")
+                        } else {
+                            evidenceFailure("INCIDENT_EVIDENCE_LINK_STATE_NOT_SAVED")
+                        }
                     }
                 }
+
                 is DriverIncidentResult.StaleVersion,
                 is DriverIncidentResult.Rejected -> {
-                    val reviewAgain = attaching.copy(stage = DriverIncidentEvidenceStage.AvailableForReview,
-                        attachIdempotencyKey = null, attachExpectedVersion = null, attachBody = null)
-                    val saved = safeUpdateRecordedEvidence(intentMetadata.copy(evidence = reviewAgain))
+                    val reviewAgain = attaching.copy(
+                        stage = DriverIncidentEvidenceStage.AvailableForReview,
+                        attachIdempotencyKey = null,
+                        attachExpectedVersion = null,
+                        attachBody = null
+                    )
+                    val saved =
+                        safeUpdateRecordedEvidence(intentMetadata.copy(evidence = reviewAgain))
                     mutableState.update {
-                        it.copy(evidence = if (saved == DriverIncidentMetadataWrite.Saved) reviewAgain else attaching,
-                            evidenceBusy = false, evidenceReviewedVersion = null,
-                            evidenceError = if (result is DriverIncidentResult.StaleVersion) "STALE_VERSION"
-                            else (result as? DriverIncidentResult.Rejected)?.code ?: "EVIDENCE_LINK_REJECTED")
+                        it.copy(
+                            evidence = if (saved ==
+                                DriverIncidentMetadataWrite.Saved
+                            ) {
+                                reviewAgain
+                            } else {
+                                attaching
+                            },
+                            evidenceBusy = false,
+                            evidenceReviewedVersion = null,
+                            evidenceError = if (result is DriverIncidentResult.StaleVersion) {
+                                "STALE_VERSION"
+                            } else {
+                                (result as? DriverIncidentResult.Rejected)?.code
+                                    ?: "EVIDENCE_LINK_REJECTED"
+                            }
+                        )
                     }
                 }
+
                 else -> persistAttachUnknown(intentMetadata, attaching, "EVIDENCE_LINK_UNKNOWN")
             }
         }
@@ -683,37 +916,56 @@ class DriverDeliveryIncidentViewModel(
         val capturedPlace = current.place.trim()
         val capturedType = current.type ?: return
         val requestGeneration = generation
-        mutableState.update { it.copy(status = DriverIncidentUiStatus.CheckingCurrent, rejectionCode = null) }
+        mutableState.update {
+            it.copy(status = DriverIncidentUiStatus.CheckingCurrent, rejectionCode = null)
+        }
         viewModelScope.launch {
             val detail = safeCurrentDelivery(deliveryId, currentAuthority)
             if (!isCurrent(requestGeneration, currentAuthority)) return@launch
-            val fresh = (detail as? DriverIncidentCurrentDeliveryResult.Loaded)?.delivery
+            val fresh = (detail as? CurrentDeliveryResult.Loaded)?.delivery
             if (fresh == null) {
                 mutableState.update { it.copy(status = detail.toStatus(), reviewedVersion = null) }
                 return@launch
             }
-        if (!matchesTarget(fresh, attemptId)) {
+            if (!matchesTarget(fresh, attemptId)) {
                 mutableState.update {
-                    it.copy(delivery = fresh, status = DriverIncidentUiStatus.Stale, reviewedVersion = null)
+                    it.copy(
+                        delivery = fresh,
+                        status = DriverIncidentUiStatus.Stale,
+                        reviewedVersion = null
+                    )
                 }
                 return@launch
             }
             if (fresh.version != reviewedVersion) {
                 mutableState.update {
-                    it.copy(delivery = fresh, status = DriverIncidentUiStatus.NeedsReview, reviewedVersion = null)
+                    it.copy(
+                        delivery = fresh,
+                        status = DriverIncidentUiStatus.NeedsReview,
+                        reviewedVersion = null
+                    )
                 }
                 return@launch
             }
             val key = keyFactory().takeIf { it.isNotBlank() && it.length <= 160 }
             if (key == null) {
                 mutableState.update {
-                    it.copy(status = DriverIncidentUiStatus.Rejected, rejectionCode = "IDEMPOTENCY_KEY_INVALID")
+                    it.copy(
+                        status = DriverIncidentUiStatus.Rejected,
+                        rejectionCode = "IDEMPOTENCY_KEY_INVALID"
+                    )
                 }
                 return@launch
             }
             val command = DriverIncidentCommand(
                 deliveryId, attemptId, fresh.version, key, capturedReason, capturedDescription,
-                capturedPlace, driverIncidentBody(capturedType, capturedReason, capturedDescription, capturedPlace),
+                capturedPlace,
+                driverIncidentBody(
+                    capturedType,
+                    capturedReason,
+                    capturedDescription,
+                    capturedPlace
+                ),
                 type = capturedType
             )
             val intent = DriverIncidentMetadata(
@@ -725,10 +977,14 @@ class DriverDeliveryIncidentViewModel(
             )
             pendingCommand = command
             pendingPersisted = false
-            mutableState.update { it.copy(status = DriverIncidentUiStatus.PersistingIntent, command = command) }
+            mutableState.update {
+                it.copy(status = DriverIncidentUiStatus.PersistingIntent, command = command)
+            }
             if (safePersist(intent) != DriverIncidentMetadataWrite.Saved) {
                 pendingCommand = null
-                mutableState.update { it.copy(status = DriverIncidentUiStatus.PersistenceUnavailable, command = null) }
+                mutableState.update {
+                    it.copy(status = DriverIncidentUiStatus.PersistenceUnavailable, command = null)
+                }
                 return@launch
             }
             if (!isCurrent(requestGeneration, currentAuthority)) return@launch
@@ -745,19 +1001,23 @@ class DriverDeliveryIncidentViewModel(
         val current = mutableState.value
         if (!pendingPersisted || current.status != DriverIncidentUiStatus.UnknownOutcome ||
             command.deliveryId != current.deliveryId || command.attemptId != current.attemptId
-        ) return
+        ) {
+            return
+        }
         val requestGeneration = generation
         mutableState.update { it.copy(status = DriverIncidentUiStatus.CheckingCurrent) }
         viewModelScope.launch {
             val detail = safeCurrentDelivery(command.deliveryId, currentAuthority)
             if (!isCurrent(requestGeneration, currentAuthority)) return@launch
-            val fresh = (detail as? DriverIncidentCurrentDeliveryResult.Loaded)?.delivery
+            val fresh = (detail as? CurrentDeliveryResult.Loaded)?.delivery
             if (fresh == null) {
                 mutableState.update { it.copy(status = DriverIncidentUiStatus.UnknownOutcome) }
                 return@launch
             }
             // A retry may follow a committed terminal fact. The API validates the exact attempt and actor.
-            mutableState.update { it.copy(delivery = fresh, status = DriverIncidentUiStatus.Pending) }
+            mutableState.update {
+                it.copy(delivery = fresh, status = DriverIncidentUiStatus.Pending)
+            }
             val metadata = DriverIncidentMetadata(
                 currentAuthority.scopeIdentity, command.deliveryId, command.attemptId,
                 command.expectedVersion, command.reason, command.description, command.place,
@@ -769,10 +1029,14 @@ class DriverDeliveryIncidentViewModel(
         }
     }
 
-    private fun editDraft(change: DriverDeliveryIncidentUiState.() -> DriverDeliveryIncidentUiState) {
+    private fun editDraft(
+        change: DriverDeliveryIncidentUiState.() -> DriverDeliveryIncidentUiState
+    ) {
         if (pendingCommand != null || mutableState.value.status in FROZEN_STATUSES ||
             mutableState.value.status == DriverIncidentUiStatus.Recorded
-        ) return
+        ) {
+            return
+        }
         mutableState.update {
             change(it).copy(
                 status = DriverIncidentUiStatus.EditingDraft,
@@ -792,13 +1056,16 @@ class DriverDeliveryIncidentViewModel(
     ) {
         val result = safeCurrentDelivery(deliveryId, currentAuthority)
         if (!isCurrent(requestGeneration, currentAuthority)) return
-        val fresh = (result as? DriverIncidentCurrentDeliveryResult.Loaded)?.delivery
+        val fresh = (result as? CurrentDeliveryResult.Loaded)?.delivery
         if (fresh == null) {
             mutableState.update {
                 it.copy(
                     delivery = null,
-                    status = if (pendingCommand != null) DriverIncidentUiStatus.UnknownOutcome
-                    else result.toStatus(),
+                    status = if (pendingCommand != null) {
+                        DriverIncidentUiStatus.UnknownOutcome
+                    } else {
+                        result.toStatus()
+                    },
                     reviewedVersion = null
                 )
             }
@@ -807,7 +1074,11 @@ class DriverDeliveryIncidentViewModel(
         val attemptId = mutableState.value.attemptId
         if (attemptId == null || (pendingCommand == null && !matchesTarget(fresh, attemptId))) {
             mutableState.update {
-                it.copy(delivery = fresh, status = DriverIncidentUiStatus.Stale, reviewedVersion = null)
+                it.copy(
+                    delivery = fresh,
+                    status = DriverIncidentUiStatus.Stale,
+                    reviewedVersion = null
+                )
             }
             return
         }
@@ -821,15 +1092,23 @@ class DriverDeliveryIncidentViewModel(
                     it.draftSaved -> DriverIncidentUiStatus.NeedsReview
                     else -> DriverIncidentUiStatus.EditingDraft
                 },
-                reviewedVersion = if (review && it.draftSaved && pendingCommand == null) fresh.version else null
+                reviewedVersion = if (review && it.draftSaved &&
+                    pendingCommand == null
+                ) {
+                    fresh.version
+                } else {
+                    null
+                }
             )
         }
     }
 
     private fun matchesTarget(delivery: DriverIncidentCurrentDelivery, attemptId: String): Boolean =
         delivery.deliveryId == mutableState.value.deliveryId &&
-            (delivery.activeAttemptId?.let { it == attemptId }
-                ?: (confirmedTerminalOutcome && delivery.version >= targetVersion))
+            (
+                delivery.activeAttemptId?.let { it == attemptId }
+                    ?: (confirmedTerminalOutcome && delivery.version >= targetVersion)
+                )
 
     private suspend fun loadRecordedMetadata(
         currentAuthority: DriverDeliveryAuthority,
@@ -839,7 +1118,9 @@ class DriverDeliveryIncidentViewModel(
         val attemptId = current.attemptId ?: return null
         val draftId = current.draftId ?: return null
         val incidentId = current.summary?.incidentId ?: return null
-        val stored = safeLoad(currentAuthority.scopeIdentity) as? DriverIncidentMetadataRead.Available ?: return null
+        val stored =
+            safeLoad(currentAuthority.scopeIdentity) as? DriverIncidentMetadataRead.Available
+                ?: return null
         return stored.metadata?.takeIf {
             it.scope == currentAuthority.scopeIdentity && it.deliveryId == deliveryId &&
                 it.attemptId == attemptId && it.draftId == draftId &&
@@ -859,7 +1140,9 @@ class DriverDeliveryIncidentViewModel(
             evidenceFailure("INCIDENT_EVIDENCE_DRAFT_UNAVAILABLE")
             return
         }
-        if (safeUpdateRecordedEvidence(metadata.copy(evidence = evidence)) != DriverIncidentMetadataWrite.Saved) {
+        if (safeUpdateRecordedEvidence(metadata.copy(evidence = evidence)) !=
+            DriverIncidentMetadataWrite.Saved
+        ) {
             evidenceFailure("INCIDENT_EVIDENCE_STATE_NOT_SAVED")
             return
         }
@@ -875,9 +1158,12 @@ class DriverDeliveryIncidentViewModel(
         val unknown = pending.copy(stage = DriverIncidentEvidenceStage.UploadUnknownOutcome)
         val saved = safeUpdateRecordedEvidence(metadata.copy(evidence = unknown))
         mutableState.update {
-            it.copy(evidence = if (saved == DriverIncidentMetadataWrite.Saved) unknown else pending,
-                evidenceBusy = false, evidenceError = error,
-                evidenceReviewedVersion = null)
+            it.copy(
+                evidence = if (saved == DriverIncidentMetadataWrite.Saved) unknown else pending,
+                evidenceBusy = false,
+                evidenceError = error,
+                evidenceReviewedVersion = null
+            )
         }
     }
 
@@ -889,14 +1175,19 @@ class DriverDeliveryIncidentViewModel(
         val unknown = pending.copy(stage = DriverIncidentEvidenceStage.AttachUnknownOutcome)
         val saved = safeUpdateRecordedEvidence(metadata.copy(evidence = unknown))
         mutableState.update {
-            it.copy(evidence = if (saved == DriverIncidentMetadataWrite.Saved) unknown else pending,
-                evidenceBusy = false, evidenceError = error,
-                evidenceReviewedVersion = null)
+            it.copy(
+                evidence = if (saved == DriverIncidentMetadataWrite.Saved) unknown else pending,
+                evidenceBusy = false,
+                evidenceError = error,
+                evidenceReviewedVersion = null
+            )
         }
     }
 
     private fun evidenceFailure(error: String) {
-        mutableState.update { it.copy(evidenceBusy = false, evidenceError = error, evidenceReviewedVersion = null) }
+        mutableState.update {
+            it.copy(evidenceBusy = false, evidenceError = error, evidenceReviewedVersion = null)
+        }
     }
 
     private fun matchesEvidence(
@@ -906,15 +1197,18 @@ class DriverDeliveryIncidentViewModel(
     ): Boolean = projection.subjectType == "DELIVERY_INCIDENT" &&
         projection.subjectId == incidentId &&
         (candidate.evidenceId == null || projection.evidenceId == candidate.evidenceId) &&
-        projection.contentType == candidate.contentType && projection.byteSize == candidate.byteSize &&
+        projection.contentType == candidate.contentType &&
+        projection.byteSize == candidate.byteSize &&
         projection.checksumSha256?.let { it == candidate.checksumSha256 } != false
 
     private fun DriverIncidentEvidenceStage.lifecycleLabel(): String? = when (this) {
         DriverIncidentEvidenceStage.AwaitingAvailability -> "PROCESSING"
+
         DriverIncidentEvidenceStage.AvailableForReview,
         DriverIncidentEvidenceStage.AttachPending,
         DriverIncidentEvidenceStage.AttachUnknownOutcome,
         DriverIncidentEvidenceStage.Linked -> "AVAILABLE"
+
         else -> null
     }
 
@@ -925,9 +1219,11 @@ class DriverDeliveryIncidentViewModel(
         val version = deliveryVersion ?: return null
         val linkedEvidence = evidence?.takeIf { it.stage == DriverIncidentEvidenceStage.Linked }
             ?.evidenceId?.let(::listOf).orEmpty()
-        return DriverIncidentSummary(id, deliveryId, attemptId, reason, description, place, actor, time,
+        return DriverIncidentSummary(
+            id, deliveryId, attemptId, reason, description, place, actor, time,
             linkedEvidence, version, replayed = false, type = type, severity = severity,
-            operationalExceptionId = operationalExceptionId)
+            operationalExceptionId = operationalExceptionId
+        )
     }
 
     private suspend fun execute(
@@ -965,7 +1261,8 @@ class DriverDeliveryIncidentViewModel(
                 val persisted = if (completed != null) {
                     safePersistRecorded(completed) == DriverIncidentMetadataWrite.Saved
                 } else {
-                    safeClear(command, currentAuthority.scopeIdentity) == DriverIncidentMetadataWrite.Saved
+                    safeClear(command, currentAuthority.scopeIdentity) ==
+                        DriverIncidentMetadataWrite.Saved
                 }
                 if (persisted) {
                     pendingCommand = null
@@ -975,7 +1272,11 @@ class DriverDeliveryIncidentViewModel(
                 }
                 mutableState.update {
                     it.copy(
-                        status = if (persisted) DriverIncidentUiStatus.Recorded else DriverIncidentUiStatus.UnknownOutcome,
+                        status = if (persisted) {
+                            DriverIncidentUiStatus.Recorded
+                        } else {
+                            DriverIncidentUiStatus.UnknownOutcome
+                        },
                         draftId = completed?.draftId ?: it.draftId,
                         evidence = completed?.evidence ?: it.evidence,
                         summary = result.summary,
@@ -987,18 +1288,30 @@ class DriverDeliveryIncidentViewModel(
             }
 
             is DriverIncidentResult.Rejected -> finishKnownFailure(
-                command, metadata, requestGeneration, currentAuthority,
-                DriverIncidentUiStatus.Rejected, result.code
+                command,
+                metadata,
+                requestGeneration,
+                currentAuthority,
+                DriverIncidentUiStatus.Rejected,
+                result.code
             )
 
             DriverIncidentResult.StaleVersion -> finishKnownFailure(
-                command, metadata, requestGeneration, currentAuthority,
-                DriverIncidentUiStatus.Stale, "STALE_VERSION"
+                command,
+                metadata,
+                requestGeneration,
+                currentAuthority,
+                DriverIncidentUiStatus.Stale,
+                "STALE_VERSION"
             )
 
             DriverIncidentResult.NotFound -> finishKnownFailure(
-                command, metadata, requestGeneration, currentAuthority,
-                DriverIncidentUiStatus.NotFound, "DELIVERY_ATTEMPT_NOT_FOUND"
+                command,
+                metadata,
+                requestGeneration,
+                currentAuthority,
+                DriverIncidentUiStatus.NotFound,
+                "DELIVERY_ATTEMPT_NOT_FOUND"
             )
 
             DriverIncidentResult.UnknownOutcome,
@@ -1010,14 +1323,20 @@ class DriverDeliveryIncidentViewModel(
             }
 
             DriverIncidentResult.PermissionDenied -> finishKnownFailure(
-                command, metadata, requestGeneration, currentAuthority,
-                DriverIncidentUiStatus.PermissionDenied, "PERMISSION_DENIED"
+                command,
+                metadata,
+                requestGeneration,
+                currentAuthority,
+                DriverIncidentUiStatus.PermissionDenied,
+                "PERMISSION_DENIED"
             )
 
             DriverIncidentResult.ContextInvalidated,
             DriverIncidentResult.SessionInvalidated -> {
                 safePersist(metadata.copy(status = DriverIncidentRecordStatus.UnknownOutcome))
-                mutableState.update { it.copy(status = DriverIncidentUiStatus.UnknownOutcome, command = command) }
+                mutableState.update {
+                    it.copy(status = DriverIncidentUiStatus.UnknownOutcome, command = command)
+                }
             }
         }
     }
@@ -1030,7 +1349,8 @@ class DriverDeliveryIncidentViewModel(
         status: DriverIncidentUiStatus,
         code: String?
     ) {
-        val cleared = safeClear(command, currentAuthority.scopeIdentity) == DriverIncidentMetadataWrite.Saved
+        val cleared =
+            safeClear(command, currentAuthority.scopeIdentity) == DriverIncidentMetadataWrite.Saved
         if (!isCurrent(requestGeneration, currentAuthority)) return
         if (cleared) {
             pendingCommand = null
@@ -1054,18 +1374,23 @@ class DriverDeliveryIncidentViewModel(
         }
     }
 
-    private fun isCurrent(requestGeneration: Long, currentAuthority: DriverDeliveryAuthority): Boolean =
-        generation == requestGeneration && authority == currentAuthority
+    private fun isCurrent(
+        requestGeneration: Long,
+        currentAuthority: DriverDeliveryAuthority
+    ): Boolean = generation == requestGeneration && authority == currentAuthority
 
-    private suspend fun safeLoad(scope: DriverAttemptScopeIdentity): DriverIncidentMetadataRead = try {
-        metadataStore?.load(scope) ?: DriverIncidentMetadataRead.Unavailable
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (_: Exception) {
-        DriverIncidentMetadataRead.Unavailable
-    }
+    private suspend fun safeLoad(scope: DriverAttemptScopeIdentity): DriverIncidentMetadataRead =
+        try {
+            metadataStore?.load(scope) ?: DriverIncidentMetadataRead.Unavailable
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            DriverIncidentMetadataRead.Unavailable
+        }
 
-    private suspend fun safeSaveDraft(metadata: DriverIncidentMetadata): DriverIncidentMetadataWrite = try {
+    private suspend fun safeSaveDraft(
+        metadata: DriverIncidentMetadata
+    ): DriverIncidentMetadataWrite = try {
         metadataStore?.saveDraft(metadata) ?: DriverIncidentMetadataWrite.Unavailable
     } catch (cancelled: CancellationException) {
         throw cancelled
@@ -1073,15 +1398,18 @@ class DriverDeliveryIncidentViewModel(
         DriverIncidentMetadataWrite.Unavailable
     }
 
-    private suspend fun safePersist(metadata: DriverIncidentMetadata): DriverIncidentMetadataWrite = try {
-        metadataStore?.persistIntent(metadata) ?: DriverIncidentMetadataWrite.Unavailable
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (_: Exception) {
-        DriverIncidentMetadataWrite.Unavailable
-    }
+    private suspend fun safePersist(metadata: DriverIncidentMetadata): DriverIncidentMetadataWrite =
+        try {
+            metadataStore?.persistIntent(metadata) ?: DriverIncidentMetadataWrite.Unavailable
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            DriverIncidentMetadataWrite.Unavailable
+        }
 
-    private suspend fun safePersistRecorded(metadata: DriverIncidentMetadata): DriverIncidentMetadataWrite = try {
+    private suspend fun safePersistRecorded(
+        metadata: DriverIncidentMetadata
+    ): DriverIncidentMetadataWrite = try {
         metadataStore?.persistRecorded(metadata) ?: DriverIncidentMetadataWrite.Unavailable
     } catch (cancelled: CancellationException) {
         throw cancelled
@@ -1089,7 +1417,9 @@ class DriverDeliveryIncidentViewModel(
         DriverIncidentMetadataWrite.Unavailable
     }
 
-    private suspend fun safeUpdateRecordedEvidence(metadata: DriverIncidentMetadata): DriverIncidentMetadataWrite = try {
+    private suspend fun safeUpdateRecordedEvidence(
+        metadata: DriverIncidentMetadata
+    ): DriverIncidentMetadataWrite = try {
         metadataStore?.updateRecordedEvidence(metadata) ?: DriverIncidentMetadataWrite.Unavailable
     } catch (cancelled: CancellationException) {
         throw cancelled
@@ -1097,7 +1427,9 @@ class DriverDeliveryIncidentViewModel(
         DriverIncidentMetadataWrite.Unavailable
     }
 
-    private suspend fun safeLoadCandidate(metadata: DriverIncidentMetadata): DriverProofFileCandidate? = try {
+    private suspend fun safeLoadCandidate(
+        metadata: DriverIncidentMetadata
+    ): DriverProofFileCandidate? = try {
         metadataStore?.loadCandidate(metadata)
     } catch (cancelled: CancellationException) {
         throw cancelled
@@ -1128,21 +1460,24 @@ class DriverDeliveryIncidentViewModel(
     private suspend fun safeCurrentDelivery(
         deliveryId: String,
         currentAuthority: DriverDeliveryAuthority
-    ): DriverIncidentCurrentDeliveryResult = try {
+    ): CurrentDeliveryResult = try {
         gateway.currentDelivery(deliveryId, currentAuthority)
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) {
-        DriverIncidentCurrentDeliveryResult.Unavailable
+        CurrentDeliveryResult.Unavailable
     }
 
-    private fun DriverIncidentCurrentDeliveryResult.toStatus(): DriverIncidentUiStatus = when (this) {
-        DriverIncidentCurrentDeliveryResult.NotFound -> DriverIncidentUiStatus.NotFound
-        DriverIncidentCurrentDeliveryResult.PermissionDenied -> DriverIncidentUiStatus.PermissionDenied
-        DriverIncidentCurrentDeliveryResult.ContextInvalidated,
-        DriverIncidentCurrentDeliveryResult.SessionInvalidated,
-        DriverIncidentCurrentDeliveryResult.Unavailable -> DriverIncidentUiStatus.Unavailable
-        is DriverIncidentCurrentDeliveryResult.Loaded -> DriverIncidentUiStatus.NeedsReview
+    private fun CurrentDeliveryResult.toStatus(): DriverIncidentUiStatus = when (this) {
+        CurrentDeliveryResult.NotFound -> DriverIncidentUiStatus.NotFound
+
+        CurrentDeliveryResult.PermissionDenied -> DriverIncidentUiStatus.PermissionDenied
+
+        CurrentDeliveryResult.ContextInvalidated,
+        CurrentDeliveryResult.SessionInvalidated,
+        CurrentDeliveryResult.Unavailable -> DriverIncidentUiStatus.Unavailable
+
+        is CurrentDeliveryResult.Loaded -> DriverIncidentUiStatus.NeedsReview
     }
 
     private companion object {

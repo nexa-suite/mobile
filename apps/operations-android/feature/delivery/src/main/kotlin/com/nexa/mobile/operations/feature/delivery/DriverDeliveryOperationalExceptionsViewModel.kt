@@ -2,6 +2,13 @@ package com.nexa.mobile.operations.feature.delivery
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionAction as OperationalExceptionAction
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionCommandStatus as ExceptionCommandStatus
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionIntentStatus as ExceptionIntentStatus
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionMutationResult as ExceptionMutationResult
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsLoadResult as ExceptionsLoadResult
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsLoadStatus as ExceptionsLoadStatus
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsUiState as ExceptionsUiState
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -43,11 +50,11 @@ data class DriverDeliveryOperationalExceptionsUiState(
     val currentMembershipId: String? = null,
     val deliveryId: String? = null,
     val snapshot: DriverDeliveryOperationalExceptionsSnapshot? = null,
-    val loadStatus: DriverDeliveryOperationalExceptionsLoadStatus =
-        DriverDeliveryOperationalExceptionsLoadStatus.NotRequested,
-    val commandStatus: DriverDeliveryOperationalExceptionCommandStatus =
-        DriverDeliveryOperationalExceptionCommandStatus.Idle,
-    val commandAction: DriverDeliveryOperationalExceptionAction? = null,
+    val loadStatus: ExceptionsLoadStatus =
+        ExceptionsLoadStatus.NotRequested,
+    val commandStatus: ExceptionCommandStatus =
+        ExceptionCommandStatus.Idle,
+    val commandAction: OperationalExceptionAction? = null,
     val commandExceptionId: String? = null,
     val hasRecoverableCommand: Boolean = false,
     val unresolvedCommandForOtherDelivery: Boolean = false,
@@ -55,7 +62,8 @@ data class DriverDeliveryOperationalExceptionsUiState(
     val rejectionCode: String? = null
 ) {
     fun canClaim(exception: DriverDeliveryOperationalException): Boolean =
-        canIssueAction(exception) && exception.status == OPEN && exception.responsibleMembershipId == null
+        canIssueAction(exception) && exception.status == OPEN &&
+            exception.responsibleMembershipId == null
 
     fun canReview(exception: DriverDeliveryOperationalException): Boolean =
         canIssueAction(exception) && exception.status == CLAIMED &&
@@ -63,26 +71,28 @@ data class DriverDeliveryOperationalExceptionsUiState(
 
     fun canResolveWarning(exception: DriverDeliveryOperationalException): Boolean =
         canIssueAction(exception) && exception.status == UNDER_REVIEW &&
-            currentMembershipId != null && exception.responsibleMembershipId == currentMembershipId &&
+            currentMembershipId != null &&
+            exception.responsibleMembershipId == currentMembershipId &&
             exception.isDriverResolvableWarning()
 
     fun canCloseWarning(exception: DriverDeliveryOperationalException): Boolean =
-        canIssueAction(exception) && exception.status == RESOLVED &&
-            currentMembershipId != null && exception.responsibleMembershipId == currentMembershipId &&
+        canIssueAction(exception) && exception.status == "RESOLVED" &&
+            currentMembershipId != null &&
+            exception.responsibleMembershipId == currentMembershipId &&
             exception.isDriverResolvableWarning()
 
     private fun canIssueAction(exception: DriverDeliveryOperationalException): Boolean =
-        canRead && canRespond && loadStatus == DriverDeliveryOperationalExceptionsLoadStatus.Ready &&
+        canRead && canRespond && loadStatus == ExceptionsLoadStatus.Ready &&
             !hasRecoverableCommand && !unresolvedCommandForOtherDelivery &&
             commandStatus !in setOf(
-                DriverDeliveryOperationalExceptionCommandStatus.PersistingIntent,
-                DriverDeliveryOperationalExceptionCommandStatus.Pending,
-                DriverDeliveryOperationalExceptionCommandStatus.UnknownOutcome,
-                DriverDeliveryOperationalExceptionCommandStatus.PersistenceUnavailable
+                ExceptionCommandStatus.PersistingIntent,
+                ExceptionCommandStatus.Pending,
+                ExceptionCommandStatus.UnknownOutcome,
+                ExceptionCommandStatus.PersistenceUnavailable
             ) && snapshot?.exceptions?.any { it.id.equals(exception.id, ignoreCase = true) } == true
 
     override fun toString(): String =
-        "DriverDeliveryOperationalExceptionsUiState(epoch=$authorityEpoch, load=$loadStatus, action=$commandStatus, exceptions=${snapshot?.exceptions?.size ?: 0})"
+        "ExceptionsUiState(epoch=$authorityEpoch, load=$loadStatus, action=$commandStatus, exceptions=${snapshot?.exceptions?.size ?: 0})"
 
     private companion object {
         const val OPEN = "OPEN"
@@ -98,7 +108,7 @@ class DriverDeliveryOperationalExceptionsViewModel(
     private val timeFactory: () -> String = { Instant.now().toString() },
     private val keyFactory: () -> String = { UUID.randomUUID().toString() }
 ) : ViewModel() {
-    private val mutableState = MutableStateFlow(DriverDeliveryOperationalExceptionsUiState())
+    private val mutableState = MutableStateFlow(ExceptionsUiState())
     val state = mutableState.asStateFlow()
 
     private var authority: DriverDeliveryAuthority? = null
@@ -114,16 +124,16 @@ class DriverDeliveryOperationalExceptionsViewModel(
         pendingIntent = null
         staleIntentAwaitingRefresh = null
         metadataAvailable = true
-        mutableState.value = DriverDeliveryOperationalExceptionsUiState(
+        mutableState.value = ExceptionsUiState(
             authorityEpoch = currentAuthority.authorityEpoch,
             canRead = currentAuthority.canRead,
             canRespond = currentAuthority.canStart,
             currentMembershipId = currentAuthority.membershipId,
             deliveryId = deliveryId,
             loadStatus = if (currentAuthority.canRead) {
-                DriverDeliveryOperationalExceptionsLoadStatus.Loading
+                ExceptionsLoadStatus.Loading
             } else {
-                DriverDeliveryOperationalExceptionsLoadStatus.PermissionDenied
+                ExceptionsLoadStatus.PermissionDenied
             }
         )
         if (!currentAuthority.canRead) return
@@ -133,7 +143,9 @@ class DriverDeliveryOperationalExceptionsViewModel(
                 DriverDeliveryOperationalExceptionMetadataRead.Unavailable -> {
                     metadataAvailable = false
                     mutableState.update {
-                        it.copy(commandStatus = DriverDeliveryOperationalExceptionCommandStatus.PersistenceUnavailable)
+                        it.copy(
+                            commandStatus = ExceptionCommandStatus.PersistenceUnavailable
+                        )
                     }
                 }
 
@@ -141,34 +153,38 @@ class DriverDeliveryOperationalExceptionsViewModel(
                     val intent = read.intent
                     pendingIntent = intent
                     when (intent?.status) {
-                        DriverDeliveryOperationalExceptionIntentStatus.Pending,
-                        DriverDeliveryOperationalExceptionIntentStatus.UnknownOutcome -> {
-                            val unknown = intent.copy(status = DriverDeliveryOperationalExceptionIntentStatus.UnknownOutcome)
+                        ExceptionIntentStatus.Pending,
+                        ExceptionIntentStatus.UnknownOutcome -> {
+                            val unknown = intent.copy(
+                                status = ExceptionIntentStatus.UnknownOutcome
+                            )
                             pendingIntent = unknown
                             mutableState.update {
                                 it.copy(
                                     commandStatus = if (intent.command.deliveryId == deliveryId) {
-                                        DriverDeliveryOperationalExceptionCommandStatus.UnknownOutcome
+                                        ExceptionCommandStatus.UnknownOutcome
                                     } else {
-                                        DriverDeliveryOperationalExceptionCommandStatus.PersistenceUnavailable
+                                        ExceptionCommandStatus.PersistenceUnavailable
                                     },
                                     commandAction = intent.command.action,
                                     commandExceptionId = intent.command.exceptionId,
                                     hasRecoverableCommand = intent.command.deliveryId == deliveryId,
-                                    unresolvedCommandForOtherDelivery = intent.command.deliveryId != deliveryId
+                                    unresolvedCommandForOtherDelivery =
+                                        intent.command.deliveryId != deliveryId
                                 )
                             }
                         }
 
-                        DriverDeliveryOperationalExceptionIntentStatus.StaleVersion -> {
+                        ExceptionIntentStatus.StaleVersion -> {
                             staleIntentAwaitingRefresh = intent
                             mutableState.update {
                                 it.copy(
-                                    commandStatus = DriverDeliveryOperationalExceptionCommandStatus.StaleVersion,
+                                    commandStatus = ExceptionCommandStatus.StaleVersion,
                                     commandAction = intent.command.action,
                                     commandExceptionId = intent.command.exceptionId,
                                     hasRecoverableCommand = false,
-                                    unresolvedCommandForOtherDelivery = intent.command.deliveryId != deliveryId
+                                    unresolvedCommandForOtherDelivery =
+                                        intent.command.deliveryId != deliveryId
                                 )
                             }
                         }
@@ -188,7 +204,7 @@ class DriverDeliveryOperationalExceptionsViewModel(
         pendingIntent = null
         staleIntentAwaitingRefresh = null
         metadataAvailable = true
-        mutableState.value = DriverDeliveryOperationalExceptionsUiState()
+        mutableState.value = ExceptionsUiState()
     }
 
     fun refresh() {
@@ -197,7 +213,7 @@ class DriverDeliveryOperationalExceptionsViewModel(
         if (!currentAuthority.canRead || !isCurrent(requestGeneration, currentAuthority)) return
         mutableState.update {
             it.copy(
-                loadStatus = DriverDeliveryOperationalExceptionsLoadStatus.Loading,
+                loadStatus = ExceptionsLoadStatus.Loading,
                 snapshot = null,
                 rejectionCode = null
             )
@@ -205,45 +221,55 @@ class DriverDeliveryOperationalExceptionsViewModel(
         viewModelScope.launch { loadCurrent(requestGeneration, currentAuthority) }
     }
 
-    fun claim(exceptionId: String) = act(exceptionId, DriverDeliveryOperationalExceptionAction.Claim)
+    fun claim(exceptionId: String) = act(exceptionId, OperationalExceptionAction.Claim)
 
-    fun sendForReview(exceptionId: String) = act(exceptionId, DriverDeliveryOperationalExceptionAction.Review)
+    fun sendForReview(exceptionId: String) = act(exceptionId, OperationalExceptionAction.Review)
 
     fun resolveWarning(exceptionId: String, resolution: String) =
-        act(exceptionId, DriverDeliveryOperationalExceptionAction.ResolveWarning, resolution)
+        act(exceptionId, OperationalExceptionAction.ResolveWarning, resolution)
 
-    fun closeWarning(exceptionId: String) = act(exceptionId, DriverDeliveryOperationalExceptionAction.CloseWarning)
+    fun closeWarning(exceptionId: String) =
+        act(exceptionId, OperationalExceptionAction.CloseWarning)
 
     private fun act(
         exceptionId: String,
-        action: DriverDeliveryOperationalExceptionAction,
+        action: OperationalExceptionAction,
         resolution: String? = null
     ) {
         val currentAuthority = authority ?: return
         val current = mutableState.value
         val snapshot = current.snapshot ?: return
-        val row = snapshot.exceptions.firstOrNull { it.id.equals(exceptionId, ignoreCase = true) } ?: return
+        val row =
+            snapshot.exceptions.firstOrNull { it.id.equals(exceptionId, ignoreCase = true) }
+                ?: return
         val allowed = when (action) {
-            DriverDeliveryOperationalExceptionAction.Claim -> current.canClaim(row)
-            DriverDeliveryOperationalExceptionAction.Review -> current.canReview(row)
-            DriverDeliveryOperationalExceptionAction.ResolveWarning -> current.canResolveWarning(row)
-            DriverDeliveryOperationalExceptionAction.CloseWarning -> current.canCloseWarning(row)
+            OperationalExceptionAction.Claim -> current.canClaim(row)
+
+            OperationalExceptionAction.Review -> current.canReview(row)
+
+            OperationalExceptionAction.ResolveWarning -> current.canResolveWarning(
+                row
+            )
+
+            OperationalExceptionAction.CloseWarning -> current.canCloseWarning(row)
         }
         if (!allowed || !metadataAvailable || staleIntentAwaitingRefresh != null ||
             !isCurrent(generation, currentAuthority)
-        ) return
+        ) {
+            return
+        }
 
         val frozenBody = when (action) {
-            DriverDeliveryOperationalExceptionAction.Claim,
-            DriverDeliveryOperationalExceptionAction.Review -> driverDeliveryOperationalExceptionEmptyBody()
+            OperationalExceptionAction.Claim,
+            OperationalExceptionAction.Review -> driverDeliveryOperationalExceptionEmptyBody()
 
-            DriverDeliveryOperationalExceptionAction.ResolveWarning -> try {
+            OperationalExceptionAction.ResolveWarning -> try {
                 driverDeliveryOperationalExceptionResolutionBody(resolution.orEmpty())
             } catch (_: IllegalArgumentException) {
                 return
             }
 
-            DriverDeliveryOperationalExceptionAction.CloseWarning -> DRIVER_OPERATIONAL_EXCEPTION_BODYLESS
+            OperationalExceptionAction.CloseWarning -> DRIVER_OPERATIONAL_EXCEPTION_BODYLESS
         }
 
         val command = DriverDeliveryOperationalExceptionCommand(
@@ -259,11 +285,11 @@ class DriverDeliveryOperationalExceptionsViewModel(
             command = command,
             initiatedByMembershipId = currentAuthority.membershipId,
             initiatedAt = timeFactory(),
-            status = DriverDeliveryOperationalExceptionIntentStatus.Pending
+            status = ExceptionIntentStatus.Pending
         )
         mutableState.update {
             it.copy(
-                commandStatus = DriverDeliveryOperationalExceptionCommandStatus.PersistingIntent,
+                commandStatus = ExceptionCommandStatus.PersistingIntent,
                 commandAction = action,
                 commandExceptionId = row.id,
                 hasRecoverableCommand = false,
@@ -279,14 +305,16 @@ class DriverDeliveryOperationalExceptionsViewModel(
                 metadataAvailable = false
                 mutableState.update {
                     it.copy(
-                        commandStatus = DriverDeliveryOperationalExceptionCommandStatus.PersistenceUnavailable,
+                        commandStatus = ExceptionCommandStatus.PersistenceUnavailable,
                         hasRecoverableCommand = false
                     )
                 }
                 return@launch
             }
             pendingIntent = intent
-            mutableState.update { it.copy(commandStatus = DriverDeliveryOperationalExceptionCommandStatus.Pending) }
+            mutableState.update {
+                it.copy(commandStatus = ExceptionCommandStatus.Pending)
+            }
             submit(intent, requestGeneration, currentAuthority)
         }
     }
@@ -299,18 +327,20 @@ class DriverDeliveryOperationalExceptionsViewModel(
         if (!current.canRespond || !metadataAvailable || !current.hasRecoverableCommand ||
             intent.command.deliveryId != current.deliveryId ||
             current.commandStatus !in setOf(
-                DriverDeliveryOperationalExceptionCommandStatus.UnknownOutcome,
-                DriverDeliveryOperationalExceptionCommandStatus.Claimed,
-                DriverDeliveryOperationalExceptionCommandStatus.UnderReview,
-                DriverDeliveryOperationalExceptionCommandStatus.Resolved,
-                DriverDeliveryOperationalExceptionCommandStatus.Closed,
-                DriverDeliveryOperationalExceptionCommandStatus.Rejected
+                ExceptionCommandStatus.UnknownOutcome,
+                ExceptionCommandStatus.Claimed,
+                ExceptionCommandStatus.UnderReview,
+                ExceptionCommandStatus.Resolved,
+                ExceptionCommandStatus.Closed,
+                ExceptionCommandStatus.Rejected
             ) || !isCurrent(generation, currentAuthority)
-        ) return
+        ) {
+            return
+        }
         val requestGeneration = generation
         mutableState.update {
             it.copy(
-                commandStatus = DriverDeliveryOperationalExceptionCommandStatus.Pending,
+                commandStatus = ExceptionCommandStatus.Pending,
                 replayed = false,
                 rejectionCode = null
             )
@@ -323,13 +353,13 @@ class DriverDeliveryOperationalExceptionsViewModel(
         currentAuthority: DriverDeliveryAuthority
     ) {
         when (val result = safeLoad(currentAuthority, mutableState.value.deliveryId.orEmpty())) {
-            is DriverDeliveryOperationalExceptionsLoadResult.Loaded -> {
+            is ExceptionsLoadResult.Loaded -> {
                 if (!isCurrent(requestGeneration, currentAuthority)) return
                 if (result.snapshot.deliveryId != mutableState.value.deliveryId) {
                     mutableState.update {
                         it.copy(
                             snapshot = null,
-                            loadStatus = DriverDeliveryOperationalExceptionsLoadStatus.ServiceUnavailable
+                            loadStatus = ExceptionsLoadStatus.ServiceUnavailable
                         )
                     }
                     return
@@ -344,8 +374,8 @@ class DriverDeliveryOperationalExceptionsViewModel(
                             mutableState.update {
                                 it.copy(
                                     snapshot = result.snapshot,
-                                    loadStatus = DriverDeliveryOperationalExceptionsLoadStatus.Ready,
-                                    commandStatus = DriverDeliveryOperationalExceptionCommandStatus.StaleVersion,
+                                    loadStatus = ExceptionsLoadStatus.Ready,
+                                    commandStatus = ExceptionCommandStatus.StaleVersion,
                                     hasRecoverableCommand = false,
                                     unresolvedCommandForOtherDelivery = false,
                                     rejectionCode = null
@@ -356,8 +386,8 @@ class DriverDeliveryOperationalExceptionsViewModel(
                         else -> mutableState.update {
                             it.copy(
                                 snapshot = result.snapshot,
-                                loadStatus = DriverDeliveryOperationalExceptionsLoadStatus.Ready,
-                                commandStatus = DriverDeliveryOperationalExceptionCommandStatus.PersistenceUnavailable,
+                                loadStatus = ExceptionsLoadStatus.Ready,
+                                commandStatus = ExceptionCommandStatus.PersistenceUnavailable,
                                 hasRecoverableCommand = false,
                                 rejectionCode = null
                             )
@@ -368,15 +398,21 @@ class DriverDeliveryOperationalExceptionsViewModel(
                 mutableState.update {
                     it.copy(
                         snapshot = result.snapshot,
-                        loadStatus = DriverDeliveryOperationalExceptionsLoadStatus.Ready,
+                        loadStatus = ExceptionsLoadStatus.Ready,
                         commandStatus = when {
-                            !metadataAvailable -> DriverDeliveryOperationalExceptionCommandStatus.PersistenceUnavailable
-                            pendingIntent == null && it.commandStatus == DriverDeliveryOperationalExceptionCommandStatus.Idle ->
-                                DriverDeliveryOperationalExceptionCommandStatus.Idle
+                            !metadataAvailable -> ExceptionCommandStatus.PersistenceUnavailable
+
+                            pendingIntent == null &&
+                                it.commandStatus ==
+                                ExceptionCommandStatus.Idle ->
+                                ExceptionCommandStatus.Idle
+
                             else -> it.commandStatus
                         },
-                        hasRecoverableCommand = pendingIntent?.command?.deliveryId == result.snapshot.deliveryId &&
-                            pendingIntent?.status != DriverDeliveryOperationalExceptionIntentStatus.StaleVersion,
+                        hasRecoverableCommand =
+                            pendingIntent?.command?.deliveryId == result.snapshot.deliveryId &&
+                                pendingIntent?.status !=
+                                ExceptionIntentStatus.StaleVersion,
                         unresolvedCommandForOtherDelivery = pendingIntent != null &&
                             pendingIntent?.command?.deliveryId != result.snapshot.deliveryId,
                         rejectionCode = null
@@ -390,8 +426,10 @@ class DriverDeliveryOperationalExceptionsViewModel(
                     it.copy(
                         snapshot = null,
                         loadStatus = result.toLoadStatus(),
-                            hasRecoverableCommand = pendingIntent?.command?.deliveryId == it.deliveryId &&
-                                pendingIntent?.status != DriverDeliveryOperationalExceptionIntentStatus.StaleVersion,
+                        hasRecoverableCommand =
+                            pendingIntent?.command?.deliveryId == it.deliveryId &&
+                                pendingIntent?.status !=
+                                ExceptionIntentStatus.StaleVersion,
                         unresolvedCommandForOtherDelivery = pendingIntent != null &&
                             pendingIntent?.command?.deliveryId != it.deliveryId
                     )
@@ -408,40 +446,64 @@ class DriverDeliveryOperationalExceptionsViewModel(
         val command = intent.command
         if (!isCurrent(requestGeneration, currentAuthority)) return
         when (val result = safeMutate(command, currentAuthority)) {
-            is DriverDeliveryOperationalExceptionMutationResult.Changed -> {
+            is ExceptionMutationResult.Changed -> {
                 if (!isCurrent(requestGeneration, currentAuthority)) return
                 val mutation = result.mutation
                 val valid = mutation.deliveryId == command.deliveryId &&
                     mutation.deliveryVersion >= command.expectedDeliveryVersion &&
                     mutation.exception.id.equals(command.exceptionId, ignoreCase = true) &&
                     when (command.action) {
-                        DriverDeliveryOperationalExceptionAction.Claim ->
-                            mutation.exception.responsibleMembershipId == currentAuthority.membershipId &&
+                        OperationalExceptionAction.Claim ->
+                            mutation.exception.responsibleMembershipId ==
+                                currentAuthority.membershipId &&
                                 !mutation.exception.claimedAt.isNullOrBlank() &&
-                                (mutation.exception.status == "CLAIMED" ||
-                                    mutation.replayed && mutation.exception.status in LATER_EXCEPTION_STATUSES)
+                                (
+                                    mutation.exception.status == "CLAIMED" ||
+                                        (
+                                            mutation.replayed &&
+                                                mutation.exception.status in
+                                                LATER_EXCEPTION_STATUSES
+                                            )
+                                    )
 
-                        DriverDeliveryOperationalExceptionAction.Review ->
-                            mutation.exception.responsibleMembershipId == currentAuthority.membershipId &&
-                                mutation.exception.underReviewByMembershipId == currentAuthority.membershipId &&
+                        OperationalExceptionAction.Review ->
+                            mutation.exception.responsibleMembershipId ==
+                                currentAuthority.membershipId &&
+                                mutation.exception.underReviewByMembershipId ==
+                                currentAuthority.membershipId &&
                                 !mutation.exception.underReviewAt.isNullOrBlank() &&
-                                (mutation.exception.status == "UNDER_REVIEW" ||
-                                    mutation.replayed && mutation.exception.status in LATER_EXCEPTION_STATUSES)
+                                (
+                                    mutation.exception.status == "UNDER_REVIEW" ||
+                                        (
+                                            mutation.replayed &&
+                                                mutation.exception.status in
+                                                LATER_EXCEPTION_STATUSES
+                                            )
+                                    )
 
-                        DriverDeliveryOperationalExceptionAction.ResolveWarning ->
+                        OperationalExceptionAction.ResolveWarning ->
                             mutation.exception.severity == WARNING &&
                                 mutation.exception.isDriverResolvableWarning() &&
-                                mutation.exception.responsibleMembershipId == currentAuthority.membershipId &&
+                                mutation.exception.responsibleMembershipId ==
+                                currentAuthority.membershipId &&
                                 mutation.exception.resolution ==
-                                    driverDeliveryOperationalExceptionResolutionFromBody(command.frozenBody) &&
+                                driverDeliveryOperationalExceptionResolutionFromBody(
+                                    command.frozenBody
+                                ) &&
                                 mutation.exception.outcome == WARNING_CONDITION_ADDRESSED &&
-                                (mutation.exception.status == RESOLVED ||
-                                    mutation.replayed && mutation.exception.status == CLOSED)
+                                (
+                                    mutation.exception.status == "RESOLVED" ||
+                                        (
+                                            mutation.replayed &&
+                                                mutation.exception.status == CLOSED
+                                            )
+                                    )
 
-                        DriverDeliveryOperationalExceptionAction.CloseWarning ->
+                        OperationalExceptionAction.CloseWarning ->
                             mutation.exception.severity == WARNING &&
                                 mutation.exception.isDriverResolvableWarning() &&
-                                mutation.exception.responsibleMembershipId == currentAuthority.membershipId &&
+                                mutation.exception.responsibleMembershipId ==
+                                currentAuthority.membershipId &&
                                 !mutation.exception.resolution.isNullOrBlank() &&
                                 mutation.exception.outcome == WARNING_CONDITION_ADDRESSED &&
                                 mutation.exception.status == CLOSED
@@ -451,17 +513,21 @@ class DriverDeliveryOperationalExceptionsViewModel(
                     return
                 }
                 val cleared = safeClearIntent(intent.scope, command.idempotencyKey)
-                if (cleared == DriverDeliveryOperationalExceptionMetadataWrite.Saved) pendingIntent = null
+                if (cleared ==
+                    DriverDeliveryOperationalExceptionMetadataWrite.Saved
+                ) {
+                    pendingIntent = null
+                }
                 val nextStatus = when (command.action) {
-                    DriverDeliveryOperationalExceptionAction.Claim,
-                    DriverDeliveryOperationalExceptionAction.Review,
-                    DriverDeliveryOperationalExceptionAction.ResolveWarning,
-                    DriverDeliveryOperationalExceptionAction.CloseWarning -> when (mutation.exception.status) {
-                        CLAIMED -> DriverDeliveryOperationalExceptionCommandStatus.Claimed
-                        UNDER_REVIEW -> DriverDeliveryOperationalExceptionCommandStatus.UnderReview
-                        RESOLVED -> DriverDeliveryOperationalExceptionCommandStatus.Resolved
-                        CLOSED -> DriverDeliveryOperationalExceptionCommandStatus.Closed
-                        else -> DriverDeliveryOperationalExceptionCommandStatus.UnknownOutcome
+                    OperationalExceptionAction.Claim,
+                    OperationalExceptionAction.Review,
+                    OperationalExceptionAction.ResolveWarning,
+                    OperationalExceptionAction.CloseWarning -> when (mutation.exception.status) {
+                        CLAIMED -> ExceptionCommandStatus.Claimed
+                        UNDER_REVIEW -> ExceptionCommandStatus.UnderReview
+                        RESOLVED -> ExceptionCommandStatus.Resolved
+                        CLOSED -> ExceptionCommandStatus.Closed
+                        else -> ExceptionCommandStatus.UnknownOutcome
                     }
                 }
                 mutableState.update { current ->
@@ -470,31 +536,45 @@ class DriverDeliveryOperationalExceptionsViewModel(
                         snapshot = old?.copy(
                             deliveryVersion = mutation.deliveryVersion,
                             exceptions = old.exceptions.map { row ->
-                                if (row.id.equals(mutation.exception.id, ignoreCase = true)) mutation.exception else row
+                                if (row.id.equals(
+                                        mutation.exception.id,
+                                        ignoreCase = true
+                                    )
+                                ) {
+                                    mutation.exception
+                                } else {
+                                    row
+                                }
                             }
                         ),
                         commandStatus = nextStatus,
-                        hasRecoverableCommand = cleared != DriverDeliveryOperationalExceptionMetadataWrite.Saved,
+                        hasRecoverableCommand =
+                            cleared != DriverDeliveryOperationalExceptionMetadataWrite.Saved,
                         replayed = mutation.replayed,
                         rejectionCode = null
                     )
                 }
             }
 
-            DriverDeliveryOperationalExceptionMutationResult.StaleVersion -> {
+            ExceptionMutationResult.StaleVersion -> {
                 if (!isCurrent(requestGeneration, currentAuthority)) return
-                val stale = intent.copy(status = DriverDeliveryOperationalExceptionIntentStatus.StaleVersion)
+                val stale = intent.copy(
+                    status = ExceptionIntentStatus.StaleVersion
+                )
                 val saved = safeSaveIntent(stale)
                 staleIntentAwaitingRefresh = stale
                 pendingIntent = stale
                 if (saved != DriverDeliveryOperationalExceptionMetadataWrite.Saved &&
-                    safeClearIntent(intent.scope, command.idempotencyKey) == DriverDeliveryOperationalExceptionMetadataWrite.Saved
-                ) pendingIntent = null
+                    safeClearIntent(intent.scope, command.idempotencyKey) ==
+                    DriverDeliveryOperationalExceptionMetadataWrite.Saved
+                ) {
+                    pendingIntent = null
+                }
                 mutableState.update {
                     it.copy(
                         snapshot = null,
-                        loadStatus = DriverDeliveryOperationalExceptionsLoadStatus.Loading,
-                        commandStatus = DriverDeliveryOperationalExceptionCommandStatus.StaleVersion,
+                        loadStatus = ExceptionsLoadStatus.Loading,
+                        commandStatus = ExceptionCommandStatus.StaleVersion,
                         hasRecoverableCommand = false,
                         rejectionCode = null
                     )
@@ -502,32 +582,38 @@ class DriverDeliveryOperationalExceptionsViewModel(
                 loadCurrent(requestGeneration, currentAuthority)
             }
 
-            DriverDeliveryOperationalExceptionMutationResult.UnknownOutcome,
-            DriverDeliveryOperationalExceptionMutationResult.NetworkUnavailable,
-            DriverDeliveryOperationalExceptionMutationResult.ServiceUnavailable ->
+            ExceptionMutationResult.UnknownOutcome,
+            ExceptionMutationResult.NetworkUnavailable,
+            ExceptionMutationResult.ServiceUnavailable ->
                 markUnknown(intent, requestGeneration, currentAuthority)
 
             else -> {
                 if (!isCurrent(requestGeneration, currentAuthority)) return
-                if (intent.status == DriverDeliveryOperationalExceptionIntentStatus.UnknownOutcome) {
+                if (intent.status ==
+                    ExceptionIntentStatus.UnknownOutcome
+                ) {
                     markUnknown(intent, requestGeneration, currentAuthority)
                     return
                 }
                 val cleared = safeClearIntent(intent.scope, command.idempotencyKey)
-                if (cleared == DriverDeliveryOperationalExceptionMetadataWrite.Saved) pendingIntent = null
-                val code = (result as? DriverDeliveryOperationalExceptionMutationResult.Rejected)?.code
+                if (cleared ==
+                    DriverDeliveryOperationalExceptionMetadataWrite.Saved
+                ) {
+                    pendingIntent = null
+                }
+                val code = (result as? ExceptionMutationResult.Rejected)?.code
                 val accessFailureStatus = when (result) {
-                    DriverDeliveryOperationalExceptionMutationResult.NotFound ->
-                        DriverDeliveryOperationalExceptionsLoadStatus.NotFound
+                    ExceptionMutationResult.NotFound ->
+                        ExceptionsLoadStatus.NotFound
 
-                    DriverDeliveryOperationalExceptionMutationResult.PermissionDenied ->
-                        DriverDeliveryOperationalExceptionsLoadStatus.PermissionDenied
+                    ExceptionMutationResult.PermissionDenied ->
+                        ExceptionsLoadStatus.PermissionDenied
 
-                    DriverDeliveryOperationalExceptionMutationResult.ContextInvalidated ->
-                        DriverDeliveryOperationalExceptionsLoadStatus.ContextInvalidated
+                    ExceptionMutationResult.ContextInvalidated ->
+                        ExceptionsLoadStatus.ContextInvalidated
 
-                    DriverDeliveryOperationalExceptionMutationResult.SessionInvalidated ->
-                        DriverDeliveryOperationalExceptionsLoadStatus.SessionInvalidated
+                    ExceptionMutationResult.SessionInvalidated ->
+                        ExceptionsLoadStatus.SessionInvalidated
 
                     else -> null
                 }
@@ -535,19 +621,21 @@ class DriverDeliveryOperationalExceptionsViewModel(
                     it.copy(
                         snapshot = if (accessFailureStatus != null) null else it.snapshot,
                         loadStatus = accessFailureStatus ?: it.loadStatus,
-                        commandStatus = DriverDeliveryOperationalExceptionCommandStatus.Rejected,
-                        hasRecoverableCommand = cleared != DriverDeliveryOperationalExceptionMetadataWrite.Saved,
+                        commandStatus = ExceptionCommandStatus.Rejected,
+                        hasRecoverableCommand =
+                            cleared != DriverDeliveryOperationalExceptionMetadataWrite.Saved,
                         rejectionCode = code
                     )
                 }
-                if (result is DriverDeliveryOperationalExceptionMutationResult.Rejected) {
+                if (result is ExceptionMutationResult.Rejected) {
                     loadCurrent(requestGeneration, currentAuthority)
                     if (isCurrent(requestGeneration, currentAuthority) &&
-                        mutableState.value.loadStatus == DriverDeliveryOperationalExceptionsLoadStatus.Ready
+                        mutableState.value.loadStatus ==
+                        ExceptionsLoadStatus.Ready
                     ) {
                         mutableState.update {
                             it.copy(
-                                commandStatus = DriverDeliveryOperationalExceptionCommandStatus.Rejected,
+                                commandStatus = ExceptionCommandStatus.Rejected,
                                 rejectionCode = code
                             )
                         }
@@ -563,12 +651,14 @@ class DriverDeliveryOperationalExceptionsViewModel(
         currentAuthority: DriverDeliveryAuthority
     ) {
         if (!isCurrent(requestGeneration, currentAuthority)) return
-        val unknown = intent.copy(status = DriverDeliveryOperationalExceptionIntentStatus.UnknownOutcome)
+        val unknown = intent.copy(
+            status = ExceptionIntentStatus.UnknownOutcome
+        )
         safeSaveIntent(unknown)
         pendingIntent = unknown
         mutableState.update {
             it.copy(
-                commandStatus = DriverDeliveryOperationalExceptionCommandStatus.UnknownOutcome,
+                commandStatus = ExceptionCommandStatus.UnknownOutcome,
                 hasRecoverableCommand = true
             )
         }
@@ -590,27 +680,23 @@ class DriverDeliveryOperationalExceptionsViewModel(
         DriverDeliveryOperationalExceptionMetadataWrite.Unavailable
     }
 
-    private suspend fun safeClearIntent(
-        scope: DriverAttemptScopeIdentity,
-        idempotencyKey: String
-    ) = try {
-        metadataStore.clearIntent(scope, idempotencyKey)
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (_: Exception) {
-        DriverDeliveryOperationalExceptionMetadataWrite.Unavailable
-    }
+    private suspend fun safeClearIntent(scope: DriverAttemptScopeIdentity, idempotencyKey: String) =
+        try {
+            metadataStore.clearIntent(scope, idempotencyKey)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            DriverDeliveryOperationalExceptionMetadataWrite.Unavailable
+        }
 
-    private suspend fun safeLoad(
-        currentAuthority: DriverDeliveryAuthority,
-        deliveryId: String
-    ) = try {
-        gateway.currentExceptions(deliveryId, currentAuthority)
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (_: Exception) {
-        DriverDeliveryOperationalExceptionsLoadResult.ServiceUnavailable
-    }
+    private suspend fun safeLoad(currentAuthority: DriverDeliveryAuthority, deliveryId: String) =
+        try {
+            gateway.currentExceptions(deliveryId, currentAuthority)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            ExceptionsLoadResult.ServiceUnavailable
+        }
 
     private suspend fun safeMutate(
         command: DriverDeliveryOperationalExceptionCommand,
@@ -620,22 +706,24 @@ class DriverDeliveryOperationalExceptionsViewModel(
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) {
-        DriverDeliveryOperationalExceptionMutationResult.UnknownOutcome
+        ExceptionMutationResult.UnknownOutcome
     }
 
-    private fun DriverDeliveryOperationalExceptionsLoadResult.toLoadStatus() = when (this) {
-        DriverDeliveryOperationalExceptionsLoadResult.NotFound -> DriverDeliveryOperationalExceptionsLoadStatus.NotFound
-        DriverDeliveryOperationalExceptionsLoadResult.NetworkUnavailable -> DriverDeliveryOperationalExceptionsLoadStatus.NetworkUnavailable
-        DriverDeliveryOperationalExceptionsLoadResult.ServiceUnavailable -> DriverDeliveryOperationalExceptionsLoadStatus.ServiceUnavailable
-        DriverDeliveryOperationalExceptionsLoadResult.PermissionDenied -> DriverDeliveryOperationalExceptionsLoadStatus.PermissionDenied
-        DriverDeliveryOperationalExceptionsLoadResult.ContextInvalidated -> DriverDeliveryOperationalExceptionsLoadStatus.ContextInvalidated
-        DriverDeliveryOperationalExceptionsLoadResult.SessionInvalidated -> DriverDeliveryOperationalExceptionsLoadStatus.SessionInvalidated
-        is DriverDeliveryOperationalExceptionsLoadResult.Loaded -> DriverDeliveryOperationalExceptionsLoadStatus.Ready
+    private fun ExceptionsLoadResult.toLoadStatus() = when (this) {
+        ExceptionsLoadResult.NotFound -> ExceptionsLoadStatus.NotFound
+        ExceptionsLoadResult.NetworkUnavailable -> ExceptionsLoadStatus.NetworkUnavailable
+        ExceptionsLoadResult.ServiceUnavailable -> ExceptionsLoadStatus.ServiceUnavailable
+        ExceptionsLoadResult.PermissionDenied -> ExceptionsLoadStatus.PermissionDenied
+        ExceptionsLoadResult.ContextInvalidated -> ExceptionsLoadStatus.ContextInvalidated
+        ExceptionsLoadResult.SessionInvalidated -> ExceptionsLoadStatus.SessionInvalidated
+        is ExceptionsLoadResult.Loaded -> ExceptionsLoadStatus.Ready
     }
 
-    private fun isCurrent(requestGeneration: Long, expectedAuthority: DriverDeliveryAuthority): Boolean =
-        generation == requestGeneration && authority == expectedAuthority &&
-            mutableState.value.authorityEpoch == expectedAuthority.authorityEpoch
+    private fun isCurrent(
+        requestGeneration: Long,
+        expectedAuthority: DriverDeliveryAuthority
+    ): Boolean = generation == requestGeneration && authority == expectedAuthority &&
+        mutableState.value.authorityEpoch == expectedAuthority.authorityEpoch
 
     private companion object {
         const val WARNING = "WARNING"

@@ -25,7 +25,8 @@ data class DriverDeliveryAuthority(
         get() = permissions.any { it in DRIVER_START_PERMISSIONS }
 
     val canCaptureProof: Boolean
-        get() = permissions.contains("dispatch.start_route") && permissions.contains("document.upload")
+        get() = permissions.contains("dispatch.start_route") &&
+            permissions.contains("document.upload")
 
     val canReadProofEvidence: Boolean
         get() = permissions.contains("document.read")
@@ -90,11 +91,7 @@ data class DriverDeliverySnapshot(
 }
 
 @Immutable
-data class DriverDeliveryArrivalFact(
-    val id: String,
-    val attemptId: String,
-    val arrivedAt: String
-)
+data class DriverDeliveryArrivalFact(val id: String, val attemptId: String, val arrivedAt: String)
 
 @Immutable
 data class DriverDeliveryOutcomeLine(
@@ -193,7 +190,8 @@ data class DriverArrivalIntentMetadata(
     val command: DriverArrivalCommand,
     val status: DriverArrivalIntentStatus
 ) {
-    override fun toString(): String = "DriverArrivalIntentMetadata(status=$status, command=REDACTED)"
+    override fun toString(): String =
+        "DriverArrivalIntentMetadata(status=$status, command=REDACTED)"
 }
 
 sealed interface DriverArrivalMetadataRead {
@@ -225,7 +223,8 @@ data class DriverOutcomeIntentMetadata(
     val command: DriverOutcomeCommand,
     val status: DriverOutcomeIntentStatus
 ) {
-    override fun toString(): String = "DriverOutcomeIntentMetadata(status=$status, command=REDACTED)"
+    override fun toString(): String =
+        "DriverOutcomeIntentMetadata(status=$status, command=REDACTED)"
 }
 
 sealed interface DriverOutcomeMetadataRead {

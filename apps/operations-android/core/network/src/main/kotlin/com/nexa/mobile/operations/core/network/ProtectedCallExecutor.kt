@@ -37,8 +37,12 @@ class ProtectedRequest(
         )
         require(ifMatch == null || ifMatch.isNotBlank())
         require(method != ProtectedMethod.GET || payload == null)
-        require(!binaryResponse || method == ProtectedMethod.GET &&
-            Regex("/api/v1/business-documents/[0-9a-fA-F-]{36}/downloads").matches(path))
+        require(
+            !binaryResponse || (
+                method == ProtectedMethod.GET &&
+                    Regex("/api/v1/business-documents/[0-9a-fA-F-]{36}/downloads").matches(path)
+                )
+        )
         require(payload == null || requestBody == null)
         require(requestBody == null || method != ProtectedMethod.GET)
     }
@@ -117,7 +121,10 @@ class ProtectedCallExecutor(
                 response.status,
                 response.body,
                 response.etag,
-                response.correlationId, response.bytes, response.contentType, response.checksumSha256
+                response.correlationId,
+                response.bytes,
+                response.contentType,
+                response.checksumSha256
             )
         } else {
             ProtectedResult.Failure(
@@ -172,47 +179,55 @@ class ProtectedCallExecutor(
         }
     }
 
-    private suspend fun Call.await(binary: Boolean): Exchange = suspendCancellableCoroutine { continuation ->
-        continuation.invokeOnCancellation { cancel() }
-        enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                if (continuation.isActive) continuation.resumeWithException(e)
-            }
+    private suspend fun Call.await(binary: Boolean): Exchange =
+        suspendCancellableCoroutine { continuation ->
+            continuation.invokeOnCancellation { cancel() }
+            enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    if (continuation.isActive) continuation.resumeWithException(e)
+                }
 
-            override fun onResponse(call: Call, response: Response) {
-                if (!continuation.isActive) {
-                    response.close()
-                    return
-                }
-                val exchange = try {
-                    response.use {
-                        val binaryBody = if (binary && it.isSuccessful) {
-                            val source = it.body?.source() ?: throw IOException("Missing document content")
-                            if (it.body!!.contentLength() > 8 * 1024 * 1024 || source.request(8L * 1024 * 1024 + 1))
-                                throw IOException("Document exceeds protected download limit")
-                            source.readByteArray()
-                        } else null
-                        Exchange.Http(
-                            status = it.code,
-                            headers = it.headers,
-                            body = if (binaryBody == null) it.body?.string() else null,
-                            bytes = binaryBody,
-                            checksumSha256 = it.header("X-Content-SHA256"),
-                            contentType = it.body?.contentType()?.toString(),
-                            etag = it.header("ETag"),
-                            correlationId = it.header("X-Correlation-ID")
-                        )
+                override fun onResponse(call: Call, response: Response) {
+                    if (!continuation.isActive) {
+                        response.close()
+                        return
                     }
-                } catch (failure: Throwable) {
-                    if (continuation.isActive) {
-                        continuation.resumeWithException(failure)
+                    val exchange = try {
+                        response.use {
+                            val binaryBody = if (binary && it.isSuccessful) {
+                                val source =
+                                    it.body?.source()
+                                        ?: throw IOException("Missing document content")
+                                if (it.body!!.contentLength() > 8 * 1024 * 1024 ||
+                                    source.request(8L * 1024 * 1024 + 1)
+                                ) {
+                                    throw IOException("Document exceeds protected download limit")
+                                }
+                                source.readByteArray()
+                            } else {
+                                null
+                            }
+                            Exchange.Http(
+                                status = it.code,
+                                headers = it.headers,
+                                body = if (binaryBody == null) it.body?.string() else null,
+                                bytes = binaryBody,
+                                checksumSha256 = it.header("X-Content-SHA256"),
+                                contentType = it.body?.contentType()?.toString(),
+                                etag = it.header("ETag"),
+                                correlationId = it.header("X-Correlation-ID")
+                            )
+                        }
+                    } catch (failure: Throwable) {
+                        if (continuation.isActive) {
+                            continuation.resumeWithException(failure)
+                        }
+                        return
                     }
-                    return
+                    if (continuation.isActive) continuation.resume(exchange)
                 }
-                if (continuation.isActive) continuation.resume(exchange)
-            }
-        })
-    }
+            })
+        }
 
     private sealed interface Exchange {
         data class Http(
