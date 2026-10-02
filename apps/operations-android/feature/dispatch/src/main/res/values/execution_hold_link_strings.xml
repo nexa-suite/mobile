@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dispatch_readiness_execution_hold">Review execution HOLD disposition</string>
+</resources>

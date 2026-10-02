@@ -27,7 +27,9 @@ class DispatchTemperatureViewModel(
     fun activate(fulfillmentId: String, context: DispatchAuthorityContext) {
         if (activeFulfillmentId == fulfillmentId && activeContext == context &&
             mutableState.value.status !in INVALIDATED
-        ) return
+        ) {
+            return
+        }
         generation++
         val request = generation
         activeFulfillmentId = fulfillmentId
@@ -48,7 +50,11 @@ class DispatchTemperatureViewModel(
                 is DispatchTemperatureMetadataRead.Available -> {
                     val intent = stored.intent
                     if (intent != null && (intent.scope != scope || !intent.command.isValid())) {
-                        if (request == generation) fail(DispatchTemperatureStatus.ServiceUnavailable)
+                        if (request ==
+                            generation
+                        ) {
+                            fail(DispatchTemperatureStatus.ServiceUnavailable)
+                        }
                         return@launch
                     }
                     if (request == generation && activeContext == context) {
@@ -57,13 +63,19 @@ class DispatchTemperatureViewModel(
                             metadataReady = true,
                             hasPendingCommand = intent != null,
                             pendingCommand = intent?.command,
-                            mutationStatus = if (intent == null) DispatchTemperatureMutationStatus.Idle
-                            else DispatchTemperatureMutationStatus.UnknownOutcome,
+                            mutationStatus = if (intent ==
+                                null
+                            ) {
+                                DispatchTemperatureMutationStatus.Idle
+                            } else {
+                                DispatchTemperatureMutationStatus.UnknownOutcome
+                            },
                             mutationLotId = intent?.command?.lotId
                         )
                         refresh()
                     }
                 }
+
                 DispatchTemperatureMetadataRead.Unavailable,
                 null -> {
                     if (request == generation && activeContext == context) {
@@ -84,13 +96,19 @@ class DispatchTemperatureViewModel(
                 fail(DispatchTemperatureStatus.PermissionUnknown)
                 return
             }
+
             PermissionHint.Unavailable -> {
                 fail(DispatchTemperatureStatus.PermissionDenied)
                 return
             }
+
             PermissionHint.Available -> Unit
         }
-        if (mutableState.value.mutationStatus == DispatchTemperatureMutationStatus.Submitting) return
+        if (mutableState.value.mutationStatus ==
+            DispatchTemperatureMutationStatus.Submitting
+        ) {
+            return
+        }
         val request = ++generation
         mutableState.value = mutableState.value.copy(
             status = DispatchTemperatureStatus.Loading,
@@ -103,30 +121,53 @@ class DispatchTemperatureViewModel(
                     if (!result.readiness.fulfillmentId.equals(fulfillmentId, ignoreCase = true) ||
                         result.readiness.temperatureRequiredForFulfillment
                     ) {
-                        failIfCurrent(request, context, DispatchTemperatureStatus.ServiceUnavailable)
+                        failIfCurrent(
+                            request,
+                            context,
+                            DispatchTemperatureStatus.ServiceUnavailable
+                        )
                     } else if (isCurrent(request, context)) {
                         mutableState.value = mutableState.value.copy(
                             status = DispatchTemperatureStatus.Current,
                             readiness = result.readiness,
                             observedAt = now(),
-                            canRecord = context.hasFulfillmentManagePermission()
+                            canRecord = context.hasFulfillmentManagePermission(),
+                            canUploadPhoto = context.hasPhotoEvidencePermissions(),
+                            photoByLotId = retainMatchingPhotos(
+                                mutableState.value.photoByLotId,
+                                result.readiness
+                            )
                         )
                     }
                 }
+
                 DispatchTemperatureGatewayResult.OutsideRangeBackendContractGap,
                 DispatchTemperatureGatewayResult.UnknownOutcome,
                 DispatchTemperatureGatewayResult.ServiceUnavailable,
                 is DispatchTemperatureGatewayResult.Recorded ->
                     failIfCurrent(request, context, DispatchTemperatureStatus.ServiceUnavailable)
+
                 DispatchTemperatureGatewayResult.NetworkUnavailable ->
                     failIfCurrent(request, context, DispatchTemperatureStatus.NetworkUnavailable)
+
                 DispatchTemperatureGatewayResult.PermissionDenied ->
                     failIfCurrent(request, context, DispatchTemperatureStatus.PermissionDenied)
-                DispatchTemperatureGatewayResult.ContextInvalidated -> invalidateContextIfCurrent(request)
-                DispatchTemperatureGatewayResult.SessionInvalidated -> invalidateSessionIfCurrent(request)
+
+                DispatchTemperatureGatewayResult.ContextInvalidated -> invalidateContextIfCurrent(
+                    request
+                )
+
+                DispatchTemperatureGatewayResult.SessionInvalidated -> invalidateSessionIfCurrent(
+                    request
+                )
+
                 DispatchTemperatureGatewayResult.Stale,
                 DispatchTemperatureGatewayResult.Conflict,
-                null -> failIfCurrent(request, context, DispatchTemperatureStatus.ServiceUnavailable)
+                null -> failIfCurrent(
+                    request,
+                    context,
+                    DispatchTemperatureStatus.ServiceUnavailable
+                )
             }
         }
     }
@@ -135,8 +176,325 @@ class DispatchTemperatureViewModel(
         val state = mutableState.value
         if (state.status != DispatchTemperatureStatus.Current || state.hasPendingCommand ||
             state.readiness?.lots?.none { it.lotId == lotId } != false
-        ) return
-        mutableState.value = state.copy(valuesCelsius = state.valuesCelsius + (lotId to valueCelsius))
+        ) {
+            return
+        }
+        mutableState.value =
+            state.copy(valuesCelsius = state.valuesCelsius + (lotId to valueCelsius))
+    }
+
+    /** Capture authority and exact warehouse subject before opening the system photo picker. */
+    fun excursionEvidenceSelectionContext(
+        lotId: String
+    ): DispatchTemperatureEvidenceSelectionContext? {
+        val context = activeContext ?: return null
+        val state = mutableState.value
+        val readiness = state.readiness ?: return null
+        val scope = context.scopeIdentity() ?: return null
+        if (state.status != DispatchTemperatureStatus.Current || !state.canUploadPhoto ||
+            state.hasPendingCommand ||
+            state.mutationStatus == DispatchTemperatureMutationStatus.Submitting
+        ) {
+            return null
+        }
+        val lot = readiness.lots.firstOrNull { it.lotId == lotId } ?: return null
+        val warehouseId = lot.warehouseId ?: return null
+        if (!lot.supportsInRangeEvidence) return null
+        return DispatchTemperatureEvidenceSelectionContext(
+            scope = scope,
+            authorityEpoch = context.authorityEpoch,
+            fulfillmentId = readiness.fulfillmentId,
+            lotId = lotId,
+            warehouseId = warehouseId
+        )
+    }
+
+    /** Fast foreground authority check; upload performs a fresh server read as well. */
+    fun isCurrentEvidenceSelection(
+        selection: DispatchTemperatureEvidenceSelectionContext
+    ): Boolean {
+        val context = activeContext ?: return false
+        val state = mutableState.value
+        val lot = state.readiness?.lots?.firstOrNull { it.lotId == selection.lotId } ?: return false
+        return selectionMatches(selection, context) &&
+            state.status == DispatchTemperatureStatus.Current &&
+            state.canUploadPhoto && !state.hasPendingCommand &&
+            lot.warehouseId == selection.warehouseId &&
+            lot.supportsInRangeEvidence
+    }
+
+    /** Re-read after the external picker returns,
+     then upload only to the same current warehouse. */
+    suspend fun uploadExcursionEvidence(
+        candidate: DispatchTemperaturePhotoCandidate,
+        selection: DispatchTemperatureEvidenceSelectionContext
+    ) {
+        val context = activeContext ?: return
+        val request = ++generation
+        if (!selectionMatches(selection, context) || !context.hasPhotoEvidencePermissions() ||
+            mutableState.value.status !in
+            setOf(DispatchTemperatureStatus.Current, DispatchTemperatureStatus.Loading) ||
+            mutableState.value.hasPendingCommand
+        ) {
+            return
+        }
+        val fresh = try {
+            gateway.current(selection.fulfillmentId, context)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            DispatchTemperatureGatewayResult.UnknownOutcome
+        }
+        if (!isCurrent(request, context)) return
+        val currentReadiness = when (fresh) {
+            is DispatchTemperatureGatewayResult.Current -> fresh.readiness
+
+            DispatchTemperatureGatewayResult.ContextInvalidated -> {
+                invalidateContextIfCurrent(request)
+                return
+            }
+
+            DispatchTemperatureGatewayResult.SessionInvalidated -> {
+                invalidateSessionIfCurrent(request)
+                return
+            }
+
+            DispatchTemperatureGatewayResult.PermissionDenied -> {
+                fail(DispatchTemperatureStatus.PermissionDenied)
+                return
+            }
+
+            DispatchTemperatureGatewayResult.NetworkUnavailable -> {
+                fail(DispatchTemperatureStatus.NetworkUnavailable)
+                return
+            }
+
+            else -> {
+                fail(DispatchTemperatureStatus.ServiceUnavailable)
+                return
+            }
+        }
+        val selectedLot = currentReadiness.lots.firstOrNull { it.lotId == selection.lotId }
+        if (!currentReadiness.fulfillmentId.equals(selection.fulfillmentId, ignoreCase = true) ||
+            currentReadiness.temperatureRequiredForFulfillment ||
+            selectedLot?.warehouseId != selection.warehouseId ||
+            selectedLot?.supportsInRangeEvidence != true
+        ) {
+            mutableState.value = mutableState.value.copy(
+                status = DispatchTemperatureStatus.Current,
+                readiness = currentReadiness,
+                observedAt = now(),
+                canRecord = context.hasFulfillmentManagePermission(),
+                canUploadPhoto = context.hasPhotoEvidencePermissions(),
+                photoByLotId =
+                    retainMatchingPhotos(mutableState.value.photoByLotId, currentReadiness) -
+                        selection.lotId
+            )
+            return
+        }
+        mutableState.value = mutableState.value.copy(
+            status = DispatchTemperatureStatus.Current,
+            readiness = currentReadiness,
+            observedAt = now(),
+            canRecord = context.hasFulfillmentManagePermission(),
+            canUploadPhoto = context.hasPhotoEvidencePermissions(),
+            photoByLotId = retainMatchingPhotos(mutableState.value.photoByLotId, currentReadiness)
+        )
+        if (!isCurrentEvidenceSelection(selection)) return
+
+        val storedUpload = safe {
+            metadata.loadPhotoUploadIntent(
+                selection.scope,
+                selection.fulfillmentId,
+                selection.lotId
+            )
+        }
+        val previous = when (storedUpload) {
+            is DispatchTemperaturePhotoUploadMetadataRead.Available -> storedUpload.intent
+
+            DispatchTemperaturePhotoUploadMetadataRead.Unavailable,
+            null -> {
+                setPhotoState(
+                    selection.lotId,
+                    DispatchTemperaturePhotoState(
+                        warehouseId = selection.warehouseId,
+                        status = DispatchTemperaturePhotoStatus.ServiceUnavailable
+                    )
+                )
+                return
+            }
+        }
+        if (previous != null &&
+            (
+                previous.scope != selection.scope ||
+                    previous.fulfillmentId != selection.fulfillmentId ||
+                    previous.lotId != selection.lotId ||
+                    previous.warehouseId != selection.warehouseId || !previous.isValid() ||
+                    !previous.matches(candidate)
+                )
+        ) {
+            setPhotoState(
+                selection.lotId,
+                DispatchTemperaturePhotoState(
+                    warehouseId = selection.warehouseId,
+                    status = DispatchTemperaturePhotoStatus.UnknownOutcome
+                )
+            )
+            return
+        }
+        val uploadIntent = previous ?: DispatchTemperaturePhotoUploadIntent(
+            scope = selection.scope,
+            fulfillmentId = selection.fulfillmentId,
+            lotId = selection.lotId,
+            warehouseId = selection.warehouseId,
+            idempotencyKey = newCommandKey(),
+            originalFilename = candidate.originalFilename,
+            declaredContentType = candidate.declaredContentType,
+            byteSize = candidate.byteSize,
+            checksumSha256 = candidate.checksumSha256
+        )
+        if (safe { metadata.savePhotoUploadIntent(uploadIntent) } !=
+            DispatchTemperatureMetadataWrite.Saved
+        ) {
+            setPhotoState(
+                selection.lotId,
+                DispatchTemperaturePhotoState(
+                    warehouseId = selection.warehouseId,
+                    status = DispatchTemperaturePhotoStatus.ServiceUnavailable
+                )
+            )
+            return
+        }
+        val uploadCandidate = candidate.copy(originalFilename = uploadIntent.originalFilename)
+        setPhotoState(
+            selection.lotId,
+            DispatchTemperaturePhotoState(
+                warehouseId = selection.warehouseId,
+                status = DispatchTemperaturePhotoStatus.Uploading
+            )
+        )
+        val uploaded = try {
+            gateway.uploadExcursionPhoto(
+                selection.warehouseId,
+                uploadCandidate,
+                uploadIntent.idempotencyKey,
+                context
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            DispatchTemperaturePhotoGatewayResult.UnknownOutcome
+        }
+        if (!isCurrent(request, context) || !isCurrentEvidenceSelection(selection)) return
+        when (uploaded) {
+            is DispatchTemperaturePhotoGatewayResult.Evidence -> {
+                if (!uploaded.photo.matchesWarehouse(selection.warehouseId)) {
+                    safe {
+                        metadata.clearPhotoUploadIntent(
+                            selection.scope,
+                            selection.fulfillmentId,
+                            selection.lotId,
+                            uploadIntent.idempotencyKey
+                        )
+                    }
+                    setPhotoState(
+                        selection.lotId,
+                        DispatchTemperaturePhotoState(
+                            warehouseId = selection.warehouseId,
+                            status = DispatchTemperaturePhotoStatus.Rejected
+                        )
+                    )
+                    return
+                }
+                safe {
+                    metadata.clearPhotoUploadIntent(
+                        selection.scope,
+                        selection.fulfillmentId,
+                        selection.lotId,
+                        uploadIntent.idempotencyKey
+                    )
+                }
+                setPhotoState(
+                    selection.lotId,
+                    DispatchTemperaturePhotoState(
+                        evidence = uploaded.photo,
+                        warehouseId = selection.warehouseId,
+                        status = DispatchTemperaturePhotoStatus.Checking
+                    )
+                )
+                checkExcursionEvidence(selection, uploaded.photo.id, context, request)
+            }
+
+            DispatchTemperaturePhotoGatewayResult.UnknownOutcome -> setPhotoState(
+                selection.lotId,
+                DispatchTemperaturePhotoState(
+                    warehouseId = selection.warehouseId,
+                    status = DispatchTemperaturePhotoStatus.UnknownOutcome
+                )
+            )
+
+            DispatchTemperaturePhotoGatewayResult.NetworkUnavailable -> setPhotoState(
+                selection.lotId,
+                DispatchTemperaturePhotoState(
+                    warehouseId = selection.warehouseId,
+                    status = DispatchTemperaturePhotoStatus.NetworkUnavailable
+                )
+            )
+
+            DispatchTemperaturePhotoGatewayResult.ServiceUnavailable -> setPhotoState(
+                selection.lotId,
+                DispatchTemperaturePhotoState(
+                    warehouseId = selection.warehouseId,
+                    status = DispatchTemperaturePhotoStatus.ServiceUnavailable
+                )
+            )
+
+            DispatchTemperaturePhotoGatewayResult.PermissionDenied -> setPhotoState(
+                selection.lotId,
+                DispatchTemperaturePhotoState(
+                    warehouseId = selection.warehouseId,
+                    status = DispatchTemperaturePhotoStatus.PermissionDenied
+                )
+            )
+
+            DispatchTemperaturePhotoGatewayResult.ContextInvalidated -> invalidateContextIfCurrent(
+                request
+            )
+
+            DispatchTemperaturePhotoGatewayResult.SessionInvalidated -> invalidateSessionIfCurrent(
+                request
+            )
+
+            is DispatchTemperaturePhotoGatewayResult.Rejected -> {
+                safe {
+                    metadata.clearPhotoUploadIntent(
+                        selection.scope,
+                        selection.fulfillmentId,
+                        selection.lotId,
+                        uploadIntent.idempotencyKey
+                    )
+                }
+                setPhotoState(
+                    selection.lotId,
+                    DispatchTemperaturePhotoState(
+                        warehouseId = selection.warehouseId,
+                        status = DispatchTemperaturePhotoStatus.Rejected
+                    )
+                )
+            }
+        }
+    }
+
+    fun refreshExcursionEvidenceStatus(lotId: String) {
+        val context = activeContext ?: return
+        val selection = excursionEvidenceSelectionContext(lotId) ?: return
+        val existing = mutableState.value.photoByLotId[lotId] ?: return
+        val evidenceId = existing.evidence?.id ?: return
+        val request = ++generation
+        setPhotoState(lotId, existing.copy(status = DispatchTemperaturePhotoStatus.Checking))
+        viewModelScope.launch {
+            checkExcursionEvidence(selection, evidenceId, context, request)
+        }
     }
 
     fun record(lotId: String) {
@@ -148,9 +506,12 @@ class DispatchTemperatureViewModel(
             current.hasPendingCommand || pendingIntent != null ||
             current.mutationStatus == DispatchTemperatureMutationStatus.Submitting ||
             !context.hasFulfillmentManagePermission()
-        ) return
+        ) {
+            return
+        }
         val lot = readiness.lots.firstOrNull { it.lotId == lotId } ?: return
         if (!lot.supportsInRangeEvidence) return
+        val expectedLotVersion = lot.version ?: return
         val value = current.valuesCelsius[lotId]?.trim()?.toBigDecimalOrNull() ?: run {
             mutableState.value = current.copy(
                 mutationStatus = DispatchTemperatureMutationStatus.ServiceUnavailable,
@@ -158,9 +519,19 @@ class DispatchTemperatureViewModel(
             )
             return
         }
-        if (!lot.isWithinRange(value)) {
+        val outsideRange = !lot.isWithinRange(value)
+        val selectedPhoto = current.photoByLotId[lotId]
+        val evidenceObjectId = if (outsideRange) {
+            selectedPhoto?.takeIf {
+                it.isAvailable && it.warehouseId == lot.warehouseId &&
+                    it.evidence?.matchesWarehouse(lot.warehouseId.orEmpty()) == true
+            }?.evidence?.id
+        } else {
+            null
+        }
+        if (outsideRange && evidenceObjectId == null) {
             mutableState.value = current.copy(
-                mutationStatus = DispatchTemperatureMutationStatus.OutsideRangeBackendContractGap,
+                mutationStatus = DispatchTemperatureMutationStatus.ExcursionPhotoRequired,
                 mutationLotId = lotId
             )
             return
@@ -172,7 +543,9 @@ class DispatchTemperatureViewModel(
             valueCelsius = value,
             occurredAt = now(),
             idempotencyKey = newCommandKey(),
-            exactRequestBody = ""
+            exactRequestBody = "",
+            evidenceObjectId = evidenceObjectId,
+            expectedLotVersion = expectedLotVersion
         )
         val command = partial.copy(exactRequestBody = partial.buildRequestBody())
         if (!command.isValid()) return
@@ -191,6 +564,7 @@ class DispatchTemperatureViewModel(
                     pendingIntent = intent
                     send(intent, context, request)
                 }
+
                 DispatchTemperatureMetadataWrite.Conflict,
                 DispatchTemperatureMetadataWrite.Stale -> {
                     if (isCurrent(request, context)) {
@@ -201,6 +575,7 @@ class DispatchTemperatureViewModel(
                         )
                     }
                 }
+
                 DispatchTemperatureMetadataWrite.Unavailable,
                 null -> {
                     if (isCurrent(request, context)) {
@@ -220,10 +595,13 @@ class DispatchTemperatureViewModel(
         val context = activeContext ?: return
         val scope = context.scopeIdentity() ?: return invalidateContext()
         val intent = pendingIntent ?: return
-        if (!mutableState.value.canRetryUnknownOutcome || intent.status != DispatchTemperatureIntentStatus.UnknownOutcome ||
+        if (!mutableState.value.canRetryUnknownOutcome ||
+            intent.status != DispatchTemperatureIntentStatus.UnknownOutcome ||
             intent.scope != scope || !intent.command.isValid() ||
             intent.command.fulfillmentId != activeFulfillmentId
-        ) return
+        ) {
+            return
+        }
         val request = ++generation
         mutableState.value = mutableState.value.copy(
             mutationStatus = DispatchTemperatureMutationStatus.Submitting,
@@ -237,12 +615,14 @@ class DispatchTemperatureViewModel(
                     if (!isCurrent(request, context)) return@launch
                     send(intent, context, request)
                 }
+
                 DispatchTemperatureMetadataWrite.Conflict,
                 DispatchTemperatureMetadataWrite.Stale -> if (isCurrent(request, context)) {
                     mutableState.value = mutableState.value.copy(
                         mutationStatus = DispatchTemperatureMutationStatus.Conflict
                     )
                 }
+
                 DispatchTemperatureMetadataWrite.Unavailable,
                 null -> if (isCurrent(request, context)) {
                     mutableState.value = mutableState.value.copy(
@@ -261,7 +641,11 @@ class DispatchTemperatureViewModel(
         mutableState.value = DispatchTemperatureUiState()
     }
 
-    private fun send(intent: DispatchTemperatureIntent, context: DispatchAuthorityContext, request: Long) {
+    private fun send(
+        intent: DispatchTemperatureIntent,
+        context: DispatchAuthorityContext,
+        request: Long
+    ) {
         viewModelScope.launch {
             val result = safe { gateway.record(intent.command, context) }
             if (!isCurrent(request, context)) return@launch
@@ -273,22 +657,36 @@ class DispatchTemperatureViewModel(
                         evidence.fulfillmentVersion != command.expectedFulfillmentVersion ||
                         !evidence.lotId.equals(command.lotId, ignoreCase = true) ||
                         evidence.valueCelsius.compareTo(command.valueCelsius) != 0 ||
-                        evidence.occurredAt != command.occurredAt
+                        evidence.occurredAt != command.occurredAt ||
+                        (command.expectedLotVersion != null && !evidence.matches(command))
                     ) {
                         markUnknown(intent, context, request)
                     } else {
-                        val cleared = metadata.clearIntent(intent.scope, command.fulfillmentId, command.idempotencyKey)
+                        val cleared = metadata.clearIntent(
+                            intent.scope,
+                            command.fulfillmentId,
+                            command.idempotencyKey
+                        )
                         if (cleared == DispatchTemperatureMetadataWrite.Saved) {
                             pendingIntent = null
                             if (isCurrent(request, context)) {
                                 val currentReadiness = mutableState.value.readiness
                                 mutableState.value = mutableState.value.copy(
-                                    readiness = currentReadiness?.copy(lots = currentReadiness.lots.map { currentLot ->
-                                        if (currentLot.lotId == command.lotId) currentLot.copy(
-                                            status = "OPTIONAL_WITHIN_RANGE",
-                                            latestEvidence = evidence
-                                        ) else currentLot
-                                    }),
+                                    readiness = currentReadiness?.copy(
+                                        lots = currentReadiness.lots.map { currentLot ->
+                                            if (currentLot.lotId == command.lotId) {
+                                                currentLot.copy(
+                                                    status =
+                                                        evidence.inventoryLotStatus
+                                                            ?: currentLot.status,
+                                                    latestEvidence = evidence
+                                                )
+                                            } else {
+                                                currentLot
+                                            }
+                                        }
+                                    ),
+                                    photoByLotId = mutableState.value.photoByLotId - command.lotId,
                                     mutationStatus = DispatchTemperatureMutationStatus.Recorded,
                                     mutationLotId = command.lotId,
                                     hasPendingCommand = false,
@@ -296,8 +694,13 @@ class DispatchTemperatureViewModel(
                                 )
                             }
                         } else {
-                            markUnknown(intent.copy(status = DispatchTemperatureIntentStatus.UnknownOutcome),
-                                context, request)
+                            markUnknown(
+                                intent.copy(
+                                    status = DispatchTemperatureIntentStatus.UnknownOutcome
+                                ),
+                                context,
+                                request
+                            )
                             if (isCurrent(request, context)) {
                                 mutableState.value = mutableState.value.copy(
                                     mutationStatus = DispatchTemperatureMutationStatus.Recorded
@@ -306,22 +709,37 @@ class DispatchTemperatureViewModel(
                         }
                     }
                 }
+
                 DispatchTemperatureGatewayResult.UnknownOutcome,
                 DispatchTemperatureGatewayResult.NetworkUnavailable,
                 null -> markUnknown(intent, context, request)
+
                 DispatchTemperatureGatewayResult.ContextInvalidated -> {
                     markUnknown(intent, context, request)
                     if (isCurrent(request, context)) invalidateContext()
                 }
+
                 DispatchTemperatureGatewayResult.SessionInvalidated -> {
                     markUnknown(intent, context, request)
                     if (isCurrent(request, context)) invalidateSession()
                 }
+
                 DispatchTemperatureGatewayResult.OutsideRangeBackendContractGap ->
-                    clearKnownRejection(intent, context, request,
-                        DispatchTemperatureMutationStatus.OutsideRangeBackendContractGap)
+                    clearKnownRejection(
+                        intent,
+                        context,
+                        request,
+                        DispatchTemperatureMutationStatus.OutsideRangeBackendContractGap
+                    )
+
                 DispatchTemperatureGatewayResult.Stale -> {
-                    val cleared = clearKnownRejection(intent, context, request, DispatchTemperatureMutationStatus.Stale)
+                    val cleared =
+                        clearKnownRejection(
+                            intent,
+                            context,
+                            request,
+                            DispatchTemperatureMutationStatus.Stale
+                        )
                     if (cleared) {
                         mutableState.value = mutableState.value.copy(
                             valuesCelsius = mutableState.value.valuesCelsius - intent.command.lotId
@@ -329,14 +747,34 @@ class DispatchTemperatureViewModel(
                         refresh()
                     }
                 }
+
                 DispatchTemperatureGatewayResult.Conflict -> {
-                    val cleared = clearKnownRejection(intent, context, request, DispatchTemperatureMutationStatus.Conflict)
+                    val cleared =
+                        clearKnownRejection(
+                            intent,
+                            context,
+                            request,
+                            DispatchTemperatureMutationStatus.Conflict
+                        )
                     if (cleared) refresh()
                 }
+
                 DispatchTemperatureGatewayResult.PermissionDenied ->
-                    clearKnownRejection(intent, context, request, DispatchTemperatureMutationStatus.PermissionDenied)
+                    clearKnownRejection(
+                        intent,
+                        context,
+                        request,
+                        DispatchTemperatureMutationStatus.PermissionDenied
+                    )
+
                 DispatchTemperatureGatewayResult.ServiceUnavailable ->
-                    clearKnownRejection(intent, context, request, DispatchTemperatureMutationStatus.ServiceUnavailable)
+                    clearKnownRejection(
+                        intent,
+                        context,
+                        request,
+                        DispatchTemperatureMutationStatus.ServiceUnavailable
+                    )
+
                 is DispatchTemperatureGatewayResult.Current ->
                     markUnknown(intent, context, request)
             }
@@ -354,8 +792,14 @@ class DispatchTemperatureViewModel(
             intent.command.fulfillmentId,
             intent.command.idempotencyKey
         ) == DispatchTemperatureMetadataWrite.Saved
-        if (cleared) pendingIntent = null else {
-            markUnknown(intent.copy(status = DispatchTemperatureIntentStatus.UnknownOutcome), context, request)
+        if (cleared) {
+            pendingIntent = null
+        } else {
+            markUnknown(
+                intent.copy(status = DispatchTemperatureIntentStatus.UnknownOutcome),
+                context,
+                request
+            )
             return false
         }
         if (isCurrent(request, context)) {
@@ -387,7 +831,11 @@ class DispatchTemperatureViewModel(
         }
     }
 
-    private fun failIfCurrent(request: Long, context: DispatchAuthorityContext, status: DispatchTemperatureStatus) {
+    private fun failIfCurrent(
+        request: Long,
+        context: DispatchAuthorityContext,
+        status: DispatchTemperatureStatus
+    ) {
         if (isCurrent(request, context)) fail(status)
     }
 
@@ -395,8 +843,161 @@ class DispatchTemperatureViewModel(
         mutableState.value = mutableState.value.copy(
             status = status,
             readiness = null,
-            observedAt = null
+            observedAt = null,
+            photoByLotId = if (status in setOf(
+                    DispatchTemperatureStatus.PermissionDenied,
+                    DispatchTemperatureStatus.ContextInvalidated,
+                    DispatchTemperatureStatus.SessionInvalidated
+                )
+            ) {
+                emptyMap()
+            } else {
+                mutableState.value.photoByLotId
+            }
         )
+    }
+
+    private suspend fun checkExcursionEvidence(
+        selection: DispatchTemperatureEvidenceSelectionContext,
+        evidenceObjectId: String,
+        context: DispatchAuthorityContext,
+        request: Long
+    ) {
+        val result = try {
+            gateway.excursionPhotoStatus(evidenceObjectId, selection.warehouseId, context)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            DispatchTemperaturePhotoGatewayResult.ServiceUnavailable
+        }
+        if (!isCurrent(request, context) || !isCurrentEvidenceSelection(selection)) return
+        when (result) {
+            is DispatchTemperaturePhotoGatewayResult.Evidence -> {
+                val photo = result.photo
+                if (photo.id != evidenceObjectId ||
+                    !photo.matchesWarehouse(selection.warehouseId)
+                ) {
+                    setPhotoState(
+                        selection.lotId,
+                        DispatchTemperaturePhotoState(
+                            warehouseId = selection.warehouseId,
+                            status = DispatchTemperaturePhotoStatus.Rejected
+                        )
+                    )
+                } else {
+                    val available = photo.lifecycleStatus.equals("AVAILABLE", ignoreCase = true)
+                    setPhotoState(
+                        selection.lotId,
+                        DispatchTemperaturePhotoState(
+                            evidence = photo,
+                            warehouseId = selection.warehouseId,
+                            status = if (available) {
+                                DispatchTemperaturePhotoStatus.Available
+                            } else {
+                                DispatchTemperaturePhotoStatus.AwaitingAvailability
+                            }
+                        )
+                    )
+                }
+            }
+
+            is DispatchTemperaturePhotoGatewayResult.Rejected -> setPhotoState(
+                selection.lotId,
+                DispatchTemperaturePhotoState(
+                    warehouseId = selection.warehouseId,
+                    status = DispatchTemperaturePhotoStatus.Rejected
+                )
+            )
+
+            DispatchTemperaturePhotoGatewayResult.UnknownOutcome -> setExistingPhotoStatus(
+                selection,
+                DispatchTemperaturePhotoStatus.UnknownOutcome
+            )
+
+            DispatchTemperaturePhotoGatewayResult.NetworkUnavailable -> setExistingPhotoStatus(
+                selection,
+                DispatchTemperaturePhotoStatus.NetworkUnavailable
+            )
+
+            DispatchTemperaturePhotoGatewayResult.ServiceUnavailable -> setExistingPhotoStatus(
+                selection,
+                DispatchTemperaturePhotoStatus.ServiceUnavailable
+            )
+
+            DispatchTemperaturePhotoGatewayResult.PermissionDenied -> setPhotoState(
+                selection.lotId,
+                DispatchTemperaturePhotoState(
+                    warehouseId = selection.warehouseId,
+                    status = DispatchTemperaturePhotoStatus.PermissionDenied
+                )
+            )
+
+            DispatchTemperaturePhotoGatewayResult.ContextInvalidated -> invalidateContextIfCurrent(
+                request
+            )
+
+            DispatchTemperaturePhotoGatewayResult.SessionInvalidated -> invalidateSessionIfCurrent(
+                request
+            )
+        }
+    }
+
+    private fun setExistingPhotoStatus(
+        selection: DispatchTemperatureEvidenceSelectionContext,
+        status: DispatchTemperaturePhotoStatus
+    ) {
+        val existing = mutableState.value.photoByLotId[selection.lotId]
+        setPhotoState(
+            selection.lotId,
+            existing?.copy(status = status)
+                ?: DispatchTemperaturePhotoState(
+                    warehouseId = selection.warehouseId,
+                    status = status
+                )
+        )
+    }
+
+    private fun setPhotoState(lotId: String, photo: DispatchTemperaturePhotoState) {
+        val current = mutableState.value
+        val lot = current.readiness?.lots?.firstOrNull { it.lotId == lotId } ?: return
+        if (lot.warehouseId != photo.warehouseId) return
+        mutableState.value = current.copy(photoByLotId = current.photoByLotId + (lotId to photo))
+    }
+
+    private fun retainMatchingPhotos(
+        photos: Map<String, DispatchTemperaturePhotoState>,
+        readiness: DispatchTemperatureReadiness
+    ): Map<String, DispatchTemperaturePhotoState> = photos.filter { (lotId, photo) ->
+        readiness.lots.any { it.lotId == lotId && it.warehouseId == photo.warehouseId }
+    }
+
+    private fun selectionMatches(
+        selection: DispatchTemperatureEvidenceSelectionContext,
+        context: DispatchAuthorityContext
+    ): Boolean = selection.authorityEpoch == context.authorityEpoch &&
+        selection.scope == context.scopeIdentity() &&
+        selection.fulfillmentId == activeFulfillmentId &&
+        selection.warehouseId.isNotBlank() && selection.lotId.isNotBlank()
+
+    private fun DispatchTemperaturePhotoEvidence.matchesWarehouse(warehouseId: String): Boolean =
+        id.isNotBlank() && subjectType == "WAREHOUSE" && subjectId == warehouseId
+
+    private fun DispatchTemperatureEvidence.matches(command: DispatchTemperatureCommand): Boolean {
+        if (expectedLotVersion != command.expectedLotVersion ||
+            evidenceObjectId != command.evidenceObjectId
+        ) {
+            return false
+        }
+        return when {
+            status == "OUT_OF_RANGE" ->
+                command.evidenceObjectId != null &&
+                    inventoryLotStatus == "HOLD" && resultingLotVersion != null &&
+                    inventoryTemperatureEvaluationId != null && affectedQuantity?.signum() == 1
+
+            status == "WITHIN_RANGE" -> true
+
+            else -> false
+        }
     }
 
     private fun invalidateContextIfCurrent(request: Long) {
@@ -442,9 +1043,16 @@ class DispatchTemperatureViewModel(
     private fun DispatchAuthorityContext.hasFulfillmentManagePermission(): Boolean =
         identity?.permissions?.any { it in FULFILLMENT_MANAGE_PERMISSIONS } == true
 
+    private fun DispatchAuthorityContext.hasPhotoEvidencePermissions(): Boolean {
+        val permissions = identity?.permissions.orEmpty()
+        return permissions.any { it in FULFILLMENT_MANAGE_PERMISSIONS } &&
+            DOCUMENT_UPLOAD_PERMISSION in permissions && DOCUMENT_READ_PERMISSION in permissions
+    }
+
     private fun DispatchAuthorityContext.scopeIdentity(): DispatchTemperatureScopeIdentity? {
         val current = identity ?: return null
-        val fields = listOf(current.userId, current.tenantId, current.workspaceId, current.membershipId)
+        val fields =
+            listOf(current.userId, current.tenantId, current.workspaceId, current.membershipId)
         if (authorityEpoch <= 0 || fields.any(String::isBlank)) return null
         return DispatchTemperatureScopeIdentity(
             current.userId,
@@ -454,7 +1062,11 @@ class DispatchTemperatureViewModel(
         )
     }
 
-    private enum class PermissionHint { Unknown, Available, Unavailable }
+    private enum class PermissionHint {
+        Unknown,
+        Available,
+        Unavailable
+    }
 
     private companion object {
         val INVALIDATED = setOf(
@@ -463,5 +1075,7 @@ class DispatchTemperatureViewModel(
         )
         val FULFILLMENT_READ_PERMISSIONS = setOf("fulfillment.read", "fulfillment:read")
         val FULFILLMENT_MANAGE_PERMISSIONS = setOf("fulfillment.manage", "warehouse:write")
+        const val DOCUMENT_UPLOAD_PERMISSION = "document.upload"
+        const val DOCUMENT_READ_PERMISSION = "document.read"
     }
 }

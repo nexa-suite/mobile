@@ -27,7 +27,13 @@ data class FulfillmentTemperatureEvidenceProjection(
     val occurredAt: Instant,
     val actorMembershipId: String,
     val status: String,
-    val fulfillmentVersion: Long?
+    val fulfillmentVersion: Long?,
+    val evidenceObjectId: String?,
+    val expectedLotVersion: Long?,
+    val resultingLotVersion: Long?,
+    val inventoryTemperatureEvaluationId: String?,
+    val inventoryLotStatus: String?,
+    val affectedQuantity: BigDecimal?
 )
 
 data class FulfillmentTemperatureLotProjection(
@@ -40,7 +46,8 @@ data class FulfillmentTemperatureLotProjection(
     val minimumCelsius: BigDecimal?,
     val maximumCelsius: BigDecimal?,
     val status: String,
-    val latestEvidence: FulfillmentTemperatureEvidenceProjection?
+    val latestEvidence: FulfillmentTemperatureEvidenceProjection?,
+    val version: Long?
 )
 
 data class FulfillmentTemperatureReadinessProjection(
@@ -75,15 +82,22 @@ class NexaFulfillmentTemperatureGateway(private val protectedCalls: ProtectedCal
     suspend fun current(fulfillmentId: String): FulfillmentTemperatureNetworkOutcome {
         if (!fulfillmentId.isUuid()) return FulfillmentTemperatureNetworkOutcome.ServiceUnavailable
         val pathId = URLEncoder.encode(fulfillmentId, StandardCharsets.UTF_8.name())
-        return when (val result = protectedCalls.execute(
-            ProtectedRequest(
-                ProtectedMethod.GET,
-                "$FULFILLMENT_TEMPERATURE_BASE/$pathId/temperature-evidence/current"
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(
+                    ProtectedMethod.GET,
+                    "$FULFILLMENT_TEMPERATURE_BASE/$pathId/temperature-evidence/current"
+                )
             )
-        )) {
+        ) {
             is ProtectedResult.Failure -> result.error.toTemperatureOutcome()
+
             is ProtectedResult.Success -> {
-                if (result.status != 200) return FulfillmentTemperatureNetworkOutcome.ServiceUnavailable
+                if (result.status !=
+                    200
+                ) {
+                    return FulfillmentTemperatureNetworkOutcome.ServiceUnavailable
+                }
                 val readiness = result.body.decodeObject()?.toReadiness()
                     ?: return FulfillmentTemperatureNetworkOutcome.ServiceUnavailable
                 if (!readiness.fulfillmentId.equals(fulfillmentId, ignoreCase = true) ||
@@ -105,25 +119,45 @@ class NexaFulfillmentTemperatureGateway(private val protectedCalls: ProtectedCal
         valueCelsius: BigDecimal,
         occurredAt: Instant,
         idempotencyKey: String,
-        exactRequestBody: String
+        exactRequestBody: String,
+        expectedLotVersion: Long? = null,
+        evidenceObjectId: String? = null
     ): FulfillmentTemperatureNetworkOutcome {
         if (!fulfillmentId.isUuid() || !lotId.isUuid() || expectedFulfillmentVersion < 0 ||
-            idempotencyKey.isBlank() || idempotencyKey.length > 160
-        ) return FulfillmentTemperatureNetworkOutcome.ServiceUnavailable
+            idempotencyKey.isBlank() || idempotencyKey.length > 160 ||
+            (expectedLotVersion != null && expectedLotVersion < 0) ||
+            (expectedLotVersion == null && evidenceObjectId != null) ||
+            (evidenceObjectId != null && !evidenceObjectId.isUuid())
+        ) {
+            return FulfillmentTemperatureNetworkOutcome.ServiceUnavailable
+        }
         val encodedId = URLEncoder.encode(fulfillmentId, StandardCharsets.UTF_8.name())
-        val expectedBody = "{\"lotId\":\"$lotId\",\"value\":" +
-            "${valueCelsius.stripTrailingZeros().toPlainString()},\"unit\":\"CELSIUS\",\"occurredAt\":\"$occurredAt\"}"
-        if (exactRequestBody != expectedBody) return FulfillmentTemperatureNetworkOutcome.ServiceUnavailable
-        return when (val result = protectedCalls.execute(
-            ProtectedRequest(
-                method = ProtectedMethod.POST,
-                path = "$FULFILLMENT_TEMPERATURE_BASE/$encodedId/temperature-evidence",
-                payload = exactRequestBody,
-                idempotencyKey = idempotencyKey,
-                ifMatch = "\"$expectedFulfillmentVersion\""
+        val commonBody = "{\"lotId\":\"$lotId\",\"value\":" +
+            "${valueCelsius.stripTrailingZeros().toPlainString()},\"unit\":\"CELSIUS\",\"occurredAt\":\"$occurredAt\""
+        val expectedBody = if (expectedLotVersion == null) {
+            "$commonBody}"
+        } else {
+            val evidence = evidenceObjectId?.let { "\"$it\"" } ?: "null"
+            "$commonBody,\"expectedLotVersion\":$expectedLotVersion,\"evidenceObjectId\":$evidence}"
+        }
+        if (exactRequestBody !=
+            expectedBody
+        ) {
+            return FulfillmentTemperatureNetworkOutcome.ServiceUnavailable
+        }
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(
+                    method = ProtectedMethod.POST,
+                    path = "$FULFILLMENT_TEMPERATURE_BASE/$encodedId/temperature-evidence",
+                    payload = exactRequestBody,
+                    idempotencyKey = idempotencyKey,
+                    ifMatch = "\"$expectedFulfillmentVersion\""
+                )
             )
-        )) {
+        ) {
             is ProtectedResult.Failure -> result.error.toTemperatureOutcome()
+
             is ProtectedResult.Success -> {
                 if (result.status != 200 && result.status != 201) {
                     return FulfillmentTemperatureNetworkOutcome.ServiceUnavailable
@@ -136,7 +170,11 @@ class NexaFulfillmentTemperatureGateway(private val protectedCalls: ProtectedCal
                     evidence.unit != "CELSIUS" || evidence.value.compareTo(valueCelsius) != 0 ||
                     evidence.occurredAt != occurredAt ||
                     evidence.fulfillmentVersion != expectedFulfillmentVersion ||
-                    result.etag.toVersion() != expectedFulfillmentVersion
+                    result.etag.toVersion() != expectedFulfillmentVersion ||
+                    (
+                        expectedLotVersion != null &&
+                            !evidence.matchesRequest(expectedLotVersion, evidenceObjectId)
+                        )
                 ) {
                     FulfillmentTemperatureNetworkOutcome.UnknownOutcome
                 } else {
@@ -147,18 +185,30 @@ class NexaFulfillmentTemperatureGateway(private val protectedCalls: ProtectedCal
     }
 
     private fun ClientFailure.toTemperatureOutcome(): FulfillmentTemperatureNetworkOutcome = when {
-        problemCode == OUT_OF_RANGE_GAP -> FulfillmentTemperatureNetworkOutcome.OutsideRangeBackendContractGap
-        kind == FailureKind.AuthenticationRequired -> FulfillmentTemperatureNetworkOutcome.SessionInvalidated
+        problemCode == OUT_OF_RANGE_GAP ->
+            FulfillmentTemperatureNetworkOutcome.OutsideRangeBackendContractGap
+
+        kind == FailureKind.AuthenticationRequired ->
+            FulfillmentTemperatureNetworkOutcome.SessionInvalidated
+
         httpStatus == 403 && problemCode == "ACCESS_CONTEXT_INVALID" ->
             FulfillmentTemperatureNetworkOutcome.ContextInvalidated
+
         httpStatus == 403 || httpStatus == 404 || kind == FailureKind.AuthorizationFailure ||
-            kind == FailureKind.ResourceUnavailable -> FulfillmentTemperatureNetworkOutcome.PermissionDenied
+            kind == FailureKind.ResourceUnavailable ->
+            FulfillmentTemperatureNetworkOutcome.PermissionDenied
+
         httpStatus == 412 || httpStatus == 428 || kind == FailureKind.StaleState ||
             kind == FailureKind.PreconditionRequired -> FulfillmentTemperatureNetworkOutcome.Stale
-        httpStatus == 409 || kind == FailureKind.BusinessConflict -> FulfillmentTemperatureNetworkOutcome.Conflict
+
+        httpStatus == 409 || kind == FailureKind.BusinessConflict ->
+            FulfillmentTemperatureNetworkOutcome.Conflict
+
         kind == FailureKind.UnknownOutcome -> FulfillmentTemperatureNetworkOutcome.UnknownOutcome
+
         kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
             FulfillmentTemperatureNetworkOutcome.NetworkUnavailable
+
         else -> FulfillmentTemperatureNetworkOutcome.ServiceUnavailable
     }
 
@@ -167,7 +217,8 @@ class NexaFulfillmentTemperatureGateway(private val protectedCalls: ProtectedCal
         val status = text("fulfillmentStatus")?.takeIf(String::isNotBlank) ?: return null
         val version = number("fulfillmentVersion")?.takeIf { it >= 0 } ?: return null
         val allocation = uuid("physicalAllocationId") ?: return null
-        val allocationVersion = number("physicalAllocationVersion")?.takeIf { it >= 0 } ?: return null
+        val allocationVersion =
+            number("physicalAllocationVersion")?.takeIf { it >= 0 } ?: return null
         val required = bool("temperatureRequiredForFulfillment") ?: return null
         val asOf = instant("asOf") ?: return null
         val lots = (this["lots"] as? JsonArray)?.map { element ->
@@ -196,10 +247,18 @@ class NexaFulfillmentTemperatureGateway(private val protectedCalls: ProtectedCal
         if (!validOptionalUuid("lotId") || !validOptionalUuid("warehouseId") ||
             !validOptionalUuid("zoneId") || !validOptionalDecimal("minimumCelsius") ||
             !validOptionalDecimal("maximumCelsius")
-        ) return null
+        ) {
+            return null
+        }
         val minimum = optionalDecimal("minimumCelsius") ?: return null
         val maximum = optionalDecimal("maximumCelsius") ?: return null
         val status = text("status")?.takeIf(String::isNotBlank) ?: return null
+        val lotVersion = optionalNumber("version")
+        if ((this["version"] != null && lotVersion == null) ||
+            (lotId != null && lotVersion == null) || (lotVersion != null && lotVersion < 0)
+        ) {
+            return null
+        }
         val evidenceValue = this["latestEvidence"]
         val evidence = when (evidenceValue) {
             null, JsonNull -> null
@@ -216,7 +275,8 @@ class NexaFulfillmentTemperatureGateway(private val protectedCalls: ProtectedCal
             minimum,
             maximum,
             status,
-            evidence
+            evidence,
+            lotVersion
         )
     }
 
@@ -231,6 +291,24 @@ class NexaFulfillmentTemperatureGateway(private val protectedCalls: ProtectedCal
         val actor = uuid("actorMembershipId") ?: return null
         val status = text("status")?.takeIf(String::isNotBlank) ?: return null
         val version = optionalNumber("fulfillmentVersion")
+        val evidenceObjectId = optionalUuid("evidenceObjectId")
+        val expectedLotVersion = optionalNumber("expectedLotVersion")
+        val resultingLotVersion = optionalNumber("resultingLotVersion")
+        val evaluationId = optionalUuid("inventoryTemperatureEvaluationId")
+        val inventoryLotStatus = optionalText("inventoryLotStatus")
+        val affectedQuantity = optionalDecimal("affectedQuantity")
+        if (!validOptionalUuid("evidenceObjectId") || !validOptionalNumber("expectedLotVersion") ||
+            !validOptionalNumber("resultingLotVersion") ||
+            !validOptionalUuid("inventoryTemperatureEvaluationId") ||
+            !validOptionalDecimal("affectedQuantity")
+        ) {
+            return null
+        }
+        if ((expectedLotVersion != null && expectedLotVersion < 0) ||
+            (resultingLotVersion != null && resultingLotVersion < 0)
+        ) {
+            return null
+        }
         return FulfillmentTemperatureEvidenceProjection(
             id,
             subjectType,
@@ -241,8 +319,36 @@ class NexaFulfillmentTemperatureGateway(private val protectedCalls: ProtectedCal
             occurredAt,
             actor,
             status,
-            version
+            version,
+            evidenceObjectId,
+            expectedLotVersion,
+            resultingLotVersion,
+            evaluationId,
+            inventoryLotStatus,
+            affectedQuantity
         )
+    }
+
+    private fun FulfillmentTemperatureEvidenceProjection.matchesRequest(
+        expectedLotVersion: Long,
+        evidenceObjectId: String?
+    ): Boolean {
+        if (this.expectedLotVersion != expectedLotVersion ||
+            this.evidenceObjectId != evidenceObjectId
+        ) {
+            return false
+        }
+        return when (status) {
+            "OUT_OF_RANGE" ->
+                evidenceObjectId != null && resultingLotVersion != null &&
+                    resultingLotVersion >= 0 &&
+                    inventoryTemperatureEvaluationId != null && inventoryLotStatus == "HOLD" &&
+                    affectedQuantity?.signum() == 1
+
+            "WITHIN_RANGE" -> true
+
+            else -> false
+        }
     }
 
     private fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
@@ -260,22 +366,36 @@ class NexaFulfillmentTemperatureGateway(private val protectedCalls: ProtectedCal
     private fun JsonObject.optionalNumber(key: String): Long? =
         (this[key] as? JsonPrimitive)?.contentOrNull?.toLongOrNull()
 
+    private fun JsonObject.validOptionalNumber(key: String): Boolean =
+        this[key] == null || this[key] == JsonNull || optionalNumber(key) != null
+
     private fun JsonObject.decimal(key: String): BigDecimal? =
         (this[key] as? JsonPrimitive)?.contentOrNull?.toBigDecimalOrNull()
 
-    private fun JsonObject.optionalDecimal(key: String): BigDecimal? = when (val value = this[key]) {
-        null, JsonNull -> null
-        else -> (value as? JsonPrimitive)?.contentOrNull?.toBigDecimalOrNull()
-    }
+    private fun JsonObject.optionalDecimal(key: String): BigDecimal? =
+        when (val value = this[key]) {
+            null, JsonNull -> null
+            else -> (value as? JsonPrimitive)?.contentOrNull?.toBigDecimalOrNull()
+        }
 
     private fun JsonObject.validOptionalDecimal(key: String): Boolean =
         this[key] == null || this[key] == JsonNull || optionalDecimal(key) != null
 
+    private fun JsonObject.optionalText(key: String): String? = when (val value = this[key]) {
+        null, JsonNull -> null
+        else -> (value as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank)
+    }
+
     private fun JsonObject.bool(key: String): Boolean? = text(key)?.toBooleanStrictOrNull()
 
-    private fun JsonObject.instant(key: String): Instant? = text(key)?.let { runCatching { Instant.parse(it) }.getOrNull() }
+    private fun JsonObject.instant(key: String): Instant? = text(key)?.let {
+        runCatching { Instant.parse(it) }.getOrNull()
+    }
 
-    private fun String?.toVersion(): Long? = this?.removeSurrounding("\"")?.toLongOrNull()?.takeIf { it >= 0 }
+    private fun String?.toVersion(): Long? = this?.removeSurrounding("\"")?.toLongOrNull()?.takeIf {
+        it >=
+            0
+    }
 
     private fun String?.decodeObject(): JsonObject? = try {
         this?.let { fulfillmentTemperatureJson.parseToJsonElement(it) as? JsonObject }

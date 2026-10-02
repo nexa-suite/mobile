@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dispatch_temperature_lot_status">Estado actual del lote: %1$s</string>
+    <string name="dispatch_temperature_server_lot_status">Estado del lote informado por el servidor tras esta lectura: %1$s</string>
+    <string name="dispatch_temperature_affected_quantity">Cantidad afectada por la retención del servidor: %1$s</string>
+    <string name="dispatch_temperature_out_of_range_note">Fuera del rango actual del SKU. Adjunta una foto real de este almacén y espera a que el servidor confirme su disponibilidad antes de registrar. El servidor decide los controles de inventario.</string>
+    <string name="dispatch_temperature_record_excursion">Registrar lectura fuera de rango</string>
+    <string name="dispatch_temperature_photo_required">Una lectura fuera de rango requiere una foto real asociada al almacén de este lote y confirmada como disponible por el servidor.</string>
+    <string name="dispatch_temperature_photo_uploading">Subiendo la foto seleccionada del almacén…</string>
+    <string name="dispatch_temperature_photo_checking">Consultando el estado de la foto en el servidor…</string>
+    <string name="dispatch_temperature_photo_awaiting">La foto se subió, pero todavía no está disponible. Consulta su estado antes de registrar.</string>
+    <string name="dispatch_temperature_photo_available">El servidor confirmó que esta foto del almacén está disponible para la excursión.</string>
+    <string name="dispatch_temperature_photo_unknown">No se conoce el resultado de la subida. Selecciona la misma foto para reintentar con la misma clave.</string>
+    <string name="dispatch_temperature_photo_network">No se pudo contactar el servicio de fotos. Consulta el estado o selecciona la misma foto para reintentar.</string>
+    <string name="dispatch_temperature_photo_service">La evidencia fotográfica no está disponible. No se registró la lectura.</string>
+    <string name="dispatch_temperature_photo_rejected">La foto fue rechazada o no corresponde a este almacén. Selecciona una imagen válida para este lote.</string>
+    <string name="dispatch_temperature_photo_permission">Tu rol actual no puede adjuntar ni consultar fotos del almacén.</string>
+    <string name="dispatch_temperature_photo_working">Contactando el servicio de fotos…</string>
+    <string name="dispatch_temperature_photo_check_again">Consultar disponibilidad de la foto</string>
+    <string name="dispatch_temperature_photo_attach">Adjuntar foto del almacén</string>
+    <string name="dispatch_temperature_photo_retry_same">Reintentar con la misma foto</string>
+    <string name="dispatch_temperature_out_of_range_gap">No se registró. Adjunta una foto real de este almacén y espera a que el servidor confirme su disponibilidad.</string>
+</resources>
