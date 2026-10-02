@@ -16,8 +16,9 @@
 
     <application
         android:name=".OperationsApplication"
-        android:icon="@drawable/ic_operations"
+        android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
             android:name=".MainActivity"
