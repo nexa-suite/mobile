@@ -119,23 +119,24 @@ class RoleWireflowCaptureTest {
     }
 
     private fun hasCurrentProtectedContext(): Boolean {
-        val session = ViewModelProvider(composeRule.activity)[RootViewModel::class.java].state.value
         val access = ViewModelProvider(composeRule.activity)[AccessViewModel::class.java]
             .state.value
         val active = access.activeContext
-        return session == SessionState.Active && access.stage == AccessStage.WorkAuthorized &&
+        return isSessionActive() && access.stage == AccessStage.WorkAuthorized &&
             active != null && active.isCurrent && active.verifiedAuthority != null
     }
+
+    private fun isSessionActive(): Boolean =
+        ViewModelProvider(composeRule.activity)[RootViewModel::class.java].state.value ==
+            SessionState.Active
 
     private fun hasConnectedBackAction(): Boolean {
         val backIcon = composeRule.onAllNodes(
             hasClickAction() and hasContentDescription("Volver"),
             useUnmergedTree = true
         ).fetchSemanticsNodes().isNotEmpty()
-        val backText = composeRule.onAllNodes(
-            hasClickAction() and hasText("Volver"),
-            useUnmergedTree = true
-        ).fetchSemanticsNodes().isNotEmpty()
+        val backText = composeRule.onAllNodes(hasClickAction() and hasText("Volver"))
+            .fetchSemanticsNodes().isNotEmpty()
         return backIcon || backText
     }
 
