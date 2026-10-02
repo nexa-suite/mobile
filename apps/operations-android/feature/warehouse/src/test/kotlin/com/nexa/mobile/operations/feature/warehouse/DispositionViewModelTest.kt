@@ -87,14 +87,14 @@ class DispositionViewModelTest {
         val first = DispositionViewModel(firstGateway, store)
         first.activate(authority())
         advanceUntilIdle()
-        first.lotIdChanged(LOT_ID)
-        first.loadLot()
+        first.seedPartialDisposition(LOT_ID, EVALUATION_ID, BigDecimal("2.5000"))
         advanceUntilIdle()
-        first.selectDisposition(LotDispositionAction.RELEASE)
+        first.selectDisposition(LotDispositionAction.HOLD)
         first.reasonChanged("review complete")
         first.submit()
         advanceUntilIdle()
         val initial = firstGateway.submissions.single()
+        assertEquals(BigDecimal("2.5000"), initial.command.partialEvaluation?.affectedQuantity)
         assertEquals(DispositionCommandStatus.UnknownOutcome, first.state.value.commandStatus)
 
         val secondGateway = FakeDispositionGateway().apply {
@@ -104,6 +104,10 @@ class DispositionViewModelTest {
         restored.activate(authority(epoch = 2))
         advanceUntilIdle()
         assertEquals(DispositionCommandStatus.UnknownOutcome, restored.state.value.commandStatus)
+        assertEquals(
+            initial.command.partialEvaluation,
+            restored.state.value.intent?.command?.partialEvaluation
+        )
         assertFalse(secondGateway.submissions.isNotEmpty())
         assertTrue(restored.state.value.canReplay)
 
@@ -114,6 +118,56 @@ class DispositionViewModelTest {
         assertEquals(initial.idempotencyKey, replay.idempotencyKey)
         assertEquals(initial.command, replay.command)
         assertEquals(DispositionCommandStatus.Confirmed, restored.state.value.commandStatus)
+    }
+
+    @Test
+    fun partialHoldOnAvailableLotUsesFreshVersionAndVerifiedWastePermission() = runTest {
+        val gateway = FakeDispositionGateway().apply {
+            lotResults += DispositionGatewayResult.Lot(lot(version = 22, status = "AVAILABLE"))
+            disposeResults += DispositionGatewayResult.Confirmed(
+                lot(version = 23, status = "AVAILABLE", available = "10.25")
+            )
+        }
+        val store = MemoryDispositionMetadataStore()
+        val viewModel = DispositionViewModel(gateway, store)
+        viewModel.activate(
+            authority(permissions = setOf("inventory.read", "inventory.waste"))
+        )
+        advanceUntilIdle()
+
+        viewModel.seedPartialDisposition(LOT_ID, EVALUATION_ID, BigDecimal("1.2500"))
+        advanceUntilIdle()
+        assertEquals(DispositionLotStatus.Current, viewModel.state.value.lotStatus)
+        assertEquals("AVAILABLE", viewModel.state.value.lotFacts?.status)
+        assertEquals(22L, viewModel.state.value.lotFacts?.version)
+        viewModel.selectDisposition(LotDispositionAction.HOLD)
+        viewModel.reasonChanged("temperature review")
+        assertTrue(viewModel.state.value.canSubmit)
+
+        viewModel.submit()
+        advanceUntilIdle()
+
+        val submitted = gateway.submissions.single().command
+        assertEquals(LotDispositionAction.HOLD, submitted.disposition)
+        assertEquals(22L, submitted.expectedVersion)
+        assertEquals(BigDecimal("1.2500"), submitted.partialEvaluation?.affectedQuantity)
+        assertEquals(EVALUATION_ID, submitted.partialEvaluation?.temperatureEvaluationId)
+        assertEquals("AVAILABLE", viewModel.state.value.lotFacts?.status)
+        assertEquals(BigDecimal("10.25"), viewModel.state.value.lotFacts?.available)
+
+        val readOnly = DispositionViewModel(
+            FakeDispositionGateway().apply {
+                lotResults += DispositionGatewayResult.Lot(lot(version = 22, status = "AVAILABLE"))
+            },
+            MemoryDispositionMetadataStore()
+        )
+        readOnly.activate(authority(permissions = setOf("inventory.read")))
+        advanceUntilIdle()
+        readOnly.seedPartialDisposition(LOT_ID, EVALUATION_ID, BigDecimal("1.2500"))
+        advanceUntilIdle()
+        readOnly.selectDisposition(LotDispositionAction.HOLD)
+        readOnly.reasonChanged("temperature review")
+        assertFalse(readOnly.state.value.canSubmit)
     }
 
     @Test
@@ -218,6 +272,9 @@ class DispositionViewModelTest {
         advanceUntilIdle()
 
         assertEquals(DispositionCommandStatus.Conflict, viewModel.state.value.commandStatus)
+        viewModel.seedPartialDisposition(OTHER_LOT_ID, EVALUATION_ID, BigDecimal("1.0"))
+        assertEquals(current, viewModel.state.value.intent)
+        assertEquals(LOT_ID, viewModel.state.value.lotIdText)
         assertTrue(gateway.submissions.isEmpty())
         assertFalse(viewModel.state.value.canReplay)
     }
@@ -327,5 +384,6 @@ class DispositionViewModelTest {
     private companion object {
         const val LOT_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413401"
         const val OTHER_LOT_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413402"
+        const val EVALUATION_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413501"
     }
 }

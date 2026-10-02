@@ -1,5 +1,7 @@
 package com.nexa.mobile.operations.core.local.disposition
 
+import java.math.BigDecimal
+
 /** Full identity partition for non-authoritative local disposition metadata. */
 data class DispositionMetadataScope(
     val userId: String,
@@ -46,7 +48,9 @@ data class DispositionCommandPayload(
     val lotId: String,
     val disposition: StoredLotDisposition,
     val reason: String,
-    val expectedVersion: Long
+    val expectedVersion: Long,
+    val affectedQuantity: String? = null,
+    val temperatureEvaluationId: String? = null
 ) {
     init {
         require(lotId.isUuid())
@@ -54,10 +58,26 @@ data class DispositionCommandPayload(
         require(reason.length <= 2_000)
         require(reason.toByteArray(Charsets.UTF_8).size <= DispositionDraftRecord.MAX_REASON_BYTES)
         require(expectedVersion >= 0)
+        require((affectedQuantity == null) == (temperatureEvaluationId == null))
+        if (affectedQuantity != null && temperatureEvaluationId != null) {
+            val quantity = affectedQuantity.toBigDecimalOrNull()
+            require(
+                quantity != null && quantity.signum() > 0 && quantity.scale() <= 4 &&
+                    quantity.precision().toLong() + (4L - quantity.scale().toLong()) <= 19 &&
+                    quantity.toPlainString() == affectedQuantity
+            )
+            require(affectedQuantity.toByteArray(Charsets.UTF_8).size <= MAX_QUANTITY_BYTES)
+            require(UUID_PATTERN.matches(temperatureEvaluationId))
+        }
     }
 
     override fun toString(): String =
-        "DispositionCommandPayload(lotId=REDACTED, disposition=$disposition, reason=REDACTED)"
+        "DispositionCommandPayload(lotId=REDACTED, disposition=$disposition, " +
+            "partial=${affectedQuantity != null}, reason=REDACTED)"
+
+    internal companion object {
+        const val MAX_QUANTITY_BYTES = 64
+    }
 }
 
 enum class DispositionIntentStatus {

@@ -54,6 +54,34 @@ data class DispositionScopeIdentity(
 
 enum class LotDispositionAction { RELEASE, HOLD, WASTE, RETURN_TO_SUPPLIER }
 
+/** Explicit temperature-evaluation scope for a partial disposition. */
+@Immutable
+data class PartialDispositionEvaluation(
+    val temperatureEvaluationId: String,
+    val affectedQuantity: BigDecimal
+) {
+    init {
+        require(DISPOSITION_UUID_PATTERN.matches(temperatureEvaluationId))
+        require(
+            affectedQuantity.signum() > 0 && affectedQuantity.scale() <= MAX_QUANTITY_SCALE &&
+                affectedQuantity.fitsDispositionPrecision()
+        )
+    }
+
+    override fun toString(): String = "PartialDispositionEvaluation(values=REDACTED)"
+
+    companion object {
+        const val MAX_QUANTITY_SCALE = 4
+        const val MAX_QUANTITY_PRECISION = 19
+    }
+}
+
+private fun BigDecimal.fitsDispositionPrecision(): Boolean {
+    val precisionAtScale = precision().toLong() +
+        (PartialDispositionEvaluation.MAX_QUANTITY_SCALE.toLong() - scale().toLong())
+    return precisionAtScale <= PartialDispositionEvaluation.MAX_QUANTITY_PRECISION
+}
+
 /** Actual server lot projection; quantities are not derived or persisted locally. */
 @Immutable
 data class DispositionLotFacts(
@@ -82,7 +110,8 @@ data class LotDispositionCommand(
     val lotId: String,
     val disposition: LotDispositionAction,
     val reason: String,
-    val expectedVersion: Long
+    val expectedVersion: Long,
+    val partialEvaluation: PartialDispositionEvaluation? = null
 ) {
     init {
         require(lotId.isUuid())
@@ -91,7 +120,8 @@ data class LotDispositionCommand(
     }
 
     override fun toString(): String =
-        "LotDispositionCommand(lotId=REDACTED, disposition=$disposition, reason=REDACTED)"
+        "LotDispositionCommand(lotId=REDACTED, disposition=$disposition, " +
+            "partial=${partialEvaluation != null}, reason=REDACTED)"
 }
 
 sealed interface DispositionGatewayResult {

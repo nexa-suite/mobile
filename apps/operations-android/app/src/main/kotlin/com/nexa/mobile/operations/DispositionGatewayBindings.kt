@@ -85,7 +85,10 @@ internal class OperationsDispositionGateway @Inject constructor(
                 disposition = command.disposition.name,
                 reason = command.reason,
                 expectedVersion = command.expectedVersion,
-                idempotencyKey = idempotencyKey
+                idempotencyKey = idempotencyKey,
+                affectedQuantity = command.partialEvaluation?.affectedQuantity,
+                temperatureEvaluationId =
+                    command.partialEvaluation?.temperatureEvaluationId
             ).toFeatureResult()
         } catch (cancelled: CancellationException) {
             throw cancelled
