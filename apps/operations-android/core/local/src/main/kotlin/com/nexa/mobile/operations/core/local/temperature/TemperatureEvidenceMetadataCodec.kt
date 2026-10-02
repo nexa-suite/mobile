@@ -16,7 +16,8 @@ internal data class TemperatureMetadataSnapshot(
 )
 
 internal object TemperatureEvidenceMetadataCodec {
-    private const val SCHEMA_VERSION = 1
+    private const val SCHEMA_VERSION = 2
+    private const val LEGACY_SCHEMA_VERSION = 1
     private const val MAX_RECORD_BYTES = 16 * 1024
     private const val MAX_FIELD_BYTES = 8 * 1024
     private val MAGIC = byteArrayOf(
@@ -44,10 +45,12 @@ internal object TemperatureEvidenceMetadataCodec {
         require(bytes.isNotEmpty() && bytes.size <= MAX_RECORD_BYTES)
         DataInputStream(ByteArrayInputStream(bytes)).use { input ->
             val magic = ByteArray(MAGIC.size).also(input::readFully)
-            require(magic.contentEquals(MAGIC) && input.readUnsignedByte() == SCHEMA_VERSION)
+            require(magic.contentEquals(MAGIC))
+            val schemaVersion = input.readUnsignedByte()
+            require(schemaVersion in LEGACY_SCHEMA_VERSION..SCHEMA_VERSION)
             val scope = input.readScope()
-            val draft = if (input.readBoolean()) input.readDraft() else null
-            val intent = if (input.readBoolean()) input.readIntent(scope) else null
+            val draft = if (input.readBoolean()) input.readDraft(schemaVersion) else null
+            val intent = if (input.readBoolean()) input.readIntent(scope, schemaVersion) else null
             require(input.available() == 0)
             return TemperatureMetadataSnapshot(scope, draft, intent)
         }
@@ -73,15 +76,36 @@ internal object TemperatureEvidenceMetadataCodec {
         writeField(draft.valueText, TemperatureEvidenceDraftRecord.MAX_VALUE_BYTES)
         writeByte(draft.unit.ordinal)
         writeField(draft.occurredAtText, TemperatureEvidenceDraftRecord.MAX_TIME_BYTES)
+        writeField(draft.affectedQuantityText, TemperatureEvidenceDraftRecord.MAX_VALUE_BYTES)
+        writeField(draft.reasonText, TemperatureEvidenceDraftRecord.MAX_REASON_BYTES)
+        writeField(draft.sourceEvidenceIdText, TemperatureEvidenceDraftRecord.MAX_SUBJECT_BYTES)
+        writeNullableField(draft.evidenceObjectId, TemperatureEvidenceDraftRecord.MAX_SUBJECT_BYTES)
     }
 
-    private fun DataInputStream.readDraft() = TemperatureEvidenceDraftRecord(
-        subjectType = StoredTemperatureSubjectType.entries[readUnsignedByte()],
-        subjectIdText = readField(TemperatureEvidenceDraftRecord.MAX_SUBJECT_BYTES),
-        valueText = readField(TemperatureEvidenceDraftRecord.MAX_VALUE_BYTES),
-        unit = StoredTemperatureUnit.entries[readUnsignedByte()],
-        occurredAtText = readField(TemperatureEvidenceDraftRecord.MAX_TIME_BYTES)
-    )
+    private fun DataInputStream.readDraft(schemaVersion: Int): TemperatureEvidenceDraftRecord {
+        val subjectType = StoredTemperatureSubjectType.entries[readUnsignedByte()]
+        val subjectId = readField(TemperatureEvidenceDraftRecord.MAX_SUBJECT_BYTES)
+        val value = readField(TemperatureEvidenceDraftRecord.MAX_VALUE_BYTES)
+        val unit = StoredTemperatureUnit.entries[readUnsignedByte()]
+        val occurredAt = readField(TemperatureEvidenceDraftRecord.MAX_TIME_BYTES)
+        return if (schemaVersion == LEGACY_SCHEMA_VERSION) {
+            TemperatureEvidenceDraftRecord(subjectType, subjectId, value, unit, occurredAt)
+        } else {
+            TemperatureEvidenceDraftRecord(
+                subjectType = subjectType,
+                subjectIdText = subjectId,
+                valueText = value,
+                unit = unit,
+                occurredAtText = occurredAt,
+                affectedQuantityText = readField(TemperatureEvidenceDraftRecord.MAX_VALUE_BYTES),
+                reasonText = readField(TemperatureEvidenceDraftRecord.MAX_REASON_BYTES),
+                sourceEvidenceIdText = readField(TemperatureEvidenceDraftRecord.MAX_SUBJECT_BYTES),
+                evidenceObjectId = readNullableField(
+                    TemperatureEvidenceDraftRecord.MAX_SUBJECT_BYTES
+                )
+            )
+        }
+    }
 
     private fun DataOutputStream.writeIntent(intent: TemperatureEvidenceIntentRecord) {
         writeField(intent.idempotencyKey, TemperatureEvidenceIntentRecord.MAX_KEY_BYTES)
@@ -91,6 +115,18 @@ internal object TemperatureEvidenceMetadataCodec {
         writeField(payload.value, TemperatureEvidenceDraftRecord.MAX_VALUE_BYTES)
         writeByte(payload.unit.ordinal)
         writeField(payload.occurredAt, TemperatureEvidenceDraftRecord.MAX_TIME_BYTES)
+        writeNullableField(
+            payload.evidenceObjectId,
+            TemperatureEvidenceDraftRecord.MAX_SUBJECT_BYTES
+        )
+        writeBoolean(payload.expectedLotVersion != null)
+        payload.expectedLotVersion?.let(::writeLong)
+        writeNullableField(payload.affectedQuantity, TemperatureEvidenceDraftRecord.MAX_VALUE_BYTES)
+        writeNullableField(payload.reason, TemperatureEvidenceDraftRecord.MAX_REASON_BYTES)
+        writeNullableField(
+            payload.sourceEvidenceId,
+            TemperatureEvidenceDraftRecord.MAX_SUBJECT_BYTES
+        )
         writeByte(
             when (intent.status) {
                 TemperatureEvidenceIntentStatus.Pending -> 1
@@ -100,16 +136,38 @@ internal object TemperatureEvidenceMetadataCodec {
     }
 
     private fun DataInputStream.readIntent(
-        scope: TemperatureMetadataScope
+        scope: TemperatureMetadataScope,
+        schemaVersion: Int
     ): TemperatureEvidenceIntentRecord {
         val key = readField(TemperatureEvidenceIntentRecord.MAX_KEY_BYTES)
-        val payload = TemperatureEvidenceCommandPayload(
-            subjectType = StoredTemperatureSubjectType.entries[readUnsignedByte()],
-            subjectId = readField(TemperatureEvidenceDraftRecord.MAX_SUBJECT_BYTES),
-            value = readField(TemperatureEvidenceDraftRecord.MAX_VALUE_BYTES),
-            unit = StoredTemperatureUnit.entries[readUnsignedByte()],
-            occurredAt = readField(TemperatureEvidenceDraftRecord.MAX_TIME_BYTES)
-        )
+        val subjectType = StoredTemperatureSubjectType.entries[readUnsignedByte()]
+        val subjectId = readField(TemperatureEvidenceDraftRecord.MAX_SUBJECT_BYTES)
+        val value = readField(TemperatureEvidenceDraftRecord.MAX_VALUE_BYTES)
+        val unit = StoredTemperatureUnit.entries[readUnsignedByte()]
+        val occurredAt = readField(TemperatureEvidenceDraftRecord.MAX_TIME_BYTES)
+        val payload = if (schemaVersion == LEGACY_SCHEMA_VERSION) {
+            TemperatureEvidenceCommandPayload(subjectType, subjectId, value, unit, occurredAt)
+        } else {
+            val evidenceObjectId =
+                readNullableField(TemperatureEvidenceDraftRecord.MAX_SUBJECT_BYTES)
+            val expectedLotVersion = if (readBoolean()) readLong() else null
+            val affectedQuantity = readNullableField(TemperatureEvidenceDraftRecord.MAX_VALUE_BYTES)
+            val reason = readNullableField(TemperatureEvidenceDraftRecord.MAX_REASON_BYTES)
+            val sourceEvidenceId =
+                readNullableField(TemperatureEvidenceDraftRecord.MAX_SUBJECT_BYTES)
+            TemperatureEvidenceCommandPayload(
+                subjectType,
+                subjectId,
+                value,
+                unit,
+                occurredAt,
+                evidenceObjectId,
+                expectedLotVersion,
+                affectedQuantity,
+                reason,
+                sourceEvidenceId
+            )
+        }
         val status = when (readUnsignedByte()) {
             1 -> TemperatureEvidenceIntentStatus.Pending
             2 -> TemperatureEvidenceIntentStatus.UnknownOutcome
@@ -124,6 +182,14 @@ internal object TemperatureEvidenceMetadataCodec {
         writeInt(bytes.size)
         write(bytes)
     }
+
+    private fun DataOutputStream.writeNullableField(value: String?, maxBytes: Int) {
+        writeBoolean(value != null)
+        value?.let { writeField(it, maxBytes) }
+    }
+
+    private fun DataInputStream.readNullableField(maxBytes: Int): String? =
+        if (readBoolean()) readField(maxBytes) else null
 
     private fun DataInputStream.readField(maxBytes: Int): String {
         val size = readInt()

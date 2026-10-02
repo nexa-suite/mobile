@@ -30,12 +30,23 @@ data class TemperatureEvidenceDraftRecord(
     val subjectIdText: String,
     val valueText: String,
     val unit: StoredTemperatureUnit,
-    val occurredAtText: String
+    val occurredAtText: String,
+    val affectedQuantityText: String = "",
+    val reasonText: String = "",
+    val sourceEvidenceIdText: String = "",
+    val evidenceObjectId: String? = null
 ) {
     init {
         require(subjectIdText.toByteArray(Charsets.UTF_8).size <= MAX_SUBJECT_BYTES)
         require(valueText.toByteArray(Charsets.UTF_8).size <= MAX_VALUE_BYTES)
         require(occurredAtText.toByteArray(Charsets.UTF_8).size <= MAX_TIME_BYTES)
+        require(affectedQuantityText.toByteArray(Charsets.UTF_8).size <= MAX_VALUE_BYTES)
+        require(reasonText.toByteArray(Charsets.UTF_8).size <= MAX_REASON_BYTES)
+        require(sourceEvidenceIdText.toByteArray(Charsets.UTF_8).size <= MAX_SUBJECT_BYTES)
+        require(
+            evidenceObjectId == null ||
+                evidenceObjectId.toByteArray(Charsets.UTF_8).size <= MAX_SUBJECT_BYTES
+        )
     }
 
     override fun toString(): String = "TemperatureEvidenceDraftRecord(values=REDACTED)"
@@ -44,6 +55,7 @@ data class TemperatureEvidenceDraftRecord(
         const val MAX_SUBJECT_BYTES = 128
         const val MAX_VALUE_BYTES = 128
         const val MAX_TIME_BYTES = 64
+        const val MAX_REASON_BYTES = 2048
     }
 }
 
@@ -53,12 +65,28 @@ data class TemperatureEvidenceCommandPayload(
     val subjectId: String,
     val value: String,
     val unit: StoredTemperatureUnit,
-    val occurredAt: String
+    val occurredAt: String,
+    val evidenceObjectId: String? = null,
+    val expectedLotVersion: Long? = null,
+    val affectedQuantity: String? = null,
+    val reason: String? = null,
+    val sourceEvidenceId: String? = null
 ) {
     init {
         require(subjectId.isNotBlank() && subjectId.toByteArray(Charsets.UTF_8).size <= 128)
         require(value.isNotBlank() && value.toByteArray(Charsets.UTF_8).size <= 128)
         require(occurredAt.isNotBlank() && occurredAt.toByteArray(Charsets.UTF_8).size <= 64)
+        require(
+            evidenceObjectId == null || evidenceObjectId.toByteArray(Charsets.UTF_8).size <= 128
+        )
+        require(expectedLotVersion == null || expectedLotVersion >= 0)
+        require(
+            affectedQuantity == null || affectedQuantity.toByteArray(Charsets.UTF_8).size <= 128
+        )
+        require(reason == null || reason.toByteArray(Charsets.UTF_8).size <= 2048)
+        require(
+            sourceEvidenceId == null || sourceEvidenceId.toByteArray(Charsets.UTF_8).size <= 128
+        )
     }
 
     override fun toString(): String = "TemperatureEvidenceCommandPayload(REDACTED)"

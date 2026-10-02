@@ -54,7 +54,11 @@ internal class AppTemperatureEvidenceMetadataStore(
             subjectIdText = draft.subjectId,
             valueText = draft.value,
             unit = draft.unit.toLocal(),
-            occurredAtText = draft.occurredAt
+            occurredAtText = draft.occurredAt,
+            affectedQuantityText = draft.affectedQuantity,
+            reasonText = draft.reason,
+            sourceEvidenceIdText = draft.sourceEvidenceId,
+            evidenceObjectId = draft.evidenceObjectId
         )
     ).toFeature()
 
@@ -140,7 +144,11 @@ private fun TemperatureEvidenceDraftRecord.toFeatureDraft() = TemperatureEvidenc
     subjectIdText,
     valueText,
     unit.toFeature(),
-    occurredAtText
+    occurredAtText,
+    affectedQuantityText,
+    reasonText,
+    sourceEvidenceIdText,
+    evidenceObjectId
 )
 
 private fun TemperatureEvidenceIntent.toLocal(): TemperatureEvidenceIntentRecord =
@@ -152,7 +160,12 @@ private fun TemperatureEvidenceIntent.toLocal(): TemperatureEvidenceIntentRecord
             subjectId = payload.subjectId,
             value = payload.value,
             unit = payload.unit.toLocal(),
-            occurredAt = payload.occurredAt
+            occurredAt = payload.occurredAt,
+            evidenceObjectId = payload.evidenceObjectId,
+            expectedLotVersion = payload.expectedLotVersion,
+            affectedQuantity = payload.affectedQuantity,
+            reason = payload.reason,
+            sourceEvidenceId = payload.sourceEvidenceId
         ),
         status = when (status) {
             TemperatureIntentStatus.Pending -> TemperatureEvidenceIntentStatus.Pending
@@ -175,7 +188,12 @@ private fun TemperatureEvidenceIntentRecord.toFeatureIntentOrNull(): Temperature
                 subjectId = payload.subjectId,
                 value = payload.value,
                 unit = payload.unit.toFeature(),
-                occurredAt = payload.occurredAt
+                occurredAt = payload.occurredAt,
+                evidenceObjectId = payload.evidenceObjectId,
+                expectedLotVersion = payload.expectedLotVersion,
+                affectedQuantity = payload.affectedQuantity,
+                reason = payload.reason,
+                sourceEvidenceId = payload.sourceEvidenceId
             ),
             status = when (status) {
                 TemperatureEvidenceIntentStatus.Pending -> TemperatureIntentStatus.Pending

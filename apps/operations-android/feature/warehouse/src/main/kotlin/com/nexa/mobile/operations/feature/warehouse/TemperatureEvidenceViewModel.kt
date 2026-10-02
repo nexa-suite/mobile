@@ -26,7 +26,8 @@ enum class TemperatureCommandStatus {
     Pending,
     UnknownOutcome,
     Confirmed,
-    Rejected
+    Rejected,
+    Stale
 }
 enum class TemperatureValidationError {
     SubjectRequired,
@@ -35,7 +36,14 @@ enum class TemperatureValidationError {
     ValueInvalid,
     TimeRequired,
     TimeInvalid,
-    MetadataUnavailable
+    MetadataUnavailable,
+    CurrentSubjectRequired,
+    QuantityInvalid,
+    QuantityExceedsLot,
+    ReasonTooLong,
+    SourceEvidenceRequired,
+    SourceEvidenceInvalid,
+    PhotoNotAvailable
 }
 
 data class TemperatureEvidenceUiState(
@@ -45,11 +53,23 @@ data class TemperatureEvidenceUiState(
     val subjectType: TemperatureEvidenceSubjectType = TemperatureEvidenceSubjectType.LOT,
     val subjectId: String = "",
     val selectedSubjectLabel: String? = null,
+    val selectedSubject: TemperatureEvidenceSubject? = null,
     val subjects: List<TemperatureEvidenceSubject> = emptyList(),
     val lookup: TemperatureLookupStatus = TemperatureLookupStatus.NotRequested,
     val valueText: String = "",
     val unit: TemperatureEvidenceUnit = TemperatureEvidenceUnit.CELSIUS,
     val occurredAtText: String = "",
+    val affectedQuantityText: String = "",
+    val reasonText: String = "",
+    val sourceEvidenceIdText: String = "",
+    val sourceEvidence: TemperatureEvidenceFacts? = null,
+    val sourceLookup: TemperatureLookupStatus = TemperatureLookupStatus.NotRequested,
+    val photo: TemperatureEvidencePhoto? = null,
+    val photoWarehouseId: String? = null,
+    val photoStatus: TemperaturePhotoStatus = TemperaturePhotoStatus.None,
+    val photoFailureCode: String? = null,
+    val photoEvidenceObjectId: String? = null,
+    val snapshotLoading: Boolean = false,
     val metadata: TemperatureMetadataStatus = TemperatureMetadataStatus.Loading,
     val command: TemperatureCommandStatus = TemperatureCommandStatus.Editing,
     val validationError: TemperatureValidationError? = null,
@@ -92,6 +112,9 @@ class TemperatureEvidenceViewModel(
     private var authority: TemperatureEvidenceAuthority? = null
     private var generation = 0L
     private var lookupGeneration = 0L
+    private var subjectGeneration = 0L
+    private var sourceGeneration = 0L
+    private var photoGeneration = 0L
     private var intent: TemperatureEvidenceIntent? = null
     private val metadataMutex = Mutex()
 
@@ -136,7 +159,21 @@ class TemperatureEvidenceViewModel(
                     valueText = restored?.value ?: draft?.value.orEmpty(),
                     unit = restored?.unit ?: draft?.unit ?: current.unit,
                     occurredAtText = restored?.occurredAt ?: draft?.occurredAt.orEmpty(),
+                    affectedQuantityText = restored?.affectedQuantity
+                        ?: draft?.affectedQuantity.orEmpty(),
+                    reasonText = restored?.reason ?: draft?.reason.orEmpty(),
+                    sourceEvidenceIdText = restored?.sourceEvidenceId
+                        ?: draft?.sourceEvidenceId.orEmpty(),
+                    photoEvidenceObjectId = restored?.evidenceObjectId ?: draft?.evidenceObjectId,
+                    photoStatus = if (restored?.evidenceObjectId != null ||
+                        draft?.evidenceObjectId != null
+                    ) {
+                        TemperaturePhotoStatus.Checking
+                    } else {
+                        TemperaturePhotoStatus.None
+                    },
                     selectedSubjectLabel = null,
+                    selectedSubject = null,
                     metadata = if (available) {
                         TemperatureMetadataStatus.Available
                     } else {
@@ -160,6 +197,14 @@ class TemperatureEvidenceViewModel(
                 )
             }
             if (!available) return@launch
+            val current = mutableState.value
+            if (current.subjectId.isNotBlank() && restoredIntent == null) {
+                current.subjects.firstOrNull { it.id == current.subjectId }
+                    ?.let(::selectSubject)
+            }
+            if (current.sourceEvidenceIdText.isNotBlank() && restoredIntent == null) {
+                loadSourceEvidence()
+            }
             if (storedIntent != null && storedIntent.status == TemperatureIntentStatus.Pending) {
                 val marked = withMetadataLock(requestGeneration, currentAuthority) {
                     metadataStore.markUnknownOutcome(
@@ -184,6 +229,9 @@ class TemperatureEvidenceViewModel(
     fun deactivate() {
         generation++
         lookupGeneration++
+        subjectGeneration++
+        sourceGeneration++
+        photoGeneration++
         authority = null
         intent = null
         mutableState.value = TemperatureEvidenceUiState()
@@ -200,7 +248,17 @@ class TemperatureEvidenceViewModel(
                 subjectType = type,
                 subjectId = "",
                 selectedSubjectLabel = null,
+                selectedSubject = null,
                 subjects = emptyList(),
+                affectedQuantityText = "",
+                sourceEvidenceIdText = "",
+                sourceEvidence = null,
+                sourceLookup = TemperatureLookupStatus.NotRequested,
+                photo = null,
+                photoWarehouseId = null,
+                photoEvidenceObjectId = null,
+                photoStatus = TemperaturePhotoStatus.None,
+                photoFailureCode = null,
                 lookup = TemperatureLookupStatus.NotRequested,
                 validationError = null
             )
@@ -216,14 +274,99 @@ class TemperatureEvidenceViewModel(
         ) {
             return
         }
+        val subjectChanged = current.subjectId != subject.id
+        subjectGeneration++
+        val request = subjectGeneration
+        val requestGeneration = generation
+        val currentAuthority = authority ?: return
+        val restoredPhotoId = current.photoEvidenceObjectId.takeIf {
+            current.subjectId == subject.id
+        }
         mutableState.update {
             it.copy(
                 subjectId = subject.id,
                 selectedSubjectLabel = subject.primaryLabel,
+                selectedSubject = null,
+                affectedQuantityText = if (subjectChanged) "" else it.affectedQuantityText,
+                sourceEvidence = null,
+                sourceLookup = TemperatureLookupStatus.NotRequested,
+                photo = null,
+                photoWarehouseId = null,
+                photoEvidenceObjectId = restoredPhotoId,
+                photoStatus = if (restoredPhotoId != null) {
+                    TemperaturePhotoStatus.Checking
+                } else {
+                    TemperaturePhotoStatus.None
+                },
+                photoFailureCode = null,
+                lookup = TemperatureLookupStatus.Loading,
                 validationError = null
             )
         }
-        persistDraft()
+        viewModelScope.launch {
+            val result = try {
+                gateway.subject(subject.type, subject.id, currentAuthority)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                TemperatureLookupResult.ServiceUnavailable
+            }
+            if (request != subjectGeneration || !isCurrent(requestGeneration, currentAuthority)) {
+                return@launch
+            }
+            val fresh = (result as? TemperatureLookupResult.Subjects)?.items
+                ?.singleOrNull { it.id == subject.id && it.type == subject.type }
+            if (fresh == null || (
+                    fresh.type == TemperatureEvidenceSubjectType.LOT &&
+                        (fresh.warehouseId == null || fresh.lotVersion == null)
+                    )
+            ) {
+                when (result) {
+                    TemperatureLookupResult.Stale -> mutableState.update {
+                        it.copy(lookup = TemperatureLookupStatus.Stale, selectedSubject = null)
+                    }
+
+                    is TemperatureLookupResult.Rejected -> mutableState.update {
+                        it.copy(
+                            lookup = TemperatureLookupStatus.Rejected,
+                            rejectionCode = result.code,
+                            selectedSubject = null
+                        )
+                    }
+
+                    TemperatureLookupResult.PermissionDenied -> lookupFailed(
+                        TemperatureLookupStatus.PermissionDenied
+                    )
+
+                    TemperatureLookupResult.ContextInvalidated -> lookupFailed(
+                        TemperatureLookupStatus.ContextInvalidated
+                    )
+
+                    TemperatureLookupResult.SessionInvalidated -> lookupFailed(
+                        TemperatureLookupStatus.SessionInvalidated
+                    )
+
+                    TemperatureLookupResult.NetworkUnavailable -> lookupFailed(
+                        TemperatureLookupStatus.NetworkUnavailable
+                    )
+
+                    else -> lookupFailed(TemperatureLookupStatus.ServiceUnavailable)
+                }
+                return@launch
+            }
+            mutableState.update { current ->
+                current.copy(
+                    subjects = current.subjects.map { if (it.id == fresh.id) fresh else it },
+                    selectedSubject = fresh,
+                    selectedSubjectLabel = fresh.primaryLabel,
+                    lookup = TemperatureLookupStatus.Ready
+                )
+            }
+            persistDraft()
+            val selected = mutableState.value
+            if (selected.sourceEvidenceIdText.isNotBlank()) loadSourceEvidence()
+            if (selected.photoEvidenceObjectId != null) refreshPhotoStatus()
+        }
     }
 
     fun subjectIdChanged(value: String) {
@@ -237,6 +380,13 @@ class TemperatureEvidenceViewModel(
                 subjectId = value,
                 selectedSubjectLabel = it.subjects.firstOrNull { subject -> subject.id == value }
                     ?.primaryLabel,
+                selectedSubject = null,
+                sourceEvidence = null,
+                sourceLookup = TemperatureLookupStatus.NotRequested,
+                photo = null,
+                photoWarehouseId = null,
+                photoEvidenceObjectId = null,
+                photoStatus = TemperaturePhotoStatus.None,
                 validationError = null
             )
         }
@@ -253,6 +403,25 @@ class TemperatureEvidenceViewModel(
 
     fun occurredAtChanged(value: String) {
         edit { it.copy(occurredAtText = value, validationError = null) }
+    }
+
+    fun affectedQuantityChanged(value: String) {
+        edit { it.copy(affectedQuantityText = value, validationError = null) }
+    }
+
+    fun reasonChanged(value: String) {
+        edit { it.copy(reasonText = value, validationError = null) }
+    }
+
+    fun sourceEvidenceIdChanged(value: String) {
+        edit {
+            it.copy(
+                sourceEvidenceIdText = value,
+                sourceEvidence = null,
+                sourceLookup = TemperatureLookupStatus.NotRequested,
+                validationError = null
+            )
+        }
     }
 
     fun reloadSubjects() {
@@ -282,12 +451,13 @@ class TemperatureEvidenceViewModel(
             when (result) {
                 is TemperatureLookupResult.Subjects -> {
                     val selected = result.items.firstOrNull {
-                        it.id == mutableState.value.subjectId
+                        it.id == mutableState.value.subjectId && it.type == type
                     }
                     mutableState.update {
                         it.copy(
                             subjects = result.items,
                             selectedSubjectLabel = selected?.primaryLabel,
+                            selectedSubject = null,
                             lookup = if (result.items.isEmpty()) {
                                 TemperatureLookupStatus.Empty
                             } else {
@@ -295,7 +465,19 @@ class TemperatureEvidenceViewModel(
                             }
                         )
                     }
+                    if (selected != null && mutableState.value.command ==
+                        TemperatureCommandStatus.Editing
+                    ) {
+                        selectSubject(selected)
+                    }
                 }
+
+                is TemperatureLookupResult.EvidenceSnapshot,
+                is TemperatureLookupResult.Rejected -> lookupFailed(
+                    TemperatureLookupStatus.ServiceUnavailable
+                )
+
+                TemperatureLookupResult.Stale -> lookupFailed(TemperatureLookupStatus.Stale)
 
                 TemperatureLookupResult.NetworkUnavailable -> lookupFailed(
                     TemperatureLookupStatus.NetworkUnavailable
@@ -318,6 +500,375 @@ class TemperatureEvidenceViewModel(
                 )
             }
         }
+    }
+
+    fun photoSelectionContext(): TemperatureEvidencePhotoSelection? {
+        val currentAuthority = authority ?: return null
+        val current = mutableState.value
+        val subject = current.selectedSubject ?: return null
+        val warehouseId = subject.warehouseId
+            ?: subject.id.takeIf { subject.type == TemperatureEvidenceSubjectType.WAREHOUSE }
+            ?: return null
+        if (!currentAuthority.canRecord || current.command != TemperatureCommandStatus.Editing ||
+            current.isFrozen || current.metadata != TemperatureMetadataStatus.Available
+        ) {
+            return null
+        }
+        return TemperatureEvidencePhotoSelection(
+            currentAuthority.scope,
+            currentAuthority.authorityEpoch,
+            subject.type,
+            subject.id,
+            warehouseId,
+            subject.lotVersion
+        )
+    }
+
+    fun isCurrentPhotoSelection(selection: TemperatureEvidencePhotoSelection): Boolean {
+        val currentAuthority = authority ?: return false
+        val current = mutableState.value
+        val subject = current.selectedSubject ?: return false
+        val warehouseId = subject.warehouseId
+            ?: subject.id.takeIf { subject.type == TemperatureEvidenceSubjectType.WAREHOUSE }
+            ?: return false
+        return selection.scope == currentAuthority.scope &&
+            selection.authorityEpoch == currentAuthority.authorityEpoch &&
+            selection.subjectType == subject.type && selection.subjectId == subject.id &&
+            selection.warehouseId == warehouseId &&
+            selection.expectedLotVersion == subject.lotVersion &&
+            current.command == TemperatureCommandStatus.Editing && !current.isFrozen &&
+            current.metadata == TemperatureMetadataStatus.Available
+    }
+
+    fun uploadPhoto(
+        candidate: TemperatureEvidencePhotoCandidate,
+        selection: TemperatureEvidencePhotoSelection
+    ) {
+        val currentAuthority = authority ?: return
+        if (!isCurrentPhotoSelection(selection)) {
+            mutableState.update {
+                it.copy(
+                    photoStatus = TemperaturePhotoStatus.ContextInvalidated,
+                    photoFailureCode = "CONTEXT_INVALIDATED"
+                )
+            }
+            return
+        }
+        photoGeneration++
+        val request = photoGeneration
+        val requestGeneration = generation
+        mutableState.update {
+            it.copy(
+                photo = null,
+                photoWarehouseId = selection.warehouseId,
+                photoEvidenceObjectId = null,
+                photoStatus = TemperaturePhotoStatus.Uploading,
+                photoFailureCode = null
+            )
+        }
+        viewModelScope.launch {
+            val result = try {
+                gateway.uploadPhoto(
+                    selection,
+                    candidate,
+                    newIdempotencyKey(),
+                    currentAuthority
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                TemperaturePhotoResult.UnknownOutcome
+            }
+            if (request != photoGeneration || !isCurrent(requestGeneration, currentAuthority) ||
+                !isCurrentPhotoSelection(selection)
+            ) {
+                return@launch
+            }
+            when (result) {
+                is TemperaturePhotoResult.Evidence -> {
+                    if (!result.photo.matchesWarehouse(selection.warehouseId)) {
+                        setPhotoFailure(
+                            TemperaturePhotoStatus.Rejected,
+                            "EVIDENCE_SUBJECT_MISMATCH"
+                        )
+                    } else {
+                        mutableState.update {
+                            it.copy(
+                                photo = result.photo,
+                                photoEvidenceObjectId = result.photo.id,
+                                photoStatus = TemperaturePhotoStatus.Checking
+                            )
+                        }
+                        persistDraft()
+                        checkPhotoStatus(selection, result.photo.id, currentAuthority, request)
+                    }
+                }
+
+                is TemperaturePhotoResult.Rejected -> setPhotoFailure(
+                    TemperaturePhotoStatus.Rejected,
+                    result.code
+                )
+
+                TemperaturePhotoResult.UnknownOutcome -> setPhotoFailure(
+                    TemperaturePhotoStatus.UnknownOutcome
+                )
+
+                TemperaturePhotoResult.NetworkUnavailable -> setPhotoFailure(
+                    TemperaturePhotoStatus.NetworkUnavailable
+                )
+
+                TemperaturePhotoResult.ServiceUnavailable -> setPhotoFailure(
+                    TemperaturePhotoStatus.ServiceUnavailable
+                )
+
+                TemperaturePhotoResult.PermissionDenied -> setPhotoFailure(
+                    TemperaturePhotoStatus.PermissionDenied,
+                    "PERMISSION_DENIED"
+                )
+
+                TemperaturePhotoResult.ContextInvalidated -> setPhotoFailure(
+                    TemperaturePhotoStatus.ContextInvalidated,
+                    "CONTEXT_INVALIDATED"
+                )
+
+                TemperaturePhotoResult.SessionInvalidated -> setPhotoFailure(
+                    TemperaturePhotoStatus.SessionInvalidated,
+                    "SESSION_INVALIDATED"
+                )
+            }
+        }
+    }
+
+    fun refreshPhotoStatus() {
+        val currentAuthority = authority ?: return
+        val current = mutableState.value
+        val selection = photoSelectionContext() ?: return
+        val evidenceId = current.photoEvidenceObjectId ?: current.photo?.id ?: return
+        if (current.command != TemperatureCommandStatus.Editing || current.isFrozen) return
+        photoGeneration++
+        val request = photoGeneration
+        mutableState.update { it.copy(photoStatus = TemperaturePhotoStatus.Checking) }
+        viewModelScope.launch {
+            checkPhotoStatus(selection, evidenceId, currentAuthority, request)
+        }
+    }
+
+    fun loadSourceEvidence() {
+        val currentAuthority = authority ?: return
+        val current = mutableState.value
+        val subject = current.selectedSubject ?: return
+        if (subject.type != TemperatureEvidenceSubjectType.LOT ||
+            current.sourceEvidenceIdText.isBlank() || current.isFrozen
+        ) {
+            mutableState.update {
+                it.copy(validationError = TemperatureValidationError.SourceEvidenceRequired)
+            }
+            return
+        }
+        sourceGeneration++
+        val request = sourceGeneration
+        val requestGeneration = generation
+        val evidenceId = current.sourceEvidenceIdText.trim()
+        mutableState.update {
+            it.copy(sourceLookup = TemperatureLookupStatus.Loading, sourceEvidence = null)
+        }
+        viewModelScope.launch {
+            val result = try {
+                gateway.snapshot(evidenceId, currentAuthority)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                TemperatureLookupResult.ServiceUnavailable
+            }
+            if (request != sourceGeneration || !isCurrent(requestGeneration, currentAuthority) ||
+                mutableState.value.selectedSubject?.warehouseId != subject.warehouseId
+            ) {
+                return@launch
+            }
+            when (result) {
+                is TemperatureLookupResult.EvidenceSnapshot -> {
+                    val facts = result.facts
+                    val eligible = facts.id == evidenceId &&
+                        facts.subjectType == TemperatureEvidenceSubjectType.WAREHOUSE &&
+                        facts.warehouseId == subject.warehouseId &&
+                        facts.status.equals("OUT_OF_RANGE", ignoreCase = true) &&
+                        facts.exceptionId != null &&
+                        facts.exceptionStatus.equals("OPEN", ignoreCase = true)
+                    if (eligible) {
+                        mutableState.update {
+                            it.copy(
+                                sourceEvidence = facts,
+                                sourceLookup = TemperatureLookupStatus.Ready,
+                                validationError = null
+                            )
+                        }
+                        persistDraft()
+                    } else {
+                        mutableState.update {
+                            it.copy(
+                                sourceEvidence = null,
+                                sourceLookup = TemperatureLookupStatus.Rejected,
+                                validationError = TemperatureValidationError.SourceEvidenceInvalid
+                            )
+                        }
+                    }
+                }
+
+                TemperatureLookupResult.Stale -> mutableState.update {
+                    it.copy(sourceLookup = TemperatureLookupStatus.Stale)
+                }
+
+                is TemperatureLookupResult.Rejected -> mutableState.update {
+                    it.copy(
+                        sourceLookup = TemperatureLookupStatus.Rejected,
+                        rejectionCode = result.code
+                    )
+                }
+
+                TemperatureLookupResult.PermissionDenied -> mutableState.update {
+                    it.copy(sourceLookup = TemperatureLookupStatus.PermissionDenied)
+                }
+
+                TemperatureLookupResult.ContextInvalidated -> mutableState.update {
+                    it.copy(sourceLookup = TemperatureLookupStatus.ContextInvalidated)
+                }
+
+                TemperatureLookupResult.SessionInvalidated -> mutableState.update {
+                    it.copy(sourceLookup = TemperatureLookupStatus.SessionInvalidated)
+                }
+
+                TemperatureLookupResult.NetworkUnavailable -> mutableState.update {
+                    it.copy(sourceLookup = TemperatureLookupStatus.NetworkUnavailable)
+                }
+
+                is TemperatureLookupResult.Subjects,
+                TemperatureLookupResult.ServiceUnavailable -> mutableState.update {
+                    it.copy(sourceLookup = TemperatureLookupStatus.ServiceUnavailable)
+                }
+            }
+        }
+    }
+
+    fun refreshConfirmedSnapshot() {
+        val currentAuthority = authority ?: return
+        val evidenceId = mutableState.value.confirmed?.id ?: return
+        val request = ++sourceGeneration
+        val requestGeneration = generation
+        mutableState.update { it.copy(snapshotLoading = true) }
+        viewModelScope.launch {
+            val result = try {
+                gateway.snapshot(evidenceId, currentAuthority)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                TemperatureLookupResult.ServiceUnavailable
+            }
+            if (request != sourceGeneration || !isCurrent(requestGeneration, currentAuthority)) {
+                return@launch
+            }
+            when (result) {
+                is TemperatureLookupResult.EvidenceSnapshot -> {
+                    if (result.facts.id == evidenceId) {
+                        mutableState.update {
+                            it.copy(confirmed = result.facts, snapshotLoading = false)
+                        }
+                    } else {
+                        mutableState.update { it.copy(snapshotLoading = false) }
+                    }
+                }
+
+                TemperatureLookupResult.SessionInvalidated -> mutableState.update {
+                    it.copy(
+                        snapshotLoading = false,
+                        notice = TemperatureSubmitNotice.SessionInvalidated
+                    )
+                }
+
+                TemperatureLookupResult.ContextInvalidated -> mutableState.update {
+                    it.copy(
+                        snapshotLoading = false,
+                        notice = TemperatureSubmitNotice.ContextInvalidated
+                    )
+                }
+
+                else -> mutableState.update { it.copy(snapshotLoading = false) }
+            }
+        }
+    }
+
+    private suspend fun checkPhotoStatus(
+        selection: TemperatureEvidencePhotoSelection,
+        evidenceId: String,
+        currentAuthority: TemperatureEvidenceAuthority,
+        request: Long
+    ) {
+        val result = try {
+            gateway.photoStatus(evidenceId, selection.warehouseId, currentAuthority)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            TemperaturePhotoResult.ServiceUnavailable
+        }
+        if (request != photoGeneration || !isCurrentPhotoSelection(selection)) return
+        when (result) {
+            is TemperaturePhotoResult.Evidence -> {
+                val photo = result.photo
+                if (photo.id != evidenceId || !photo.matchesWarehouse(selection.warehouseId)) {
+                    setPhotoFailure(TemperaturePhotoStatus.Rejected, "EVIDENCE_SUBJECT_MISMATCH")
+                } else {
+                    mutableState.update {
+                        it.copy(
+                            photo = photo,
+                            photoEvidenceObjectId = photo.id,
+                            photoWarehouseId = selection.warehouseId,
+                            photoStatus = if (photo.lifecycleStatus.equals("AVAILABLE", true)) {
+                                TemperaturePhotoStatus.Available
+                            } else {
+                                TemperaturePhotoStatus.AwaitingAvailability
+                            },
+                            photoFailureCode = null
+                        )
+                    }
+                    persistDraft()
+                }
+            }
+
+            is TemperaturePhotoResult.Rejected -> setPhotoFailure(
+                TemperaturePhotoStatus.Rejected,
+                result.code
+            )
+
+            TemperaturePhotoResult.UnknownOutcome -> setPhotoFailure(
+                TemperaturePhotoStatus.UnknownOutcome
+            )
+
+            TemperaturePhotoResult.NetworkUnavailable -> setPhotoFailure(
+                TemperaturePhotoStatus.NetworkUnavailable
+            )
+
+            TemperaturePhotoResult.ServiceUnavailable -> setPhotoFailure(
+                TemperaturePhotoStatus.ServiceUnavailable
+            )
+
+            TemperaturePhotoResult.PermissionDenied -> setPhotoFailure(
+                TemperaturePhotoStatus.PermissionDenied
+            )
+
+            TemperaturePhotoResult.ContextInvalidated -> setPhotoFailure(
+                TemperaturePhotoStatus.ContextInvalidated
+            )
+
+            TemperaturePhotoResult.SessionInvalidated -> setPhotoFailure(
+                TemperaturePhotoStatus.SessionInvalidated
+            )
+        }
+    }
+
+    private fun TemperatureEvidencePhoto.matchesWarehouse(warehouseId: String): Boolean =
+        subjectType.equals("WAREHOUSE", ignoreCase = true) && subjectId == warehouseId
+
+    private fun setPhotoFailure(status: TemperaturePhotoStatus, code: String? = null) {
+        mutableState.update { it.copy(photoStatus = status, photoFailureCode = code) }
     }
 
     /** Saves only editable, unconfirmed fields. It never calls the API. */
@@ -438,7 +989,8 @@ class TemperatureEvidenceViewModel(
         if (mutableState.value.isFrozen ||
             mutableState.value.command !in setOf(
                 TemperatureCommandStatus.Confirmed,
-                TemperatureCommandStatus.Rejected
+                TemperatureCommandStatus.Rejected,
+                TemperatureCommandStatus.Stale
             )
         ) {
             return
@@ -448,7 +1000,18 @@ class TemperatureEvidenceViewModel(
             it.copy(
                 subjectId = "",
                 selectedSubjectLabel = null,
+                selectedSubject = null,
                 valueText = "",
+                affectedQuantityText = "",
+                reasonText = "",
+                sourceEvidenceIdText = "",
+                sourceEvidence = null,
+                sourceLookup = TemperatureLookupStatus.NotRequested,
+                photo = null,
+                photoWarehouseId = null,
+                photoEvidenceObjectId = null,
+                photoStatus = TemperaturePhotoStatus.None,
+                photoFailureCode = null,
                 occurredAtText = now().toString(),
                 command = TemperatureCommandStatus.Editing,
                 confirmed = null,
@@ -489,6 +1052,15 @@ class TemperatureEvidenceViewModel(
                 TemperatureCommandStatus.Rejected
             ) {
                 it.copy(rejectionCode = result.code, notice = null)
+            }
+
+            TemperatureSubmitResult.Stale -> finishDefinite(
+                requestGeneration,
+                currentAuthority,
+                frozen,
+                TemperatureCommandStatus.Stale
+            ) {
+                it.copy(rejectionCode = "INVENTORY_LOT_CONCURRENCY_CONFLICT", notice = null)
             }
 
             TemperatureSubmitResult.UnknownOutcome -> markUnknown(
@@ -630,7 +1202,17 @@ class TemperatureEvidenceViewModel(
 
     private fun TemperatureEvidenceUiState.toDraft(): TemperatureEvidenceDraft? {
         if (subjectId.isBlank()) return null
-        return TemperatureEvidenceDraft(subjectType, subjectId, valueText, unit, occurredAtText)
+        return TemperatureEvidenceDraft(
+            subjectType = subjectType,
+            subjectId = subjectId,
+            value = valueText,
+            unit = unit,
+            occurredAt = occurredAtText,
+            affectedQuantity = affectedQuantityText,
+            reason = reasonText,
+            sourceEvidenceId = sourceEvidenceIdText,
+            evidenceObjectId = photoEvidenceObjectId
+        )
     }
 
     private fun parsePayload(current: TemperatureEvidenceUiState): ParsedPayload {
@@ -638,6 +1220,14 @@ class TemperatureEvidenceViewModel(
             return ParsedPayload(
                 error = TemperatureValidationError.SubjectRequired
             )
+        }
+        val subject = current.selectedSubject?.takeIf {
+            it.id == current.subjectId && it.type == current.subjectType
+        } ?: return ParsedPayload(error = TemperatureValidationError.CurrentSubjectRequired)
+        if (subject.type == TemperatureEvidenceSubjectType.LOT &&
+            (subject.warehouseId == null || subject.lotVersion == null)
+        ) {
+            return ParsedPayload(error = TemperatureValidationError.CurrentSubjectRequired)
         }
         if (current.valueText.isBlank()) {
             return ParsedPayload(
@@ -661,13 +1251,66 @@ class TemperatureEvidenceViewModel(
                 return ParsedPayload(error = TemperatureValidationError.TimeInvalid)
             }
         }
+        val affectedQuantity = current.affectedQuantityText.trim().takeIf(String::isNotEmpty)
+            ?.let { text ->
+                val quantity = text.toBigDecimalOrNull()
+                    ?: return ParsedPayload(error = TemperatureValidationError.QuantityInvalid)
+                if (quantity.signum() <= 0) {
+                    return ParsedPayload(error = TemperatureValidationError.QuantityInvalid)
+                }
+                if (subject.type != TemperatureEvidenceSubjectType.LOT ||
+                    (subject.physicalRemaining != null && quantity > subject.physicalRemaining)
+                ) {
+                    return ParsedPayload(error = TemperatureValidationError.QuantityExceedsLot)
+                }
+                quantity.toPlainString()
+            }
+        val reason = current.reasonText.trim().takeIf(String::isNotEmpty)
+        if (reason != null && reason.length > 2048) {
+            return ParsedPayload(error = TemperatureValidationError.ReasonTooLong)
+        }
+        val sourceId = current.sourceEvidenceIdText.trim().takeIf(String::isNotEmpty)
+        val sourceFacts = current.sourceEvidence
+        if (sourceId != null && (
+                subject.type != TemperatureEvidenceSubjectType.LOT ||
+                    sourceFacts?.id != sourceId ||
+                    sourceFacts.subjectType != TemperatureEvidenceSubjectType.WAREHOUSE ||
+                    sourceFacts.warehouseId != subject.warehouseId ||
+                    !sourceFacts.status.equals("OUT_OF_RANGE", ignoreCase = true) ||
+                    !sourceFacts.exceptionStatus.equals("OPEN", ignoreCase = true)
+                )
+        ) {
+            return ParsedPayload(
+                error = if (sourceFacts == null) {
+                    TemperatureValidationError.SourceEvidenceRequired
+                } else {
+                    TemperatureValidationError.SourceEvidenceInvalid
+                }
+            )
+        }
+        val photoId = current.photoEvidenceObjectId
+        if (photoId != null && (
+                current.photoStatus != TemperaturePhotoStatus.Available ||
+                    current.photoWarehouseId != (subject.warehouseId ?: subject.id) ||
+                    current.photo?.matchesWarehouse(current.photoWarehouseId.orEmpty()) != true
+                )
+        ) {
+            return ParsedPayload(error = TemperatureValidationError.PhotoNotAvailable)
+        }
         return ParsedPayload(
             payload = TemperatureEvidencePayload(
-                current.subjectType,
-                current.subjectId,
-                BigDecimal(current.valueText).toPlainString(),
-                current.unit,
-                occurredAt.toString()
+                subjectType = current.subjectType,
+                subjectId = current.subjectId,
+                value = BigDecimal(current.valueText).toPlainString(),
+                unit = current.unit,
+                occurredAt = occurredAt.toString(),
+                evidenceObjectId = photoId,
+                expectedLotVersion = subject.lotVersion.takeIf {
+                    subject.type == TemperatureEvidenceSubjectType.LOT
+                },
+                affectedQuantity = affectedQuantity,
+                reason = reason,
+                sourceEvidenceId = sourceId
             )
         )
     }

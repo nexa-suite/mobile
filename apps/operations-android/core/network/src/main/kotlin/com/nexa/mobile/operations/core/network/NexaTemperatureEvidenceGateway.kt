@@ -70,18 +70,43 @@ data class TemperatureEvidenceResponseWire(
     val inventoryTemperatureEvaluationId: String? = null,
     val inventoryLotStatus: String? = null,
     val affectedQuantity: BigDecimal? = null,
+    val remainingHeldQuantity: BigDecimal? = null,
     val reason: String? = null,
-    val exceptionId: String? = null
+    val exceptionId: String? = null,
+    val sourceEvidenceId: String? = null,
+    val exceptionStatus: String? = null,
+    val evaluationStatus: String? = null,
+    val disposition: String? = null,
+    val selections: List<TemperatureEvidenceSelectionWireProjection> = emptyList()
 ) {
     override fun toString(): String =
         "TemperatureEvidenceResponseWire(id=REDACTED, status=$status, source=$source)"
 }
+
+data class TemperatureEvidenceSelectionWireProjection(
+    val temperatureEvidenceId: String,
+    val lotId: String,
+    val affectedQuantity: BigDecimal,
+    val expectedLotVersion: Long,
+    val resultingLotVersion: Long,
+    val inventoryTemperatureEvaluationId: String?,
+    val inventoryLotStatus: String?,
+    val remainingHeldQuantity: BigDecimal?,
+    val actorMembershipId: String,
+    val occurredAt: Instant,
+    val evidenceObjectId: String?,
+    val reason: String?,
+    val evaluationStatus: String?,
+    val disposition: String?,
+    val blocksCommittedExecution: Boolean
+)
 
 sealed interface TemperatureEvidenceNetworkOutcome {
     data class Confirmed(val response: TemperatureEvidenceResponseWire) :
         TemperatureEvidenceNetworkOutcome
 
     data class Rejected(val code: String?) : TemperatureEvidenceNetworkOutcome
+    data object Stale : TemperatureEvidenceNetworkOutcome
     data object UnknownOutcome : TemperatureEvidenceNetworkOutcome
     data object NetworkUnavailable : TemperatureEvidenceNetworkOutcome
     data object PermissionDenied : TemperatureEvidenceNetworkOutcome
@@ -162,6 +187,25 @@ class NexaTemperatureEvidenceGateway(private val protectedCalls: ProtectedCallEx
                     response.actorMembershipId != expectedMembershipId ||
                     response.source != "MANUAL" ||
                     (
+                        command.evidenceObjectId != null &&
+                            response.evidenceObjectId != command.evidenceObjectId
+                        ) ||
+                    (
+                        command.expectedLotVersion != null &&
+                            response.expectedLotVersion != command.expectedLotVersion
+                        ) ||
+                    (
+                        command.affectedQuantity != null &&
+                            response.affectedQuantity?.compareTo(
+                                BigDecimal(command.affectedQuantity)
+                            ) != 0
+                        ) ||
+                    (command.reason != null && response.reason != command.reason) ||
+                    (
+                        command.sourceEvidenceId != null &&
+                            response.sourceEvidenceId != command.sourceEvidenceId
+                        ) ||
+                    (
                         response.subjectType == TemperatureSubjectTypeWire.LOT &&
                             response.lotId != response.subjectId
                         ) ||
@@ -187,6 +231,10 @@ class NexaTemperatureEvidenceGateway(private val protectedCalls: ProtectedCallEx
 
             httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
                 TemperatureEvidenceNetworkOutcome.ContextInvalidated
+
+            httpStatus == 409 || httpStatus == 412 ||
+                problemCode == "INVENTORY_LOT_CONCURRENCY_CONFLICT" ->
+                TemperatureEvidenceNetworkOutcome.Stale
 
             kind == FailureKind.AuthorizationFailure ->
                 TemperatureEvidenceNetworkOutcome.PermissionDenied
@@ -220,10 +268,18 @@ class NexaTemperatureEvidenceGateway(private val protectedCalls: ProtectedCallEx
         ) {
             return null
         }
+        if ((safeType == TemperatureSubjectTypeWire.LOT && lotId != safeSubject) ||
+            (safeType == TemperatureSubjectTypeWire.WAREHOUSE && warehouseId != safeSubject)
+        ) {
+            return null
+        }
         if (listOf(evidenceObjectId, inventoryTemperatureEvaluationId, exceptionId)
                 .any { it != null && !temperatureUuidPattern.matches(it) } ||
             listOf(expectedLotVersion, resultingLotVersion).any { it != null && it < 0 }
         ) {
+            return null
+        }
+        if (listOf(sourceEvidenceId).any { it != null && !temperatureUuidPattern.matches(it) }) {
             return null
         }
         val safeAffectedQuantity = affectedQuantity.decimalValue()
@@ -231,6 +287,15 @@ class NexaTemperatureEvidenceGateway(private val protectedCalls: ProtectedCallEx
             (safeAffectedQuantity == null || safeAffectedQuantity.signum() <= 0)
         ) {
             return null
+        }
+        val safeRemainingHeldQuantity = remainingHeldQuantity.decimalValue()
+        if (remainingHeldQuantity != null && remainingHeldQuantity != JsonNull &&
+            (safeRemainingHeldQuantity == null || safeRemainingHeldQuantity.signum() < 0)
+        ) {
+            return null
+        }
+        val safeSelections = selections.orEmpty().map { selection ->
+            selection.toProjection() ?: return null
         }
         return TemperatureEvidenceResponseWire(
             id = safeId,
@@ -250,15 +315,65 @@ class NexaTemperatureEvidenceGateway(private val protectedCalls: ProtectedCallEx
             inventoryTemperatureEvaluationId = inventoryTemperatureEvaluationId,
             inventoryLotStatus = inventoryLotStatus,
             affectedQuantity = safeAffectedQuantity,
+            remainingHeldQuantity = safeRemainingHeldQuantity,
             reason = reason,
-            exceptionId = exceptionId
+            exceptionId = exceptionId,
+            sourceEvidenceId = sourceEvidenceId,
+            exceptionStatus = exceptionStatus,
+            evaluationStatus = evaluationStatus,
+            disposition = disposition,
+            selections = safeSelections
+        )
+    }
+
+    private fun TemperatureEvidenceSelectionWire.toProjection():
+        TemperatureEvidenceSelectionWireProjection? {
+        val evidenceId =
+            temperatureEvidenceId.requiredText()?.takeIf(temperatureUuidPattern::matches)
+                ?: return null
+        val safeLotId = lotId.requiredText()?.takeIf(temperatureUuidPattern::matches) ?: return null
+        val quantity = affectedQuantity.decimalValue()?.takeIf { it.signum() > 0 } ?: return null
+        val held = remainingHeldQuantity.decimalValue()
+        if (remainingHeldQuantity != null && remainingHeldQuantity != JsonNull &&
+            (held == null || held.signum() < 0)
+        ) {
+            return null
+        }
+        val expected = expectedLotVersion?.takeIf { it >= 0 } ?: return null
+        val resulting = resultingLotVersion?.takeIf { it >= 0 } ?: return null
+        val actor = actorMembershipId.requiredText()?.takeIf(temperatureUuidPattern::matches)
+            ?: return null
+        val time = occurredAt.requiredText()?.parseInstant() ?: return null
+        if (listOf(inventoryTemperatureEvaluationId, evidenceObjectId).any {
+                it != null && !temperatureUuidPattern.matches(it)
+            }
+        ) {
+            return null
+        }
+        val blocks = blocksCommittedExecution ?: return null
+        return TemperatureEvidenceSelectionWireProjection(
+            evidenceId,
+            safeLotId,
+            quantity,
+            expected,
+            resulting,
+            inventoryTemperatureEvaluationId,
+            inventoryLotStatus,
+            held,
+            actor,
+            time,
+            evidenceObjectId,
+            reason,
+            evaluationStatus,
+            disposition,
+            blocks
         )
     }
 
     private fun JsonElement?.decimalValue(): BigDecimal? = try {
         when (this) {
             null, JsonNull -> null
-            is JsonPrimitive -> BigDecimal(content)
+            is JsonPrimitive -> if (isString) null else BigDecimal(content)
             else -> null
         }
     } catch (_: NumberFormatException) {
@@ -305,6 +420,31 @@ private data class TemperatureEvidenceWire(
     val inventoryTemperatureEvaluationId: String? = null,
     val inventoryLotStatus: String? = null,
     val affectedQuantity: JsonElement? = null,
+    val remainingHeldQuantity: JsonElement? = null,
     val reason: String? = null,
-    val exceptionId: String? = null
+    val exceptionId: String? = null,
+    val sourceEvidenceId: String? = null,
+    val exceptionStatus: String? = null,
+    val evaluationStatus: String? = null,
+    val disposition: String? = null,
+    val selections: List<TemperatureEvidenceSelectionWire>? = null
+)
+
+@Serializable
+private data class TemperatureEvidenceSelectionWire(
+    val temperatureEvidenceId: String? = null,
+    val lotId: String? = null,
+    val affectedQuantity: JsonElement? = null,
+    val expectedLotVersion: Long? = null,
+    val resultingLotVersion: Long? = null,
+    val inventoryTemperatureEvaluationId: String? = null,
+    val inventoryLotStatus: String? = null,
+    val remainingHeldQuantity: JsonElement? = null,
+    val actorMembershipId: String? = null,
+    val occurredAt: String? = null,
+    val evidenceObjectId: String? = null,
+    val reason: String? = null,
+    val evaluationStatus: String? = null,
+    val disposition: String? = null,
+    val blocksCommittedExecution: Boolean? = null
 )

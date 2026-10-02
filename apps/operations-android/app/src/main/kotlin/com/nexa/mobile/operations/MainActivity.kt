@@ -158,8 +158,11 @@ import com.nexa.mobile.operations.feature.warehouse.StockTransferScreen
 import com.nexa.mobile.operations.feature.warehouse.StockTransferViewModel
 import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
 import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidenceAuthority
+import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidencePhotoCandidate
+import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidencePhotoSelection
 import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidenceScreen
 import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidenceViewModel
+import com.nexa.mobile.operations.feature.warehouse.TemperaturePhotoStatus
 import com.nexa.mobile.operations.feature.warehouse.VerifiedOperationsIdentity
 import com.nexa.mobile.operations.feature.warehouse.WarehouseAutomationScreen
 import com.nexa.mobile.operations.feature.warehouse.WarehouseBatchScreen
@@ -169,6 +172,7 @@ import com.nexa.mobile.operations.feature.warehouse.WarehouseViewModel
 import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
 import com.nexa.mobile.operations.visibility.OperationsOverviewScreen
 import dagger.hilt.android.AndroidEntryPoint
+import java.math.BigDecimal
 import javax.inject.Inject
 import kotlinx.coroutines.launch
 
@@ -383,6 +387,8 @@ class MainActivity : ComponentActivity() {
         dispatchAssignmentFactory
     }
     private var pendingDispositionLot by mutableStateOf<String?>(null)
+    private var pendingTemperatureDispositionSeed by
+        mutableStateOf<PendingTemperatureDispositionSeed?>(null)
     private val warehouseBatchViewModel: WarehouseBatchViewModel by viewModels()
     private var connectedRoute by mutableStateOf<ConnectedOperationRoute?>(null)
     private var pendingLoadDelivery by mutableStateOf<Pair<ConnectedOperationRoute, String>?>(null)
@@ -422,6 +428,10 @@ class MainActivity : ComponentActivity() {
             null
         )
     private var pendingReceivingTemperaturePhoto by mutableStateOf<ReceivingTemperaturePhoto?>(null)
+    private var pendingTemperatureEvidencePhotoPicker by
+        mutableStateOf<TemperatureEvidencePhotoSelection?>(null)
+    private var pendingTemperatureEvidencePhoto by
+        mutableStateOf<PendingTemperatureEvidencePhoto?>(null)
     private var pendingInboundEvidencePicker by mutableStateOf<InboundDiscrepancySelectionContext?>(
         null
     )
@@ -457,6 +467,10 @@ class MainActivity : ComponentActivity() {
         pendingReceivingTemperaturePicker = null
         pendingReceivingTemperaturePhoto?.let { driverProofFileSelection.discard(it.candidate) }
         pendingReceivingTemperaturePhoto = null
+        pendingTemperatureEvidencePhotoPicker = null
+        pendingTemperatureEvidencePhoto?.let { driverProofFileSelection.discard(it.candidate) }
+        pendingTemperatureEvidencePhoto = null
+        pendingTemperatureDispositionSeed = null
         super.onDestroy()
     }
 
@@ -493,6 +507,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         driverProofFileSelection.discardAbandonedSelections()
+        AppTemperatureEvidencePhotoArtifactStore(applicationContext).discardAbandonedArtifacts()
         enableEdgeToEdge()
         setContent {
             OperationsTheme {
@@ -681,6 +696,46 @@ class MainActivity : ComponentActivity() {
                                         "Selecciona una imagen válida del termómetro.",
                                         android.widget.Toast.LENGTH_LONG
                                     ).show()
+                                }
+                            }
+                        }
+                    }
+                val temperatureEvidencePhotoPicker =
+                    rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+                        val selection = pendingTemperatureEvidencePhotoPicker
+                        pendingTemperatureEvidencePhotoPicker = null
+                        if (uri != null && selection != null) {
+                            lifecycleScope.launch {
+                                val scope = selection.scope
+                                val scopeKey = listOf(
+                                    scope.userId,
+                                    scope.tenantId,
+                                    scope.workspaceId,
+                                    scope.membershipId,
+                                    selection.authorityEpoch.toString(),
+                                    selection.subjectType.name,
+                                    selection.subjectId,
+                                    selection.warehouseId,
+                                    selection.expectedLotVersion?.toString().orEmpty()
+                                ).joinToString("") { "${it.length}:$it" }
+                                val candidate = driverProofFileSelection.prepare(uri, scopeKey)
+                                if (candidate != null &&
+                                    temperatureEvidenceViewModel.isCurrentPhotoSelection(selection)
+                                ) {
+                                    pendingTemperatureEvidencePhoto?.let {
+                                        driverProofFileSelection.discard(it.candidate)
+                                    }
+                                    pendingTemperatureEvidencePhoto =
+                                        PendingTemperatureEvidencePhoto(selection, candidate)
+                                } else {
+                                    candidate?.let(driverProofFileSelection::discard)
+                                    if (candidate == null) {
+                                        android.widget.Toast.makeText(
+                                            this@MainActivity,
+                                            "Selecciona una imagen válida del termómetro.",
+                                            android.widget.Toast.LENGTH_LONG
+                                        ).show()
+                                    }
                                 }
                             }
                         }
@@ -1074,6 +1129,62 @@ class MainActivity : ComponentActivity() {
                             driverProofFileSelection.discard(pending.candidate)
                         }
                     }
+                }
+                LaunchedEffect(
+                    pendingTemperatureEvidencePhoto,
+                    state,
+                    accessState.stage,
+                    accessState.authorityEpoch,
+                    warehouseState.authorityEpoch,
+                    temperatureEvidenceState,
+                    connectedRoute
+                ) {
+                    val pending = pendingTemperatureEvidencePhoto ?: return@LaunchedEffect
+                    fun discard() {
+                        driverProofFileSelection.discard(pending.candidate)
+                        pendingTemperatureEvidencePhoto = null
+                    }
+                    if (state != SessionState.Active) {
+                        if (state in setOf(
+                                SessionState.SignedOut,
+                                SessionState.ReauthenticationRequired,
+                                SessionState.LocalProtectionError
+                            )
+                        ) {
+                            discard()
+                        }
+                        return@LaunchedEffect
+                    }
+                    val route = connectedRoute
+                    if (route?.entryKey != "warehouse.temperature" ||
+                        !ConnectedOperationsNavigation.permits(
+                            route,
+                            CONNECTED_OPERATIONS,
+                            state,
+                            accessState,
+                            warehouseState
+                        ) ||
+                        !temperatureEvidenceViewModel.isCurrentPhotoSelection(pending.selection) ||
+                        temperatureEvidenceState.photoStatus in setOf(
+                            TemperaturePhotoStatus.Uploading,
+                            TemperaturePhotoStatus.Checking
+                        )
+                    ) {
+                        discard()
+                        return@LaunchedEffect
+                    }
+                    pendingTemperatureEvidencePhoto = null
+                    val candidate = pending.candidate
+                    temperatureEvidenceViewModel.uploadPhoto(
+                        TemperatureEvidencePhotoCandidate(
+                            candidate.file,
+                            candidate.originalFilename,
+                            candidate.declaredContentType,
+                            candidate.byteSize,
+                            candidate.checksumSha256
+                        ),
+                        pending.selection
+                    )
                 }
                 LaunchedEffect(
                     pendingInboundEvidenceFile,
@@ -1655,18 +1766,53 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(
                     connectedRoute,
                     dispositionState.metadata,
-                    pendingDispositionLot
+                    pendingDispositionLot,
+                    pendingTemperatureDispositionSeed,
+                    accessState.authorityEpoch
                 ) {
                     val selectedLot = pendingDispositionLot
+                    val temperatureSeed = pendingTemperatureDispositionSeed
                     if (
                         selectedLot != null &&
                         connectedRoute?.entryKey == "warehouse.disposition" &&
                         dispositionState.metadata == DispositionMetadataStatus.Available
                     ) {
+                        if (temperatureSeed != null &&
+                            (
+                                temperatureSeed.route != connectedRoute ||
+                                    temperatureSeed.route.authorityEpoch !=
+                                    accessState.authorityEpoch ||
+                                    !ConnectedOperationsNavigation.permits(
+                                        temperatureSeed.route,
+                                        CONNECTED_OPERATIONS,
+                                        state,
+                                        accessState,
+                                        warehouseState
+                                    )
+                                )
+                        ) {
+                            pendingDispositionLot = null
+                            pendingTemperatureDispositionSeed = null
+                            return@LaunchedEffect
+                        }
                         pendingDispositionLot = null
                         if (dispositionState.intent == null) {
-                            dispositionViewModel.lotIdChanged(selectedLot)
-                            dispositionViewModel.loadLot()
+                            if (temperatureSeed != null &&
+                                temperatureSeed.lotId == selectedLot
+                            ) {
+                                pendingTemperatureDispositionSeed = null
+                                dispositionViewModel.seedPartialDisposition(
+                                    temperatureSeed.lotId,
+                                    temperatureSeed.evaluationId,
+                                    temperatureSeed.affectedQuantity
+                                )
+                            } else {
+                                pendingTemperatureDispositionSeed = null
+                                dispositionViewModel.lotIdChanged(selectedLot)
+                                dispositionViewModel.loadLot()
+                            }
+                        } else {
+                            pendingTemperatureDispositionSeed = null
                         }
                     }
                 }
@@ -3289,11 +3435,25 @@ class MainActivity : ComponentActivity() {
                                 onSubjectTypeChanged =
                                     temperatureEvidenceViewModel::subjectTypeChanged,
                                 onSelectSubject = temperatureEvidenceViewModel::selectSubject,
-                                onSubjectIdChanged = temperatureEvidenceViewModel::subjectIdChanged,
                                 onValueChanged = temperatureEvidenceViewModel::valueChanged,
                                 onUnitChanged = temperatureEvidenceViewModel::unitChanged,
                                 onOccurredAtChanged =
                                     temperatureEvidenceViewModel::occurredAtChanged,
+                                onAffectedQuantityChanged =
+                                    temperatureEvidenceViewModel::affectedQuantityChanged,
+                                onReasonChanged = temperatureEvidenceViewModel::reasonChanged,
+                                onSourceEvidenceIdChanged =
+                                    temperatureEvidenceViewModel::sourceEvidenceIdChanged,
+                                onLoadSourceEvidence =
+                                    temperatureEvidenceViewModel::loadSourceEvidence,
+                                onChoosePhoto = {
+                                    temperatureEvidenceViewModel.photoSelectionContext()?.let {
+                                        pendingTemperatureEvidencePhotoPicker = it
+                                        temperatureEvidencePhotoPicker.launch("image/*")
+                                    }
+                                },
+                                onRefreshPhotoStatus =
+                                    temperatureEvidenceViewModel::refreshPhotoStatus,
                                 onReloadSubjects = temperatureEvidenceViewModel::reloadSubjects,
                                 onSaveDraft = temperatureEvidenceViewModel::saveDraft,
                                 onStageAndRecord = temperatureEvidenceViewModel::stageAndRecord,
@@ -3302,7 +3462,55 @@ class MainActivity : ComponentActivity() {
                                 onRetryIntentCleanup =
                                     temperatureEvidenceViewModel::retryIntentCleanup,
                                 onStartAnotherReading =
-                                    temperatureEvidenceViewModel::startAnotherReading
+                                    temperatureEvidenceViewModel::startAnotherReading,
+                                onRefreshConfirmedSnapshot =
+                                    temperatureEvidenceViewModel::refreshConfirmedSnapshot,
+                                onOpenStockDisposition = { lotId, evaluationId, remainingHeld ->
+                                    if (remainingHeld.signum() > 0) {
+                                        val currentRoute = connectedRoute
+                                        if (currentRoute?.entryKey == "warehouse.temperature" &&
+                                            ConnectedOperationsNavigation.permits(
+                                                currentRoute,
+                                                CONNECTED_OPERATIONS,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            val entry = CONNECTED_OPERATIONS.single {
+                                                it.key == "warehouse.disposition"
+                                            }
+                                            ConnectedOperationsNavigation.open(
+                                                entry,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )?.let { route ->
+                                                closeConnectedOperation()
+                                                connectedRoute = route
+                                                pendingDispositionLot = lotId
+                                                pendingTemperatureDispositionSeed =
+                                                    PendingTemperatureDispositionSeed(
+                                                        route,
+                                                        lotId,
+                                                        evaluationId,
+                                                        remainingHeld
+                                                    )
+                                                val authority = route.authority
+                                                dispositionViewModel.activate(
+                                                    DispositionAuthority(
+                                                        authority.userId,
+                                                        authority.tenantId,
+                                                        authority.workspaceId,
+                                                        authority.membershipId,
+                                                        authority.permissions,
+                                                        route.authorityEpoch
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             )
 
                             "dispatch.readiness" -> DispatchReadinessScreen(
@@ -4021,6 +4229,7 @@ class MainActivity : ComponentActivity() {
         }
         warehouseBatchViewModel.invalidate()
         pendingDispositionLot = null
+        pendingTemperatureDispositionSeed = null
         showDriverInstructions = false
         showDriverOperationalExceptions = false
         driverInstructionsViewModel.invalidate()
@@ -4329,4 +4538,22 @@ private data class DispatchTemperaturePhoto(
     val candidate: DriverProofFileCandidate
 ) {
     override fun toString(): String = "DispatchTemperaturePhoto(REDACTED)"
+}
+
+/** Private staged photo candidate bound to one current warehouse or lot selection. */
+private data class PendingTemperatureEvidencePhoto(
+    val selection: TemperatureEvidencePhotoSelection,
+    val candidate: DriverProofFileCandidate
+) {
+    override fun toString(): String = "PendingTemperatureEvidencePhoto(REDACTED)"
+}
+
+/** Draft navigation context only; route identity prevents stale seed reuse after authority change. */
+private data class PendingTemperatureDispositionSeed(
+    val route: ConnectedOperationRoute,
+    val lotId: String,
+    val evaluationId: String,
+    val affectedQuantity: BigDecimal
+) {
+    override fun toString(): String = "PendingTemperatureDispositionSeed(REDACTED)"
 }
