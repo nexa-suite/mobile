@@ -1,5 +1,6 @@
 package com.nexa.mobile.operations
 
+import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertCountEquals
@@ -20,12 +21,14 @@ import com.nexa.mobile.operations.core.designsystem.OperationsTheme
 import com.nexa.mobile.operations.feature.access.AccessStage
 import com.nexa.mobile.operations.feature.access.AccessUiState
 import com.nexa.mobile.operations.feature.access.PermissionHint
+import com.nexa.mobile.operations.feature.access.VerifiedContextAuthority
 import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
 import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
 import com.nexa.mobile.operations.feature.warehouse.ProductCandidate
 import com.nexa.mobile.operations.feature.warehouse.ProductSearchStatus
 import com.nexa.mobile.operations.feature.warehouse.ProductSearchUiState
 import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
+import com.nexa.mobile.operations.feature.warehouse.VerifiedOperationsIdentity
 import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute
 import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
 import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
@@ -238,5 +241,98 @@ class RootNavigationStateTest {
             assertNull(selectedCandidate)
             assertEquals(RootDestination.Active, session.rootDestination())
         }
+    }
+
+    @Test
+    fun connectedCommercialRoutesRenderAndReturnToWorkEntryThroughNavigationDisplay() {
+        val session = SessionState.Active
+        val permissions = setOf("catalog.read", "client.read")
+        val authority = VerifiedContextAuthority(
+            userId = "user",
+            tenantId = "tenant",
+            workspaceId = "workspace",
+            membershipId = "member",
+            permissions = permissions
+        )
+        val accessState = AccessUiState(
+            stage = AccessStage.WorkAuthorized,
+            activeContext = WorkforceContextSummary(
+                key = "context-primary",
+                companyName = "Nexa Demo Distribución",
+                workspaceName = "Almacén Principal",
+                permissionHint = PermissionHint.Available,
+                isCurrent = true,
+                verifiedAuthority = authority
+            ),
+            authorityEpoch = 4
+        )
+        val warehouseState = WarehouseUiState(
+            workEntryStatus = WorkEntryStatus.TaskAvailable,
+            permissionHint = TaskVisibilityHint.Available,
+            activeContext = ActiveOperationsContext(
+                companyName = "Nexa Demo Distribución",
+                workspaceName = "Almacén Principal",
+                authorityEpoch = 4,
+                verifiedIdentity = VerifiedOperationsIdentity(
+                    userId = authority.userId,
+                    tenantId = authority.tenantId,
+                    workspaceId = authority.workspaceId,
+                    membershipId = authority.membershipId,
+                    permissions = permissions
+                )
+            ),
+            authorityEpoch = 4
+        )
+        val entries = listOf(
+            ConnectedOperationEntry(
+                key = "commercial.catalog",
+                label = "Catálogo comercial",
+                readPermissions = setOf("catalog.read", "catalog:read")
+            ),
+            ConnectedOperationEntry(
+                key = "commercial.request",
+                label = "Preparar solicitud",
+                readPermissions = setOf("client.read", "sales:read")
+            )
+        )
+        val connectedRoute = mutableStateOf<ConnectedOperationRoute?>(null)
+
+        composeRule.setContent {
+            OperationsTheme {
+                RootNavigation(
+                    state = session,
+                    accessState = accessState,
+                    warehouseState = warehouseState,
+                    connectedOperationRoute = connectedRoute.value,
+                    connectedOperationEntries = entries,
+                    onOpenConnectedOperation = { entry ->
+                        connectedRoute.value = ConnectedOperationsNavigation.open(
+                            entry,
+                            session,
+                            accessState,
+                            warehouseState
+                        )
+                    },
+                    connectedOperationContent = {
+                        Text("Connected route: ${connectedRoute.value?.entryKey}")
+                    },
+                    onConnectedOperationBack = { connectedRoute.value = null }
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Catálogo comercial")
+            .performScrollTo()
+            .performClick()
+        composeRule.onNodeWithText("Connected route: commercial.catalog").assertIsDisplayed()
+        Espresso.pressBack()
+        composeRule.onNodeWithText("Identificar producto").assertIsDisplayed()
+
+        composeRule.onNodeWithText("Preparar solicitud")
+            .performScrollTo()
+            .performClick()
+        composeRule.onNodeWithText("Connected route: commercial.request").assertIsDisplayed()
+        Espresso.pressBack()
+        composeRule.onNodeWithText("Identificar producto").assertIsDisplayed()
     }
 }

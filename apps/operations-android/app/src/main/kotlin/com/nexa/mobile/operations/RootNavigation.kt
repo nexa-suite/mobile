@@ -564,6 +564,7 @@ internal fun RootNavigation(
                     ProductDestination.Access,
                     ProductDestination.ContextChooser,
                     ProductDestination.WorkEntry,
+                    ProductDestination.ConnectedOperation,
                     ProductDestination.ProductSearch,
                     ProductDestination.ConfirmedSku,
                     ProductDestination.Receiving,

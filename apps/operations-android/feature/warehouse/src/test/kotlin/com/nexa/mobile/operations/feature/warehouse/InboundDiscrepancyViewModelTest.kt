@@ -35,6 +35,16 @@ class InboundDiscrepancyViewModelTest {
                 drafts.records[authority().scope]?.pendingAction
             )
             val original = requireNotNull(gateway.createCommands.singleOrNull())
+            assertEquals(original.idempotencyKey, viewModel.state.value.createIdempotencyKey)
+            assertEquals(original.frozenBody, viewModel.state.value.createBody)
+            assertEquals(
+                original.idempotencyKey,
+                drafts.records[authority().scope]?.createIdempotencyKey
+            )
+            assertEquals(
+                original.frozenBody,
+                drafts.records[authority().scope]?.createBody
+            )
 
             viewModel.deactivate()
             gateway.createResult = DiscrepancyMutationResult.CaseConfirmed(caseFact())
@@ -42,6 +52,8 @@ class InboundDiscrepancyViewModelTest {
             advanceUntilIdle()
             assertEquals(1, gateway.createCommands.size)
             assertEquals(InboundDiscrepancyFlowStatus.UnknownOutcome, viewModel.state.value.flow)
+            assertEquals(original.idempotencyKey, viewModel.state.value.createIdempotencyKey)
+            assertEquals(original.frozenBody, viewModel.state.value.createBody)
             assertFalse(
                 viewModel.state.value.expectedQuantityText ==
                     viewModel.state.value.observedQuantityText
@@ -51,6 +63,7 @@ class InboundDiscrepancyViewModelTest {
             advanceUntilIdle()
             assertEquals(2, gateway.createCommands.size)
             assertEquals(original, gateway.createCommands.last())
+            assertEquals(authority(epoch = 4), gateway.createAuthorities.last())
             assertEquals("case-1", viewModel.state.value.caseId)
             assertEquals("PENDING_EVIDENCE", viewModel.state.value.caseStatus)
             assertTrue(viewModel.state.value.canSelectEvidence)
@@ -132,6 +145,7 @@ class InboundDiscrepancyViewModelTest {
     private class MemoryGateway(private val events: MutableList<String>) :
         InboundDiscrepancyGateway {
         val createCommands = mutableListOf<InboundDiscrepancyCreateCommand>()
+        val createAuthorities = mutableListOf<InboundDiscrepancyAuthority>()
         var createResult: DiscrepancyMutationResult = DiscrepancyMutationResult.UnknownOutcome
 
         override suspend fun createCase(
@@ -140,6 +154,7 @@ class InboundDiscrepancyViewModelTest {
         ): DiscrepancyMutationResult {
             events += "create"
             createCommands += command
+            createAuthorities += authority
             return createResult
         }
 
