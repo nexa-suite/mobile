@@ -19,6 +19,28 @@ import org.junit.Test
 
 class NexaTemperatureEvidenceGatewayTest {
     @Test
+    fun readsExactEvidenceSnapshotWithoutMutationKeyAndRejectsAnotherObject() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(jsonResponse(200, response()))
+            server.enqueue(jsonResponse(200, response().replace(EVIDENCE_ID, OTHER_LOT_ID)))
+            val adapter = gateway(server)
+            val result = adapter.snapshot(EVIDENCE_ID)
+                as TemperatureEvidenceNetworkOutcome.Confirmed
+            assertEquals(EVIDENCE_ID, result.response.id)
+            val request = server.takeRequest()
+            assertEquals("GET", request.method)
+            assertEquals("/api/v1/temperature-evidence/$EVIDENCE_ID", request.path)
+            assertEquals(null, request.getHeader("Idempotency-Key"))
+            assertEquals("Bearer access-1", request.getHeader("Authorization"))
+            assertEquals(
+                TemperatureEvidenceNetworkOutcome.ServiceUnavailable,
+                adapter.snapshot(EVIDENCE_ID)
+            )
+        }
+    }
+
+    @Test
     fun partialHoldFactsRequireWellFormedServerEvidenceAndKeepUnheldLotStatus() = runTest {
         MockWebServer().use { server ->
             server.start()

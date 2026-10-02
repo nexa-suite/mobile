@@ -92,6 +92,28 @@ sealed interface TemperatureEvidenceNetworkOutcome {
 
 /** Narrow protected command adapter; warehouse and lot lookups reuse existing read gateways. */
 class NexaTemperatureEvidenceGateway(private val protectedCalls: ProtectedCallExecutor) {
+    suspend fun snapshot(evidenceId: String): TemperatureEvidenceNetworkOutcome {
+        if (!temperatureUuidPattern.matches(evidenceId)) {
+            return TemperatureEvidenceNetworkOutcome.ServiceUnavailable
+        }
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(ProtectedMethod.GET, "$TEMPERATURE_EVIDENCE_PATH/$evidenceId")
+            )
+        ) {
+            is ProtectedResult.Failure -> result.error.toTemperatureEvidenceOutcome()
+
+            is ProtectedResult.Success -> {
+                val response = result.body.decode<TemperatureEvidenceWire>()?.toProjection()
+                if (result.status != HTTP_OK || response == null || response.id != evidenceId) {
+                    TemperatureEvidenceNetworkOutcome.ServiceUnavailable
+                } else {
+                    TemperatureEvidenceNetworkOutcome.Confirmed(response)
+                }
+            }
+        }
+    }
+
     suspend fun record(
         command: TemperatureEvidenceCommandWire,
         idempotencyKey: String,
@@ -259,6 +281,7 @@ class NexaTemperatureEvidenceGateway(private val protectedCalls: ProtectedCallEx
 
     private companion object {
         const val ACCESS_CONTEXT_INVALID = "ACCESS_CONTEXT_INVALID"
+        const val HTTP_OK = 200
         const val HTTP_CREATED = 201
     }
 }
