@@ -6,11 +6,13 @@ import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonUnquotedLiteral
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 private const val INVENTORY_LOTS_PATH = "/api/v1/inventory/lots"
 private val dispositionJson = Json { ignoreUnknownKeys = true }
@@ -79,15 +81,34 @@ class NexaDispositionGateway(private val protectedCalls: ProtectedCallExecutor) 
         disposition: String,
         reason: String,
         expectedVersion: Long,
-        idempotencyKey: String
+        idempotencyKey: String,
+        affectedQuantity: BigDecimal? = null,
+        temperatureEvaluationId: String? = null
     ): DispositionNetworkOutcome {
+        val partialEvaluationInvalid = (affectedQuantity == null) !=
+            (temperatureEvaluationId == null) ||
+            affectedQuantity?.let {
+                it.signum() <= 0 || it.scale() > MAX_AFFECTED_QUANTITY_SCALE ||
+                    it.precision().toLong() +
+                    (MAX_AFFECTED_QUANTITY_SCALE.toLong() - it.scale().toLong()) >
+                    MAX_AFFECTED_QUANTITY_PRECISION
+            } == true ||
+            temperatureEvaluationId?.let { !uuidPattern.matches(it) } == true
         if (!uuidPattern.matches(lotId) || disposition !in DISPOSITIONS ||
             reason.isBlank() || reason != reason.trim() || reason.length > 2_000 ||
-            expectedVersion < 0 || idempotencyKey.isBlank() || idempotencyKey.length > 160
+            expectedVersion < 0 || idempotencyKey.isBlank() || idempotencyKey.length > 160 ||
+            partialEvaluationInvalid
         ) {
             return DispositionNetworkOutcome.Rejected("INVALID_REQUEST")
         }
-        val payload = dispositionJson.encodeToString(DispositionRequestWire(disposition, reason))
+        val payload = buildJsonObject {
+            put("disposition", disposition)
+            put("reason", reason)
+            affectedQuantity?.let {
+                put("affectedQuantity", JsonUnquotedLiteral(it.toPlainString()))
+            }
+            temperatureEvaluationId?.let { put("temperatureEvaluationId", it) }
+        }.toString()
         return when (
             val result = protectedCalls.execute(
                 ProtectedRequest(
@@ -215,11 +236,10 @@ class NexaDispositionGateway(private val protectedCalls: ProtectedCallExecutor) 
     private companion object {
         val DISPOSITIONS = setOf("RELEASE", "HOLD", "WASTE", "RETURN_TO_SUPPLIER")
         const val ACCESS_CONTEXT_INVALID = "ACCESS_CONTEXT_INVALID"
+        const val MAX_AFFECTED_QUANTITY_SCALE = 4
+        const val MAX_AFFECTED_QUANTITY_PRECISION = 19
     }
 }
-
-@Serializable
-private data class DispositionRequestWire(val disposition: String, val reason: String)
 
 @Serializable
 private data class DispositionLotWire(
