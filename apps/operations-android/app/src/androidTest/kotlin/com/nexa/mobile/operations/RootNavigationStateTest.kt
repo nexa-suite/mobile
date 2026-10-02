@@ -1,5 +1,7 @@
 package com.nexa.mobile.operations
 
+import android.view.inputmethod.InputMethodManager
+import androidx.activity.ComponentActivity
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -14,7 +16,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
-import androidx.test.espresso.Espresso
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
@@ -40,7 +42,7 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class RootNavigationStateTest {
-    @get:Rule val composeRule = createComposeRule()
+    @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
     fun signedOutIdentityInputPersistsAndSignInShowsLoadingWithoutChangingRootSession() {
@@ -203,7 +205,7 @@ class RootNavigationStateTest {
             assertEquals(0L, warehouseState.value.search?.authorityEpoch)
         }
 
-        Espresso.closeSoftKeyboard()
+        dismissKeyboard()
         composeRule.onNode(hasClickAction() and hasText("Buscar"))
             .performScrollTo()
             .assertIsDisplayed()
@@ -325,14 +327,37 @@ class RootNavigationStateTest {
             .performScrollTo()
             .performClick()
         composeRule.onNodeWithText("Connected route: commercial.catalog").assertIsDisplayed()
-        Espresso.pressBack()
+        dispatchNavigationBack()
         composeRule.onNodeWithText("Identificar producto").assertIsDisplayed()
 
         composeRule.onNodeWithText("Preparar solicitud")
             .performScrollTo()
             .performClick()
         composeRule.onNodeWithText("Connected route: commercial.request").assertIsDisplayed()
-        Espresso.pressBack()
+        dispatchNavigationBack()
         composeRule.onNodeWithText("Identificar producto").assertIsDisplayed()
+    }
+
+    private fun dismissKeyboard() {
+        val activity = composeRule.activity
+        activity.runOnUiThread {
+            val inputMethodManager =
+                requireNotNull(activity.getSystemService(InputMethodManager::class.java))
+            val focusedView = activity.currentFocus ?: activity.window.decorView
+            focusedView.windowToken?.let { windowToken ->
+                inputMethodManager.hideSoftInputFromWindow(windowToken, 0)
+            }
+            focusedView.clearFocus()
+        }
+        composeRule.waitForIdle()
+    }
+
+    private fun dispatchNavigationBack() {
+        dismissKeyboard()
+        val activity = composeRule.activity
+        activity.runOnUiThread {
+            activity.onBackPressedDispatcher.onBackPressed()
+        }
+        composeRule.waitForIdle()
     }
 }
