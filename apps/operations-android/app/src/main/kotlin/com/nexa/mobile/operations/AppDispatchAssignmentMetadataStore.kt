@@ -7,11 +7,11 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataStore
 import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentIntent
-import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentIntentStatus
-import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentMetadataRead
-import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentMetadataStore
-import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentMetadataWrite
-import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentScopeIdentity
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentIntentStatus as AssignmentIntentStatus
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentMetadataRead as AssignmentMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentMetadataStore as AssignmentMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentMetadataWrite as AssignmentMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentScopeIdentity as AssignmentScopeIdentity
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -32,108 +32,139 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
 /** Typed frozen-command adapter over encrypted storage bound to DispatchAssignment purpose. */
-internal class AppDispatchAssignmentMetadataStore(
-    private val local: ScopedMetadataStore
-) : DispatchAssignmentMetadataStore {
+internal class AppDispatchAssignmentMetadataStore(private val local: ScopedMetadataStore) :
+    AssignmentMetadataStore {
     override suspend fun loadIntent(
-        scope: DispatchAssignmentScopeIdentity,
+        scope: AssignmentScopeIdentity,
         fulfillmentId: String
-    ): DispatchAssignmentMetadataRead = mutex(scope).withLock {
+    ): AssignmentMetadataRead = mutex(scope).withLock {
         when (val stored = local.load(scope.toLocal())) {
-            ScopedMetadataRead.Unavailable -> DispatchAssignmentMetadataRead.Unavailable
+            ScopedMetadataRead.Unavailable -> AssignmentMetadataRead.Unavailable
+
             is ScopedMetadataRead.Value -> {
                 val intents = stored.payload?.let(::decode)
-                    ?: if (stored.payload == null) emptyList() else {
-                        return@withLock DispatchAssignmentMetadataRead.Unavailable
+                    ?: if (stored.payload == null) {
+                        emptyList()
+                    } else {
+                        return@withLock AssignmentMetadataRead.Unavailable
                     }
                 val intent = intents.firstOrNull { it.fulfillmentId == fulfillmentId }
-                    ?: return@withLock DispatchAssignmentMetadataRead.Available(null)
+                    ?: return@withLock AssignmentMetadataRead.Available(null)
                 if (intent.scope != scope) {
-                    return@withLock DispatchAssignmentMetadataRead.Unavailable
+                    return@withLock AssignmentMetadataRead.Unavailable
                 }
-                if (intent.status == DispatchAssignmentIntentStatus.Pending) {
-                    val recovered = intent.copy(status = DispatchAssignmentIntentStatus.UnknownOutcome)
-                    val updated = intents.map { if (it.fulfillmentId == fulfillmentId) recovered else it }
+                if (intent.status == AssignmentIntentStatus.Pending) {
+                    val recovered = intent.copy(
+                        status = AssignmentIntentStatus.UnknownOutcome
+                    )
+                    val updated = intents.map {
+                        if (it.fulfillmentId ==
+                            fulfillmentId
+                        ) {
+                            recovered
+                        } else {
+                            it
+                        }
+                    }
                     if (local.save(scope.toLocal(), encode(updated))) {
-                        DispatchAssignmentMetadataRead.Available(recovered)
+                        AssignmentMetadataRead.Available(recovered)
                     } else {
-                        DispatchAssignmentMetadataRead.Unavailable
+                        AssignmentMetadataRead.Unavailable
                     }
                 } else {
-                    DispatchAssignmentMetadataRead.Available(intent)
+                    AssignmentMetadataRead.Available(intent)
                 }
             }
         }
     }
 
-    override suspend fun saveIntent(
-        intent: DispatchAssignmentIntent
-    ): DispatchAssignmentMetadataWrite = mutex(intent.scope).withLock {
-        when (val stored = local.load(intent.scope.toLocal())) {
-            ScopedMetadataRead.Unavailable -> DispatchAssignmentMetadataWrite.Unavailable
-            is ScopedMetadataRead.Value -> {
-                val intents = stored.payload?.let(::decode)
-                    ?: if (stored.payload == null) emptyList() else {
-                        return@withLock DispatchAssignmentMetadataWrite.Unavailable
+    override suspend fun saveIntent(intent: DispatchAssignmentIntent): AssignmentMetadataWrite =
+        mutex(intent.scope).withLock {
+            when (val stored = local.load(intent.scope.toLocal())) {
+                ScopedMetadataRead.Unavailable -> AssignmentMetadataWrite.Unavailable
+
+                is ScopedMetadataRead.Value -> {
+                    val intents = stored.payload?.let(::decode)
+                        ?: if (stored.payload == null) {
+                            emptyList()
+                        } else {
+                            return@withLock AssignmentMetadataWrite.Unavailable
+                        }
+                    val current = intents.firstOrNull { it.fulfillmentId == intent.fulfillmentId }
+                    if (current == null) {
+                        if (intents.size >= MAX_PENDING_INTENTS) {
+                            return@withLock AssignmentMetadataWrite.Unavailable
+                        }
+                        write(intent.scope, intents + intent)
+                    } else if (current.scope != intent.scope || !current.sameCommand(intent)) {
+                        AssignmentMetadataWrite.Conflict
+                    } else if (current.status == AssignmentIntentStatus.UnknownOutcome &&
+                        intent.status == AssignmentIntentStatus.Pending
+                    ) {
+                        AssignmentMetadataWrite.Conflict
+                    } else if (current == intent) {
+                        AssignmentMetadataWrite.Saved
+                    } else {
+                        write(
+                            intent.scope,
+                            intents.map {
+                                if (it.fulfillmentId ==
+                                    intent.fulfillmentId
+                                ) {
+                                    intent
+                                } else {
+                                    it
+                                }
+                            }
+                        )
                     }
-                val current = intents.firstOrNull { it.fulfillmentId == intent.fulfillmentId }
-                if (current == null) {
-                    if (intents.size >= MAX_PENDING_INTENTS) {
-                        return@withLock DispatchAssignmentMetadataWrite.Unavailable
-                    }
-                    write(intent.scope, intents + intent)
-                } else if (current.scope != intent.scope || !current.sameCommand(intent)) {
-                    DispatchAssignmentMetadataWrite.Conflict
-                } else if (current.status == DispatchAssignmentIntentStatus.UnknownOutcome &&
-                    intent.status == DispatchAssignmentIntentStatus.Pending
-                ) {
-                    DispatchAssignmentMetadataWrite.Conflict
-                } else if (current == intent) {
-                    DispatchAssignmentMetadataWrite.Saved
-                } else {
-                    write(
-                        intent.scope,
-                        intents.map { if (it.fulfillmentId == intent.fulfillmentId) intent else it }
-                    )
                 }
             }
         }
-    }
 
     override suspend fun clearIntent(
-        scope: DispatchAssignmentScopeIdentity,
+        scope: AssignmentScopeIdentity,
         fulfillmentId: String,
         idempotencyKey: String
-    ): DispatchAssignmentMetadataWrite = mutex(scope).withLock {
+    ): AssignmentMetadataWrite = mutex(scope).withLock {
         when (val stored = local.load(scope.toLocal())) {
-            ScopedMetadataRead.Unavailable -> DispatchAssignmentMetadataWrite.Unavailable
+            ScopedMetadataRead.Unavailable -> AssignmentMetadataWrite.Unavailable
+
             is ScopedMetadataRead.Value -> {
                 val intents = stored.payload?.let(::decode)
-                    ?: if (stored.payload == null) emptyList() else {
-                        return@withLock DispatchAssignmentMetadataWrite.Unavailable
+                    ?: if (stored.payload == null) {
+                        emptyList()
+                    } else {
+                        return@withLock AssignmentMetadataWrite.Unavailable
                     }
                 val current = intents.firstOrNull { it.fulfillmentId == fulfillmentId }
-                    ?: return@withLock DispatchAssignmentMetadataWrite.Saved
+                    ?: return@withLock AssignmentMetadataWrite.Saved
                 if (current.scope != scope || current.idempotencyKey != idempotencyKey) {
-                    DispatchAssignmentMetadataWrite.Stale
+                    AssignmentMetadataWrite.Stale
                 } else {
                     val remaining = intents.filterNot { it.fulfillmentId == fulfillmentId }
-                    val cleared = if (remaining.isEmpty()) local.clear(scope.toLocal()) else
+                    val cleared = if (remaining.isEmpty()) {
+                        local.clear(scope.toLocal())
+                    } else {
                         local.save(scope.toLocal(), encode(remaining))
-                    if (cleared) DispatchAssignmentMetadataWrite.Saved else
-                        DispatchAssignmentMetadataWrite.Unavailable
+                    }
+                    if (cleared) {
+                        AssignmentMetadataWrite.Saved
+                    } else {
+                        AssignmentMetadataWrite.Unavailable
+                    }
                 }
             }
         }
     }
 
     private suspend fun write(
-        scope: DispatchAssignmentScopeIdentity,
+        scope: AssignmentScopeIdentity,
         intents: List<DispatchAssignmentIntent>
-    ): DispatchAssignmentMetadataWrite = if (local.save(scope.toLocal(), encode(intents))) {
-        DispatchAssignmentMetadataWrite.Saved
+    ): AssignmentMetadataWrite = if (local.save(scope.toLocal(), encode(intents))) {
+        AssignmentMetadataWrite.Saved
     } else {
-        DispatchAssignmentMetadataWrite.Unavailable
+        AssignmentMetadataWrite.Unavailable
     }
 
     private fun encode(intents: List<DispatchAssignmentIntent>): String = buildJsonObject {
@@ -163,7 +194,7 @@ internal class AppDispatchAssignmentMetadataStore(
             val intents = envelope["commands"]?.jsonArray?.map { element ->
                 val value = element.jsonObject
                 DispatchAssignmentIntent(
-                    scope = DispatchAssignmentScopeIdentity(
+                    scope = AssignmentScopeIdentity(
                         value.requiredString("userId"),
                         value.requiredString("tenantId"),
                         value.requiredString("workspaceId"),
@@ -175,7 +206,7 @@ internal class AppDispatchAssignmentMetadataStore(
                     physicalAllocationVersion = value.requiredLong("physicalAllocationVersion"),
                     responsibleMembershipId = value.requiredString("responsibleMembershipId"),
                     idempotencyKey = value.requiredString("idempotencyKey"),
-                    status = DispatchAssignmentIntentStatus.valueOf(value.requiredString("status"))
+                    status = AssignmentIntentStatus.valueOf(value.requiredString("status"))
                 )
             } ?: error("Dispatch assignment metadata commands are missing")
             if (intents.map { it.fulfillmentId }.distinct().size != intents.size) null else intents
@@ -201,16 +232,16 @@ internal class AppDispatchAssignmentMetadataStore(
             responsibleMembershipId == other.responsibleMembershipId &&
             idempotencyKey == other.idempotencyKey
 
-    private fun DispatchAssignmentScopeIdentity.toLocal() =
+    private fun AssignmentScopeIdentity.toLocal() =
         ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
 
-    private fun mutex(scope: DispatchAssignmentScopeIdentity): Mutex =
+    private fun mutex(scope: AssignmentScopeIdentity): Mutex =
         locks.computeIfAbsent(scope) { Mutex() }
 
     private companion object {
         const val SCHEMA_VERSION = 1L
         const val MAX_PENDING_INTENTS = 32
-        val locks = ConcurrentHashMap<DispatchAssignmentScopeIdentity, Mutex>()
+        val locks = ConcurrentHashMap<AssignmentScopeIdentity, Mutex>()
     }
 }
 
@@ -221,7 +252,7 @@ internal object AppDispatchAssignmentMetadataBindings {
     @Singleton
     fun dispatchAssignmentMetadataStore(
         @ApplicationContext context: Context
-    ): DispatchAssignmentMetadataStore = AppDispatchAssignmentMetadataStore(
+    ): AssignmentMetadataStore = AppDispatchAssignmentMetadataStore(
         AndroidScopedMetadataStore(context, ScopedMetadataPurpose.DispatchAssignment)
     )
 }

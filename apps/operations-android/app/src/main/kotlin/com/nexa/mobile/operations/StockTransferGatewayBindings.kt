@@ -11,8 +11,8 @@ import com.nexa.mobile.operations.core.network.NexaStockConditionGateway
 import com.nexa.mobile.operations.core.network.NexaStockTransferGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.core.network.ReceivingNetworkOutcome
-import com.nexa.mobile.operations.core.network.StockConditionNetworkOutcome
-import com.nexa.mobile.operations.core.network.StockTransferNetworkOutcome
+import com.nexa.mobile.operations.core.network.StockConditionNetworkOutcome as StockConditionOutcome
+import com.nexa.mobile.operations.core.network.StockTransferNetworkOutcome as StockTransferOutcome
 import com.nexa.mobile.operations.feature.warehouse.ConfirmedStockTransfer
 import com.nexa.mobile.operations.feature.warehouse.StockTransferAuthority
 import com.nexa.mobile.operations.feature.warehouse.StockTransferGateway
@@ -20,8 +20,8 @@ import com.nexa.mobile.operations.feature.warehouse.StockTransferMetadataStore
 import com.nexa.mobile.operations.feature.warehouse.StockTransferRequest
 import com.nexa.mobile.operations.feature.warehouse.StockTransferViewModel
 import com.nexa.mobile.operations.feature.warehouse.TransferLookupResult
-import com.nexa.mobile.operations.feature.warehouse.TransferSubmitResult
 import com.nexa.mobile.operations.feature.warehouse.TransferSourceLotChoice
+import com.nexa.mobile.operations.feature.warehouse.TransferSubmitResult
 import com.nexa.mobile.operations.feature.warehouse.TransferWarehouseChoice
 import com.nexa.mobile.operations.feature.warehouse.TransferZoneChoice
 import dagger.Module
@@ -105,7 +105,11 @@ internal class OperationsStockTransferGateway @Inject constructor(
         authority: StockTransferAuthority,
         requiredPermissions: Set<String>
     ): Authorization {
-        if (sessions.sessionState.value != SessionState.Active) return Authorization.SessionInvalidated
+        if (sessions.sessionState.value !=
+            SessionState.Active
+        ) {
+            return Authorization.SessionInvalidated
+        }
         val lease = sessions.currentAccess() ?: return Authorization.SessionInvalidated
         val verified = sessions.verifiedSession.value ?: return Authorization.ContextInvalidated
         if (!verified.matches(authority)) return Authorization.ContextInvalidated
@@ -123,17 +127,23 @@ internal class OperationsStockTransferGateway @Inject constructor(
     ): Boolean {
         if (sessions.sessionState.value != SessionState.Active ||
             !sessions.isEpochCurrent(originalLease.epoch)
-        ) return false
+        ) {
+            return false
+        }
         val current = sessions.verifiedSession.value ?: return false
         return current.matches(authority) && authority.permissions.any { it in requiredPermissions }
     }
 
-    private suspend fun authorityDrift(authority: StockTransferAuthority): TransferLookupResult = when {
-        sessions.sessionState.value != SessionState.Active -> TransferLookupResult.SessionInvalidated
-        sessions.verifiedSession.value?.matches(authority) == true ->
-            TransferLookupResult.SessionInvalidated
-        else -> TransferLookupResult.ContextInvalidated
-    }
+    private suspend fun authorityDrift(authority: StockTransferAuthority): TransferLookupResult =
+        when {
+            sessions.sessionState.value != SessionState.Active ->
+                TransferLookupResult.SessionInvalidated
+
+            sessions.verifiedSession.value?.matches(authority) == true ->
+                TransferLookupResult.SessionInvalidated
+
+            else -> TransferLookupResult.ContextInvalidated
+        }
 
     private fun VerifiedSession.matches(authority: StockTransferAuthority): Boolean =
         hasAuthorizedContext && userId == authority.userId && tenantId == authority.tenantId &&
@@ -158,14 +168,21 @@ internal class OperationsStockTransferGateway @Inject constructor(
         is ReceivingNetworkOutcome.Warehouses -> TransferLookupResult.Warehouses(
             items.map { TransferWarehouseChoice(it.id, it.code, it.name, it.status) }
         )
+
         ReceivingNetworkOutcome.NetworkUnavailable -> TransferLookupResult.NetworkUnavailable
+
         ReceivingNetworkOutcome.ServiceUnavailable,
         is ReceivingNetworkOutcome.Zones,
         is ReceivingNetworkOutcome.Rejected,
         is ReceivingNetworkOutcome.Confirmed,
+        is ReceivingNetworkOutcome.EvidenceStatus,
+        is ReceivingNetworkOutcome.EvidenceUploaded,
         ReceivingNetworkOutcome.UnknownOutcome -> TransferLookupResult.ServiceUnavailable
+
         ReceivingNetworkOutcome.PermissionDenied -> TransferLookupResult.PermissionDenied
+
         ReceivingNetworkOutcome.ContextInvalidated -> TransferLookupResult.ContextInvalidated
+
         ReceivingNetworkOutcome.SessionInvalidated -> TransferLookupResult.SessionInvalidated
     }
 
@@ -173,19 +190,26 @@ internal class OperationsStockTransferGateway @Inject constructor(
         is ReceivingNetworkOutcome.Zones -> TransferLookupResult.Zones(
             items.map { TransferZoneChoice(it.id, it.warehouseId, it.code, it.name, it.status) }
         )
+
         ReceivingNetworkOutcome.NetworkUnavailable -> TransferLookupResult.NetworkUnavailable
+
         ReceivingNetworkOutcome.ServiceUnavailable,
         is ReceivingNetworkOutcome.Rejected,
         is ReceivingNetworkOutcome.Confirmed,
+        is ReceivingNetworkOutcome.EvidenceStatus,
+        is ReceivingNetworkOutcome.EvidenceUploaded,
         is ReceivingNetworkOutcome.Warehouses,
         ReceivingNetworkOutcome.UnknownOutcome -> TransferLookupResult.ServiceUnavailable
+
         ReceivingNetworkOutcome.PermissionDenied -> TransferLookupResult.PermissionDenied
+
         ReceivingNetworkOutcome.ContextInvalidated -> TransferLookupResult.ContextInvalidated
+
         ReceivingNetworkOutcome.SessionInvalidated -> TransferLookupResult.SessionInvalidated
     }
 
-    private fun StockConditionNetworkOutcome.toTransferLots(): TransferLookupResult = when (this) {
-        is StockConditionNetworkOutcome.Lots -> TransferLookupResult.Lots(
+    private fun StockConditionOutcome.toTransferLots(): TransferLookupResult = when (this) {
+        is StockConditionOutcome.Lots -> TransferLookupResult.Lots(
             items.map {
                 TransferSourceLotChoice(
                     id = it.id,
@@ -201,17 +225,22 @@ internal class OperationsStockTransferGateway @Inject constructor(
                 )
             }
         )
-        StockConditionNetworkOutcome.NetworkUnavailable -> TransferLookupResult.NetworkUnavailable
-        StockConditionNetworkOutcome.ServiceUnavailable,
-        is StockConditionNetworkOutcome.Lot,
-        is StockConditionNetworkOutcome.Availability -> TransferLookupResult.ServiceUnavailable
-        StockConditionNetworkOutcome.PermissionDenied -> TransferLookupResult.PermissionDenied
-        StockConditionNetworkOutcome.ContextInvalidated -> TransferLookupResult.ContextInvalidated
-        StockConditionNetworkOutcome.SessionInvalidated -> TransferLookupResult.SessionInvalidated
+
+        StockConditionOutcome.NetworkUnavailable -> TransferLookupResult.NetworkUnavailable
+
+        StockConditionOutcome.ServiceUnavailable,
+        is StockConditionOutcome.Lot,
+        is StockConditionOutcome.Availability -> TransferLookupResult.ServiceUnavailable
+
+        StockConditionOutcome.PermissionDenied -> TransferLookupResult.PermissionDenied
+
+        StockConditionOutcome.ContextInvalidated -> TransferLookupResult.ContextInvalidated
+
+        StockConditionOutcome.SessionInvalidated -> TransferLookupResult.SessionInvalidated
     }
 
-    private fun StockTransferNetworkOutcome.toTransferSubmitResult(): TransferSubmitResult = when (this) {
-        is StockTransferNetworkOutcome.Confirmed -> TransferSubmitResult.Confirmed(
+    private fun StockTransferOutcome.toTransferSubmitResult(): TransferSubmitResult = when (this) {
+        is StockTransferOutcome.Confirmed -> TransferSubmitResult.Confirmed(
             ConfirmedStockTransfer(
                 id = transfer.id,
                 status = transfer.status,
@@ -227,18 +256,34 @@ internal class OperationsStockTransferGateway @Inject constructor(
                 version = transfer.version
             )
         )
-        is StockTransferNetworkOutcome.Rejected -> TransferSubmitResult.Rejected(code)
-        StockTransferNetworkOutcome.UnknownOutcome -> TransferSubmitResult.UnknownOutcome
-        StockTransferNetworkOutcome.PreconditionFailed -> TransferSubmitResult.PreconditionFailed
-        StockTransferNetworkOutcome.Conflict -> TransferSubmitResult.Conflict
-        StockTransferNetworkOutcome.NetworkUnavailable -> TransferSubmitResult.NetworkUnavailable
-        StockTransferNetworkOutcome.ServiceUnavailable -> TransferSubmitResult.ServiceUnavailable
-        StockTransferNetworkOutcome.PermissionDenied -> TransferSubmitResult.PermissionDenied
-        StockTransferNetworkOutcome.ContextInvalidated -> TransferSubmitResult.ContextInvalidated
-        StockTransferNetworkOutcome.SessionInvalidated -> TransferSubmitResult.SessionInvalidated
+
+        is StockTransferOutcome.Rejected -> TransferSubmitResult.Rejected(code)
+
+        StockTransferOutcome.UnknownOutcome -> TransferSubmitResult.UnknownOutcome
+
+        StockTransferOutcome.PreconditionFailed ->
+            TransferSubmitResult.PreconditionFailed
+
+        StockTransferOutcome.Conflict -> TransferSubmitResult.Conflict
+
+        StockTransferOutcome.NetworkUnavailable ->
+            TransferSubmitResult.NetworkUnavailable
+
+        StockTransferOutcome.ServiceUnavailable ->
+            TransferSubmitResult.ServiceUnavailable
+
+        StockTransferOutcome.PermissionDenied -> TransferSubmitResult.PermissionDenied
+
+        StockTransferOutcome.ContextInvalidated ->
+            TransferSubmitResult.ContextInvalidated
+
+        StockTransferOutcome.SessionInvalidated ->
+            TransferSubmitResult.SessionInvalidated
     }
 
-    private suspend fun safeLookup(operation: suspend () -> TransferLookupResult): TransferLookupResult = try {
+    private suspend fun safeLookup(
+        operation: suspend () -> TransferLookupResult
+    ): TransferLookupResult = try {
         operation()
     } catch (cancelled: CancellationException) {
         throw cancelled

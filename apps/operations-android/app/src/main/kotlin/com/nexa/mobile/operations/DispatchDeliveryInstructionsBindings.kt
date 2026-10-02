@@ -13,23 +13,24 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataStore
 import com.nexa.mobile.operations.core.network.NexaOperationalDeliveryInstructionsGateway
-import com.nexa.mobile.operations.core.network.OperationalDeliveryInstructionsNetworkResult
+import com.nexa.mobile.operations.core.network.OperationalDeliveryInstructionsNetworkResult as DeliveryInstructionsNetworkResult
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityContext
 import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityIdentity
-import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstruction
-import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionIntent
-import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionIntentStatus
-import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionKind
-import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionMetadataRead
-import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionMetadataStore
-import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionMetadataWrite
-import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionReceipt
-import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionScopeIdentity
-import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionsGateway
-import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionsGatewayResult
-import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionsSnapshot
-import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionsViewModel
+import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstruction as Instruction
+import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionIntent as InstructionIntent
+import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionIntentStatus as InstructionIntentStatus
+import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionKind as InstructionKind
+import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionMetadataRead as InstructionMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionMetadataStore as InstructionMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionMetadataWrite as InstructionMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionReceipt as InstructionReceipt
+import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionScopeIdentity as InstructionScopeIdentity
+import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionsGateway as InstructionsGateway
+import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionsGatewayResult as InstructionsGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionsSnapshot as InstructionsSnapshot
+import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionsUiState as InstructionsUiState
+import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionsViewModel as InstructionsViewModel
 import com.nexa.mobile.operations.feature.dispatch.dispatchDeliveryInstructionRequestBody
 import dagger.Module
 import dagger.Provides
@@ -60,21 +61,25 @@ internal object DispatchDeliveryInstructionsBindings {
     @Singleton
     fun operationalDeliveryInstructionsApi(
         protectedCalls: ProtectedCallExecutor
-    ): NexaOperationalDeliveryInstructionsGateway = NexaOperationalDeliveryInstructionsGateway(protectedCalls)
+    ): NexaOperationalDeliveryInstructionsGateway =
+        NexaOperationalDeliveryInstructionsGateway(protectedCalls)
 
     @Provides
     @Singleton
     fun dispatchDeliveryInstructionMetadataStore(
         @ApplicationContext context: Context
-    ): DispatchDeliveryInstructionMetadataStore = AppDispatchDeliveryInstructionMetadataStore(
-        AndroidScopedMetadataStore(context, ScopedMetadataPurpose.DispatchDeliveryInstructionCommand)
+    ): InstructionMetadataStore = AppDispatchDeliveryInstructionMetadataStore(
+        AndroidScopedMetadataStore(
+            context,
+            ScopedMetadataPurpose.DispatchDeliveryInstructionCommand
+        )
     )
 
     @Provides
     @Singleton
     fun dispatchDeliveryInstructionsGateway(
         operations: OperationsDispatchDeliveryInstructionsGateway
-    ): DispatchDeliveryInstructionsGateway = operations
+    ): InstructionsGateway = operations
 }
 
 /** Verifies current native session before and after each scoped Dispatch instruction call. */
@@ -82,11 +87,11 @@ internal object DispatchDeliveryInstructionsBindings {
 internal class OperationsDispatchDeliveryInstructionsGateway @Inject constructor(
     private val sessions: SessionCoordinator,
     private val api: NexaOperationalDeliveryInstructionsGateway
-) : DispatchDeliveryInstructionsGateway {
+) : InstructionsGateway {
     override suspend fun currentInstructions(
         deliveryId: String,
         context: DispatchAuthorityContext
-    ): DispatchDeliveryInstructionsGatewayResult {
+    ): InstructionsGatewayResult {
         val before = authorize(context, mutation = false)
         if (before !is Authorization.Current) return before.toResult()
         val result = try {
@@ -94,21 +99,21 @@ internal class OperationsDispatchDeliveryInstructionsGateway @Inject constructor
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            return DispatchDeliveryInstructionsGatewayResult.ServiceUnavailable
+            return InstructionsGatewayResult.ServiceUnavailable
         }
         if (!isCurrent(context, before.lease)) return authorityDrift()
         return when (result) {
-            is OperationalDeliveryInstructionsNetworkResult.Current -> try {
+            is DeliveryInstructionsNetworkResult.Current -> try {
                 val value = result.value
-                DispatchDeliveryInstructionsGatewayResult.Snapshot(
-                    DispatchDeliveryInstructionsSnapshot(
+                InstructionsGatewayResult.Snapshot(
+                    InstructionsSnapshot(
                         deliveryId = value.deliveryId,
                         deliveryVersion = value.deliveryVersion,
                         instructionSetVersion = value.instructionSetVersion,
                         instructions = value.instructions.map { row ->
-                            DispatchDeliveryInstruction(
+                            Instruction(
                                 id = row.id,
-                                kind = DispatchDeliveryInstructionKind.valueOf(row.kind),
+                                kind = InstructionKind.valueOf(row.kind),
                                 content = row.content,
                                 instructionVersion = row.instructionVersion,
                                 critical = row.critical,
@@ -123,7 +128,7 @@ internal class OperationsDispatchDeliveryInstructionsGateway @Inject constructor
                     )
                 )
             } catch (_: Exception) {
-                DispatchDeliveryInstructionsGatewayResult.ServiceUnavailable
+                InstructionsGatewayResult.ServiceUnavailable
             }
 
             else -> result.toFeature()
@@ -131,17 +136,21 @@ internal class OperationsDispatchDeliveryInstructionsGateway @Inject constructor
     }
 
     override suspend fun publish(
-        intent: DispatchDeliveryInstructionIntent,
+        intent: InstructionIntent,
         context: DispatchAuthorityContext
-    ): DispatchDeliveryInstructionsGatewayResult {
+    ): InstructionsGatewayResult {
         val before = authorize(context, mutation = true)
         if (before !is Authorization.Current) return before.toResult()
         if (intent.scope != context.scopeIdentity() || intent.expectedDeliveryVersion < 0 ||
             intent.idempotencyKey.isBlank() ||
             intent.exactRequestBody != dispatchDeliveryInstructionRequestBody(
-                intent.instructionId, intent.kind, intent.content
+                intent.instructionId,
+                intent.kind,
+                intent.content
             )
-        ) return DispatchDeliveryInstructionsGatewayResult.ServiceUnavailable
+        ) {
+            return InstructionsGatewayResult.ServiceUnavailable
+        }
 
         val result = try {
             api.publish(
@@ -153,17 +162,23 @@ internal class OperationsDispatchDeliveryInstructionsGateway @Inject constructor
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            return DispatchDeliveryInstructionsGatewayResult.UnknownOutcome
+            return InstructionsGatewayResult.UnknownOutcome
         }
-        if (!isCurrent(context, before.lease)) return DispatchDeliveryInstructionsGatewayResult.UnknownOutcome
+        if (!isCurrent(
+                context,
+                before.lease
+            )
+        ) {
+            return InstructionsGatewayResult.UnknownOutcome
+        }
         return when (result) {
-            is OperationalDeliveryInstructionsNetworkResult.Published -> {
+            is DeliveryInstructionsNetworkResult.Published -> {
                 val value = result.value
-                DispatchDeliveryInstructionsGatewayResult.Published(
-                    DispatchDeliveryInstructionReceipt(
+                InstructionsGatewayResult.Published(
+                    InstructionReceipt(
                         deliveryId = value.deliveryId,
                         instructionId = value.instructionId,
-                        kind = DispatchDeliveryInstructionKind.valueOf(value.kind),
+                        kind = InstructionKind.valueOf(value.kind),
                         content = value.content,
                         instructionVersion = value.instructionVersion,
                         critical = value.critical,
@@ -178,16 +193,30 @@ internal class OperationsDispatchDeliveryInstructionsGateway @Inject constructor
         }
     }
 
-    private suspend fun authorize(context: DispatchAuthorityContext, mutation: Boolean): Authorization {
-        if (sessions.sessionState.value != SessionState.Active) return Authorization.SessionInvalidated
+    private suspend fun authorize(
+        context: DispatchAuthorityContext,
+        mutation: Boolean
+    ): Authorization {
+        if (sessions.sessionState.value !=
+            SessionState.Active
+        ) {
+            return Authorization.SessionInvalidated
+        }
         val lease = sessions.currentAccess() ?: return Authorization.SessionInvalidated
         val identity = context.identity ?: return Authorization.ContextInvalidated
         val verified = sessions.verifiedSession.value ?: return Authorization.ContextInvalidated
         if (context.authorityEpoch <= 0 || listOf(
-                identity.userId, identity.tenantId, identity.workspaceId, identity.membershipId
+                identity.userId,
+                identity.tenantId,
+                identity.workspaceId,
+                identity.membershipId
             ).any(String::isBlank) || !verified.matches(identity)
-        ) return Authorization.ContextInvalidated
-        if (DISPATCH_READ !in identity.permissions || mutation && DISPATCH_SCHEDULE !in identity.permissions) {
+        ) {
+            return Authorization.ContextInvalidated
+        }
+        if (DISPATCH_READ !in identity.permissions ||
+            (mutation && DISPATCH_SCHEDULE !in identity.permissions)
+        ) {
             return Authorization.PermissionDenied
         }
         return Authorization.Current(lease)
@@ -196,13 +225,18 @@ internal class OperationsDispatchDeliveryInstructionsGateway @Inject constructor
     private suspend fun isCurrent(
         context: DispatchAuthorityContext,
         lease: AccessTokenLease
-    ): Boolean = sessions.sessionState.value == SessionState.Active && sessions.isEpochCurrent(lease.epoch) &&
-        context.identity?.let { identity -> sessions.verifiedSession.value?.matches(identity) } == true
+    ): Boolean = sessions.sessionState.value == SessionState.Active && sessions.isEpochCurrent(
+        lease.epoch
+    ) &&
+        context.identity?.let { identity ->
+            sessions.verifiedSession.value?.matches(identity)
+        } ==
+        true
 
     private suspend fun authorityDrift() = if (sessions.sessionState.value != SessionState.Active) {
-        DispatchDeliveryInstructionsGatewayResult.SessionInvalidated
+        InstructionsGatewayResult.SessionInvalidated
     } else {
-        DispatchDeliveryInstructionsGatewayResult.ContextInvalidated
+        InstructionsGatewayResult.ContextInvalidated
     }
 
     private fun VerifiedSession.matches(identity: DispatchAuthorityIdentity): Boolean =
@@ -210,29 +244,61 @@ internal class OperationsDispatchDeliveryInstructionsGateway @Inject constructor
             workspaceId == identity.workspaceId && membershipId == identity.membershipId &&
             permissions == identity.permissions
 
-    private fun DispatchAuthorityContext.scopeIdentity(): DispatchDeliveryInstructionScopeIdentity? = identity?.let {
-        DispatchDeliveryInstructionScopeIdentity(it.userId, it.tenantId, it.workspaceId, it.membershipId)
-    }
+    private fun DispatchAuthorityContext.scopeIdentity(): InstructionScopeIdentity? =
+        identity?.let {
+            InstructionScopeIdentity(
+                it.userId,
+                it.tenantId,
+                it.workspaceId,
+                it.membershipId
+            )
+        }
 
     private fun Authorization.toResult() = when (this) {
-        Authorization.SessionInvalidated -> DispatchDeliveryInstructionsGatewayResult.SessionInvalidated
-        Authorization.ContextInvalidated -> DispatchDeliveryInstructionsGatewayResult.ContextInvalidated
-        Authorization.PermissionDenied -> DispatchDeliveryInstructionsGatewayResult.PermissionDenied
+        Authorization.SessionInvalidated ->
+            InstructionsGatewayResult.SessionInvalidated
+
+        Authorization.ContextInvalidated ->
+            InstructionsGatewayResult.ContextInvalidated
+
+        Authorization.PermissionDenied -> InstructionsGatewayResult.PermissionDenied
+
         is Authorization.Current -> error("authorized result is not a failure")
     }
 
-    private fun OperationalDeliveryInstructionsNetworkResult.toFeature() = when (this) {
-        is OperationalDeliveryInstructionsNetworkResult.Rejected -> DispatchDeliveryInstructionsGatewayResult.Rejected(code)
-        OperationalDeliveryInstructionsNetworkResult.NotFound -> DispatchDeliveryInstructionsGatewayResult.NotFound
-        OperationalDeliveryInstructionsNetworkResult.StaleVersion -> DispatchDeliveryInstructionsGatewayResult.StaleVersion
-        OperationalDeliveryInstructionsNetworkResult.UnknownOutcome -> DispatchDeliveryInstructionsGatewayResult.UnknownOutcome
-        OperationalDeliveryInstructionsNetworkResult.NetworkUnavailable -> DispatchDeliveryInstructionsGatewayResult.NetworkUnavailable
-        OperationalDeliveryInstructionsNetworkResult.ServiceUnavailable -> DispatchDeliveryInstructionsGatewayResult.ServiceUnavailable
-        OperationalDeliveryInstructionsNetworkResult.PermissionDenied -> DispatchDeliveryInstructionsGatewayResult.PermissionDenied
-        OperationalDeliveryInstructionsNetworkResult.ContextInvalidated -> DispatchDeliveryInstructionsGatewayResult.ContextInvalidated
-        OperationalDeliveryInstructionsNetworkResult.SessionInvalidated -> DispatchDeliveryInstructionsGatewayResult.SessionInvalidated
-        is OperationalDeliveryInstructionsNetworkResult.Current,
-        is OperationalDeliveryInstructionsNetworkResult.Published -> DispatchDeliveryInstructionsGatewayResult.ServiceUnavailable
+    private fun DeliveryInstructionsNetworkResult.toFeature() = when (this) {
+        is DeliveryInstructionsNetworkResult.Rejected ->
+            InstructionsGatewayResult.Rejected(
+                code
+            )
+
+        DeliveryInstructionsNetworkResult.NotFound ->
+            InstructionsGatewayResult.NotFound
+
+        DeliveryInstructionsNetworkResult.StaleVersion ->
+            InstructionsGatewayResult.StaleVersion
+
+        DeliveryInstructionsNetworkResult.UnknownOutcome ->
+            InstructionsGatewayResult.UnknownOutcome
+
+        DeliveryInstructionsNetworkResult.NetworkUnavailable ->
+            InstructionsGatewayResult.NetworkUnavailable
+
+        DeliveryInstructionsNetworkResult.ServiceUnavailable ->
+            InstructionsGatewayResult.ServiceUnavailable
+
+        DeliveryInstructionsNetworkResult.PermissionDenied ->
+            InstructionsGatewayResult.PermissionDenied
+
+        DeliveryInstructionsNetworkResult.ContextInvalidated ->
+            InstructionsGatewayResult.ContextInvalidated
+
+        DeliveryInstructionsNetworkResult.SessionInvalidated ->
+            InstructionsGatewayResult.SessionInvalidated
+
+        is DeliveryInstructionsNetworkResult.Current,
+        is DeliveryInstructionsNetworkResult.Published ->
+            InstructionsGatewayResult.ServiceUnavailable
     }
 
     private sealed interface Authorization {
@@ -249,84 +315,102 @@ internal class OperationsDispatchDeliveryInstructionsGateway @Inject constructor
 }
 
 /** Encrypted, scope-bound exact-command recovery before Dispatch publication. */
-internal class AppDispatchDeliveryInstructionMetadataStore(
-    private val local: ScopedMetadataStore
-) : DispatchDeliveryInstructionMetadataStore {
+internal class AppDispatchDeliveryInstructionMetadataStore(private val local: ScopedMetadataStore) :
+    InstructionMetadataStore {
     override suspend fun loadIntent(
-        scope: DispatchDeliveryInstructionScopeIdentity,
+        scope: InstructionScopeIdentity,
         deliveryId: String
-    ): DispatchDeliveryInstructionMetadataRead = mutex(scope).withLock {
+    ): InstructionMetadataRead = mutex(scope).withLock {
         when (val stored = safeLoad(scope)) {
-            ScopedMetadataRead.Unavailable -> DispatchDeliveryInstructionMetadataRead.Unavailable
+            ScopedMetadataRead.Unavailable -> InstructionMetadataRead.Unavailable
+
             is ScopedMetadataRead.Value -> {
                 val intents = stored.payload?.let(::decode)
-                    ?: if (stored.payload == null) emptyList() else {
-                        return@withLock DispatchDeliveryInstructionMetadataRead.Unavailable
+                    ?: if (stored.payload == null) {
+                        emptyList()
+                    } else {
+                        return@withLock InstructionMetadataRead.Unavailable
                     }
                 val intent = intents.firstOrNull { it.deliveryId == deliveryId }
-                    ?: return@withLock DispatchDeliveryInstructionMetadataRead.Available(null)
-                if (intent.scope != scope) return@withLock DispatchDeliveryInstructionMetadataRead.Unavailable
-                if (intent.status == DispatchDeliveryInstructionIntentStatus.Pending) {
-                    val recovered = intent.copy(status = DispatchDeliveryInstructionIntentStatus.UnknownOutcome)
+                    ?: return@withLock InstructionMetadataRead.Available(null)
+                if (intent.scope !=
+                    scope
+                ) {
+                    return@withLock InstructionMetadataRead.Unavailable
+                }
+                if (intent.status == InstructionIntentStatus.Pending) {
+                    val recovered = intent.copy(
+                        status = InstructionIntentStatus.UnknownOutcome
+                    )
                     val updated = intents.map { if (it.deliveryId == deliveryId) recovered else it }
-                    if (write(scope, updated)) DispatchDeliveryInstructionMetadataRead.Available(recovered)
-                    else DispatchDeliveryInstructionMetadataRead.Unavailable
-                } else {
-                    DispatchDeliveryInstructionMetadataRead.Available(intent)
-                }
-            }
-        }
-    }
-
-    override suspend fun saveIntent(
-        intent: DispatchDeliveryInstructionIntent
-    ): DispatchDeliveryInstructionMetadataWrite = mutex(intent.scope).withLock {
-        when (val stored = safeLoad(intent.scope)) {
-            ScopedMetadataRead.Unavailable -> DispatchDeliveryInstructionMetadataWrite.Unavailable
-            is ScopedMetadataRead.Value -> {
-                val intents = stored.payload?.let(::decode)
-                    ?: if (stored.payload == null) emptyList() else {
-                        return@withLock DispatchDeliveryInstructionMetadataWrite.Unavailable
+                    if (write(scope, updated)) {
+                        InstructionMetadataRead.Available(recovered)
+                    } else {
+                        InstructionMetadataRead.Unavailable
                     }
-                val current = intents.firstOrNull { it.deliveryId == intent.deliveryId }
-                when {
-                    current == null && intents.size >= MAX_PENDING_COMMANDS ->
-                        DispatchDeliveryInstructionMetadataWrite.Unavailable
-
-                    current == null -> write(intent.scope, intents + intent).toWriteResult()
-                    current.scope != intent.scope || !current.sameCommand(intent) ->
-                        DispatchDeliveryInstructionMetadataWrite.Conflict
-
-                    current.status == DispatchDeliveryInstructionIntentStatus.UnknownOutcome &&
-                        intent.status == DispatchDeliveryInstructionIntentStatus.Pending ->
-                        DispatchDeliveryInstructionMetadataWrite.Conflict
-
-                    current == intent -> DispatchDeliveryInstructionMetadataWrite.Saved
-                    else -> write(
-                        intent.scope,
-                        intents.map { if (it.deliveryId == intent.deliveryId) intent else it }
-                    ).toWriteResult()
+                } else {
+                    InstructionMetadataRead.Available(intent)
                 }
             }
         }
     }
+
+    override suspend fun saveIntent(intent: InstructionIntent): InstructionMetadataWrite =
+        mutex(intent.scope).withLock {
+            when (val stored = safeLoad(intent.scope)) {
+                ScopedMetadataRead.Unavailable -> InstructionMetadataWrite.Unavailable
+
+                is ScopedMetadataRead.Value -> {
+                    val intents = stored.payload?.let(::decode)
+                        ?: if (stored.payload == null) {
+                            emptyList()
+                        } else {
+                            return@withLock InstructionMetadataWrite.Unavailable
+                        }
+                    val current = intents.firstOrNull { it.deliveryId == intent.deliveryId }
+                    when {
+                        current == null && intents.size >= MAX_PENDING_COMMANDS ->
+                            InstructionMetadataWrite.Unavailable
+
+                        current == null -> write(intent.scope, intents + intent).toWriteResult()
+
+                        current.scope != intent.scope || !current.sameCommand(intent) ->
+                            InstructionMetadataWrite.Conflict
+
+                        current.status == InstructionIntentStatus.UnknownOutcome &&
+                            intent.status == InstructionIntentStatus.Pending ->
+                            InstructionMetadataWrite.Conflict
+
+                        current == intent -> InstructionMetadataWrite.Saved
+
+                        else -> write(
+                            intent.scope,
+                            intents.map { if (it.deliveryId == intent.deliveryId) intent else it }
+                        ).toWriteResult()
+                    }
+                }
+            }
+        }
 
     override suspend fun clearIntent(
-        scope: DispatchDeliveryInstructionScopeIdentity,
+        scope: InstructionScopeIdentity,
         deliveryId: String,
         idempotencyKey: String
-    ): DispatchDeliveryInstructionMetadataWrite = mutex(scope).withLock {
+    ): InstructionMetadataWrite = mutex(scope).withLock {
         when (val stored = safeLoad(scope)) {
-            ScopedMetadataRead.Unavailable -> DispatchDeliveryInstructionMetadataWrite.Unavailable
+            ScopedMetadataRead.Unavailable -> InstructionMetadataWrite.Unavailable
+
             is ScopedMetadataRead.Value -> {
                 val intents = stored.payload?.let(::decode)
-                    ?: if (stored.payload == null) emptyList() else {
-                        return@withLock DispatchDeliveryInstructionMetadataWrite.Unavailable
+                    ?: if (stored.payload == null) {
+                        emptyList()
+                    } else {
+                        return@withLock InstructionMetadataWrite.Unavailable
                     }
                 val current = intents.firstOrNull { it.deliveryId == deliveryId }
-                    ?: return@withLock DispatchDeliveryInstructionMetadataWrite.Saved
+                    ?: return@withLock InstructionMetadataWrite.Saved
                 if (current.scope != scope || current.idempotencyKey != idempotencyKey) {
-                    return@withLock DispatchDeliveryInstructionMetadataWrite.Stale
+                    return@withLock InstructionMetadataWrite.Stale
                 }
                 val remaining = intents.filterNot { it.deliveryId == deliveryId }
                 val saved = if (remaining.isEmpty()) safeClear(scope) else write(scope, remaining)
@@ -335,7 +419,7 @@ internal class AppDispatchDeliveryInstructionMetadataStore(
         }
     }
 
-    private suspend fun safeLoad(scope: DispatchDeliveryInstructionScopeIdentity): ScopedMetadataRead = try {
+    private suspend fun safeLoad(scope: InstructionScopeIdentity): ScopedMetadataRead = try {
         local.load(scope.toLocal())
     } catch (cancelled: CancellationException) {
         throw cancelled
@@ -343,7 +427,7 @@ internal class AppDispatchDeliveryInstructionMetadataStore(
         ScopedMetadataRead.Unavailable
     }
 
-    private suspend fun safeClear(scope: DispatchDeliveryInstructionScopeIdentity): Boolean = try {
+    private suspend fun safeClear(scope: InstructionScopeIdentity): Boolean = try {
         local.clear(scope.toLocal())
     } catch (cancelled: CancellationException) {
         throw cancelled
@@ -352,8 +436,8 @@ internal class AppDispatchDeliveryInstructionMetadataStore(
     }
 
     private suspend fun write(
-        scope: DispatchDeliveryInstructionScopeIdentity,
-        intents: List<DispatchDeliveryInstructionIntent>
+        scope: InstructionScopeIdentity,
+        intents: List<InstructionIntent>
     ): Boolean = try {
         local.save(scope.toLocal(), encode(intents))
     } catch (cancelled: CancellationException) {
@@ -362,12 +446,12 @@ internal class AppDispatchDeliveryInstructionMetadataStore(
         false
     }
 
-    private fun encode(intents: List<DispatchDeliveryInstructionIntent>): String = buildJsonObject {
+    private fun encode(intents: List<InstructionIntent>): String = buildJsonObject {
         put("schema", JsonPrimitive(SCHEMA_VERSION))
         put("commands", JsonArray(intents.map(::encodeIntent)))
     }.toString()
 
-    private fun encodeIntent(intent: DispatchDeliveryInstructionIntent): JsonObject = buildJsonObject {
+    private fun encodeIntent(intent: InstructionIntent): JsonObject = buildJsonObject {
         put("userId", JsonPrimitive(intent.scope.userId))
         put("tenantId", JsonPrimitive(intent.scope.tenantId))
         put("workspaceId", JsonPrimitive(intent.scope.workspaceId))
@@ -382,38 +466,50 @@ internal class AppDispatchDeliveryInstructionMetadataStore(
         put("status", JsonPrimitive(intent.status.name))
     }
 
-    private fun decode(payload: String): List<DispatchDeliveryInstructionIntent>? = try {
+    private fun decode(payload: String): List<InstructionIntent>? = try {
         val envelope = Json.parseToJsonElement(payload).jsonObject
         if (envelope.requiredLong("schema") != SCHEMA_VERSION) {
             null
         } else {
             val intents = envelope["commands"]?.jsonArray?.map { element ->
                 val value = element.jsonObject
-                val scope = DispatchDeliveryInstructionScopeIdentity(
-                    value.requiredString("userId"), value.requiredString("tenantId"),
-                    value.requiredString("workspaceId"), value.requiredString("membershipId")
+                val scope = InstructionScopeIdentity(
+                    value.requiredString("userId"),
+                    value.requiredString("tenantId"),
+                    value.requiredString("workspaceId"),
+                    value.requiredString("membershipId")
                 )
                 val deliveryId = value.requiredString("deliveryId")
                 val expectedVersion = value.requiredLong("expectedDeliveryVersion")
                 val instructionId = value.optionalString("instructionId")
-                val kind = DispatchDeliveryInstructionKind.valueOf(value.requiredString("kind"))
+                val kind = InstructionKind.valueOf(value.requiredString("kind"))
                 val content = value.requiredString("content")
                 val body = value.requiredString("exactRequestBody")
                 val key = value.requiredString("idempotencyKey")
-                val status = DispatchDeliveryInstructionIntentStatus.valueOf(value.requiredString("status"))
+                val status = InstructionIntentStatus.valueOf(
+                    value.requiredString("status")
+                )
                 if (!UUID_PATTERN.matches(deliveryId) || expectedVersion < 0 ||
-                    instructionId != null && !UUID_PATTERN.matches(instructionId) || content.isBlank() ||
-                    content.length > DispatchDeliveryInstructionsUiState.MAX_INSTRUCTION_CONTENT ||
+                    (instructionId != null && !UUID_PATTERN.matches(instructionId)) ||
+                    content.isBlank() ||
+                    content.length > InstructionsUiState.MAX_INSTRUCTION_CONTENT ||
                     body != dispatchDeliveryInstructionRequestBody(instructionId, kind, content) ||
                     key.length !in 1..160
-                ) error("Stored Dispatch instruction command is invalid")
-                DispatchDeliveryInstructionIntent(
-                    scope, deliveryId, expectedVersion, instructionId, kind, content, body, key, status
+                ) {
+                    error("Stored Dispatch instruction command is invalid")
+                }
+                InstructionIntent(
+                    scope, deliveryId, expectedVersion, instructionId,
+                    kind, content, body, key, status
                 )
             } ?: error("Stored Dispatch instruction commands are missing")
             if (intents.map { it.deliveryId }.distinct().size != intents.size ||
                 intents.map { it.idempotencyKey }.distinct().size != intents.size
-            ) null else intents
+            ) {
+                null
+            } else {
+                intents
+            }
         }
     } catch (_: Exception) {
         null
@@ -430,39 +526,45 @@ internal class AppDispatchDeliveryInstructionMetadataStore(
     }
 
     private fun JsonObject.requiredLong(key: String): Long = this[key]?.jsonPrimitive
-        ?.takeUnless(JsonPrimitive::isString)?.longOrNull ?: error("Stored Dispatch instruction number is invalid")
+        ?.takeUnless(JsonPrimitive::isString)?.longOrNull
+        ?: error("Stored Dispatch instruction number is invalid")
 
-    private fun DispatchDeliveryInstructionIntent.sameCommand(
-        other: DispatchDeliveryInstructionIntent
-    ): Boolean = scope == other.scope && deliveryId == other.deliveryId &&
-        expectedDeliveryVersion == other.expectedDeliveryVersion && instructionId == other.instructionId &&
-        kind == other.kind && content == other.content && exactRequestBody == other.exactRequestBody &&
-        idempotencyKey == other.idempotencyKey
+    private fun InstructionIntent.sameCommand(other: InstructionIntent): Boolean =
+        scope == other.scope && deliveryId == other.deliveryId &&
+            expectedDeliveryVersion == other.expectedDeliveryVersion &&
+            instructionId == other.instructionId &&
+            kind == other.kind &&
+            content == other.content &&
+            exactRequestBody == other.exactRequestBody &&
+            idempotencyKey == other.idempotencyKey
 
-    private fun DispatchDeliveryInstructionScopeIdentity.toLocal() =
+    private fun InstructionScopeIdentity.toLocal() =
         ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
 
-    private fun Boolean.toWriteResult() = if (this) DispatchDeliveryInstructionMetadataWrite.Saved
-    else DispatchDeliveryInstructionMetadataWrite.Unavailable
+    private fun Boolean.toWriteResult() = if (this) {
+        InstructionMetadataWrite.Saved
+    } else {
+        InstructionMetadataWrite.Unavailable
+    }
 
-    private fun mutex(scope: DispatchDeliveryInstructionScopeIdentity): Mutex =
+    private fun mutex(scope: InstructionScopeIdentity): Mutex =
         locks.computeIfAbsent(scope) { Mutex() }
 
     private companion object {
         const val SCHEMA_VERSION = 1L
         const val MAX_PENDING_COMMANDS = 32
         val UUID_PATTERN = Regex("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
-        val locks = ConcurrentHashMap<DispatchDeliveryInstructionScopeIdentity, Mutex>()
+        val locks = ConcurrentHashMap<InstructionScopeIdentity, Mutex>()
     }
 }
 
 internal class DispatchDeliveryInstructionsViewModelFactory @Inject constructor(
-    private val gateway: DispatchDeliveryInstructionsGateway,
-    private val metadata: DispatchDeliveryInstructionMetadataStore
+    private val gateway: InstructionsGateway,
+    private val metadata: InstructionMetadataStore
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        require(modelClass.isAssignableFrom(DispatchDeliveryInstructionsViewModel::class.java))
-        return DispatchDeliveryInstructionsViewModel(gateway, metadata) as T
+        require(modelClass.isAssignableFrom(InstructionsViewModel::class.java))
+        return InstructionsViewModel(gateway, metadata) as T
     }
 }

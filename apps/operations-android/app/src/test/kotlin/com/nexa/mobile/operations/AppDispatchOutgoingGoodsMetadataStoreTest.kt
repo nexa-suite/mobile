@@ -3,14 +3,14 @@ package com.nexa.mobile.operations
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataStore
-import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsCommand
-import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsCommandType
-import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsIntent
-import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsIntentStatus
-import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsMetadataRead
-import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsMetadataWrite
-import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsObservation
-import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsScopeIdentity
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsCommand as OutgoingGoodsCommand
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsCommandType as OutgoingGoodsCommandType
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsIntent as OutgoingGoodsIntent
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsIntentStatus as OutgoingGoodsIntentStatus
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsMetadataRead as OutgoingGoodsMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsMetadataWrite as OutgoingGoodsMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsObservation as OutgoingGoodsObservation
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsScopeIdentity as OutgoingGoodsScopeIdentity
 import java.math.BigDecimal
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -20,42 +20,46 @@ class AppDispatchOutgoingGoodsMetadataStoreTest {
     @Test
     fun encryptedPurposeAdapterRestoresExactBodyVersionsAndKeyAsUnknownOutcome() = runTest {
         val local = FakeScopedMetadataStore()
-        val scope = DispatchOutgoingGoodsScopeIdentity(USER, TENANT, WORKSPACE, MEMBERSHIP)
-        val command = DispatchOutgoingGoodsCommand(
+        val scope = OutgoingGoodsScopeIdentity(USER, TENANT, WORKSPACE, MEMBERSHIP)
+        val command = OutgoingGoodsCommand(
             fulfillmentId = FULFILLMENT,
             expectedFulfillmentVersion = 12,
             physicalAllocationId = ALLOCATION,
             physicalAllocationVersion = 7,
-            observations = listOf(DispatchOutgoingGoodsObservation(LINE, LOT, BigDecimal("2.50"))),
+            observations = listOf(OutgoingGoodsObservation(LINE, LOT, BigDecimal("2.50"))),
             idempotencyKey = "outgoing-check-key",
-            exactRequestBody = """{"physicalAllocationId":"$ALLOCATION","physicalAllocationVersion":7,"observations":[{"physicalAllocationLineId":"$LINE","observedLotId":"$LOT","observedQuantity":2.50}]}"""
+            exactRequestBody = listOf(
+                """{"physicalAllocationId":"$ALLOCATION","physicalAllocationVersion":7,""",
+                """"observations":[{"physicalAllocationLineId":"$LINE",""",
+                """"observedLotId":"$LOT","observedQuantity":2.50}]}"""
+            ).joinToString(separator = "")
         )
-        val pending = DispatchOutgoingGoodsIntent(scope, command)
+        val pending = OutgoingGoodsIntent(scope, command)
         val first = AppDispatchOutgoingGoodsMetadataStore(local)
-        assertEquals(DispatchOutgoingGoodsMetadataWrite.Saved, first.saveIntent(pending))
+        assertEquals(OutgoingGoodsMetadataWrite.Saved, first.saveIntent(pending))
 
         val restored = AppDispatchOutgoingGoodsMetadataStore(local)
         val read = restored.loadIntent(scope, FULFILLMENT)
         assertEquals(
-            DispatchOutgoingGoodsMetadataRead.Available(
-                pending.copy(status = DispatchOutgoingGoodsIntentStatus.UnknownOutcome)
+            OutgoingGoodsMetadataRead.Available(
+                pending.copy(status = OutgoingGoodsIntentStatus.UnknownOutcome)
             ),
             read
         )
         assertEquals(
-            DispatchOutgoingGoodsMetadataWrite.Conflict,
+            OutgoingGoodsMetadataWrite.Conflict,
             restored.saveIntent(pending.copy(command = command.copy(idempotencyKey = "new-key")))
         )
         assertEquals(
-            DispatchOutgoingGoodsMetadataWrite.Stale,
+            OutgoingGoodsMetadataWrite.Stale,
             restored.clearIntent(scope, FULFILLMENT, "other-key")
         )
         assertEquals(
-            DispatchOutgoingGoodsMetadataWrite.Saved,
+            OutgoingGoodsMetadataWrite.Saved,
             restored.clearIntent(scope, FULFILLMENT, command.idempotencyKey)
         )
         assertEquals(
-            DispatchOutgoingGoodsMetadataRead.Available(null),
+            OutgoingGoodsMetadataRead.Available(null),
             restored.loadIntent(scope, FULFILLMENT)
         )
     }
@@ -63,28 +67,32 @@ class AppDispatchOutgoingGoodsMetadataStoreTest {
     @Test
     fun discrepancyResolutionPersistsExactReasonAndReferencesAsUnknownOutcome() = runTest {
         val local = FakeScopedMetadataStore()
-        val scope = DispatchOutgoingGoodsScopeIdentity(USER, TENANT, WORKSPACE, MEMBERSHIP)
-        val command = DispatchOutgoingGoodsCommand(
+        val scope = OutgoingGoodsScopeIdentity(USER, TENANT, WORKSPACE, MEMBERSHIP)
+        val command = OutgoingGoodsCommand(
             fulfillmentId = FULFILLMENT,
             expectedFulfillmentVersion = 12,
             physicalAllocationId = ALLOCATION,
             physicalAllocationVersion = 7,
             observations = emptyList(),
             idempotencyKey = "outgoing-resolution-key",
-            exactRequestBody = """{"physicalAllocationId":"$ALLOCATION","physicalAllocationVersion":7,"discrepancyCheckId":"$DISCREPANCY","matchingCheckId":"$MATCH","reason":"Recount confirmed the allocated goods."}""",
-            type = DispatchOutgoingGoodsCommandType.ResolveDiscrepancy,
+            exactRequestBody = listOf(
+                """{"physicalAllocationId":"$ALLOCATION","physicalAllocationVersion":7,""",
+                """"discrepancyCheckId":"$DISCREPANCY","matchingCheckId":"$MATCH",""",
+                """"reason":"Recount confirmed the allocated goods."}"""
+            ).joinToString(separator = ""),
+            type = OutgoingGoodsCommandType.ResolveDiscrepancy,
             discrepancyCheckId = DISCREPANCY,
             matchingCheckId = MATCH,
             reason = "Recount confirmed the allocated goods."
         )
-        val pending = DispatchOutgoingGoodsIntent(scope, command)
+        val pending = OutgoingGoodsIntent(scope, command)
         val first = AppDispatchOutgoingGoodsMetadataStore(local)
-        assertEquals(DispatchOutgoingGoodsMetadataWrite.Saved, first.saveIntent(pending))
+        assertEquals(OutgoingGoodsMetadataWrite.Saved, first.saveIntent(pending))
 
         val recovered = AppDispatchOutgoingGoodsMetadataStore(local).loadIntent(scope, FULFILLMENT)
         assertEquals(
-            DispatchOutgoingGoodsMetadataRead.Available(
-                pending.copy(status = DispatchOutgoingGoodsIntentStatus.UnknownOutcome)
+            OutgoingGoodsMetadataRead.Available(
+                pending.copy(status = OutgoingGoodsIntentStatus.UnknownOutcome)
             ),
             recovered
         )

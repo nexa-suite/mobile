@@ -6,24 +6,24 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
-import com.nexa.mobile.operations.core.network.DispatchAssignmentNetworkOutcome
-import com.nexa.mobile.operations.core.network.DispatchDriverAssignmentProjection
-import com.nexa.mobile.operations.core.network.DispatchPlanChangeNetworkOutcome
+import com.nexa.mobile.operations.core.network.DispatchAssignmentNetworkOutcome as AssignmentOutcome
+import com.nexa.mobile.operations.core.network.DispatchDriverAssignmentProjection as DriverAssignmentProjection
+import com.nexa.mobile.operations.core.network.DispatchPlanChangeNetworkOutcome as PlanChangeOutcome
 import com.nexa.mobile.operations.core.network.DispatchPlanChangeRequest
-import com.nexa.mobile.operations.core.network.DispatchReadinessNetworkOutcome
-import com.nexa.mobile.operations.core.network.DispatchReadinessProjection
+import com.nexa.mobile.operations.core.network.DispatchReadinessNetworkOutcome as ReadinessOutcome
+import com.nexa.mobile.operations.core.network.DispatchReadinessProjection as ReadinessProjection
 import com.nexa.mobile.operations.core.network.NexaDispatchAssignmentGateway
 import com.nexa.mobile.operations.core.network.NexaDispatchReadinessGateway
 import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityContext
 import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityIdentity
 import com.nexa.mobile.operations.feature.dispatch.DispatchDriverCandidate
 import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeGateway
-import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeGatewayResult as PlanChangeGatewayResult
 import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeIntent
-import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeMetadataStore
-import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeScopeIdentity
+import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeMetadataStore as PlanChangeMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeScopeIdentity as PlanChangeScopeIdentity
 import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeSnapshot
-import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeViewModel
+import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeViewModel as PlanChangeViewModel
 import com.nexa.mobile.operations.feature.dispatch.DispatchReadiness
 import com.nexa.mobile.operations.feature.dispatch.PreparedFulfillmentDriverAssignment
 import javax.inject.Inject
@@ -38,37 +38,45 @@ internal class OperationsDispatchPlanChangeGateway @Inject constructor(
     override suspend fun load(
         fulfillmentId: String,
         context: DispatchAuthorityContext
-    ): DispatchPlanChangeGatewayResult {
+    ): PlanChangeGatewayResult {
         val authorization = authorize(context, intent = null)
         if (authorization !is Authorization.Current) return authorization.toResult()
         val currentReadiness = when (val result = readiness.detail(fulfillmentId)) {
-            is DispatchReadinessNetworkOutcome.Detail -> result.item.toFeature()
+            is ReadinessOutcome.Detail -> result.item.toFeature()
             else -> return result.toReadFailure()
         }
         if (currentReadiness.fulfillmentId != fulfillmentId) {
-            return DispatchPlanChangeGatewayResult.ServiceUnavailable
+            return PlanChangeGatewayResult.ServiceUnavailable
         }
         val candidates = when (val result = assignments.candidates()) {
-            is DispatchAssignmentNetworkOutcome.Candidates -> result.items.map {
+            is AssignmentOutcome.Candidates -> result.items.map {
                 DispatchDriverCandidate(it.membershipId, it.email, it.displayName)
             }
 
             else -> return result.toAssignmentFailure(mutation = false)
         }
         val current = when (val result = assignments.current(fulfillmentId)) {
-            is DispatchAssignmentNetworkOutcome.Current -> result.item?.toFeature()
+            is AssignmentOutcome.Current -> result.item?.toFeature()
             else -> return result.toAssignmentFailure(mutation = false)
         }
         val history = when (val result = assignments.history(fulfillmentId)) {
-            is DispatchPlanChangeNetworkOutcome.History -> result.items.map { it.toFeature() }
+            is PlanChangeOutcome.History -> result.items.map { it.toFeature() }
             else -> return result.toPlanFailure(mutation = false)
         }
-        if (current == null && history.isNotEmpty() || current != null &&
-            (history.none { it.id == current.id && it.current } ||
-                history.count { it.current } != 1)
-        ) return DispatchPlanChangeGatewayResult.ServiceUnavailable
+        if ((current == null && history.isNotEmpty()) ||
+            (
+                current !=
+                    null &&
+                    (
+                        history.none { it.id == current.id && it.current } ||
+                            history.count { it.current } != 1
+                        )
+                )
+        ) {
+            return PlanChangeGatewayResult.ServiceUnavailable
+        }
         if (!isCurrent(context, authorization.lease)) return authorityDrift(context)
-        return DispatchPlanChangeGatewayResult.Snapshot(
+        return PlanChangeGatewayResult.Snapshot(
             DispatchPlanChangeSnapshot(currentReadiness, candidates, current, history)
         )
     }
@@ -78,36 +86,40 @@ internal class OperationsDispatchPlanChangeGateway @Inject constructor(
         assignment: PreparedFulfillmentDriverAssignment,
         intent: DispatchPlanChangeIntent,
         context: DispatchAuthorityContext
-    ): DispatchPlanChangeGatewayResult {
+    ): PlanChangeGatewayResult {
         val authorization = authorize(context, intent)
         if (authorization !is Authorization.Current) return authorization.toResult()
         if (intent.scope != context.scopeIdentity() ||
-            !intent.requestsDriverChange && !intent.requestsScheduleChange ||
+            (!intent.requestsDriverChange && !intent.requestsScheduleChange) ||
             intent.fulfillmentId != readiness.fulfillmentId || !assignment.current ||
             assignment.id != intent.expectedAssignmentId ||
             assignment.fulfillmentVersion != intent.expectedAssignmentVersion ||
             readiness.fulfillmentVersion != intent.expectedFulfillmentVersion ||
             readiness.physicalAllocationId != intent.physicalAllocationId ||
             readiness.physicalAllocationVersion != intent.physicalAllocationVersion
-        ) return DispatchPlanChangeGatewayResult.Stale
+        ) {
+            return PlanChangeGatewayResult.Stale
+        }
 
         val currentReadiness = when (val result = this.readiness.detail(intent.fulfillmentId)) {
-            is DispatchReadinessNetworkOutcome.Detail -> result.item.toFeature()
+            is ReadinessOutcome.Detail -> result.item.toFeature()
             else -> return result.toReadFailure()
         }
-        if (!currentReadiness.matches(readiness)) return DispatchPlanChangeGatewayResult.Stale
+        if (!currentReadiness.matches(readiness)) return PlanChangeGatewayResult.Stale
         if (!currentReadiness.ready || currentReadiness.fulfillmentStatus != "READY_FOR_DISPATCH") {
-            return DispatchPlanChangeGatewayResult.NotReady
+            return PlanChangeGatewayResult.NotReady
         }
         val currentAssignment = when (val result = assignments.current(intent.fulfillmentId)) {
-            is DispatchAssignmentNetworkOutcome.Current -> result.item?.toFeature()
+            is AssignmentOutcome.Current -> result.item?.toFeature()
             else -> return result.toAssignmentFailure(mutation = false)
-        } ?: return DispatchPlanChangeGatewayResult.Stale
+        } ?: return PlanChangeGatewayResult.Stale
         if (!currentAssignment.current || currentAssignment.id != intent.expectedAssignmentId ||
             currentAssignment.fulfillmentVersion != intent.expectedAssignmentVersion ||
             currentAssignment.physicalAllocationId != intent.physicalAllocationId ||
             currentAssignment.physicalAllocationVersion != intent.physicalAllocationVersion
-        ) return DispatchPlanChangeGatewayResult.Stale
+        ) {
+            return PlanChangeGatewayResult.Stale
+        }
         eligibleFailure(intent.resultResponsibleMembershipId)?.let { return it }
         if (!isCurrent(context, authorization.lease)) return authorityDrift(context)
         return send(intent)
@@ -116,17 +128,23 @@ internal class OperationsDispatchPlanChangeGateway @Inject constructor(
     override suspend fun replay(
         intent: DispatchPlanChangeIntent,
         context: DispatchAuthorityContext
-    ): DispatchPlanChangeGatewayResult {
+    ): PlanChangeGatewayResult {
         val authorization = authorize(context, intent)
         if (authorization !is Authorization.Current) return authorization.toResult()
-        if (intent.scope != context.scopeIdentity()) return DispatchPlanChangeGatewayResult.ContextInvalidated
+        if (intent.scope !=
+            context.scopeIdentity()
+        ) {
+            return PlanChangeGatewayResult.ContextInvalidated
+        }
 
         // Current read/grant and eligible-driver checks remain mandatory. Frozen versions are
         // deliberately not compared here: the server resolves an exact idempotent replay first.
         when (val result = readiness.detail(intent.fulfillmentId)) {
-            is DispatchReadinessNetworkOutcome.Detail -> if (
+            is ReadinessOutcome.Detail -> if (
                 result.item.fulfillmentId != intent.fulfillmentId
-            ) return DispatchPlanChangeGatewayResult.ServiceUnavailable
+            ) {
+                return PlanChangeGatewayResult.ServiceUnavailable
+            }
 
             else -> return result.toReadFailure()
         }
@@ -135,8 +153,8 @@ internal class OperationsDispatchPlanChangeGateway @Inject constructor(
         return send(intent)
     }
 
-    private suspend fun send(intent: DispatchPlanChangeIntent): DispatchPlanChangeGatewayResult =
-        when (val result = assignments.changePlan(
+    private suspend fun send(intent: DispatchPlanChangeIntent): PlanChangeGatewayResult = when (
+        val result = assignments.changePlan(
             DispatchPlanChangeRequest(
                 fulfillmentId = intent.fulfillmentId,
                 expectedFulfillmentVersion = intent.expectedFulfillmentVersion,
@@ -149,18 +167,23 @@ internal class OperationsDispatchPlanChangeGateway @Inject constructor(
                 requestBody = intent.requestBody,
                 idempotencyKey = intent.idempotencyKey
             )
-        )) {
-            is DispatchPlanChangeNetworkOutcome.Changed ->
-                DispatchPlanChangeGatewayResult.Changed(result.item.toFeature())
+        )
+    ) {
+        is PlanChangeOutcome.Changed ->
+            PlanChangeGatewayResult.Changed(result.item.toFeature())
 
-            else -> result.toPlanFailure(mutation = true)
-        }
+        else -> result.toPlanFailure(mutation = true)
+    }
 
-    private suspend fun eligibleFailure(membershipId: String): DispatchPlanChangeGatewayResult? =
+    private suspend fun eligibleFailure(membershipId: String): PlanChangeGatewayResult? =
         when (val result = assignments.candidates()) {
-            is DispatchAssignmentNetworkOutcome.Candidates -> if (
+            is AssignmentOutcome.Candidates -> if (
                 result.items.any { it.membershipId.equals(membershipId, ignoreCase = true) }
-            ) null else DispatchPlanChangeGatewayResult.Conflict
+            ) {
+                null
+            } else {
+                PlanChangeGatewayResult.Conflict
+            }
 
             else -> result.toAssignmentFailure(mutation = false)
         }
@@ -169,7 +192,11 @@ internal class OperationsDispatchPlanChangeGateway @Inject constructor(
         context: DispatchAuthorityContext,
         intent: DispatchPlanChangeIntent?
     ): Authorization {
-        if (sessions.sessionState.value != SessionState.Active) return Authorization.SessionInvalidated
+        if (sessions.sessionState.value !=
+            SessionState.Active
+        ) {
+            return Authorization.SessionInvalidated
+        }
         val lease = sessions.currentAccess() ?: return Authorization.SessionInvalidated
         val identity = context.identity ?: return Authorization.ContextInvalidated
         val verified = sessions.verifiedSession.value ?: return Authorization.ContextInvalidated
@@ -179,14 +206,18 @@ internal class OperationsDispatchPlanChangeGateway @Inject constructor(
                 identity.workspaceId,
                 identity.membershipId
             ).any(String::isBlank) || !verified.matches(identity)
-        ) return Authorization.ContextInvalidated
+        ) {
+            return Authorization.ContextInvalidated
+        }
         if (identity.permissions.isEmpty() || "dispatch.read" !in identity.permissions) {
             return Authorization.PermissionDenied
         }
         if (intent?.requestsDriverChange == true && "dispatch.assign" !in identity.permissions) {
             return Authorization.PermissionDenied
         }
-        if (intent?.requestsScheduleChange == true && "dispatch.schedule" !in identity.permissions) {
+        if (intent?.requestsScheduleChange == true &&
+            "dispatch.schedule" !in identity.permissions
+        ) {
             return Authorization.PermissionDenied
         }
         return Authorization.Current(lease)
@@ -198,18 +229,23 @@ internal class OperationsDispatchPlanChangeGateway @Inject constructor(
     ): Boolean {
         if (sessions.sessionState.value != SessionState.Active ||
             !sessions.isEpochCurrent(originalLease.epoch)
-        ) return false
+        ) {
+            return false
+        }
         val identity = context.identity ?: return false
         val verified = sessions.verifiedSession.value ?: return false
         return verified.matches(identity) && "dispatch.read" in identity.permissions
     }
 
     private suspend fun authorityDrift(context: DispatchAuthorityContext) = when {
-        sessions.sessionState.value != SessionState.Active -> DispatchPlanChangeGatewayResult.SessionInvalidated
+        sessions.sessionState.value != SessionState.Active ->
+            PlanChangeGatewayResult.SessionInvalidated
+
         sessions.verifiedSession.value?.let { current ->
             context.identity?.let { current.matches(it) } == true
-        } == true -> DispatchPlanChangeGatewayResult.SessionInvalidated
-        else -> DispatchPlanChangeGatewayResult.ContextInvalidated
+        } == true -> PlanChangeGatewayResult.SessionInvalidated
+
+        else -> PlanChangeGatewayResult.ContextInvalidated
     }
 
     private fun VerifiedSession.matches(expected: DispatchAuthorityIdentity): Boolean =
@@ -224,7 +260,7 @@ internal class OperationsDispatchPlanChangeGateway @Inject constructor(
             physicalAllocationVersion == expected.physicalAllocationVersion &&
             ready == expected.ready && fulfillmentStatus == expected.fulfillmentStatus
 
-    private fun DispatchDriverAssignmentProjection.toFeature() = PreparedFulfillmentDriverAssignment(
+    private fun DriverAssignmentProjection.toFeature() = PreparedFulfillmentDriverAssignment(
         id = id,
         fulfillmentId = fulfillmentId,
         fulfillmentVersion = fulfillmentVersion,
@@ -238,58 +274,100 @@ internal class OperationsDispatchPlanChangeGateway @Inject constructor(
         current = current
     )
 
-    private fun DispatchReadinessProjection.toFeature() =
-        DispatchReadinessProjectionAdapter.toFeature(this)
+    private fun ReadinessProjection.toFeature() = DispatchReadinessProjectionAdapter.toFeature(this)
 
     private fun DispatchAuthorityContext.scopeIdentity() = identity?.let {
-        DispatchPlanChangeScopeIdentity(it.userId, it.tenantId, it.workspaceId, it.membershipId)
+        PlanChangeScopeIdentity(it.userId, it.tenantId, it.workspaceId, it.membershipId)
     }
 
-    private fun DispatchReadinessNetworkOutcome.toReadFailure() = when (this) {
-        DispatchReadinessNetworkOutcome.NetworkUnavailable -> DispatchPlanChangeGatewayResult.NetworkUnavailable
-        DispatchReadinessNetworkOutcome.ServiceUnavailable -> DispatchPlanChangeGatewayResult.ServiceUnavailable
-        DispatchReadinessNetworkOutcome.PermissionDenied -> DispatchPlanChangeGatewayResult.PermissionDenied
-        DispatchReadinessNetworkOutcome.ContextInvalidated -> DispatchPlanChangeGatewayResult.ContextInvalidated
-        DispatchReadinessNetworkOutcome.SessionInvalidated -> DispatchPlanChangeGatewayResult.SessionInvalidated
-        is DispatchReadinessNetworkOutcome.ListResult,
-        is DispatchReadinessNetworkOutcome.Detail -> DispatchPlanChangeGatewayResult.ServiceUnavailable
+    private fun ReadinessOutcome.toReadFailure() = when (this) {
+        ReadinessOutcome.NetworkUnavailable ->
+            PlanChangeGatewayResult.NetworkUnavailable
+
+        ReadinessOutcome.ServiceUnavailable ->
+            PlanChangeGatewayResult.ServiceUnavailable
+
+        ReadinessOutcome.PermissionDenied ->
+            PlanChangeGatewayResult.PermissionDenied
+
+        ReadinessOutcome.ContextInvalidated ->
+            PlanChangeGatewayResult.ContextInvalidated
+
+        ReadinessOutcome.SessionInvalidated ->
+            PlanChangeGatewayResult.SessionInvalidated
+
+        is ReadinessOutcome.ListResult,
+        is ReadinessOutcome.Detail ->
+            PlanChangeGatewayResult.ServiceUnavailable
     }
 
-    private fun DispatchAssignmentNetworkOutcome.toAssignmentFailure(mutation: Boolean) = when (this) {
-        DispatchAssignmentNetworkOutcome.NetworkUnavailable -> DispatchPlanChangeGatewayResult.NetworkUnavailable
-        DispatchAssignmentNetworkOutcome.UnknownOutcome -> DispatchPlanChangeGatewayResult.UnknownOutcome
-        DispatchAssignmentNetworkOutcome.ServiceUnavailable -> DispatchPlanChangeGatewayResult.ServiceUnavailable
-        DispatchAssignmentNetworkOutcome.PermissionDenied -> DispatchPlanChangeGatewayResult.PermissionDenied
-        DispatchAssignmentNetworkOutcome.ContextInvalidated -> DispatchPlanChangeGatewayResult.ContextInvalidated
-        DispatchAssignmentNetworkOutcome.SessionInvalidated -> DispatchPlanChangeGatewayResult.SessionInvalidated
-        DispatchAssignmentNetworkOutcome.Stale -> DispatchPlanChangeGatewayResult.Stale
-        DispatchAssignmentNetworkOutcome.Conflict -> DispatchPlanChangeGatewayResult.Conflict
-        is DispatchAssignmentNetworkOutcome.Candidates,
-        is DispatchAssignmentNetworkOutcome.Current,
-        is DispatchAssignmentNetworkOutcome.Assigned -> if (mutation) {
-            DispatchPlanChangeGatewayResult.UnknownOutcome
-        } else DispatchPlanChangeGatewayResult.ServiceUnavailable
+    private fun AssignmentOutcome.toAssignmentFailure(mutation: Boolean) = when (this) {
+        AssignmentOutcome.NetworkUnavailable ->
+            PlanChangeGatewayResult.NetworkUnavailable
+
+        AssignmentOutcome.UnknownOutcome ->
+            PlanChangeGatewayResult.UnknownOutcome
+
+        AssignmentOutcome.ServiceUnavailable ->
+            PlanChangeGatewayResult.ServiceUnavailable
+
+        AssignmentOutcome.PermissionDenied ->
+            PlanChangeGatewayResult.PermissionDenied
+
+        AssignmentOutcome.ContextInvalidated ->
+            PlanChangeGatewayResult.ContextInvalidated
+
+        AssignmentOutcome.SessionInvalidated ->
+            PlanChangeGatewayResult.SessionInvalidated
+
+        AssignmentOutcome.Stale -> PlanChangeGatewayResult.Stale
+
+        AssignmentOutcome.Conflict -> PlanChangeGatewayResult.Conflict
+
+        is AssignmentOutcome.Candidates,
+        is AssignmentOutcome.Current,
+        is AssignmentOutcome.Assigned -> if (mutation) {
+            PlanChangeGatewayResult.UnknownOutcome
+        } else {
+            PlanChangeGatewayResult.ServiceUnavailable
+        }
     }
 
-    private fun DispatchPlanChangeNetworkOutcome.toPlanFailure(mutation: Boolean) = when (this) {
-        DispatchPlanChangeNetworkOutcome.NetworkUnavailable -> DispatchPlanChangeGatewayResult.NetworkUnavailable
-        DispatchPlanChangeNetworkOutcome.UnknownOutcome -> DispatchPlanChangeGatewayResult.UnknownOutcome
-        DispatchPlanChangeNetworkOutcome.ServiceUnavailable -> DispatchPlanChangeGatewayResult.ServiceUnavailable
-        DispatchPlanChangeNetworkOutcome.PermissionDenied -> DispatchPlanChangeGatewayResult.PermissionDenied
-        DispatchPlanChangeNetworkOutcome.ContextInvalidated -> DispatchPlanChangeGatewayResult.ContextInvalidated
-        DispatchPlanChangeNetworkOutcome.SessionInvalidated -> DispatchPlanChangeGatewayResult.SessionInvalidated
-        DispatchPlanChangeNetworkOutcome.Stale -> DispatchPlanChangeGatewayResult.Stale
-        DispatchPlanChangeNetworkOutcome.Conflict -> DispatchPlanChangeGatewayResult.Conflict
-        is DispatchPlanChangeNetworkOutcome.History,
-        is DispatchPlanChangeNetworkOutcome.Changed -> if (mutation) {
-            DispatchPlanChangeGatewayResult.UnknownOutcome
-        } else DispatchPlanChangeGatewayResult.ServiceUnavailable
+    private fun PlanChangeOutcome.toPlanFailure(mutation: Boolean) = when (this) {
+        PlanChangeOutcome.NetworkUnavailable ->
+            PlanChangeGatewayResult.NetworkUnavailable
+
+        PlanChangeOutcome.UnknownOutcome ->
+            PlanChangeGatewayResult.UnknownOutcome
+
+        PlanChangeOutcome.ServiceUnavailable ->
+            PlanChangeGatewayResult.ServiceUnavailable
+
+        PlanChangeOutcome.PermissionDenied ->
+            PlanChangeGatewayResult.PermissionDenied
+
+        PlanChangeOutcome.ContextInvalidated ->
+            PlanChangeGatewayResult.ContextInvalidated
+
+        PlanChangeOutcome.SessionInvalidated ->
+            PlanChangeGatewayResult.SessionInvalidated
+
+        PlanChangeOutcome.Stale -> PlanChangeGatewayResult.Stale
+
+        PlanChangeOutcome.Conflict -> PlanChangeGatewayResult.Conflict
+
+        is PlanChangeOutcome.History,
+        is PlanChangeOutcome.Changed -> if (mutation) {
+            PlanChangeGatewayResult.UnknownOutcome
+        } else {
+            PlanChangeGatewayResult.ServiceUnavailable
+        }
     }
 
     private fun Authorization.toResult() = when (this) {
-        Authorization.SessionInvalidated -> DispatchPlanChangeGatewayResult.SessionInvalidated
-        Authorization.ContextInvalidated -> DispatchPlanChangeGatewayResult.ContextInvalidated
-        Authorization.PermissionDenied -> DispatchPlanChangeGatewayResult.PermissionDenied
+        Authorization.SessionInvalidated -> PlanChangeGatewayResult.SessionInvalidated
+        Authorization.ContextInvalidated -> PlanChangeGatewayResult.ContextInvalidated
+        Authorization.PermissionDenied -> PlanChangeGatewayResult.PermissionDenied
         is Authorization.Current -> error("authorized result is not a failure")
     }
 
@@ -303,11 +381,11 @@ internal class OperationsDispatchPlanChangeGateway @Inject constructor(
 
 internal class DispatchPlanChangeViewModelFactory @Inject constructor(
     private val gateway: OperationsDispatchPlanChangeGateway,
-    private val metadata: DispatchPlanChangeMetadataStore
+    private val metadata: PlanChangeMetadataStore
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        require(modelClass.isAssignableFrom(DispatchPlanChangeViewModel::class.java))
-        return DispatchPlanChangeViewModel(gateway, metadata) as T
+        require(modelClass.isAssignableFrom(PlanChangeViewModel::class.java))
+        return PlanChangeViewModel(gateway, metadata) as T
     }
 }

@@ -9,12 +9,13 @@ import com.nexa.mobile.operations.feature.delivery.DriverAttemptScopeIdentity
 import com.nexa.mobile.operations.feature.delivery.DriverHandoffIssueCommand
 import com.nexa.mobile.operations.feature.delivery.DriverHandoffMetadataRead
 import com.nexa.mobile.operations.feature.delivery.DriverHandoffMetadataWrite
-import com.nexa.mobile.operations.feature.delivery.DriverHandoffTokenMetadataStore
+import com.nexa.mobile.operations.feature.delivery.DriverHandoffTokenMetadataStore as HandoffTokenMetadataStore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -30,9 +31,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
 /** Stores idempotency commands only. Raw one-time handoff tokens never enter local storage. */
-internal class AppDriverHandoffTokenMetadataStore(
-    private val local: AndroidScopedMetadataStore
-) : DriverHandoffTokenMetadataStore {
+internal class AppDriverHandoffTokenMetadataStore(private val local: AndroidScopedMetadataStore) :
+    HandoffTokenMetadataStore {
     override suspend fun load(
         scope: DriverAttemptScopeIdentity,
         deliveryId: String,
@@ -40,11 +40,14 @@ internal class AppDriverHandoffTokenMetadataStore(
     ): DriverHandoffMetadataRead = mutex(scope).withLock {
         when (val stored = local.load(scope.toLocal())) {
             ScopedMetadataRead.Unavailable -> DriverHandoffMetadataRead.Unavailable
+
             is ScopedMetadataRead.Value -> {
                 val commands = decode(stored.payload, scope)
                     ?: return@withLock DriverHandoffMetadataRead.Unavailable
                 DriverHandoffMetadataRead.Available(
-                    commands.firstOrNull { it.deliveryId == deliveryId && it.attemptId == attemptId }
+                    commands.firstOrNull {
+                        it.deliveryId == deliveryId && it.attemptId == attemptId
+                    }
                 )
             }
         }
@@ -56,6 +59,7 @@ internal class AppDriverHandoffTokenMetadataStore(
     ): DriverHandoffMetadataWrite = mutex(scope).withLock {
         when (val stored = local.load(scope.toLocal())) {
             ScopedMetadataRead.Unavailable -> DriverHandoffMetadataWrite.Unavailable
+
             is ScopedMetadataRead.Value -> {
                 val commands = decode(stored.payload, scope)
                     ?: return@withLock DriverHandoffMetadataWrite.Unavailable
@@ -64,10 +68,14 @@ internal class AppDriverHandoffTokenMetadataStore(
                 }
                 when {
                     existing == command -> DriverHandoffMetadataWrite.Saved
+
                     existing != null -> DriverHandoffMetadataWrite.Conflict
+
                     commands.size >= MAX_COMMANDS -> DriverHandoffMetadataWrite.Unavailable
+
                     local.save(scope.toLocal(), encode(scope, commands + command)) ->
                         DriverHandoffMetadataWrite.Saved
+
                     else -> DriverHandoffMetadataWrite.Unavailable
                 }
             }
@@ -82,6 +90,7 @@ internal class AppDriverHandoffTokenMetadataStore(
     ): DriverHandoffMetadataWrite = mutex(scope).withLock {
         when (val stored = local.load(scope.toLocal())) {
             ScopedMetadataRead.Unavailable -> DriverHandoffMetadataWrite.Unavailable
+
             is ScopedMetadataRead.Value -> {
                 val commands = decode(stored.payload, scope)
                     ?: return@withLock DriverHandoffMetadataWrite.Unavailable
@@ -94,25 +103,32 @@ internal class AppDriverHandoffTokenMetadataStore(
                     val remaining = commands.filterNot { it == existing }
                     if (local.save(scope.toLocal(), encode(scope, remaining))) {
                         DriverHandoffMetadataWrite.Saved
-                    } else DriverHandoffMetadataWrite.Unavailable
+                    } else {
+                        DriverHandoffMetadataWrite.Unavailable
+                    }
                 }
             }
         }
     }
 
-    private fun encode(scope: DriverAttemptScopeIdentity, commands: List<DriverHandoffIssueCommand>) =
-        JsonObject(
-            linkedMapOf(
-                "schema" to JsonPrimitive(SCHEMA),
-                "userId" to JsonPrimitive(scope.userId),
-                "tenantId" to JsonPrimitive(scope.tenantId),
-                "workspaceId" to JsonPrimitive(scope.workspaceId),
-                "membershipId" to JsonPrimitive(scope.membershipId),
-                "commands" to JsonArray(commands.map(::encodeCommand))
-            )
-        ).toString()
+    private fun encode(
+        scope: DriverAttemptScopeIdentity,
+        commands: List<DriverHandoffIssueCommand>
+    ) = JsonObject(
+        linkedMapOf(
+            "schema" to JsonPrimitive(SCHEMA),
+            "userId" to JsonPrimitive(scope.userId),
+            "tenantId" to JsonPrimitive(scope.tenantId),
+            "workspaceId" to JsonPrimitive(scope.workspaceId),
+            "membershipId" to JsonPrimitive(scope.membershipId),
+            "commands" to JsonArray(commands.map(::encodeCommand))
+        )
+    ).toString()
 
-    private fun decode(payload: String?, scope: DriverAttemptScopeIdentity): List<DriverHandoffIssueCommand>? {
+    private fun decode(
+        payload: String?,
+        scope: DriverAttemptScopeIdentity
+    ): List<DriverHandoffIssueCommand>? {
         if (payload == null) return emptyList()
         return try {
             val root = Json.parseToJsonElement(payload).jsonObject
@@ -149,9 +165,10 @@ internal class AppDriverHandoffTokenMetadataStore(
         frozenBody = value.requiredString("frozenBody")
     )
 
-    private fun JsonObject.requiredString(key: String): String =
-        this[key]?.jsonPrimitive?.takeIf(JsonPrimitive::isString)?.content?.takeIf(String::isNotBlank)
-            ?: error("handoff metadata field invalid")
+    private fun JsonObject.requiredString(key: String): String = this[key]?.jsonPrimitive?.takeIf(
+        JsonPrimitive::isString
+    )?.content?.takeIf(String::isNotBlank)
+        ?: error("handoff metadata field invalid")
 
     private fun JsonObject.requiredLong(key: String): Long =
         this[key]?.jsonPrimitive?.longOrNull ?: error("handoff metadata field invalid")
@@ -159,13 +176,12 @@ internal class AppDriverHandoffTokenMetadataStore(
     private fun DriverAttemptScopeIdentity.toLocal() =
         ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
 
-    private fun mutex(scope: DriverAttemptScopeIdentity): Mutex =
-        locks.getOrPut(scope) { Mutex() }
+    private fun mutex(scope: DriverAttemptScopeIdentity): Mutex = locks.getOrPut(scope) { Mutex() }
 
     private companion object {
         const val SCHEMA = 1L
         const val MAX_COMMANDS = 256
-        val locks = java.util.concurrent.ConcurrentHashMap<DriverAttemptScopeIdentity, Mutex>()
+        val locks = ConcurrentHashMap<DriverAttemptScopeIdentity, Mutex>()
     }
 }
 
@@ -176,7 +192,7 @@ internal object DriverHandoffTokenMetadataModule {
     @Singleton
     fun provideDriverHandoffTokenMetadataStore(
         @ApplicationContext context: Context
-    ): DriverHandoffTokenMetadataStore = AppDriverHandoffTokenMetadataStore(
+    ): HandoffTokenMetadataStore = AppDriverHandoffTokenMetadataStore(
         AndroidScopedMetadataStore(context, ScopedMetadataPurpose.DriverHandoffToken)
     )
 }

@@ -87,12 +87,20 @@ fun CustomerSearchScreen(
                             customer.commercialName?.let { Text(it) }
                             Text(
                                 stringResource(
-                                    if (customer.active) R.string.customer_active else R.string.customer_suspended
+                                    if (customer.active) {
+                                        R.string.customer_active
+                                    } else {
+                                        R.string.customer_suspended
+                                    }
                                 )
                             )
                             Text(
                                 stringResource(
-                                    if (customer.buyerLinked) R.string.customer_buyer_linked else R.string.customer_no_buyer
+                                    if (customer.buyerLinked) {
+                                        R.string.customer_buyer_linked
+                                    } else {
+                                        R.string.customer_no_buyer
+                                    }
                                 )
                             )
                             Text(stringResource(R.string.customer_version, customer.version))
@@ -126,7 +134,11 @@ fun CustomerSearchScreen(
                         Text(customer.code)
                         Text(
                             stringResource(
-                                if (customer.active) R.string.customer_active else R.string.customer_suspended
+                                if (customer.active) {
+                                    R.string.customer_active
+                                } else {
+                                    R.string.customer_suspended
+                                }
                             )
                         )
                         TextButton(onClick = {

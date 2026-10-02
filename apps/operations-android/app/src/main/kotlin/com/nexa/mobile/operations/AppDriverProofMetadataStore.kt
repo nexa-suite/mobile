@@ -39,6 +39,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -60,6 +61,7 @@ internal class AppDriverProofMetadataStore(
         mutex(scope).withLock {
             when (val stored = local.load(scope.toLocal())) {
                 ScopedMetadataRead.Unavailable -> DriverProofMetadataRead.Unavailable
+
                 is ScopedMetadataRead.Value -> {
                     val payload = stored.payload
                         ?: return@withLock DriverProofMetadataRead.Available(null)
@@ -93,10 +95,16 @@ internal class AppDriverProofMetadataStore(
         candidate: DriverProofFileCandidate
     ): DriverProofMetadataWrite = mutex(intent.scope).withLock {
         val token = intent.candidateFileToken
-        if (token.isNullOrBlank() || intent.stage != DriverProofIntentStage.EvidenceReadyForReview ||
-            intent.candidateByteSize != candidate.byteSize || intent.candidateChecksumSha256 != candidate.checksumSha256 ||
-            intent.candidateFilename != candidate.originalFilename || intent.candidateContentType != candidate.declaredContentType
-        ) return@withLock DriverProofMetadataWrite.Conflict
+        if (
+            token.isNullOrBlank() ||
+            intent.stage != DriverProofIntentStage.EvidenceReadyForReview ||
+            intent.candidateByteSize != candidate.byteSize ||
+            intent.candidateChecksumSha256 != candidate.checksumSha256 ||
+            intent.candidateFilename != candidate.originalFilename ||
+            intent.candidateContentType != candidate.declaredContentType
+        ) {
+            return@withLock DriverProofMetadataWrite.Conflict
+        }
         val current = readCurrent(intent.scope)
         if (current !is CurrentIntent.Value) return@withLock current.toWrite()
         val persistedProof = current.intent
@@ -106,7 +114,9 @@ internal class AppDriverProofMetadataStore(
             !sameIntent(persistedProof, intent) ||
             persistedProof.proofId == null || persistedProof.proofId != intent.proofId ||
             persistedProof.proofVersion != intent.proofVersion
-        ) return@withLock DriverProofMetadataWrite.Conflict
+        ) {
+            return@withLock DriverProofMetadataWrite.Conflict
+        }
         if (!writeEncryptedArtifact(intent.scope, token, candidate)) {
             return@withLock DriverProofMetadataWrite.Unavailable
         }
@@ -115,15 +125,16 @@ internal class AppDriverProofMetadataStore(
         result
     }
 
-    override suspend fun loadCandidate(intent: DriverProofIntentMetadata): DriverProofFileCandidate? =
-        mutex(intent.scope).withLock {
-            val token = intent.candidateFileToken ?: return@withLock null
-            val filename = intent.candidateFilename ?: return@withLock null
-            val contentType = intent.candidateContentType ?: return@withLock null
-            val size = intent.candidateByteSize ?: return@withLock null
-            val checksum = intent.candidateChecksumSha256 ?: return@withLock null
-            decryptArtifact(intent.scope, token, filename, contentType, size, checksum)
-        }
+    override suspend fun loadCandidate(
+        intent: DriverProofIntentMetadata
+    ): DriverProofFileCandidate? = mutex(intent.scope).withLock {
+        val token = intent.candidateFileToken ?: return@withLock null
+        val filename = intent.candidateFilename ?: return@withLock null
+        val contentType = intent.candidateContentType ?: return@withLock null
+        val size = intent.candidateByteSize ?: return@withLock null
+        val checksum = intent.candidateChecksumSha256 ?: return@withLock null
+        decryptArtifact(intent.scope, token, filename, contentType, size, checksum)
+    }
 
     override suspend fun clearCandidate(intent: DriverProofIntentMetadata): Boolean =
         mutex(intent.scope).withLock {
@@ -137,6 +148,7 @@ internal class AppDriverProofMetadataStore(
     ): DriverProofMetadataWrite = mutex(scope).withLock {
         when (val current = readCurrent(scope)) {
             CurrentIntent.Unavailable -> DriverProofMetadataWrite.Unavailable
+
             is CurrentIntent.Value -> {
                 val intent = current.intent ?: return@withLock DriverProofMetadataWrite.Saved
                 if (intent.scope != scope || intent.createIdempotencyKey != createIdempotencyKey) {
@@ -144,15 +156,21 @@ internal class AppDriverProofMetadataStore(
                 }
                 val artifactDeleted = deleteEncryptedArtifact(scope, intent.candidateFileToken)
                 if (!artifactDeleted) return@withLock DriverProofMetadataWrite.Unavailable
-                if (local.clear(scope.toLocal())) DriverProofMetadataWrite.Saved
-                else DriverProofMetadataWrite.Unavailable
+                if (local.clear(scope.toLocal())) {
+                    DriverProofMetadataWrite.Saved
+                } else {
+                    DriverProofMetadataWrite.Unavailable
+                }
             }
         }
     }
 
-    private suspend fun saveIntentLocked(intent: DriverProofIntentMetadata): DriverProofMetadataWrite {
+    private suspend fun saveIntentLocked(
+        intent: DriverProofIntentMetadata
+    ): DriverProofMetadataWrite {
         when (val current = readCurrent(intent.scope)) {
             CurrentIntent.Unavailable -> return DriverProofMetadataWrite.Unavailable
+
             is CurrentIntent.Value -> {
                 val existing = current.intent
                 if (existing != null) {
@@ -160,7 +178,9 @@ internal class AppDriverProofMetadataStore(
                     if (existing.status == DriverProofIntentStatus.UnknownOutcome &&
                         intent.status == DriverProofIntentStatus.Pending &&
                         existing.stage == intent.stage
-                    ) return DriverProofMetadataWrite.Conflict
+                    ) {
+                        return DriverProofMetadataWrite.Conflict
+                    }
                     if (existing == intent) return DriverProofMetadataWrite.Saved
                 }
             }
@@ -175,21 +195,30 @@ internal class AppDriverProofMetadataStore(
     private suspend fun readCurrent(scope: DriverAttemptScopeIdentity): CurrentIntent =
         when (val stored = local.load(scope.toLocal())) {
             ScopedMetadataRead.Unavailable -> CurrentIntent.Unavailable
+
             is ScopedMetadataRead.Value -> {
                 val payload = stored.payload ?: return CurrentIntent.Value(null)
                 val intent = decode(payload) ?: return CurrentIntent.Unavailable
-                if (intent.scope != scope) CurrentIntent.Unavailable else CurrentIntent.Value(intent)
+                if (intent.scope !=
+                    scope
+                ) {
+                    CurrentIntent.Unavailable
+                } else {
+                    CurrentIntent.Value(intent)
+                }
             }
         }
 
-    private fun sameIntent(left: DriverProofIntentMetadata, right: DriverProofIntentMetadata): Boolean =
-        left.scope == right.scope &&
-            left.deliveryId == right.deliveryId && left.attemptId == right.attemptId &&
-            left.createExpectedVersion == right.createExpectedVersion &&
-            left.createIdempotencyKey == right.createIdempotencyKey &&
-            left.createBody == right.createBody && left.receiverName == right.receiverName &&
-            left.capturedAt == right.capturedAt && left.notes == right.notes &&
-            left.proofId == right.proofId && left.proofVersion == right.proofVersion
+    private fun sameIntent(
+        left: DriverProofIntentMetadata,
+        right: DriverProofIntentMetadata
+    ): Boolean = left.scope == right.scope &&
+        left.deliveryId == right.deliveryId && left.attemptId == right.attemptId &&
+        left.createExpectedVersion == right.createExpectedVersion &&
+        left.createIdempotencyKey == right.createIdempotencyKey &&
+        left.createBody == right.createBody && left.receiverName == right.receiverName &&
+        left.capturedAt == right.capturedAt && left.notes == right.notes &&
+        left.proofId == right.proofId && left.proofVersion == right.proofVersion
 
     private fun CurrentIntent.toWrite(): DriverProofMetadataWrite = when (this) {
         CurrentIntent.Unavailable -> DriverProofMetadataWrite.Unavailable
@@ -197,7 +226,7 @@ internal class AppDriverProofMetadataStore(
     }
 
     private fun encode(intent: DriverProofIntentMetadata): String {
-        val values = linkedMapOf<String, kotlinx.serialization.json.JsonElement>(
+        val values = linkedMapOf<String, JsonElement>(
             "schema" to JsonPrimitive(1),
             "userId" to JsonPrimitive(intent.scope.userId),
             "tenantId" to JsonPrimitive(intent.scope.tenantId),
@@ -214,8 +243,14 @@ internal class AppDriverProofMetadataStore(
             "stage" to JsonPrimitive(intent.stage.name),
             "status" to JsonPrimitive(intent.status.name)
         )
-        fun addString(key: String, value: String?) { values[key] = value?.let(::JsonPrimitive) ?: JsonNull }
-        fun addLong(key: String, value: Long?) { values[key] = value?.let(::JsonPrimitive) ?: JsonNull }
+        fun addString(key: String, value: String?) {
+            values[key] =
+                value?.let(::JsonPrimitive) ?: JsonNull
+        }
+        fun addLong(key: String, value: Long?) {
+            values[key] =
+                value?.let(::JsonPrimitive) ?: JsonNull
+        }
         addString("proofId", intent.proofId)
         addLong("proofVersion", intent.proofVersion)
         addString("evidenceKind", intent.evidenceKind?.name)
@@ -236,8 +271,10 @@ internal class AppDriverProofMetadataStore(
         val root = Json.parseToJsonElement(payload).jsonObject
         require(root.requiredLong("schema") == 1L)
         val scope = DriverAttemptScopeIdentity(
-            root.requiredString("userId"), root.requiredString("tenantId"),
-            root.requiredString("workspaceId"), root.requiredString("membershipId")
+            root.requiredString("userId"),
+            root.requiredString("tenantId"),
+            root.requiredString("workspaceId"),
+            root.requiredString("membershipId")
         )
         DriverProofIntentMetadata(
             scope = scope,
@@ -253,7 +290,9 @@ internal class AppDriverProofMetadataStore(
             status = DriverProofIntentStatus.valueOf(root.requiredString("status")),
             proofId = root.optionalString("proofId"),
             proofVersion = root.optionalLong("proofVersion"),
-            evidenceKind = root.optionalString("evidenceKind")?.let(DriverProofEvidenceKind::valueOf),
+            evidenceKind = root.optionalString(
+                "evidenceKind"
+            )?.let(DriverProofEvidenceKind::valueOf),
             evidenceId = root.optionalString("evidenceId"),
             evidenceUploadKey = root.optionalString("evidenceUploadKey"),
             candidateFileToken = root.optionalString("candidateFileToken"),
@@ -324,13 +363,21 @@ internal class AppDriverProofMetadataStore(
         var plaintext: File? = null
         return try {
             val file = artifactFile(scope, token)
-            require(file.isFile && file.length() in (ARTIFACT_HEADER.size + IV_BYTES + GCM_TAG_BYTES)..MAX_ENCRYPTED_BYTES)
+            require(
+                file.isFile &&
+                    file.length() in
+                    (ARTIFACT_HEADER.size + IV_BYTES + GCM_TAG_BYTES)..MAX_ENCRYPTED_BYTES
+            )
             val atomic = AtomicFile(file)
             val bytes = atomic.openRead().use { it.readBytes() }
             require(bytes.copyOfRange(0, ARTIFACT_HEADER.size).contentEquals(ARTIFACT_HEADER))
             val iv = bytes.copyOfRange(ARTIFACT_HEADER.size, ARTIFACT_HEADER.size + IV_BYTES)
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.DECRYPT_MODE, artifactKeyForRead() ?: return null, GCMParameterSpec(128, iv))
+            cipher.init(
+                Cipher.DECRYPT_MODE,
+                artifactKeyForRead() ?: return null,
+                GCMParameterSpec(128, iv)
+            )
             cipher.updateAAD(artifactBinding(scope, token))
             check(plaintextDirectory.isDirectory || plaintextDirectory.mkdirs())
             plaintext = File.createTempFile("proof-upload-", ".bin", plaintextDirectory)
@@ -364,12 +411,16 @@ internal class AppDriverProofMetadataStore(
         }
     }
 
-    private fun deleteEncryptedArtifact(scope: DriverAttemptScopeIdentity, token: String?): Boolean {
+    private fun deleteEncryptedArtifact(
+        scope: DriverAttemptScopeIdentity,
+        token: String?
+    ): Boolean {
         if (token == null) return true
         return try {
             val file = artifactFile(scope, token)
             AtomicFile(file).delete()
-            !file.exists() && !File("${file.path}.bak").exists() && !File("${file.path}.new").exists()
+            !file.exists() && !File("${file.path}.bak").exists() &&
+                !File("${file.path}.new").exists()
         } catch (_: Exception) {
             false
         }
@@ -386,8 +437,12 @@ internal class AppDriverProofMetadataStore(
         val bytes = ByteArrayOutputStream()
         DataOutputStream(bytes).use { output ->
             listOf(
-                "NEXA-DRIVER-PROOF-ARTIFACT-v1", scope.userId, scope.tenantId,
-                scope.workspaceId, scope.membershipId, token
+                "NEXA-DRIVER-PROOF-ARTIFACT-v1",
+                scope.userId,
+                scope.tenantId,
+                scope.workspaceId,
+                scope.membershipId,
+                token
             ).forEach { value ->
                 val encoded = value.toByteArray(Charsets.UTF_8)
                 output.writeInt(encoded.size)
@@ -404,8 +459,8 @@ internal class AppDriverProofMetadataStore(
         null
     }
 
-    private fun artifactKeyForWrite(): SecretKey = artifactKeyForRead() ?:
-        KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").run {
+    private fun artifactKeyForWrite(): SecretKey = artifactKeyForRead()
+        ?: KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").run {
             init(
                 KeyGenParameterSpec.Builder(
                     KEY_ALIAS,
@@ -419,7 +474,9 @@ internal class AppDriverProofMetadataStore(
             generateKey()
         }
 
-    private fun mutex(scope: DriverAttemptScopeIdentity): Mutex = locks.computeIfAbsent(scope) { Mutex() }
+    private fun mutex(scope: DriverAttemptScopeIdentity): Mutex = locks.computeIfAbsent(scope) {
+        Mutex()
+    }
 
     private fun DriverAttemptScopeIdentity.toLocal() =
         ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
@@ -430,6 +487,7 @@ internal class AppDriverProofMetadataStore(
 
     private fun JsonObject.optionalString(key: String): String? = when (val value = this[key]) {
         null, JsonNull -> null
+
         else -> value.jsonPrimitive.takeIf(JsonPrimitive::isString)?.content
             ?: error("Driver proof metadata is invalid")
     }
@@ -440,6 +498,7 @@ internal class AppDriverProofMetadataStore(
 
     private fun JsonObject.optionalLong(key: String): Long? = when (val value = this[key]) {
         null, JsonNull -> null
+
         else -> value.jsonPrimitive.takeUnless(JsonPrimitive::isString)?.longOrNull
             ?: error("Driver proof metadata is invalid")
     }

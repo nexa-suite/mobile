@@ -8,10 +8,10 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.feature.delivery.DriverAttemptScopeIdentity
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOutcomeLine
 import com.nexa.mobile.operations.feature.delivery.DriverOutcomeCommand
-import com.nexa.mobile.operations.feature.delivery.DriverOutcomeIntentMetadata
+import com.nexa.mobile.operations.feature.delivery.DriverOutcomeIntentMetadata as OutcomeIntentMetadata
 import com.nexa.mobile.operations.feature.delivery.DriverOutcomeIntentStatus
-import com.nexa.mobile.operations.feature.delivery.DriverOutcomeLineDecision
 import com.nexa.mobile.operations.feature.delivery.DriverOutcomeKind
+import com.nexa.mobile.operations.feature.delivery.DriverOutcomeLineDecision
 import com.nexa.mobile.operations.feature.delivery.DriverOutcomeMetadataRead
 import com.nexa.mobile.operations.feature.delivery.DriverOutcomeMetadataStore
 import com.nexa.mobile.operations.feature.delivery.DriverOutcomeMetadataWrite
@@ -28,6 +28,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
@@ -36,13 +37,13 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
 /** Typed frozen outcome intent adapter; it never stores session authority or accepted truth. */
-internal class AppDriverOutcomeMetadataStore(
-    private val local: AndroidScopedMetadataStore
-) : DriverOutcomeMetadataStore {
+internal class AppDriverOutcomeMetadataStore(private val local: AndroidScopedMetadataStore) :
+    DriverOutcomeMetadataStore {
     override suspend fun loadIntent(scope: DriverAttemptScopeIdentity): DriverOutcomeMetadataRead =
         mutex(scope).withLock {
             when (val stored = local.load(scope.toLocal())) {
                 ScopedMetadataRead.Unavailable -> DriverOutcomeMetadataRead.Unavailable
+
                 is ScopedMetadataRead.Value -> {
                     val payload = stored.payload
                         ?: return@withLock DriverOutcomeMetadataRead.Available(null)
@@ -50,7 +51,9 @@ internal class AppDriverOutcomeMetadataStore(
                         ?: return@withLock DriverOutcomeMetadataRead.Unavailable
                     if (intent.scope != scope) return@withLock DriverOutcomeMetadataRead.Unavailable
                     if (intent.status == DriverOutcomeIntentStatus.Pending) {
-                        val recovered = intent.copy(status = DriverOutcomeIntentStatus.UnknownOutcome)
+                        val recovered = intent.copy(
+                            status = DriverOutcomeIntentStatus.UnknownOutcome
+                        )
                         if (local.save(scope.toLocal(), encode(recovered))) {
                             DriverOutcomeMetadataRead.Available(recovered)
                         } else {
@@ -63,10 +66,11 @@ internal class AppDriverOutcomeMetadataStore(
             }
         }
 
-    override suspend fun saveIntent(intent: DriverOutcomeIntentMetadata): DriverOutcomeMetadataWrite =
+    override suspend fun saveIntent(intent: OutcomeIntentMetadata): DriverOutcomeMetadataWrite =
         mutex(intent.scope).withLock {
             when (val stored = local.load(intent.scope.toLocal())) {
                 ScopedMetadataRead.Unavailable -> DriverOutcomeMetadataWrite.Unavailable
+
                 is ScopedMetadataRead.Value -> {
                     val current = stored.payload?.let(::decode)
                     if (stored.payload != null && current == null) {
@@ -74,17 +78,22 @@ internal class AppDriverOutcomeMetadataStore(
                     }
                     when {
                         current == null -> save(intent)
+
                         current.scope != intent.scope -> DriverOutcomeMetadataWrite.Unavailable
+
                         current.command.idempotencyKey != intent.command.idempotencyKey ||
                             current.command.deliveryId != intent.command.deliveryId ||
                             current.command.attemptId != intent.command.attemptId ||
                             current.command.expectedVersion != intent.command.expectedVersion ||
                             current.command.frozenBody != intent.command.frozenBody ->
                             DriverOutcomeMetadataWrite.Conflict
+
                         current == intent -> DriverOutcomeMetadataWrite.Saved
+
                         current.status == DriverOutcomeIntentStatus.UnknownOutcome &&
                             intent.status == DriverOutcomeIntentStatus.Pending ->
                             DriverOutcomeMetadataWrite.Conflict
+
                         else -> save(intent)
                     }
                 }
@@ -97,9 +106,11 @@ internal class AppDriverOutcomeMetadataStore(
     ): DriverOutcomeMetadataWrite = mutex(scope).withLock {
         when (val stored = local.load(scope.toLocal())) {
             ScopedMetadataRead.Unavailable -> DriverOutcomeMetadataWrite.Unavailable
+
             is ScopedMetadataRead.Value -> {
                 val payload = stored.payload ?: return@withLock DriverOutcomeMetadataWrite.Saved
-                val current = decode(payload) ?: return@withLock DriverOutcomeMetadataWrite.Unavailable
+                val current =
+                    decode(payload) ?: return@withLock DriverOutcomeMetadataWrite.Unavailable
                 if (current.scope != scope || current.command.idempotencyKey != idempotencyKey) {
                     DriverOutcomeMetadataWrite.Stale
                 } else if (local.clear(scope.toLocal())) {
@@ -111,14 +122,14 @@ internal class AppDriverOutcomeMetadataStore(
         }
     }
 
-    private suspend fun save(intent: DriverOutcomeIntentMetadata): DriverOutcomeMetadataWrite =
+    private suspend fun save(intent: OutcomeIntentMetadata): DriverOutcomeMetadataWrite =
         if (local.save(intent.scope.toLocal(), encode(intent))) {
             DriverOutcomeMetadataWrite.Saved
         } else {
             DriverOutcomeMetadataWrite.Unavailable
         }
 
-    private fun encode(intent: DriverOutcomeIntentMetadata): String {
+    private fun encode(intent: OutcomeIntentMetadata): String {
         val command = intent.command
         return JsonObject(
             mapOf(
@@ -132,41 +143,57 @@ internal class AppDriverOutcomeMetadataStore(
                 "expectedVersion" to JsonPrimitive(command.expectedVersion),
                 "idempotencyKey" to JsonPrimitive(command.idempotencyKey),
                 "outcome" to JsonPrimitive(command.outcome.name),
-                "failureReason" to (command.failureReason?.let(::JsonPrimitive) ?: kotlinx.serialization.json.JsonNull),
-                "notes" to (command.notes?.let(::JsonPrimitive) ?: kotlinx.serialization.json.JsonNull),
+                "failureReason" to
+                    (
+                        command.failureReason?.let(::JsonPrimitive)
+                            ?: JsonNull
+                        ),
+                "notes" to
+                    (command.notes?.let(::JsonPrimitive) ?: JsonNull),
                 "attemptedAt" to JsonPrimitive(command.attemptedAt),
                 "frozenBody" to JsonPrimitive(command.frozenBody),
-                "lines" to JsonArray(command.lines.map { line ->
-                    JsonObject(
-                        mapOf(
-                            "fulfillmentLineId" to JsonPrimitive(line.fulfillmentLineId),
-                            "skuId" to JsonPrimitive(line.skuId),
-                            "attemptedQuantity" to JsonPrimitive(line.attemptedQuantity.toPlainString()),
-                            "deliveredQuantity" to JsonPrimitive(line.deliveredQuantity.toPlainString()),
-                            "rejectedQuantity" to JsonPrimitive(line.rejectedQuantity.toPlainString()),
-                            "cancelledQuantity" to JsonPrimitive(line.cancelledQuantity.toPlainString()),
-                            "unit" to JsonPrimitive(line.unit)
+                "lines" to JsonArray(
+                    command.lines.map { line ->
+                        JsonObject(
+                            mapOf(
+                                "fulfillmentLineId" to JsonPrimitive(line.fulfillmentLineId),
+                                "skuId" to JsonPrimitive(line.skuId),
+                                "attemptedQuantity" to
+                                    JsonPrimitive(line.attemptedQuantity.toPlainString()),
+                                "deliveredQuantity" to
+                                    JsonPrimitive(line.deliveredQuantity.toPlainString()),
+                                "rejectedQuantity" to
+                                    JsonPrimitive(line.rejectedQuantity.toPlainString()),
+                                "cancelledQuantity" to
+                                    JsonPrimitive(line.cancelledQuantity.toPlainString()),
+                                "unit" to JsonPrimitive(line.unit)
+                            )
                         )
-                    )
-                }),
+                    }
+                ),
                 "status" to JsonPrimitive(intent.status.name)
             )
         ).toString()
     }
 
-    private fun decode(payload: String): DriverOutcomeIntentMetadata? = try {
+    private fun decode(payload: String): OutcomeIntentMetadata? = try {
         val root = Json.parseToJsonElement(payload).jsonObject
         require(root.requiredLong("schema") == 1L)
         val scope = DriverAttemptScopeIdentity(
-            root.requiredString("userId"), root.requiredString("tenantId"),
-            root.requiredString("workspaceId"), root.requiredString("membershipId")
+            root.requiredString("userId"),
+            root.requiredString("tenantId"),
+            root.requiredString("workspaceId"),
+            root.requiredString("membershipId")
         )
         val lines = root["lines"]?.jsonArray?.map { element ->
             val line = element.jsonObject
             DriverOutcomeLineDecision(
-                line.requiredString("fulfillmentLineId"), line.requiredString("skuId"),
-                line.requiredDecimal("attemptedQuantity"), line.requiredDecimal("deliveredQuantity"),
-                line.requiredDecimal("rejectedQuantity"), line.requiredDecimal("cancelledQuantity"),
+                line.requiredString("fulfillmentLineId"),
+                line.requiredString("skuId"),
+                line.requiredDecimal("attemptedQuantity"),
+                line.requiredDecimal("deliveredQuantity"),
+                line.requiredDecimal("rejectedQuantity"),
+                line.requiredDecimal("cancelledQuantity"),
                 line.requiredString("unit")
             )
         } ?: error("Outcome metadata lines are invalid")
@@ -182,13 +209,18 @@ internal class AppDriverOutcomeMetadataStore(
             lines = lines,
             frozenBody = root.requiredString("frozenBody")
         )
-        DriverOutcomeIntentMetadata(scope, command,
-            DriverOutcomeIntentStatus.valueOf(root.requiredString("status")))
+        OutcomeIntentMetadata(
+            scope,
+            command,
+            DriverOutcomeIntentStatus.valueOf(root.requiredString("status"))
+        )
     } catch (_: Exception) {
         null
     }
 
-    private fun mutex(scope: DriverAttemptScopeIdentity): Mutex = locks.computeIfAbsent(scope) { Mutex() }
+    private fun mutex(scope: DriverAttemptScopeIdentity): Mutex = locks.computeIfAbsent(scope) {
+        Mutex()
+    }
 
     private fun DriverAttemptScopeIdentity.toLocal() =
         ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
@@ -198,7 +230,7 @@ internal class AppDriverOutcomeMetadataStore(
             ?.takeIf(String::isNotBlank) ?: error("Outcome metadata field is invalid")
 
     private fun JsonObject.optionalString(key: String): String? = when (val value = this[key]) {
-        null, kotlinx.serialization.json.JsonNull -> null
+        null, JsonNull -> null
         is JsonPrimitive -> value.takeIf(JsonPrimitive::isString)?.content
         else -> error("Outcome metadata optional string is invalid")
     }

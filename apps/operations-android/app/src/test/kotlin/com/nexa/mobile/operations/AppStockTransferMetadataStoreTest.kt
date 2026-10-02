@@ -19,17 +19,23 @@ class AppStockTransferMetadataStoreTest {
         val original = intent(scopeA, key = "transfer-a", payload = commandBody("1.2300"))
 
         assertEquals(TransferMetadataWrite.Saved, store.saveIntent(original))
-        assertEquals(TransferMetadataWrite.Unavailable, store.saveIntent(
-            original.copy(
-                idempotencyKey = "transfer-b",
-                frozenPayload = commandBody("1.23"),
-                expectedSourceVersion = 18
+        assertEquals(
+            TransferMetadataWrite.Unavailable,
+            store.saveIntent(
+                original.copy(
+                    idempotencyKey = "transfer-b",
+                    frozenPayload = commandBody("1.23"),
+                    expectedSourceVersion = 18
+                )
             )
-        ))
+        )
 
         val restored = (store.loadIntent(scopeA) as TransferMetadataRead.Available).value
         assertEquals(original, restored)
-        assertEquals("1.2300", restored?.frozenPayload?.substringAfter("\"quantity\":")?.substringBefore(','))
+        assertEquals(
+            "1.2300",
+            restored?.frozenPayload?.substringAfter("\"quantity\":")?.substringBefore(',')
+        )
         assertEquals(TransferMetadataRead.Available(null), store.loadIntent(scopeB))
     }
 
@@ -48,7 +54,10 @@ class AppStockTransferMetadataStoreTest {
             (store.loadIntent(scopeA) as TransferMetadataRead.Available).value?.status
         )
 
-        backend.force(scopeA, intent(scopeA, key = "newer-key", payload = commandBody("3")).encodeForTest())
+        backend.force(
+            scopeA,
+            intent(scopeA, key = "newer-key", payload = commandBody("3")).encodeForTest()
+        )
         assertEquals(
             TransferMetadataWrite.Unavailable,
             store.clearIntent(scopeA, "transfer-a")
@@ -70,7 +79,13 @@ class AppStockTransferMetadataStoreTest {
     }
 
     private fun intent(scope: StockTransferScope, key: String, payload: String) =
-        StockTransferIntent(scope, key, payload, expectedSourceVersion = 17, TransferIntentStatus.Pending)
+        StockTransferIntent(
+            scope,
+            key,
+            payload,
+            expectedSourceVersion = 17,
+            TransferIntentStatus.Pending
+        )
 
     private fun commandBody(quantity: String) =
         """{"sourceLotId":"lot","quantity":$quantity,"unit":"EA","reason":"move"}"""

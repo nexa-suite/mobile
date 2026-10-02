@@ -6,32 +6,33 @@ import androidx.lifecycle.ViewModelProvider
 import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
+import com.nexa.mobile.operations.core.auth.session.VerifiedSession
 import com.nexa.mobile.operations.core.local.scoped.AndroidScopedMetadataStore
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
-import com.nexa.mobile.operations.core.network.DriverDeliveryInstructionAcknowledgementResponseTransport
-import com.nexa.mobile.operations.core.network.DriverDeliveryInstructionAcknowledgementTransport
-import com.nexa.mobile.operations.core.network.DriverDeliveryInstructionsNetworkOutcome
+import com.nexa.mobile.operations.core.network.DriverDeliveryInstructionAcknowledgementResponseTransport as AcknowledgementResponseTransport
+import com.nexa.mobile.operations.core.network.DriverDeliveryInstructionAcknowledgementTransport as AcknowledgementTransport
+import com.nexa.mobile.operations.core.network.DriverDeliveryInstructionsNetworkOutcome as InstructionsNetworkOutcome
 import com.nexa.mobile.operations.core.network.NexaDriverDeliveryInstructionsGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.feature.delivery.DriverAttemptScopeIdentity
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryAuthority
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstruction
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionAcknowledgementCommand
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionAcknowledgementFact
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionAcknowledgementResult
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionAcknowledgementSummary
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionIntentMetadata
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionIntentStatus
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionKind
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionMetadataRead
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionMetadataStore
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionMetadataWrite
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionsGateway
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionsLoadResult
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionsSnapshot
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionsViewModel
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionAcknowledgementCommand as AcknowledgementCommand
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionAcknowledgementFact as AcknowledgementFact
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionAcknowledgementResult as AcknowledgementResult
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionAcknowledgementSummary as AcknowledgementSummary
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionIntentMetadata as InstructionIntentMetadata
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionIntentStatus as InstructionIntentStatus
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionKind as InstructionKind
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionMetadataRead as InstructionMetadataRead
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionMetadataStore as InstructionMetadataStore
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionMetadataWrite as InstructionMetadataWrite
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionsGateway as InstructionsGateway
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionsLoadResult as InstructionsLoadResult
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionsSnapshot as InstructionsSnapshot
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionsViewModel as InstructionsViewModel
 import com.nexa.mobile.operations.feature.delivery.driverDeliveryInstructionAcknowledgementBody
 import dagger.Module
 import dagger.Provides
@@ -56,11 +57,11 @@ import kotlinx.serialization.json.longOrNull
 internal class OperationsDriverDeliveryInstructionsGateway @Inject constructor(
     private val sessions: SessionCoordinator,
     private val api: NexaDriverDeliveryInstructionsGateway
-) : DriverDeliveryInstructionsGateway {
+) : InstructionsGateway {
     override suspend fun currentInstructions(
         deliveryId: String,
         authority: DriverDeliveryAuthority
-    ): DriverDeliveryInstructionsLoadResult {
+    ): InstructionsLoadResult {
         val before = authorize(authority, DRIVER_READ_PERMISSIONS)
         if (before !is Authorization.Current) return before.toLoadResult()
         val outcome = try {
@@ -68,20 +69,20 @@ internal class OperationsDriverDeliveryInstructionsGateway @Inject constructor(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            return DriverDeliveryInstructionsLoadResult.ServiceUnavailable
+            return InstructionsLoadResult.ServiceUnavailable
         }
         if (!currentAfter(authority, before.lease)) return authorityDrift()
         return when (outcome) {
-            is DriverDeliveryInstructionsNetworkOutcome.Loaded -> try {
-                DriverDeliveryInstructionsLoadResult.Loaded(
-                    DriverDeliveryInstructionsSnapshot(
+            is InstructionsNetworkOutcome.Loaded -> try {
+                InstructionsLoadResult.Loaded(
+                    InstructionsSnapshot(
                         deliveryId = outcome.value.deliveryId,
                         deliveryVersion = outcome.value.deliveryVersion,
                         instructionSetVersion = outcome.value.instructionSetVersion,
                         instructions = outcome.value.instructions.map { row ->
                             DriverDeliveryInstruction(
                                 id = row.id,
-                                kind = DriverDeliveryInstructionKind.valueOf(row.kind),
+                                kind = InstructionKind.valueOf(row.kind),
                                 content = row.content,
                                 instructionVersion = row.instructionVersion,
                                 critical = row.critical,
@@ -96,7 +97,7 @@ internal class OperationsDriverDeliveryInstructionsGateway @Inject constructor(
                     )
                 )
             } catch (_: Exception) {
-                DriverDeliveryInstructionsLoadResult.ServiceUnavailable
+                InstructionsLoadResult.ServiceUnavailable
             }
 
             else -> outcome.toLoadResult()
@@ -104,9 +105,9 @@ internal class OperationsDriverDeliveryInstructionsGateway @Inject constructor(
     }
 
     override suspend fun acknowledgeCriticalInstructions(
-        command: DriverDeliveryInstructionAcknowledgementCommand,
+        command: AcknowledgementCommand,
         authority: DriverDeliveryAuthority
-    ): DriverDeliveryInstructionAcknowledgementResult {
+    ): AcknowledgementResult {
         val before = authorize(authority, DRIVER_START_PERMISSIONS)
         if (before !is Authorization.Current) return before.toAcknowledgementResult()
         val outcome = try {
@@ -120,16 +121,19 @@ internal class OperationsDriverDeliveryInstructionsGateway @Inject constructor(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            return DriverDeliveryInstructionAcknowledgementResult.UnknownOutcome
+            return AcknowledgementResult.UnknownOutcome
         }
         if (!currentAfter(authority, before.lease)) {
-            return DriverDeliveryInstructionAcknowledgementResult.UnknownOutcome
+            return AcknowledgementResult.UnknownOutcome
         }
         return when (outcome) {
-            is DriverDeliveryInstructionsNetworkOutcome.Acknowledged -> {
+            is InstructionsNetworkOutcome.Acknowledged -> {
                 val summary = outcome.value.toFeatureSummary()
-                if (summary == null) DriverDeliveryInstructionAcknowledgementResult.UnknownOutcome
-                else DriverDeliveryInstructionAcknowledgementResult.Acknowledged(summary)
+                if (summary == null) {
+                    AcknowledgementResult.UnknownOutcome
+                } else {
+                    AcknowledgementResult.Acknowledged(summary)
+                }
             }
 
             else -> outcome.toAcknowledgementResult()
@@ -140,11 +144,20 @@ internal class OperationsDriverDeliveryInstructionsGateway @Inject constructor(
         authority: DriverDeliveryAuthority,
         requiredPermissions: Set<String>
     ): Authorization {
-        if (sessions.sessionState.value != SessionState.Active) return Authorization.SessionInvalidated
+        if (sessions.sessionState.value !=
+            SessionState.Active
+        ) {
+            return Authorization.SessionInvalidated
+        }
         val lease = sessions.currentAccess() ?: return Authorization.SessionInvalidated
         val verified = sessions.verifiedSession.value ?: return Authorization.ContextInvalidated
         if (!verified.matches(authority)) return Authorization.ContextInvalidated
-        if (authority.permissions.none { it in requiredPermissions }) return Authorization.PermissionDenied
+        if (authority.permissions.none {
+                it in requiredPermissions
+            }
+        ) {
+            return Authorization.PermissionDenied
+        }
         return Authorization.Current(lease)
     }
 
@@ -152,64 +165,96 @@ internal class OperationsDriverDeliveryInstructionsGateway @Inject constructor(
         authority: DriverDeliveryAuthority,
         originalLease: AccessTokenLease
     ): Boolean = sessions.sessionState.value == SessionState.Active &&
-        sessions.isEpochCurrent(originalLease.epoch) && sessions.verifiedSession.value?.matches(authority) == true
+        sessions.isEpochCurrent(originalLease.epoch) &&
+        sessions.verifiedSession.value?.matches(authority) == true
 
-    private suspend fun authorityDrift(): DriverDeliveryInstructionsLoadResult =
+    private suspend fun authorityDrift(): InstructionsLoadResult =
         if (sessions.sessionState.value != SessionState.Active) {
-            DriverDeliveryInstructionsLoadResult.SessionInvalidated
+            InstructionsLoadResult.SessionInvalidated
         } else {
-            DriverDeliveryInstructionsLoadResult.ContextInvalidated
+            InstructionsLoadResult.ContextInvalidated
         }
 
-    private fun com.nexa.mobile.operations.core.auth.session.VerifiedSession.matches(
-        authority: DriverDeliveryAuthority
-    ): Boolean = hasAuthorizedContext && userId == authority.userId && tenantId == authority.tenantId &&
-        workspaceId == authority.workspaceId && membershipId == authority.membershipId &&
-        permissions == authority.permissions
+    private fun VerifiedSession.matches(authority: DriverDeliveryAuthority): Boolean =
+        hasAuthorizedContext && userId == authority.userId && tenantId == authority.tenantId &&
+            workspaceId == authority.workspaceId && membershipId == authority.membershipId &&
+            permissions == authority.permissions
 
-    private fun Authorization.toLoadResult(): DriverDeliveryInstructionsLoadResult = when (this) {
-        Authorization.SessionInvalidated -> DriverDeliveryInstructionsLoadResult.SessionInvalidated
-        Authorization.ContextInvalidated -> DriverDeliveryInstructionsLoadResult.ContextInvalidated
-        Authorization.PermissionDenied -> DriverDeliveryInstructionsLoadResult.PermissionDenied
+    private fun Authorization.toLoadResult(): InstructionsLoadResult = when (this) {
+        Authorization.SessionInvalidated -> InstructionsLoadResult.SessionInvalidated
+        Authorization.ContextInvalidated -> InstructionsLoadResult.ContextInvalidated
+        Authorization.PermissionDenied -> InstructionsLoadResult.PermissionDenied
         is Authorization.Current -> error("authorized result is not a failure")
     }
 
-    private fun Authorization.toAcknowledgementResult(): DriverDeliveryInstructionAcknowledgementResult = when (this) {
-        Authorization.SessionInvalidated -> DriverDeliveryInstructionAcknowledgementResult.SessionInvalidated
-        Authorization.ContextInvalidated -> DriverDeliveryInstructionAcknowledgementResult.ContextInvalidated
-        Authorization.PermissionDenied -> DriverDeliveryInstructionAcknowledgementResult.PermissionDenied
+    private fun Authorization.toAcknowledgementResult(): AcknowledgementResult = when (this) {
+        Authorization.SessionInvalidated ->
+            AcknowledgementResult.SessionInvalidated
+
+        Authorization.ContextInvalidated ->
+            AcknowledgementResult.ContextInvalidated
+
+        Authorization.PermissionDenied ->
+            AcknowledgementResult.PermissionDenied
+
         is Authorization.Current -> error("authorized result is not a failure")
     }
 
-    private fun DriverDeliveryInstructionsNetworkOutcome.toLoadResult(): DriverDeliveryInstructionsLoadResult = when (this) {
-        DriverDeliveryInstructionsNetworkOutcome.NotFound -> DriverDeliveryInstructionsLoadResult.NotFound
-        DriverDeliveryInstructionsNetworkOutcome.NetworkUnavailable -> DriverDeliveryInstructionsLoadResult.NetworkUnavailable
-        DriverDeliveryInstructionsNetworkOutcome.PermissionDenied -> DriverDeliveryInstructionsLoadResult.PermissionDenied
-        DriverDeliveryInstructionsNetworkOutcome.ContextInvalidated -> DriverDeliveryInstructionsLoadResult.ContextInvalidated
-        DriverDeliveryInstructionsNetworkOutcome.SessionInvalidated -> DriverDeliveryInstructionsLoadResult.SessionInvalidated
-        else -> DriverDeliveryInstructionsLoadResult.ServiceUnavailable
+    private fun InstructionsNetworkOutcome.toLoadResult(): InstructionsLoadResult = when (this) {
+        InstructionsNetworkOutcome.NotFound ->
+            InstructionsLoadResult.NotFound
+
+        InstructionsNetworkOutcome.NetworkUnavailable ->
+            InstructionsLoadResult.NetworkUnavailable
+
+        InstructionsNetworkOutcome.PermissionDenied ->
+            InstructionsLoadResult.PermissionDenied
+
+        InstructionsNetworkOutcome.ContextInvalidated ->
+            InstructionsLoadResult.ContextInvalidated
+
+        InstructionsNetworkOutcome.SessionInvalidated ->
+            InstructionsLoadResult.SessionInvalidated
+
+        else -> InstructionsLoadResult.ServiceUnavailable
     }
 
-    private fun DriverDeliveryInstructionsNetworkOutcome.toAcknowledgementResult():
-        DriverDeliveryInstructionAcknowledgementResult = when (this) {
-        is DriverDeliveryInstructionsNetworkOutcome.Rejected ->
-            DriverDeliveryInstructionAcknowledgementResult.Rejected(code)
-        DriverDeliveryInstructionsNetworkOutcome.NotFound -> DriverDeliveryInstructionAcknowledgementResult.NotFound
-        DriverDeliveryInstructionsNetworkOutcome.StaleVersion -> DriverDeliveryInstructionAcknowledgementResult.StaleVersion
-        DriverDeliveryInstructionsNetworkOutcome.UnknownOutcome -> DriverDeliveryInstructionAcknowledgementResult.UnknownOutcome
-        DriverDeliveryInstructionsNetworkOutcome.NetworkUnavailable -> DriverDeliveryInstructionAcknowledgementResult.UnknownOutcome
-        DriverDeliveryInstructionsNetworkOutcome.ServiceUnavailable -> DriverDeliveryInstructionAcknowledgementResult.UnknownOutcome
-        DriverDeliveryInstructionsNetworkOutcome.PermissionDenied -> DriverDeliveryInstructionAcknowledgementResult.PermissionDenied
-        DriverDeliveryInstructionsNetworkOutcome.ContextInvalidated -> DriverDeliveryInstructionAcknowledgementResult.ContextInvalidated
-        DriverDeliveryInstructionsNetworkOutcome.SessionInvalidated -> DriverDeliveryInstructionAcknowledgementResult.SessionInvalidated
-        is DriverDeliveryInstructionsNetworkOutcome.Loaded,
-        is DriverDeliveryInstructionsNetworkOutcome.Acknowledged ->
-            DriverDeliveryInstructionAcknowledgementResult.ServiceUnavailable
-    }
+    private fun InstructionsNetworkOutcome.toAcknowledgementResult(): AcknowledgementResult =
+        when (this) {
+            is InstructionsNetworkOutcome.Rejected ->
+                AcknowledgementResult.Rejected(code)
 
-    private fun DriverDeliveryInstructionAcknowledgementResponseTransport.toFeatureSummary():
-        DriverDeliveryInstructionAcknowledgementSummary? = try {
-        DriverDeliveryInstructionAcknowledgementSummary(
+            InstructionsNetworkOutcome.NotFound ->
+                AcknowledgementResult.NotFound
+
+            InstructionsNetworkOutcome.StaleVersion ->
+                AcknowledgementResult.StaleVersion
+
+            InstructionsNetworkOutcome.UnknownOutcome ->
+                AcknowledgementResult.UnknownOutcome
+
+            InstructionsNetworkOutcome.NetworkUnavailable ->
+                AcknowledgementResult.UnknownOutcome
+
+            InstructionsNetworkOutcome.ServiceUnavailable ->
+                AcknowledgementResult.UnknownOutcome
+
+            InstructionsNetworkOutcome.PermissionDenied ->
+                AcknowledgementResult.PermissionDenied
+
+            InstructionsNetworkOutcome.ContextInvalidated ->
+                AcknowledgementResult.ContextInvalidated
+
+            InstructionsNetworkOutcome.SessionInvalidated ->
+                AcknowledgementResult.SessionInvalidated
+
+            is InstructionsNetworkOutcome.Loaded,
+            is InstructionsNetworkOutcome.Acknowledged ->
+                AcknowledgementResult.ServiceUnavailable
+        }
+
+    private fun AcknowledgementResponseTransport.toFeatureSummary(): AcknowledgementSummary? = try {
+        AcknowledgementSummary(
             deliveryId = deliveryId,
             instructionSetVersion = instructionSetVersion,
             acknowledgements = acknowledgements.map { it.toFeatureFact() },
@@ -219,10 +264,12 @@ internal class OperationsDriverDeliveryInstructionsGateway @Inject constructor(
         null
     }
 
-    private fun DriverDeliveryInstructionAcknowledgementTransport.toFeatureFact() =
-        DriverDeliveryInstructionAcknowledgementFact(
-            instructionId, instructionVersion, acknowledgedByMembershipId, acknowledgedAt
-        )
+    private fun AcknowledgementTransport.toFeatureFact() = AcknowledgementFact(
+        instructionId,
+        instructionVersion,
+        acknowledgedByMembershipId,
+        acknowledgedAt
+    )
 
     private sealed interface Authorization {
         data class Current(val lease: AccessTokenLease) : Authorization
@@ -238,14 +285,14 @@ internal class OperationsDriverDeliveryInstructionsGateway @Inject constructor(
 }
 
 internal class DriverDeliveryInstructionsBindings @Inject constructor(
-    private val gateway: DriverDeliveryInstructionsGateway,
-    private val metadataStore: DriverDeliveryInstructionMetadataStore
+    private val gateway: InstructionsGateway,
+    private val metadataStore: InstructionMetadataStore
 ) {
     fun viewModelFactory() = object : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            require(modelClass.isAssignableFrom(DriverDeliveryInstructionsViewModel::class.java))
-            return DriverDeliveryInstructionsViewModel(gateway, metadataStore) as T
+            require(modelClass.isAssignableFrom(InstructionsViewModel::class.java))
+            return InstructionsViewModel(gateway, metadataStore) as T
         }
     }
 }
@@ -253,81 +300,106 @@ internal class DriverDeliveryInstructionsBindings @Inject constructor(
 /** Typed critical-acknowledgement intent in the existing encrypted, identity-scoped store. */
 internal class AppDriverDeliveryInstructionMetadataStore(
     private val local: AndroidScopedMetadataStore
-) : DriverDeliveryInstructionMetadataStore {
-    override suspend fun loadIntent(
-        scope: DriverAttemptScopeIdentity
-    ): DriverDeliveryInstructionMetadataRead = mutex(scope).withLock {
-        when (val stored = local.load(scope.toLocal())) {
-            ScopedMetadataRead.Unavailable -> DriverDeliveryInstructionMetadataRead.Unavailable
-            is ScopedMetadataRead.Value -> {
-                val payload = stored.payload ?: return@withLock DriverDeliveryInstructionMetadataRead.Available(null)
-                val intent = decode(payload) ?: return@withLock DriverDeliveryInstructionMetadataRead.Unavailable
-                if (intent.scope != scope) return@withLock DriverDeliveryInstructionMetadataRead.Unavailable
-                if (intent.status == DriverDeliveryInstructionIntentStatus.Pending) {
-                    val recovered = intent.copy(status = DriverDeliveryInstructionIntentStatus.UnknownOutcome)
-                    if (local.save(scope.toLocal(), encode(recovered))) {
-                        DriverDeliveryInstructionMetadataRead.Available(recovered)
-                    } else {
-                        DriverDeliveryInstructionMetadataRead.Unavailable
-                    }
-                } else {
-                    DriverDeliveryInstructionMetadataRead.Available(intent)
-                }
-            }
-        }
-    }
+) : InstructionMetadataStore {
+    override suspend fun loadIntent(scope: DriverAttemptScopeIdentity): InstructionMetadataRead =
+        mutex(scope).withLock {
+            when (val stored = local.load(scope.toLocal())) {
+                ScopedMetadataRead.Unavailable -> InstructionMetadataRead.Unavailable
 
-    override suspend fun saveIntent(
-        intent: DriverDeliveryInstructionIntentMetadata
-    ): DriverDeliveryInstructionMetadataWrite = mutex(intent.scope).withLock {
-        when (val stored = local.load(intent.scope.toLocal())) {
-            ScopedMetadataRead.Unavailable -> DriverDeliveryInstructionMetadataWrite.Unavailable
-            is ScopedMetadataRead.Value -> {
-                val current = stored.payload?.let(::decode)
-                if (stored.payload != null && current == null) return@withLock DriverDeliveryInstructionMetadataWrite.Unavailable
-                when {
-                    current == null -> save(intent)
-                    current.scope != intent.scope -> DriverDeliveryInstructionMetadataWrite.Unavailable
-                    current.command != intent.command || current.initiatedByMembershipId != intent.initiatedByMembershipId ->
-                        DriverDeliveryInstructionMetadataWrite.Conflict
-                    current.status == DriverDeliveryInstructionIntentStatus.UnknownOutcome &&
-                        intent.status == DriverDeliveryInstructionIntentStatus.Pending ->
-                        DriverDeliveryInstructionMetadataWrite.Conflict
-                    current == intent -> DriverDeliveryInstructionMetadataWrite.Saved
-                    else -> save(intent)
+                is ScopedMetadataRead.Value -> {
+                    val payload =
+                        stored.payload
+                            ?: return@withLock InstructionMetadataRead.Available(null)
+                    val intent =
+                        decode(payload)
+                            ?: return@withLock InstructionMetadataRead.Unavailable
+                    if (intent.scope !=
+                        scope
+                    ) {
+                        return@withLock InstructionMetadataRead.Unavailable
+                    }
+                    if (intent.status == InstructionIntentStatus.Pending) {
+                        val recovered = intent.copy(
+                            status = InstructionIntentStatus.UnknownOutcome
+                        )
+                        if (local.save(scope.toLocal(), encode(recovered))) {
+                            InstructionMetadataRead.Available(recovered)
+                        } else {
+                            InstructionMetadataRead.Unavailable
+                        }
+                    } else {
+                        InstructionMetadataRead.Available(intent)
+                    }
                 }
             }
         }
-    }
+
+    override suspend fun saveIntent(intent: InstructionIntentMetadata): InstructionMetadataWrite =
+        mutex(intent.scope).withLock {
+            when (val stored = local.load(intent.scope.toLocal())) {
+                ScopedMetadataRead.Unavailable -> InstructionMetadataWrite.Unavailable
+
+                is ScopedMetadataRead.Value -> {
+                    val current = stored.payload?.let(::decode)
+                    if (stored.payload != null &&
+                        current == null
+                    ) {
+                        return@withLock InstructionMetadataWrite.Unavailable
+                    }
+                    when {
+                        current == null -> save(intent)
+
+                        current.scope != intent.scope ->
+                            InstructionMetadataWrite.Unavailable
+
+                        current.command != intent.command ||
+                            current.initiatedByMembershipId != intent.initiatedByMembershipId ->
+                            InstructionMetadataWrite.Conflict
+
+                        current.status == InstructionIntentStatus.UnknownOutcome &&
+                            intent.status == InstructionIntentStatus.Pending ->
+                            InstructionMetadataWrite.Conflict
+
+                        current == intent -> InstructionMetadataWrite.Saved
+
+                        else -> save(intent)
+                    }
+                }
+            }
+        }
 
     override suspend fun clearIntent(
         scope: DriverAttemptScopeIdentity,
         idempotencyKey: String
-    ): DriverDeliveryInstructionMetadataWrite = mutex(scope).withLock {
+    ): InstructionMetadataWrite = mutex(scope).withLock {
         when (val stored = local.load(scope.toLocal())) {
-            ScopedMetadataRead.Unavailable -> DriverDeliveryInstructionMetadataWrite.Unavailable
+            ScopedMetadataRead.Unavailable -> InstructionMetadataWrite.Unavailable
+
             is ScopedMetadataRead.Value -> {
-                val payload = stored.payload ?: return@withLock DriverDeliveryInstructionMetadataWrite.Saved
-                val current = decode(payload) ?: return@withLock DriverDeliveryInstructionMetadataWrite.Unavailable
+                val payload =
+                    stored.payload ?: return@withLock InstructionMetadataWrite.Saved
+                val current =
+                    decode(payload)
+                        ?: return@withLock InstructionMetadataWrite.Unavailable
                 if (current.scope != scope || current.command.idempotencyKey != idempotencyKey) {
-                    DriverDeliveryInstructionMetadataWrite.Stale
+                    InstructionMetadataWrite.Stale
                 } else if (local.clear(scope.toLocal())) {
-                    DriverDeliveryInstructionMetadataWrite.Saved
+                    InstructionMetadataWrite.Saved
                 } else {
-                    DriverDeliveryInstructionMetadataWrite.Unavailable
+                    InstructionMetadataWrite.Unavailable
                 }
             }
         }
     }
 
-    private suspend fun save(intent: DriverDeliveryInstructionIntentMetadata): DriverDeliveryInstructionMetadataWrite =
+    private suspend fun save(intent: InstructionIntentMetadata): InstructionMetadataWrite =
         if (local.save(intent.scope.toLocal(), encode(intent))) {
-            DriverDeliveryInstructionMetadataWrite.Saved
+            InstructionMetadataWrite.Saved
         } else {
-            DriverDeliveryInstructionMetadataWrite.Unavailable
+            InstructionMetadataWrite.Unavailable
         }
 
-    private fun encode(intent: DriverDeliveryInstructionIntentMetadata): String {
+    private fun encode(intent: InstructionIntentMetadata): String {
         val command = intent.command
         val versions = JsonObject(command.instructionVersions.mapValues { JsonPrimitive(it.value) })
         return JsonObject(
@@ -349,14 +421,17 @@ internal class AppDriverDeliveryInstructionMetadataStore(
         ).toString()
     }
 
-    private fun decode(payload: String): DriverDeliveryInstructionIntentMetadata? = try {
+    private fun decode(payload: String): InstructionIntentMetadata? = try {
         val root = Json.parseToJsonElement(payload).jsonObject
         require(root.requiredLong("schema") == 1L)
         val scope = DriverAttemptScopeIdentity(
-            root.requiredString("userId"), root.requiredString("tenantId"),
-            root.requiredString("workspaceId"), root.requiredString("membershipId")
+            root.requiredString("userId"),
+            root.requiredString("tenantId"),
+            root.requiredString("workspaceId"),
+            root.requiredString("membershipId")
         )
-        val versionObject = root["instructionVersions"]?.jsonObject ?: error("Missing instruction versions")
+        val versionObject =
+            root["instructionVersions"]?.jsonObject ?: error("Missing instruction versions")
         val versions = versionObject.mapValues { (_, value) ->
             value.jsonPrimitive.takeUnless(JsonPrimitive::isString)?.longOrNull
                 ?: error("Invalid instruction version")
@@ -364,9 +439,9 @@ internal class AppDriverDeliveryInstructionMetadataStore(
         val deliveryId = root.requiredString("deliveryId")
         val body = root.requiredStringAllowEmpty("frozenBody")
         require(body == driverDeliveryInstructionAcknowledgementBody(versions.keys))
-        DriverDeliveryInstructionIntentMetadata(
+        InstructionIntentMetadata(
             scope = scope,
-            command = DriverDeliveryInstructionAcknowledgementCommand(
+            command = AcknowledgementCommand(
                 deliveryId = deliveryId,
                 instructionSetVersion = root.requiredLong("instructionSetVersion"),
                 instructionVersions = versions,
@@ -375,13 +450,15 @@ internal class AppDriverDeliveryInstructionMetadataStore(
             ),
             initiatedByMembershipId = root.requiredString("initiatedByMembershipId"),
             initiatedAt = root.requiredString("initiatedAt"),
-            status = DriverDeliveryInstructionIntentStatus.valueOf(root.requiredString("status"))
+            status = InstructionIntentStatus.valueOf(root.requiredString("status"))
         )
     } catch (_: Exception) {
         null
     }
 
-    private fun mutex(scope: DriverAttemptScopeIdentity): Mutex = locks.computeIfAbsent(scope) { Mutex() }
+    private fun mutex(scope: DriverAttemptScopeIdentity): Mutex = locks.computeIfAbsent(scope) {
+        Mutex()
+    }
 
     private fun DriverAttemptScopeIdentity.toLocal() =
         ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
@@ -391,10 +468,12 @@ internal class AppDriverDeliveryInstructionMetadataStore(
         ?: error("Invalid delivery instruction metadata field")
 
     private fun JsonObject.requiredStringAllowEmpty(key: String): String = this[key]?.jsonPrimitive
-        ?.takeIf(JsonPrimitive::isString)?.content ?: error("Invalid delivery instruction metadata field")
+        ?.takeIf(JsonPrimitive::isString)?.content
+        ?: error("Invalid delivery instruction metadata field")
 
     private fun JsonObject.requiredLong(key: String): Long = this[key]?.jsonPrimitive
-        ?.takeUnless(JsonPrimitive::isString)?.longOrNull ?: error("Invalid delivery instruction metadata field")
+        ?.takeUnless(JsonPrimitive::isString)?.longOrNull
+        ?: error("Invalid delivery instruction metadata field")
 
     private companion object {
         val locks = ConcurrentHashMap<DriverAttemptScopeIdentity, Mutex>()
@@ -414,13 +493,16 @@ internal object DriverDeliveryInstructionsModule {
     fun provideInstructionsGateway(
         sessions: SessionCoordinator,
         api: NexaDriverDeliveryInstructionsGateway
-    ): DriverDeliveryInstructionsGateway = OperationsDriverDeliveryInstructionsGateway(sessions, api)
+    ): InstructionsGateway = OperationsDriverDeliveryInstructionsGateway(sessions, api)
 
     @Provides
     @Singleton
     fun provideInstructionsMetadataStore(
         @ApplicationContext context: Context
-    ): DriverDeliveryInstructionMetadataStore = AppDriverDeliveryInstructionMetadataStore(
-        AndroidScopedMetadataStore(context, ScopedMetadataPurpose.DriverDeliveryInstructionAcknowledgement)
+    ): InstructionMetadataStore = AppDriverDeliveryInstructionMetadataStore(
+        AndroidScopedMetadataStore(
+            context,
+            ScopedMetadataPurpose.DriverDeliveryInstructionAcknowledgement
+        )
     )
 }

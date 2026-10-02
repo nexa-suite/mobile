@@ -8,7 +8,8 @@ import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
 import com.nexa.mobile.operations.core.network.NexaStockConditionGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.core.network.StockConditionNetworkOutcome
+import com.nexa.mobile.operations.core.network.StockConditionLotProjection
+import com.nexa.mobile.operations.core.network.StockConditionNetworkOutcome as StockConditionOutcome
 import com.nexa.mobile.operations.feature.access.PermissionHint
 import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
 import com.nexa.mobile.operations.feature.warehouse.StockConditionAvailability
@@ -16,6 +17,7 @@ import com.nexa.mobile.operations.feature.warehouse.StockConditionGateway
 import com.nexa.mobile.operations.feature.warehouse.StockConditionGatewayResult
 import com.nexa.mobile.operations.feature.warehouse.StockConditionLot
 import com.nexa.mobile.operations.feature.warehouse.StockConditionViewModel
+import com.nexa.mobile.operations.feature.warehouse.VerifiedOperationsIdentity
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -113,11 +115,10 @@ internal class OperationsStockConditionGateway @Inject constructor(
         else -> StockConditionGatewayResult.ContextInvalidated
     }
 
-    private fun VerifiedSession.matches(
-        expected: com.nexa.mobile.operations.feature.warehouse.VerifiedOperationsIdentity
-    ): Boolean = hasAuthorizedContext && userId == expected.userId &&
-        tenantId == expected.tenantId && workspaceId == expected.workspaceId &&
-        membershipId == expected.membershipId && permissions == expected.permissions
+    private fun VerifiedSession.matches(expected: VerifiedOperationsIdentity): Boolean =
+        hasAuthorizedContext && userId == expected.userId &&
+            tenantId == expected.tenantId && workspaceId == expected.workspaceId &&
+            membershipId == expected.membershipId && permissions == expected.permissions
 
     private fun stockReadHint(permissions: Set<String>): PermissionHint = when {
         permissions.isEmpty() -> PermissionHint.Unknown
@@ -132,63 +133,61 @@ internal class OperationsStockConditionGateway @Inject constructor(
         is Authorization.Current -> error("authorized result is not a failure")
     }
 
-    private fun StockConditionNetworkOutcome.toFeatureResult(): StockConditionGatewayResult =
-        when (this) {
-            is StockConditionNetworkOutcome.Lots -> StockConditionGatewayResult.Lots(
-                items.map { item -> item.toFeatureLot() }
-            )
-
-            is StockConditionNetworkOutcome.Lot -> StockConditionGatewayResult.Lot(
-                item.toFeatureLot()
-            )
-
-            is StockConditionNetworkOutcome.Availability ->
-                StockConditionGatewayResult.Availability(
-                    item?.let {
-                        StockConditionAvailability(
-                            catalogItemId = it.catalogItemId,
-                            status = it.status,
-                            asOf = it.asOf,
-                            physicalQuantity = it.physicalQuantity,
-                            safetyStock = it.safetyStock,
-                            sellableQuantity = it.sellableQuantity
-                        )
-                    }
-                )
-
-            StockConditionNetworkOutcome.NetworkUnavailable ->
-                StockConditionGatewayResult.NetworkUnavailable
-
-            StockConditionNetworkOutcome.ServiceUnavailable ->
-                StockConditionGatewayResult.ServiceUnavailable
-
-            StockConditionNetworkOutcome.PermissionDenied ->
-                StockConditionGatewayResult.PermissionDenied
-
-            StockConditionNetworkOutcome.ContextInvalidated ->
-                StockConditionGatewayResult.ContextInvalidated
-
-            StockConditionNetworkOutcome.SessionInvalidated ->
-                StockConditionGatewayResult.SessionInvalidated
-        }
-
-    private fun com.nexa.mobile.operations.core.network.StockConditionLotProjection.toFeatureLot() =
-        StockConditionLot(
-            id = id,
-            warehouseId = warehouseId,
-            zoneId = zoneId,
-            catalogItemId = catalogItemId,
-            skuId = skuId,
-            batchNumber = batchNumber,
-            expirationDate = expirationDate,
-            receivedAt = receivedAt,
-            onHand = onHand,
-            reserved = reserved,
-            physicalRemaining = physicalRemaining,
-            unit = unit,
-            status = status,
-            version = version
+    private fun StockConditionOutcome.toFeatureResult(): StockConditionGatewayResult = when (this) {
+        is StockConditionOutcome.Lots -> StockConditionGatewayResult.Lots(
+            items.map { item -> item.toFeatureLot() }
         )
+
+        is StockConditionOutcome.Lot -> StockConditionGatewayResult.Lot(
+            item.toFeatureLot()
+        )
+
+        is StockConditionOutcome.Availability ->
+            StockConditionGatewayResult.Availability(
+                item?.let {
+                    StockConditionAvailability(
+                        catalogItemId = it.catalogItemId,
+                        status = it.status,
+                        asOf = it.asOf,
+                        physicalQuantity = it.physicalQuantity,
+                        safetyStock = it.safetyStock,
+                        sellableQuantity = it.sellableQuantity
+                    )
+                }
+            )
+
+        StockConditionOutcome.NetworkUnavailable ->
+            StockConditionGatewayResult.NetworkUnavailable
+
+        StockConditionOutcome.ServiceUnavailable ->
+            StockConditionGatewayResult.ServiceUnavailable
+
+        StockConditionOutcome.PermissionDenied ->
+            StockConditionGatewayResult.PermissionDenied
+
+        StockConditionOutcome.ContextInvalidated ->
+            StockConditionGatewayResult.ContextInvalidated
+
+        StockConditionOutcome.SessionInvalidated ->
+            StockConditionGatewayResult.SessionInvalidated
+    }
+
+    private fun StockConditionLotProjection.toFeatureLot() = StockConditionLot(
+        id = id,
+        warehouseId = warehouseId,
+        zoneId = zoneId,
+        catalogItemId = catalogItemId,
+        skuId = skuId,
+        batchNumber = batchNumber,
+        expirationDate = expirationDate,
+        receivedAt = receivedAt,
+        onHand = onHand,
+        reserved = reserved,
+        physicalRemaining = physicalRemaining,
+        unit = unit,
+        status = status,
+        version = version
+    )
 
     private sealed interface Authorization {
         data class Current(val lease: AccessTokenLease) : Authorization

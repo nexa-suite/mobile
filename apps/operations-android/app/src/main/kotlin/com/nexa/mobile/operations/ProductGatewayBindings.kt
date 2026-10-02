@@ -2,6 +2,7 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.nexa.mobile.operations.core.auth.session.IssuedNativeSession
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
@@ -240,7 +241,7 @@ internal class OperationsAccessGateway @Inject constructor(
     }
 
     private suspend fun establishContext(
-        issued: com.nexa.mobile.operations.core.auth.session.IssuedNativeSession,
+        issued: IssuedNativeSession,
         expected: NativeAuthenticationSession,
         selectedMembershipId: String?
     ): WorkforceContextSummary? {

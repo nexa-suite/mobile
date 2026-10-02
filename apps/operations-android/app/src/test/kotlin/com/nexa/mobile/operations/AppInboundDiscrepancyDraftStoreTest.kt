@@ -20,7 +20,14 @@ class AppInboundDiscrepancyDraftStoreTest {
 
         assertEquals(InboundDiscrepancyDraftWrite.Saved, store.save(scopeA, draft))
         assertEquals(draft, (store.load(scopeA) as InboundDiscrepancyDraftRead.Available).draft)
-        assertEquals("10.2500", (store.load(scopeA) as InboundDiscrepancyDraftRead.Available).draft?.expectedQuantityText)
+        assertEquals(
+            "10.2500",
+            (
+                store.load(
+                    scopeA
+                ) as InboundDiscrepancyDraftRead.Available
+                ).draft?.expectedQuantityText
+        )
         assertEquals(
             InboundDiscrepancyDraftWrite.Conflict,
             store.save(scopeA, draft("draft-b"))
@@ -75,8 +82,11 @@ class AppInboundDiscrepancyDraftStoreTest {
         var unavailable = false
 
         override suspend fun load(scope: InboundDiscrepancyScope): InboundDiscrepancyScopedRead =
-            if (unavailable) InboundDiscrepancyScopedRead.Unavailable
-            else InboundDiscrepancyScopedRead.Value(values[scope])
+            if (unavailable) {
+                InboundDiscrepancyScopedRead.Unavailable
+            } else {
+                InboundDiscrepancyScopedRead.Value(values[scope])
+            }
 
         override suspend fun save(scope: InboundDiscrepancyScope, payload: String): Boolean {
             if (unavailable) return false

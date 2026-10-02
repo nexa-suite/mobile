@@ -17,34 +17,117 @@ import org.junit.Test
 
 class ConnectedOperationsNavigationTest {
     private val entry = ConnectedOperationEntry("dispatch", "Despacho", setOf("dispatch.read"))
-    private val authority = VerifiedContextAuthority("user", "tenant", "workspace", "member", setOf("dispatch.read"))
+    private val authority =
+        VerifiedContextAuthority("user", "tenant", "workspace", "member", setOf("dispatch.read"))
     private val access = AccessUiState(
         stage = AccessStage.WorkAuthorized,
-        activeContext = WorkforceContextSummary("key", "Company", "Workspace", PermissionHint.Unavailable, true, authority),
+        activeContext = WorkforceContextSummary(
+            "key",
+            "Company",
+            "Workspace",
+            PermissionHint.Unavailable,
+            true,
+            authority
+        ),
         authorityEpoch = 3
     )
     private val warehouse = WarehouseUiState(
         authorityEpoch = 3,
-        activeContext = ActiveOperationsContext("Company", "Workspace", 3,
-            VerifiedOperationsIdentity("user", "tenant", "workspace", "member", authority.permissions))
+        activeContext = ActiveOperationsContext(
+            "Company",
+            "Workspace",
+            3,
+            VerifiedOperationsIdentity(
+                "user",
+                "tenant",
+                "workspace",
+                "member",
+                authority.permissions
+            )
+        )
     )
 
     @Test fun independentPermissionOpensOnlyConnectedEntry() {
-        val route = ConnectedOperationsNavigation.open(entry, SessionState.Active, access, warehouse)
+        val route = ConnectedOperationsNavigation.open(
+            entry,
+            SessionState.Active,
+            access,
+            warehouse
+        )
         assertNotNull(route)
-        assertEquals(listOf(entry), ConnectedOperationsNavigation.visibleEntries(listOf(entry), SessionState.Active, access, warehouse))
-        assertTrue(ConnectedOperationsNavigation.permits(route!!, listOf(entry), SessionState.Active, access, warehouse))
-        assertFalse(ConnectedOperationsNavigation.permits(route, emptyList(), SessionState.Active, access, warehouse))
+        assertEquals(
+            listOf(entry),
+            ConnectedOperationsNavigation.visibleEntries(
+                listOf(entry),
+                SessionState.Active,
+                access,
+                warehouse
+            )
+        )
+        assertTrue(
+            ConnectedOperationsNavigation.permits(
+                route!!,
+                listOf(entry),
+                SessionState.Active,
+                access,
+                warehouse
+            )
+        )
+        assertFalse(
+            ConnectedOperationsNavigation.permits(
+                route,
+                emptyList(),
+                SessionState.Active,
+                access,
+                warehouse
+            )
+        )
     }
 
     @Test fun routeCannotSurviveRevalidationOrScopeReplacement() {
-        val route = ConnectedOperationsNavigation.open(entry, SessionState.Active, access, warehouse)!!
-        assertFalse(ConnectedOperationsNavigation.permits(route, listOf(entry), SessionState.Active, access.copy(authorityEpoch = 4), warehouse))
-        assertFalse(ConnectedOperationsNavigation.permits(route, listOf(entry), SessionState.SignedOut, access, warehouse))
-        for (changed in listOf(authority.copy(userId = "other"), authority.copy(tenantId = "other"),
-            authority.copy(workspaceId = "other"), authority.copy(membershipId = "other"), authority.copy(permissions = emptySet()))) {
-            val replaced = access.copy(activeContext = access.activeContext!!.copy(verifiedAuthority = changed))
-            assertFalse(ConnectedOperationsNavigation.permits(route, listOf(entry), SessionState.Active, replaced, warehouse))
+        val route = ConnectedOperationsNavigation.open(
+            entry,
+            SessionState.Active,
+            access,
+            warehouse
+        )!!
+        assertFalse(
+            ConnectedOperationsNavigation.permits(
+                route,
+                listOf(entry),
+                SessionState.Active,
+                access.copy(authorityEpoch = 4),
+                warehouse
+            )
+        )
+        assertFalse(
+            ConnectedOperationsNavigation.permits(
+                route,
+                listOf(entry),
+                SessionState.SignedOut,
+                access,
+                warehouse
+            )
+        )
+        for (changed in listOf(
+            authority.copy(userId = "other"),
+            authority.copy(tenantId = "other"),
+            authority.copy(workspaceId = "other"),
+            authority.copy(membershipId = "other"),
+            authority.copy(permissions = emptySet())
+        )) {
+            val replaced = access.copy(
+                activeContext = access.activeContext!!.copy(verifiedAuthority = changed)
+            )
+            assertFalse(
+                ConnectedOperationsNavigation.permits(
+                    route,
+                    listOf(entry),
+                    SessionState.Active,
+                    replaced,
+                    warehouse
+                )
+            )
         }
     }
 }

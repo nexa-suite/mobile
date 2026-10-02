@@ -7,11 +7,11 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataStore
 import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeIntent
-import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeIntentStatus
-import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeMetadataRead
-import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeMetadataStore
-import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeMetadataWrite
-import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeScopeIdentity
+import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeIntentStatus as PlanChangeIntentStatus
+import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeMetadataRead as PlanChangeMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeMetadataStore as PlanChangeMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeMetadataWrite as PlanChangeMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeScopeIdentity as PlanChangeScopeIdentity
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -34,107 +34,140 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
 /** Exact plan-change commands use an independent AES-GCM metadata purpose. */
-internal class AppDispatchPlanChangeMetadataStore(
-    private val local: ScopedMetadataStore
-) : DispatchPlanChangeMetadataStore {
+internal class AppDispatchPlanChangeMetadataStore(private val local: ScopedMetadataStore) :
+    PlanChangeMetadataStore {
     override suspend fun loadIntent(
-        scope: DispatchPlanChangeScopeIdentity,
+        scope: PlanChangeScopeIdentity,
         fulfillmentId: String
-    ): DispatchPlanChangeMetadataRead = mutex(scope).withLock {
+    ): PlanChangeMetadataRead = mutex(scope).withLock {
         when (val stored = local.load(scope.toLocal())) {
-            ScopedMetadataRead.Unavailable -> DispatchPlanChangeMetadataRead.Unavailable
+            ScopedMetadataRead.Unavailable -> PlanChangeMetadataRead.Unavailable
+
             is ScopedMetadataRead.Value -> {
                 val intents = stored.payload?.let(::decode)
-                    ?: if (stored.payload == null) emptyList() else {
-                        return@withLock DispatchPlanChangeMetadataRead.Unavailable
+                    ?: if (stored.payload == null) {
+                        emptyList()
+                    } else {
+                        return@withLock PlanChangeMetadataRead.Unavailable
                     }
                 val intent = intents.firstOrNull { it.fulfillmentId == fulfillmentId }
-                    ?: return@withLock DispatchPlanChangeMetadataRead.Available(null)
+                    ?: return@withLock PlanChangeMetadataRead.Available(null)
                 if (intent.scope != scope) {
-                    return@withLock DispatchPlanChangeMetadataRead.Unavailable
+                    return@withLock PlanChangeMetadataRead.Unavailable
                 }
-                if (intent.status == DispatchPlanChangeIntentStatus.Pending) {
-                    val recovered = intent.copy(status = DispatchPlanChangeIntentStatus.UnknownOutcome)
-                    val updated = intents.map { if (it.fulfillmentId == fulfillmentId) recovered else it }
+                if (intent.status == PlanChangeIntentStatus.Pending) {
+                    val recovered = intent.copy(
+                        status = PlanChangeIntentStatus.UnknownOutcome
+                    )
+                    val updated = intents.map {
+                        if (it.fulfillmentId ==
+                            fulfillmentId
+                        ) {
+                            recovered
+                        } else {
+                            it
+                        }
+                    }
                     if (local.save(scope.toLocal(), encode(updated))) {
-                        DispatchPlanChangeMetadataRead.Available(recovered)
+                        PlanChangeMetadataRead.Available(recovered)
                     } else {
-                        DispatchPlanChangeMetadataRead.Unavailable
+                        PlanChangeMetadataRead.Unavailable
                     }
                 } else {
-                    DispatchPlanChangeMetadataRead.Available(intent)
+                    PlanChangeMetadataRead.Available(intent)
                 }
             }
         }
     }
 
-    override suspend fun saveIntent(
-        intent: DispatchPlanChangeIntent
-    ): DispatchPlanChangeMetadataWrite = mutex(intent.scope).withLock {
-        when (val stored = local.load(intent.scope.toLocal())) {
-            ScopedMetadataRead.Unavailable -> DispatchPlanChangeMetadataWrite.Unavailable
-            is ScopedMetadataRead.Value -> {
-                val intents = stored.payload?.let(::decode)
-                    ?: if (stored.payload == null) emptyList() else {
-                        return@withLock DispatchPlanChangeMetadataWrite.Unavailable
+    override suspend fun saveIntent(intent: DispatchPlanChangeIntent): PlanChangeMetadataWrite =
+        mutex(intent.scope).withLock {
+            when (val stored = local.load(intent.scope.toLocal())) {
+                ScopedMetadataRead.Unavailable -> PlanChangeMetadataWrite.Unavailable
+
+                is ScopedMetadataRead.Value -> {
+                    val intents = stored.payload?.let(::decode)
+                        ?: if (stored.payload == null) {
+                            emptyList()
+                        } else {
+                            return@withLock PlanChangeMetadataWrite.Unavailable
+                        }
+                    val current = intents.firstOrNull { it.fulfillmentId == intent.fulfillmentId }
+                    when {
+                        current == null && intents.size >= MAX_PENDING_INTENTS ->
+                            PlanChangeMetadataWrite.Unavailable
+
+                        current == null -> write(intent.scope, intents + intent)
+
+                        current.scope != intent.scope || !current.sameCommand(intent) ->
+                            PlanChangeMetadataWrite.Conflict
+
+                        current.status == PlanChangeIntentStatus.UnknownOutcome &&
+                            intent.status == PlanChangeIntentStatus.Pending ->
+                            PlanChangeMetadataWrite.Conflict
+
+                        current == intent -> PlanChangeMetadataWrite.Saved
+
+                        else -> write(
+                            intent.scope,
+                            intents.map {
+                                if (it.fulfillmentId ==
+                                    intent.fulfillmentId
+                                ) {
+                                    intent
+                                } else {
+                                    it
+                                }
+                            }
+                        )
                     }
-                val current = intents.firstOrNull { it.fulfillmentId == intent.fulfillmentId }
-                when {
-                    current == null && intents.size >= MAX_PENDING_INTENTS ->
-                        DispatchPlanChangeMetadataWrite.Unavailable
-
-                    current == null -> write(intent.scope, intents + intent)
-                    current.scope != intent.scope || !current.sameCommand(intent) ->
-                        DispatchPlanChangeMetadataWrite.Conflict
-
-                    current.status == DispatchPlanChangeIntentStatus.UnknownOutcome &&
-                        intent.status == DispatchPlanChangeIntentStatus.Pending ->
-                        DispatchPlanChangeMetadataWrite.Conflict
-
-                    current == intent -> DispatchPlanChangeMetadataWrite.Saved
-                    else -> write(
-                        intent.scope,
-                        intents.map { if (it.fulfillmentId == intent.fulfillmentId) intent else it }
-                    )
                 }
             }
         }
-    }
 
     override suspend fun clearIntent(
-        scope: DispatchPlanChangeScopeIdentity,
+        scope: PlanChangeScopeIdentity,
         fulfillmentId: String,
         idempotencyKey: String
-    ): DispatchPlanChangeMetadataWrite = mutex(scope).withLock {
+    ): PlanChangeMetadataWrite = mutex(scope).withLock {
         when (val stored = local.load(scope.toLocal())) {
-            ScopedMetadataRead.Unavailable -> DispatchPlanChangeMetadataWrite.Unavailable
+            ScopedMetadataRead.Unavailable -> PlanChangeMetadataWrite.Unavailable
+
             is ScopedMetadataRead.Value -> {
                 val intents = stored.payload?.let(::decode)
-                    ?: if (stored.payload == null) emptyList() else {
-                        return@withLock DispatchPlanChangeMetadataWrite.Unavailable
+                    ?: if (stored.payload == null) {
+                        emptyList()
+                    } else {
+                        return@withLock PlanChangeMetadataWrite.Unavailable
                     }
                 val current = intents.firstOrNull { it.fulfillmentId == fulfillmentId }
-                    ?: return@withLock DispatchPlanChangeMetadataWrite.Saved
+                    ?: return@withLock PlanChangeMetadataWrite.Saved
                 if (current.scope != scope || current.idempotencyKey != idempotencyKey) {
-                    DispatchPlanChangeMetadataWrite.Stale
+                    PlanChangeMetadataWrite.Stale
                 } else {
                     val remaining = intents.filterNot { it.fulfillmentId == fulfillmentId }
-                    val cleared = if (remaining.isEmpty()) local.clear(scope.toLocal()) else
+                    val cleared = if (remaining.isEmpty()) {
+                        local.clear(scope.toLocal())
+                    } else {
                         local.save(scope.toLocal(), encode(remaining))
-                    if (cleared) DispatchPlanChangeMetadataWrite.Saved else
-                        DispatchPlanChangeMetadataWrite.Unavailable
+                    }
+                    if (cleared) {
+                        PlanChangeMetadataWrite.Saved
+                    } else {
+                        PlanChangeMetadataWrite.Unavailable
+                    }
                 }
             }
         }
     }
 
     private suspend fun write(
-        scope: DispatchPlanChangeScopeIdentity,
+        scope: PlanChangeScopeIdentity,
         intents: List<DispatchPlanChangeIntent>
-    ): DispatchPlanChangeMetadataWrite = if (local.save(scope.toLocal(), encode(intents))) {
-        DispatchPlanChangeMetadataWrite.Saved
+    ): PlanChangeMetadataWrite = if (local.save(scope.toLocal(), encode(intents))) {
+        PlanChangeMetadataWrite.Saved
     } else {
-        DispatchPlanChangeMetadataWrite.Unavailable
+        PlanChangeMetadataWrite.Unavailable
     }
 
     private fun encode(intents: List<DispatchPlanChangeIntent>): String = buildJsonObject {
@@ -154,9 +187,15 @@ internal class AppDispatchPlanChangeMetadataStore(
         put("physicalAllocationId", JsonPrimitive(intent.physicalAllocationId))
         put("physicalAllocationVersion", JsonPrimitive(intent.physicalAllocationVersion))
         put("requestedMembershipId", intent.requestedMembershipId?.let(::JsonPrimitive) ?: JsonNull)
-        put("requestedDispatchAt", intent.requestedDispatchAt?.toString()?.let(::JsonPrimitive) ?: JsonNull)
+        put(
+            "requestedDispatchAt",
+            intent.requestedDispatchAt?.toString()?.let(::JsonPrimitive) ?: JsonNull
+        )
         put("resultResponsibleMembershipId", JsonPrimitive(intent.resultResponsibleMembershipId))
-        put("resultPlannedDispatchAt", intent.resultPlannedDispatchAt?.toString()?.let(::JsonPrimitive) ?: JsonNull)
+        put(
+            "resultPlannedDispatchAt",
+            intent.resultPlannedDispatchAt?.toString()?.let(::JsonPrimitive) ?: JsonNull
+        )
         put("requestBody", JsonPrimitive(intent.requestBody))
         put("idempotencyKey", JsonPrimitive(intent.idempotencyKey))
         put("status", JsonPrimitive(intent.status.name))
@@ -164,11 +203,13 @@ internal class AppDispatchPlanChangeMetadataStore(
 
     private fun decode(payload: String): List<DispatchPlanChangeIntent>? = try {
         val envelope = Json.parseToJsonElement(payload).jsonObject
-        if (envelope.requiredLong("schema") != SCHEMA_VERSION) null else {
+        if (envelope.requiredLong("schema") != SCHEMA_VERSION) {
+            null
+        } else {
             val intents = envelope["commands"]?.jsonArray?.map { element ->
                 val value = element.jsonObject
                 DispatchPlanChangeIntent(
-                    scope = DispatchPlanChangeScopeIdentity(
+                    scope = PlanChangeScopeIdentity(
                         value.requiredString("userId"),
                         value.requiredString("tenantId"),
                         value.requiredString("workspaceId"),
@@ -182,11 +223,13 @@ internal class AppDispatchPlanChangeMetadataStore(
                     physicalAllocationVersion = value.requiredLong("physicalAllocationVersion"),
                     requestedMembershipId = value.optionalString("requestedMembershipId"),
                     requestedDispatchAt = value.optionalInstant("requestedDispatchAt"),
-                    resultResponsibleMembershipId = value.requiredString("resultResponsibleMembershipId"),
+                    resultResponsibleMembershipId = value.requiredString(
+                        "resultResponsibleMembershipId"
+                    ),
                     resultPlannedDispatchAt = value.optionalInstant("resultPlannedDispatchAt"),
                     requestBody = value.requiredString("requestBody"),
                     idempotencyKey = value.requiredString("idempotencyKey"),
-                    status = DispatchPlanChangeIntentStatus.valueOf(value.requiredString("status"))
+                    status = PlanChangeIntentStatus.valueOf(value.requiredString("status"))
                 )
             } ?: error("Dispatch plan-change commands are missing")
             if (intents.map { it.fulfillmentId }.distinct().size != intents.size) null else intents
@@ -205,12 +248,14 @@ internal class AppDispatchPlanChangeMetadataStore(
 
     private fun JsonObject.optionalString(key: String): String? = when (val field = this[key]) {
         null, JsonNull -> null
+
         else -> field.jsonPrimitive.takeIf(JsonPrimitive::isString)?.content
             ?.takeIf(String::isNotBlank) ?: error("Dispatch plan-change field is invalid")
     }
 
     private fun JsonObject.optionalInstant(key: String): Instant? = optionalString(key)?.let {
-        runCatching { Instant.parse(it) }.getOrNull() ?: error("Dispatch plan-change instant is invalid")
+        runCatching { Instant.parse(it) }.getOrNull()
+            ?: error("Dispatch plan-change instant is invalid")
     }
 
     private fun DispatchPlanChangeIntent.sameCommand(other: DispatchPlanChangeIntent): Boolean =
@@ -226,16 +271,16 @@ internal class AppDispatchPlanChangeMetadataStore(
             resultPlannedDispatchAt == other.resultPlannedDispatchAt &&
             requestBody == other.requestBody && idempotencyKey == other.idempotencyKey
 
-    private fun DispatchPlanChangeScopeIdentity.toLocal() =
+    private fun PlanChangeScopeIdentity.toLocal() =
         ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
 
-    private fun mutex(scope: DispatchPlanChangeScopeIdentity): Mutex =
+    private fun mutex(scope: PlanChangeScopeIdentity): Mutex =
         locks.computeIfAbsent(scope) { Mutex() }
 
     private companion object {
         const val SCHEMA_VERSION = 1L
         const val MAX_PENDING_INTENTS = 32
-        val locks = ConcurrentHashMap<DispatchPlanChangeScopeIdentity, Mutex>()
+        val locks = ConcurrentHashMap<PlanChangeScopeIdentity, Mutex>()
     }
 }
 
@@ -246,7 +291,7 @@ internal object AppDispatchPlanChangeMetadataBindings {
     @Singleton
     fun dispatchPlanChangeMetadataStore(
         @ApplicationContext context: Context
-    ): DispatchPlanChangeMetadataStore = AppDispatchPlanChangeMetadataStore(
+    ): PlanChangeMetadataStore = AppDispatchPlanChangeMetadataStore(
         AndroidScopedMetadataStore(context, ScopedMetadataPurpose.DispatchPlanChange)
     )
 }

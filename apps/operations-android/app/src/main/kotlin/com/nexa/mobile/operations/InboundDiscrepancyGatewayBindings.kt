@@ -4,9 +4,9 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
-import com.nexa.mobile.operations.core.network.InboundDiscrepancyNetworkOutcome
 import com.nexa.mobile.operations.core.network.InboundDiscrepancyCaseProjection
 import com.nexa.mobile.operations.core.network.InboundDiscrepancyEvidenceProjection
+import com.nexa.mobile.operations.core.network.InboundDiscrepancyNetworkOutcome as InboundDiscrepancyOutcome
 import com.nexa.mobile.operations.core.network.NexaInboundDiscrepancyGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyAuthority
@@ -36,8 +36,20 @@ internal class OperationsInboundDiscrepancyGateway(
     ): InboundDiscrepancyMutationResult {
         val before = authorize(authority, RECEIVE_PERMISSION)
         if (before !is Authorization.Current) return before.toMutationFailure()
-        val result = safeMutation { transport.createCase(command.idempotencyKey, command.frozenBody).toMutationResult() }
-        return if (currentAfter(authority, before.lease, RECEIVE_PERMISSION)) result else authorityDrift(authority)
+        val result =
+            safeMutation {
+                transport.createCase(command.idempotencyKey, command.frozenBody).toMutationResult()
+            }
+        return if (currentAfter(
+                authority,
+                before.lease,
+                RECEIVE_PERMISSION
+            )
+        ) {
+            result
+        } else {
+            authorityDrift(authority)
+        }
     }
 
     override suspend fun uploadEvidence(
@@ -61,7 +73,16 @@ internal class OperationsInboundDiscrepancyGateway(
                 candidate.checksumSha256
             ).toMutationResult()
         }
-        return if (currentAfter(authority, before.lease, DOCUMENT_UPLOAD_PERMISSION)) result else authorityDrift(authority)
+        return if (currentAfter(
+                authority,
+                before.lease,
+                DOCUMENT_UPLOAD_PERMISSION
+            )
+        ) {
+            result
+        } else {
+            authorityDrift(authority)
+        }
     }
 
     override suspend fun evidenceStatus(
@@ -73,12 +94,25 @@ internal class OperationsInboundDiscrepancyGateway(
         if (before !is Authorization.Current) return before.toEvidenceFailure()
         val result = try {
             when (val response = transport.evidenceStatus(evidenceId, caseId)) {
-                is InboundDiscrepancyNetworkOutcome.EvidenceStatus ->
-                    InboundDiscrepancyEvidenceStatusResult.Loaded(response.value.toFeatureEvidence())
-                is InboundDiscrepancyNetworkOutcome.Rejected -> InboundDiscrepancyEvidenceStatusResult.Rejected(response.code)
-                InboundDiscrepancyNetworkOutcome.PermissionDenied -> InboundDiscrepancyEvidenceStatusResult.PermissionDenied
-                InboundDiscrepancyNetworkOutcome.ContextInvalidated -> InboundDiscrepancyEvidenceStatusResult.ContextInvalidated
-                InboundDiscrepancyNetworkOutcome.SessionInvalidated -> InboundDiscrepancyEvidenceStatusResult.SessionInvalidated
+                is InboundDiscrepancyOutcome.EvidenceStatus ->
+                    InboundDiscrepancyEvidenceStatusResult.Loaded(
+                        response.value.toFeatureEvidence()
+                    )
+
+                is InboundDiscrepancyOutcome.Rejected ->
+                    InboundDiscrepancyEvidenceStatusResult.Rejected(
+                        response.code
+                    )
+
+                InboundDiscrepancyOutcome.PermissionDenied ->
+                    InboundDiscrepancyEvidenceStatusResult.PermissionDenied
+
+                InboundDiscrepancyOutcome.ContextInvalidated ->
+                    InboundDiscrepancyEvidenceStatusResult.ContextInvalidated
+
+                InboundDiscrepancyOutcome.SessionInvalidated ->
+                    InboundDiscrepancyEvidenceStatusResult.SessionInvalidated
+
                 else -> InboundDiscrepancyEvidenceStatusResult.ServiceUnavailable
             }
         } catch (cancelled: CancellationException) {
@@ -86,9 +120,15 @@ internal class OperationsInboundDiscrepancyGateway(
         } catch (_: Exception) {
             InboundDiscrepancyEvidenceStatusResult.ServiceUnavailable
         }
-        return if (currentAfter(authority, before.lease, DOCUMENT_READ_PERMISSION)) result else when (authorityDrift(authority)) {
-            InboundDiscrepancyMutationResult.SessionInvalidated -> InboundDiscrepancyEvidenceStatusResult.SessionInvalidated
-            else -> InboundDiscrepancyEvidenceStatusResult.ContextInvalidated
+        return if (currentAfter(authority, before.lease, DOCUMENT_READ_PERMISSION)) {
+            result
+        } else {
+            when (authorityDrift(authority)) {
+                InboundDiscrepancyMutationResult.SessionInvalidated ->
+                    InboundDiscrepancyEvidenceStatusResult.SessionInvalidated
+
+                else -> InboundDiscrepancyEvidenceStatusResult.ContextInvalidated
+            }
         }
     }
 
@@ -107,8 +147,17 @@ internal class OperationsInboundDiscrepancyGateway(
                 command.frozenBody
             ).toMutationResult()
         }
-        return if (currentAfter(authority, before.lease, RECEIVE_PERMISSION, SUBMIT_DOCUMENT_PERMISSIONS)) result
-        else authorityDrift(authority)
+        return if (currentAfter(
+                authority,
+                before.lease,
+                RECEIVE_PERMISSION,
+                SUBMIT_DOCUMENT_PERMISSIONS
+            )
+        ) {
+            result
+        } else {
+            authorityDrift(authority)
+        }
     }
 
     private suspend fun authorize(
@@ -116,13 +165,25 @@ internal class OperationsInboundDiscrepancyGateway(
         required: Set<String>,
         requiredAll: Set<String> = emptySet()
     ): Authorization {
-        if (sessions.sessionState.value != SessionState.Active) return Authorization.SessionInvalidated
+        if (sessions.sessionState.value !=
+            SessionState.Active
+        ) {
+            return Authorization.SessionInvalidated
+        }
         val lease = sessions.currentAccess() ?: return Authorization.SessionInvalidated
         val verified = sessions.verifiedSession.value ?: return Authorization.ContextInvalidated
-        if (authority.authorityEpoch <= 0 || !verified.matches(authority)) return Authorization.ContextInvalidated
-        return if (verified.permissions.any(required::contains) && verified.permissions.containsAll(requiredAll)) {
+        if (authority.authorityEpoch <= 0 ||
+            !verified.matches(authority)
+        ) {
+            return Authorization.ContextInvalidated
+        }
+        return if (verified.permissions.any(required::contains) &&
+            verified.permissions.containsAll(requiredAll)
+        ) {
             Authorization.Current(lease)
-        } else Authorization.PermissionDenied
+        } else {
+            Authorization.PermissionDenied
+        }
     }
 
     private suspend fun currentAfter(
@@ -131,19 +192,32 @@ internal class OperationsInboundDiscrepancyGateway(
         required: Set<String>,
         requiredAll: Set<String> = emptySet()
     ): Boolean {
-        if (sessions.sessionState.value != SessionState.Active || !sessions.isEpochCurrent(originalLease.epoch)) return false
+        if (sessions.sessionState.value != SessionState.Active ||
+            !sessions.isEpochCurrent(originalLease.epoch)
+        ) {
+            return false
+        }
         val current = sessions.verifiedSession.value ?: return false
         return current.matches(authority) && current.permissions.any(required::contains) &&
             current.permissions.containsAll(requiredAll)
     }
 
     private fun VerifiedSession.matches(authority: InboundDiscrepancyAuthority): Boolean =
-        hasAuthorizedContext && userId == authority.scope.userId && tenantId == authority.scope.tenantId &&
-            workspaceId == authority.scope.workspaceId && membershipId == authority.scope.membershipId
+        hasAuthorizedContext && userId == authority.scope.userId &&
+            tenantId == authority.scope.tenantId &&
+            workspaceId == authority.scope.workspaceId &&
+            membershipId == authority.scope.membershipId
 
-    private fun authorityDrift(authority: InboundDiscrepancyAuthority): InboundDiscrepancyMutationResult = when {
-        sessions.sessionState.value != SessionState.Active -> InboundDiscrepancyMutationResult.SessionInvalidated
-        sessions.verifiedSession.value?.matches(authority) == true -> InboundDiscrepancyMutationResult.SessionInvalidated
+    private fun authorityDrift(
+        authority: InboundDiscrepancyAuthority
+    ): InboundDiscrepancyMutationResult = when {
+        sessions.sessionState.value != SessionState.Active ->
+            InboundDiscrepancyMutationResult.SessionInvalidated
+
+        sessions.verifiedSession.value?.matches(
+            authority
+        ) == true -> InboundDiscrepancyMutationResult.SessionInvalidated
+
         else -> InboundDiscrepancyMutationResult.ContextInvalidated
     }
 
@@ -154,42 +228,95 @@ internal class OperationsInboundDiscrepancyGateway(
         is Authorization.Current -> error("authorized result is not a failure")
     }
 
-    private fun Authorization.toEvidenceFailure(): InboundDiscrepancyEvidenceStatusResult = when (this) {
-        Authorization.SessionInvalidated -> InboundDiscrepancyEvidenceStatusResult.SessionInvalidated
-        Authorization.ContextInvalidated -> InboundDiscrepancyEvidenceStatusResult.ContextInvalidated
-        Authorization.PermissionDenied -> InboundDiscrepancyEvidenceStatusResult.PermissionDenied
-        is Authorization.Current -> error("authorized result is not a failure")
-    }
+    private fun Authorization.toEvidenceFailure(): InboundDiscrepancyEvidenceStatusResult =
+        when (this) {
+            Authorization.SessionInvalidated ->
+                InboundDiscrepancyEvidenceStatusResult.SessionInvalidated
 
-    private fun InboundDiscrepancyNetworkOutcome.toMutationResult(): InboundDiscrepancyMutationResult = when (this) {
-        is InboundDiscrepancyNetworkOutcome.CaseConfirmed -> InboundDiscrepancyMutationResult.CaseConfirmed(value.toFeatureCase())
-        is InboundDiscrepancyNetworkOutcome.EvidenceUploaded -> InboundDiscrepancyMutationResult.EvidenceUploaded(value.toFeatureEvidence())
-        is InboundDiscrepancyNetworkOutcome.Rejected -> InboundDiscrepancyMutationResult.Rejected(code)
-        InboundDiscrepancyNetworkOutcome.PreconditionFailed -> InboundDiscrepancyMutationResult.PreconditionFailed
-        InboundDiscrepancyNetworkOutcome.Conflict -> InboundDiscrepancyMutationResult.Conflict
-        InboundDiscrepancyNetworkOutcome.UnknownOutcome -> InboundDiscrepancyMutationResult.UnknownOutcome
-        InboundDiscrepancyNetworkOutcome.NetworkUnavailable -> InboundDiscrepancyMutationResult.NetworkUnavailable
-        InboundDiscrepancyNetworkOutcome.ServiceUnavailable -> InboundDiscrepancyMutationResult.ServiceUnavailable
-        InboundDiscrepancyNetworkOutcome.PermissionDenied -> InboundDiscrepancyMutationResult.PermissionDenied
-        InboundDiscrepancyNetworkOutcome.ContextInvalidated -> InboundDiscrepancyMutationResult.ContextInvalidated
-        InboundDiscrepancyNetworkOutcome.SessionInvalidated -> InboundDiscrepancyMutationResult.SessionInvalidated
-        is InboundDiscrepancyNetworkOutcome.EvidenceStatus -> InboundDiscrepancyMutationResult.UnknownOutcome
-    }
+            Authorization.ContextInvalidated ->
+                InboundDiscrepancyEvidenceStatusResult.ContextInvalidated
+
+            Authorization.PermissionDenied ->
+                InboundDiscrepancyEvidenceStatusResult.PermissionDenied
+
+            is Authorization.Current -> error("authorized result is not a failure")
+        }
+
+    private fun InboundDiscrepancyOutcome.toMutationResult(): InboundDiscrepancyMutationResult =
+        when (this) {
+            is InboundDiscrepancyOutcome.CaseConfirmed ->
+                InboundDiscrepancyMutationResult.CaseConfirmed(
+                    value.toFeatureCase()
+                )
+
+            is InboundDiscrepancyOutcome.EvidenceUploaded ->
+                InboundDiscrepancyMutationResult.EvidenceUploaded(
+                    value.toFeatureEvidence()
+                )
+
+            is InboundDiscrepancyOutcome.Rejected ->
+                InboundDiscrepancyMutationResult.Rejected(
+                    code
+                )
+
+            InboundDiscrepancyOutcome.PreconditionFailed ->
+                InboundDiscrepancyMutationResult.PreconditionFailed
+
+            InboundDiscrepancyOutcome.Conflict -> InboundDiscrepancyMutationResult.Conflict
+
+            InboundDiscrepancyOutcome.UnknownOutcome ->
+                InboundDiscrepancyMutationResult.UnknownOutcome
+
+            InboundDiscrepancyOutcome.NetworkUnavailable ->
+                InboundDiscrepancyMutationResult.NetworkUnavailable
+
+            InboundDiscrepancyOutcome.ServiceUnavailable ->
+                InboundDiscrepancyMutationResult.ServiceUnavailable
+
+            InboundDiscrepancyOutcome.PermissionDenied ->
+                InboundDiscrepancyMutationResult.PermissionDenied
+
+            InboundDiscrepancyOutcome.ContextInvalidated ->
+                InboundDiscrepancyMutationResult.ContextInvalidated
+
+            InboundDiscrepancyOutcome.SessionInvalidated ->
+                InboundDiscrepancyMutationResult.SessionInvalidated
+
+            is InboundDiscrepancyOutcome.EvidenceStatus ->
+                InboundDiscrepancyMutationResult.UnknownOutcome
+        }
 
     private fun InboundDiscrepancyCaseProjection.toFeatureCase() = InboundDiscrepancyCase(
-        id, warehouseId, expectedSkuId, observedSkuId, expectedBatchReference, observedBatchReference,
-        expectedQuantity.toPlainString(), observedQuantity.toPlainString(), unit, reason, observationNotes,
-        status, evidenceObjectId, version, recordedByMembershipId, recordedAt, submittedByMembershipId, submittedAt
+        id, warehouseId, expectedSkuId, observedSkuId, expectedBatchReference,
+        observedBatchReference,
+        expectedQuantity.toPlainString(), observedQuantity.toPlainString(),
+        unit, reason, observationNotes,
+        status, evidenceObjectId, version, recordedByMembershipId,
+        recordedAt, submittedByMembershipId, submittedAt
     )
 
-    private fun InboundDiscrepancyEvidenceProjection.toFeatureEvidence() = InboundDiscrepancyEvidence(
-        id, subjectType, subjectId, lifecycleStatus, declaredContentType, checksumSha256, byteSize
-    )
+    private fun InboundDiscrepancyEvidenceProjection.toFeatureEvidence() =
+        InboundDiscrepancyEvidence(
+            id,
+            subjectType,
+            subjectId,
+            lifecycleStatus,
+            declaredContentType,
+            checksumSha256,
+            byteSize
+        )
 
-    private suspend fun safeMutation(action: suspend () -> InboundDiscrepancyMutationResult): InboundDiscrepancyMutationResult = try {
+    private suspend fun safeMutation(
+        action: suspend () -> InboundDiscrepancyMutationResult
+    ): InboundDiscrepancyMutationResult = try {
         action()
-    } catch (cancelled: CancellationException) { throw cancelled }
-    catch (_: Exception) { InboundDiscrepancyMutationResult.UnknownOutcome }
+    } catch (
+        cancelled: CancellationException
+    ) {
+        throw cancelled
+    } catch (_: Exception) {
+        InboundDiscrepancyMutationResult.UnknownOutcome
+    }
 
     private sealed interface Authorization {
         data class Current(val lease: AccessTokenLease) : Authorization

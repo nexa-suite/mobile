@@ -6,15 +6,16 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityIdentity
-import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIdentityCommand
-import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIdentityMetadataStore
-import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffMetadataRead
-import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIdentityCommand as HandoffIdentityCommand
+import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIdentityMetadataStore as HandoffIdentityMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffMetadataRead as HandoffMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffMetadataWrite as HandoffMetadataWrite
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -32,19 +33,23 @@ import kotlinx.serialization.json.longOrNull
 /** Encrypted durable issue intent only. Handoff tokens are never persisted. */
 internal class AppDispatchHandoffIdentityMetadataStore(
     private val local: AndroidScopedMetadataStore
-) : DispatchHandoffIdentityMetadataStore {
+) : HandoffIdentityMetadataStore {
     override suspend fun load(
         scope: DispatchAuthorityIdentity,
         deliveryId: String,
         assignmentId: String
-    ): DispatchHandoffMetadataRead = mutex(scope).withLock {
+    ): HandoffMetadataRead = mutex(scope).withLock {
         when (val stored = local.load(scope.toLocal())) {
-            ScopedMetadataRead.Unavailable -> DispatchHandoffMetadataRead.Unavailable
+            ScopedMetadataRead.Unavailable -> HandoffMetadataRead.Unavailable
+
             is ScopedMetadataRead.Value -> {
                 val commands = decode(stored.payload, scope)
-                    ?: return@withLock DispatchHandoffMetadataRead.Unavailable
-                DispatchHandoffMetadataRead.Available(
-                    commands.firstOrNull { it.deliveryId == deliveryId && it.assignmentId == assignmentId }
+                    ?: return@withLock HandoffMetadataRead.Unavailable
+                HandoffMetadataRead.Available(
+                    commands.firstOrNull {
+                        it.deliveryId == deliveryId &&
+                            it.assignmentId == assignmentId
+                    }
                 )
             }
         }
@@ -52,31 +57,39 @@ internal class AppDispatchHandoffIdentityMetadataStore(
 
     override suspend fun persistIntent(
         scope: DispatchAuthorityIdentity,
-        command: DispatchHandoffIdentityCommand,
+        command: HandoffIdentityCommand,
         replacingIdempotencyKey: String?
-    ): DispatchHandoffMetadataWrite = mutex(scope).withLock {
+    ): HandoffMetadataWrite = mutex(scope).withLock {
         when (val stored = local.load(scope.toLocal())) {
-            ScopedMetadataRead.Unavailable -> DispatchHandoffMetadataWrite.Unavailable
+            ScopedMetadataRead.Unavailable -> HandoffMetadataWrite.Unavailable
+
             is ScopedMetadataRead.Value -> {
                 val commands = decode(stored.payload, scope)
-                    ?: return@withLock DispatchHandoffMetadataWrite.Unavailable
+                    ?: return@withLock HandoffMetadataWrite.Unavailable
                 val existing = commands.firstOrNull {
                     it.deliveryId == command.deliveryId && it.assignmentId == command.assignmentId
                 }
                 when {
-                    existing == command -> DispatchHandoffMetadataWrite.Saved
+                    existing == command -> HandoffMetadataWrite.Saved
+
                     existing != null && replacingIdempotencyKey != null &&
                         existing.idempotencyKey == replacingIdempotencyKey -> {
                         val replacement = commands.map { if (it == existing) command else it }
                         if (local.save(scope.toLocal(), encode(scope, replacement))) {
-                            DispatchHandoffMetadataWrite.Saved
-                        } else DispatchHandoffMetadataWrite.Unavailable
+                            HandoffMetadataWrite.Saved
+                        } else {
+                            HandoffMetadataWrite.Unavailable
+                        }
                     }
-                    existing != null -> DispatchHandoffMetadataWrite.Conflict
-                    commands.size >= MAX_COMMANDS -> DispatchHandoffMetadataWrite.Unavailable
+
+                    existing != null -> HandoffMetadataWrite.Conflict
+
+                    commands.size >= MAX_COMMANDS -> HandoffMetadataWrite.Unavailable
+
                     local.save(scope.toLocal(), encode(scope, commands + command)) ->
-                        DispatchHandoffMetadataWrite.Saved
-                    else -> DispatchHandoffMetadataWrite.Unavailable
+                        HandoffMetadataWrite.Saved
+
+                    else -> HandoffMetadataWrite.Unavailable
                 }
             }
         }
@@ -87,31 +100,32 @@ internal class AppDispatchHandoffIdentityMetadataStore(
         deliveryId: String,
         assignmentId: String,
         idempotencyKey: String
-    ): DispatchHandoffMetadataWrite = mutex(scope).withLock {
+    ): HandoffMetadataWrite = mutex(scope).withLock {
         when (val stored = local.load(scope.toLocal())) {
-            ScopedMetadataRead.Unavailable -> DispatchHandoffMetadataWrite.Unavailable
+            ScopedMetadataRead.Unavailable -> HandoffMetadataWrite.Unavailable
+
             is ScopedMetadataRead.Value -> {
                 val commands = decode(stored.payload, scope)
-                    ?: return@withLock DispatchHandoffMetadataWrite.Unavailable
+                    ?: return@withLock HandoffMetadataWrite.Unavailable
                 val existing = commands.firstOrNull {
                     it.deliveryId == deliveryId && it.assignmentId == assignmentId
-                } ?: return@withLock DispatchHandoffMetadataWrite.Saved
+                } ?: return@withLock HandoffMetadataWrite.Saved
                 if (existing.idempotencyKey != idempotencyKey) {
-                    DispatchHandoffMetadataWrite.Stale
+                    HandoffMetadataWrite.Stale
                 } else if (local.save(
                         scope.toLocal(),
                         encode(scope, commands.filterNot { it == existing })
                     )
                 ) {
-                    DispatchHandoffMetadataWrite.Saved
+                    HandoffMetadataWrite.Saved
                 } else {
-                    DispatchHandoffMetadataWrite.Unavailable
+                    HandoffMetadataWrite.Unavailable
                 }
             }
         }
     }
 
-    private fun encode(scope: DispatchAuthorityIdentity, commands: List<DispatchHandoffIdentityCommand>) =
+    private fun encode(scope: DispatchAuthorityIdentity, commands: List<HandoffIdentityCommand>) =
         JsonObject(
             linkedMapOf(
                 "schema" to JsonPrimitive(SCHEMA),
@@ -123,7 +137,10 @@ internal class AppDispatchHandoffIdentityMetadataStore(
             )
         ).toString()
 
-    private fun decode(payload: String?, scope: DispatchAuthorityIdentity): List<DispatchHandoffIdentityCommand>? {
+    private fun decode(
+        payload: String?,
+        scope: DispatchAuthorityIdentity
+    ): List<HandoffIdentityCommand>? {
         if (payload == null) return emptyList()
         return try {
             val root = Json.parseToJsonElement(payload).jsonObject
@@ -135,14 +152,18 @@ internal class AppDispatchHandoffIdentityMetadataStore(
             val commands = root["commands"]?.jsonArray?.map { decodeCommand(it.jsonObject) }
                 ?: error("commands missing")
             require(commands.size <= MAX_COMMANDS)
-            require(commands.map { it.deliveryId to it.assignmentId }.distinct().size == commands.size)
+            require(
+                commands.map {
+                    it.deliveryId to it.assignmentId
+                }.distinct().size == commands.size
+            )
             commands
         } catch (_: Exception) {
             null
         }
     }
 
-    private fun encodeCommand(command: DispatchHandoffIdentityCommand) = JsonObject(
+    private fun encodeCommand(command: HandoffIdentityCommand) = JsonObject(
         linkedMapOf(
             "deliveryId" to JsonPrimitive(command.deliveryId),
             "assignmentId" to JsonPrimitive(command.assignmentId),
@@ -151,7 +172,7 @@ internal class AppDispatchHandoffIdentityMetadataStore(
         )
     )
 
-    private fun decodeCommand(value: JsonObject) = DispatchHandoffIdentityCommand(
+    private fun decodeCommand(value: JsonObject) = HandoffIdentityCommand(
         deliveryId = value.requiredString("deliveryId"),
         assignmentId = value.requiredString("assignmentId"),
         idempotencyKey = value.requiredString("idempotencyKey"),
@@ -173,7 +194,7 @@ internal class AppDispatchHandoffIdentityMetadataStore(
     private companion object {
         const val SCHEMA = 1L
         const val MAX_COMMANDS = 256
-        val locks = java.util.concurrent.ConcurrentHashMap<DispatchAuthorityIdentity, Mutex>()
+        val locks = ConcurrentHashMap<DispatchAuthorityIdentity, Mutex>()
     }
 }
 
@@ -184,7 +205,7 @@ internal object DispatchHandoffIdentityMetadataModule {
     @Singleton
     fun provideDispatchHandoffIdentityMetadataStore(
         @ApplicationContext context: Context
-    ): DispatchHandoffIdentityMetadataStore = AppDispatchHandoffIdentityMetadataStore(
+    ): HandoffIdentityMetadataStore = AppDispatchHandoffIdentityMetadataStore(
         AndroidScopedMetadataStore(context, ScopedMetadataPurpose.DispatchHandoffIdentity)
     )
 }

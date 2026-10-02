@@ -6,31 +6,32 @@ import androidx.lifecycle.ViewModelProvider
 import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
+import com.nexa.mobile.operations.core.auth.session.VerifiedSession
 import com.nexa.mobile.operations.core.local.scoped.AndroidScopedMetadataStore
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
-import com.nexa.mobile.operations.core.network.DriverOperationalExceptionActionTransport
-import com.nexa.mobile.operations.core.network.DriverOperationalExceptionTransport
-import com.nexa.mobile.operations.core.network.DriverOperationalExceptionsNetworkOutcome
+import com.nexa.mobile.operations.core.network.DriverOperationalExceptionActionTransport as ExceptionActionTransport
+import com.nexa.mobile.operations.core.network.DriverOperationalExceptionTransport as ExceptionTransport
+import com.nexa.mobile.operations.core.network.DriverOperationalExceptionsNetworkOutcome as ExceptionsOutcome
 import com.nexa.mobile.operations.core.network.NexaDriverDeliveryOperationalExceptionsGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.feature.delivery.DriverAttemptScopeIdentity
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryAuthority
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalException
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionAction
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionCommand
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionIntent
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionIntentStatus
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionMetadataRead
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionMetadataStore
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionMetadataWrite
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionMutation
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionMutationResult
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsGateway
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsLoadResult
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsSnapshot
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsViewModel
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalException as OperationalException
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionAction as OperationalExceptionAction
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionCommand as ExceptionCommand
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionIntent as OperationalExceptionIntent
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionIntentStatus as ExceptionIntentStatus
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionMetadataRead as ExceptionMetadataRead
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionMetadataStore as ExceptionMetadataStore
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionMetadataWrite as ExceptionMetadataWrite
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionMutation as ExceptionMutation
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionMutationResult as ExceptionMutationResult
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsGateway as ExceptionsGateway
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsLoadResult as ExceptionsLoadResult
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsSnapshot as ExceptionsSnapshot
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsViewModel as ExceptionsViewModel
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -53,11 +54,11 @@ import kotlinx.serialization.json.longOrNull
 internal class OperationsDriverDeliveryOperationalExceptionsGateway @Inject constructor(
     private val sessions: SessionCoordinator,
     private val api: NexaDriverDeliveryOperationalExceptionsGateway
-) : DriverDeliveryOperationalExceptionsGateway {
+) : ExceptionsGateway {
     override suspend fun currentExceptions(
         deliveryId: String,
         authority: DriverDeliveryAuthority
-    ): DriverDeliveryOperationalExceptionsLoadResult {
+    ): ExceptionsLoadResult {
         val before = authorize(authority, DRIVER_READ_PERMISSIONS)
         if (before !is Authorization.Current) return before.toLoadResult()
         val outcome = try {
@@ -65,16 +66,16 @@ internal class OperationsDriverDeliveryOperationalExceptionsGateway @Inject cons
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            return DriverDeliveryOperationalExceptionsLoadResult.ServiceUnavailable
+            return ExceptionsLoadResult.ServiceUnavailable
         }
         if (!currentAfter(authority, before.lease)) return authorityDrift()
         return when (outcome) {
-            is DriverOperationalExceptionsNetworkOutcome.Loaded -> try {
+            is ExceptionsOutcome.Loaded -> try {
                 if (outcome.value.deliveryId != deliveryId) {
-                    DriverDeliveryOperationalExceptionsLoadResult.ServiceUnavailable
+                    ExceptionsLoadResult.ServiceUnavailable
                 } else {
-                    DriverDeliveryOperationalExceptionsLoadResult.Loaded(
-                        DriverDeliveryOperationalExceptionsSnapshot(
+                    ExceptionsLoadResult.Loaded(
+                        ExceptionsSnapshot(
                             outcome.value.deliveryId,
                             outcome.value.deliveryVersion,
                             outcome.value.exceptions.map { it.toFeatureException() }
@@ -82,7 +83,7 @@ internal class OperationsDriverDeliveryOperationalExceptionsGateway @Inject cons
                     )
                 }
             } catch (_: Exception) {
-                DriverDeliveryOperationalExceptionsLoadResult.ServiceUnavailable
+                ExceptionsLoadResult.ServiceUnavailable
             }
 
             else -> outcome.toLoadResult()
@@ -90,19 +91,23 @@ internal class OperationsDriverDeliveryOperationalExceptionsGateway @Inject cons
     }
 
     override suspend fun mutate(
-        command: DriverDeliveryOperationalExceptionCommand,
+        command: ExceptionCommand,
         authority: DriverDeliveryAuthority
-    ): DriverDeliveryOperationalExceptionMutationResult {
+    ): ExceptionMutationResult {
         val before = authorize(authority, DRIVER_START_PERMISSIONS)
         if (before !is Authorization.Current) return before.toMutationResult()
         val action = when (command.action) {
-            DriverDeliveryOperationalExceptionAction.Claim -> DriverOperationalExceptionActionTransport.Claim
-            DriverDeliveryOperationalExceptionAction.Review -> DriverOperationalExceptionActionTransport.Review
-            DriverDeliveryOperationalExceptionAction.ResolveWarning ->
-                DriverOperationalExceptionActionTransport.ResolveWarning
+            OperationalExceptionAction.Claim ->
+                ExceptionActionTransport.Claim
 
-            DriverDeliveryOperationalExceptionAction.CloseWarning ->
-                DriverOperationalExceptionActionTransport.CloseWarning
+            OperationalExceptionAction.Review ->
+                ExceptionActionTransport.Review
+
+            OperationalExceptionAction.ResolveWarning ->
+                ExceptionActionTransport.ResolveWarning
+
+            OperationalExceptionAction.CloseWarning ->
+                ExceptionActionTransport.CloseWarning
         }
         val outcome = try {
             api.mutate(
@@ -116,20 +121,20 @@ internal class OperationsDriverDeliveryOperationalExceptionsGateway @Inject cons
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            return DriverDeliveryOperationalExceptionMutationResult.UnknownOutcome
+            return ExceptionMutationResult.UnknownOutcome
         }
         if (!currentAfter(authority, before.lease)) {
-            return DriverDeliveryOperationalExceptionMutationResult.UnknownOutcome
+            return ExceptionMutationResult.UnknownOutcome
         }
         return when (outcome) {
-            is DriverOperationalExceptionsNetworkOutcome.Changed -> try {
+            is ExceptionsOutcome.Changed -> try {
                 if (outcome.value.deliveryId != command.deliveryId ||
                     outcome.value.exception.id != command.exceptionId
                 ) {
-                    DriverDeliveryOperationalExceptionMutationResult.UnknownOutcome
+                    ExceptionMutationResult.UnknownOutcome
                 } else {
-                    DriverDeliveryOperationalExceptionMutationResult.Changed(
-                        DriverDeliveryOperationalExceptionMutation(
+                    ExceptionMutationResult.Changed(
+                        ExceptionMutation(
                             deliveryId = outcome.value.deliveryId,
                             deliveryVersion = outcome.value.deliveryVersion,
                             exception = outcome.value.exception.toFeatureException(),
@@ -138,7 +143,7 @@ internal class OperationsDriverDeliveryOperationalExceptionsGateway @Inject cons
                     )
                 }
             } catch (_: Exception) {
-                DriverDeliveryOperationalExceptionMutationResult.UnknownOutcome
+                ExceptionMutationResult.UnknownOutcome
             }
 
             else -> outcome.toMutationResult()
@@ -149,11 +154,20 @@ internal class OperationsDriverDeliveryOperationalExceptionsGateway @Inject cons
         authority: DriverDeliveryAuthority,
         requiredPermissions: Set<String>
     ): Authorization {
-        if (sessions.sessionState.value != SessionState.Active) return Authorization.SessionInvalidated
+        if (sessions.sessionState.value !=
+            SessionState.Active
+        ) {
+            return Authorization.SessionInvalidated
+        }
         val lease = sessions.currentAccess() ?: return Authorization.SessionInvalidated
         val verified = sessions.verifiedSession.value ?: return Authorization.ContextInvalidated
         if (!verified.matches(authority)) return Authorization.ContextInvalidated
-        if (authority.permissions.none { it in requiredPermissions }) return Authorization.PermissionDenied
+        if (authority.permissions.none {
+                it in requiredPermissions
+            }
+        ) {
+            return Authorization.PermissionDenied
+        }
         return Authorization.Current(lease)
     }
 
@@ -161,56 +175,99 @@ internal class OperationsDriverDeliveryOperationalExceptionsGateway @Inject cons
         authority: DriverDeliveryAuthority,
         originalLease: AccessTokenLease
     ): Boolean = sessions.sessionState.value == SessionState.Active &&
-        sessions.isEpochCurrent(originalLease.epoch) && sessions.verifiedSession.value?.matches(authority) == true
+        sessions.isEpochCurrent(originalLease.epoch) &&
+        sessions.verifiedSession.value?.matches(authority) == true
 
-    private suspend fun authorityDrift(): DriverDeliveryOperationalExceptionsLoadResult =
+    private suspend fun authorityDrift(): ExceptionsLoadResult =
         if (sessions.sessionState.value != SessionState.Active) {
-            DriverDeliveryOperationalExceptionsLoadResult.SessionInvalidated
+            ExceptionsLoadResult.SessionInvalidated
         } else {
-            DriverDeliveryOperationalExceptionsLoadResult.ContextInvalidated
+            ExceptionsLoadResult.ContextInvalidated
         }
 
-    private fun com.nexa.mobile.operations.core.auth.session.VerifiedSession.matches(
-        authority: DriverDeliveryAuthority
-    ): Boolean = hasAuthorizedContext && userId == authority.userId && tenantId == authority.tenantId &&
-        workspaceId == authority.workspaceId && membershipId == authority.membershipId &&
-        permissions == authority.permissions
+    private fun VerifiedSession.matches(authority: DriverDeliveryAuthority): Boolean =
+        hasAuthorizedContext && userId == authority.userId && tenantId == authority.tenantId &&
+            workspaceId == authority.workspaceId && membershipId == authority.membershipId &&
+            permissions == authority.permissions
 
-    private fun Authorization.toLoadResult(): DriverDeliveryOperationalExceptionsLoadResult = when (this) {
-        Authorization.SessionInvalidated -> DriverDeliveryOperationalExceptionsLoadResult.SessionInvalidated
-        Authorization.ContextInvalidated -> DriverDeliveryOperationalExceptionsLoadResult.ContextInvalidated
-        Authorization.PermissionDenied -> DriverDeliveryOperationalExceptionsLoadResult.PermissionDenied
+    private fun Authorization.toLoadResult(): ExceptionsLoadResult = when (this) {
+        Authorization.SessionInvalidated ->
+            ExceptionsLoadResult.SessionInvalidated
+
+        Authorization.ContextInvalidated ->
+            ExceptionsLoadResult.ContextInvalidated
+
+        Authorization.PermissionDenied ->
+            ExceptionsLoadResult.PermissionDenied
+
         is Authorization.Current -> error("authorized result is not a failure")
     }
 
-    private fun Authorization.toMutationResult(): DriverDeliveryOperationalExceptionMutationResult = when (this) {
-        Authorization.SessionInvalidated -> DriverDeliveryOperationalExceptionMutationResult.SessionInvalidated
-        Authorization.ContextInvalidated -> DriverDeliveryOperationalExceptionMutationResult.ContextInvalidated
-        Authorization.PermissionDenied -> DriverDeliveryOperationalExceptionMutationResult.PermissionDenied
+    private fun Authorization.toMutationResult(): ExceptionMutationResult = when (this) {
+        Authorization.SessionInvalidated ->
+            ExceptionMutationResult.SessionInvalidated
+
+        Authorization.ContextInvalidated ->
+            ExceptionMutationResult.ContextInvalidated
+
+        Authorization.PermissionDenied ->
+            ExceptionMutationResult.PermissionDenied
+
         is Authorization.Current -> error("authorized result is not a failure")
     }
 
-    private fun DriverOperationalExceptionsNetworkOutcome.toLoadResult(): DriverDeliveryOperationalExceptionsLoadResult = when (this) {
-        DriverOperationalExceptionsNetworkOutcome.NotFound -> DriverDeliveryOperationalExceptionsLoadResult.NotFound
-        DriverOperationalExceptionsNetworkOutcome.NetworkUnavailable -> DriverDeliveryOperationalExceptionsLoadResult.NetworkUnavailable
-        DriverOperationalExceptionsNetworkOutcome.PermissionDenied -> DriverDeliveryOperationalExceptionsLoadResult.PermissionDenied
-        DriverOperationalExceptionsNetworkOutcome.ContextInvalidated -> DriverDeliveryOperationalExceptionsLoadResult.ContextInvalidated
-        DriverOperationalExceptionsNetworkOutcome.SessionInvalidated -> DriverDeliveryOperationalExceptionsLoadResult.SessionInvalidated
-        else -> DriverDeliveryOperationalExceptionsLoadResult.ServiceUnavailable
+    private fun ExceptionsOutcome.toLoadResult(): ExceptionsLoadResult = when (this) {
+        ExceptionsOutcome.NotFound ->
+            ExceptionsLoadResult.NotFound
+
+        ExceptionsOutcome.NetworkUnavailable ->
+            ExceptionsLoadResult.NetworkUnavailable
+
+        ExceptionsOutcome.PermissionDenied ->
+            ExceptionsLoadResult.PermissionDenied
+
+        ExceptionsOutcome.ContextInvalidated ->
+            ExceptionsLoadResult.ContextInvalidated
+
+        ExceptionsOutcome.SessionInvalidated ->
+            ExceptionsLoadResult.SessionInvalidated
+
+        else -> ExceptionsLoadResult.ServiceUnavailable
     }
 
-    private fun DriverOperationalExceptionsNetworkOutcome.toMutationResult(): DriverDeliveryOperationalExceptionMutationResult = when (this) {
-        is DriverOperationalExceptionsNetworkOutcome.Rejected -> DriverDeliveryOperationalExceptionMutationResult.Rejected(code)
-        DriverOperationalExceptionsNetworkOutcome.NotFound -> DriverDeliveryOperationalExceptionMutationResult.NotFound
-        DriverOperationalExceptionsNetworkOutcome.StaleVersion -> DriverDeliveryOperationalExceptionMutationResult.StaleVersion
-        DriverOperationalExceptionsNetworkOutcome.UnknownOutcome -> DriverDeliveryOperationalExceptionMutationResult.UnknownOutcome
-        DriverOperationalExceptionsNetworkOutcome.NetworkUnavailable -> DriverDeliveryOperationalExceptionMutationResult.UnknownOutcome
-        DriverOperationalExceptionsNetworkOutcome.ServiceUnavailable -> DriverDeliveryOperationalExceptionMutationResult.UnknownOutcome
-        DriverOperationalExceptionsNetworkOutcome.PermissionDenied -> DriverDeliveryOperationalExceptionMutationResult.PermissionDenied
-        DriverOperationalExceptionsNetworkOutcome.ContextInvalidated -> DriverDeliveryOperationalExceptionMutationResult.ContextInvalidated
-        DriverOperationalExceptionsNetworkOutcome.SessionInvalidated -> DriverDeliveryOperationalExceptionMutationResult.SessionInvalidated
-        is DriverOperationalExceptionsNetworkOutcome.Loaded,
-        is DriverOperationalExceptionsNetworkOutcome.Changed -> DriverDeliveryOperationalExceptionMutationResult.ServiceUnavailable
+    private fun ExceptionsOutcome.toMutationResult(): ExceptionMutationResult = when (this) {
+        is ExceptionsOutcome.Rejected ->
+            ExceptionMutationResult.Rejected(
+                code
+            )
+
+        ExceptionsOutcome.NotFound ->
+            ExceptionMutationResult.NotFound
+
+        ExceptionsOutcome.StaleVersion ->
+            ExceptionMutationResult.StaleVersion
+
+        ExceptionsOutcome.UnknownOutcome ->
+            ExceptionMutationResult.UnknownOutcome
+
+        ExceptionsOutcome.NetworkUnavailable ->
+            ExceptionMutationResult.UnknownOutcome
+
+        ExceptionsOutcome.ServiceUnavailable ->
+            ExceptionMutationResult.UnknownOutcome
+
+        ExceptionsOutcome.PermissionDenied ->
+            ExceptionMutationResult.PermissionDenied
+
+        ExceptionsOutcome.ContextInvalidated ->
+            ExceptionMutationResult.ContextInvalidated
+
+        ExceptionsOutcome.SessionInvalidated ->
+            ExceptionMutationResult.SessionInvalidated
+
+        is ExceptionsOutcome.Loaded,
+        is ExceptionsOutcome.Changed ->
+            ExceptionMutationResult.ServiceUnavailable
     }
 
     private sealed interface Authorization {
@@ -227,14 +284,18 @@ internal class OperationsDriverDeliveryOperationalExceptionsGateway @Inject cons
 }
 
 internal class DriverDeliveryOperationalExceptionsBindings @Inject constructor(
-    private val gateway: DriverDeliveryOperationalExceptionsGateway,
-    private val metadataStore: DriverDeliveryOperationalExceptionMetadataStore
+    private val gateway: ExceptionsGateway,
+    private val metadataStore: ExceptionMetadataStore
 ) {
     fun viewModelFactory() = object : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            require(modelClass.isAssignableFrom(DriverDeliveryOperationalExceptionsViewModel::class.java))
-            return DriverDeliveryOperationalExceptionsViewModel(gateway, metadataStore) as T
+            require(
+                modelClass.isAssignableFrom(
+                    ExceptionsViewModel::class.java
+                )
+            )
+            return ExceptionsViewModel(gateway, metadataStore) as T
         }
     }
 }
@@ -242,81 +303,113 @@ internal class DriverDeliveryOperationalExceptionsBindings @Inject constructor(
 /** Typed response intent stored in the existing encrypted, identity-scoped metadata store. */
 internal class AppDriverDeliveryOperationalExceptionMetadataStore(
     private val local: AndroidScopedMetadataStore
-) : DriverDeliveryOperationalExceptionMetadataStore {
-    override suspend fun loadIntent(
-        scope: DriverAttemptScopeIdentity
-    ): DriverDeliveryOperationalExceptionMetadataRead = mutex(scope).withLock {
-        when (val stored = local.load(scope.toLocal())) {
-            ScopedMetadataRead.Unavailable -> DriverDeliveryOperationalExceptionMetadataRead.Unavailable
-            is ScopedMetadataRead.Value -> {
-                val payload = stored.payload ?: return@withLock DriverDeliveryOperationalExceptionMetadataRead.Available(null)
-                val intent = decode(payload) ?: return@withLock DriverDeliveryOperationalExceptionMetadataRead.Unavailable
-                if (intent.scope != scope) return@withLock DriverDeliveryOperationalExceptionMetadataRead.Unavailable
-                if (intent.status == DriverDeliveryOperationalExceptionIntentStatus.Pending) {
-                    val recovered = intent.copy(status = DriverDeliveryOperationalExceptionIntentStatus.UnknownOutcome)
-                    if (local.save(scope.toLocal(), encode(recovered))) {
-                        DriverDeliveryOperationalExceptionMetadataRead.Available(recovered)
-                    } else {
-                        DriverDeliveryOperationalExceptionMetadataRead.Unavailable
-                    }
-                } else {
-                    DriverDeliveryOperationalExceptionMetadataRead.Available(intent)
-                }
-            }
-        }
-    }
+) : ExceptionMetadataStore {
+    override suspend fun loadIntent(scope: DriverAttemptScopeIdentity): ExceptionMetadataRead =
+        mutex(scope).withLock {
+            when (val stored = local.load(scope.toLocal())) {
+                ScopedMetadataRead.Unavailable ->
+                    ExceptionMetadataRead.Unavailable
 
-    override suspend fun saveIntent(
-        intent: DriverDeliveryOperationalExceptionIntent
-    ): DriverDeliveryOperationalExceptionMetadataWrite = mutex(intent.scope).withLock {
-        when (val stored = local.load(intent.scope.toLocal())) {
-            ScopedMetadataRead.Unavailable -> DriverDeliveryOperationalExceptionMetadataWrite.Unavailable
-            is ScopedMetadataRead.Value -> {
-                val current = stored.payload?.let(::decode)
-                if (stored.payload != null && current == null) return@withLock DriverDeliveryOperationalExceptionMetadataWrite.Unavailable
-                when {
-                    current == null -> save(intent)
-                    current.scope != intent.scope -> DriverDeliveryOperationalExceptionMetadataWrite.Unavailable
-                    current.command != intent.command || current.initiatedByMembershipId != intent.initiatedByMembershipId ->
-                        DriverDeliveryOperationalExceptionMetadataWrite.Conflict
-                    current.status == DriverDeliveryOperationalExceptionIntentStatus.UnknownOutcome &&
-                        intent.status == DriverDeliveryOperationalExceptionIntentStatus.Pending ->
-                        DriverDeliveryOperationalExceptionMetadataWrite.Conflict
-                    current == intent -> DriverDeliveryOperationalExceptionMetadataWrite.Saved
-                    else -> save(intent)
+                is ScopedMetadataRead.Value -> {
+                    val payload =
+                        stored.payload
+                            ?: return@withLock ExceptionMetadataRead.Available(
+                                null
+                            )
+                    val intent =
+                        decode(payload)
+                            ?: return@withLock ExceptionMetadataRead.Unavailable
+                    if (intent.scope !=
+                        scope
+                    ) {
+                        return@withLock ExceptionMetadataRead.Unavailable
+                    }
+                    if (intent.status == ExceptionIntentStatus.Pending) {
+                        val recovered = intent.copy(
+                            status = ExceptionIntentStatus.UnknownOutcome
+                        )
+                        if (local.save(scope.toLocal(), encode(recovered))) {
+                            ExceptionMetadataRead.Available(recovered)
+                        } else {
+                            ExceptionMetadataRead.Unavailable
+                        }
+                    } else {
+                        ExceptionMetadataRead.Available(intent)
+                    }
                 }
             }
         }
-    }
+
+    override suspend fun saveIntent(intent: OperationalExceptionIntent): ExceptionMetadataWrite =
+        mutex(intent.scope).withLock {
+            when (val stored = local.load(intent.scope.toLocal())) {
+                ScopedMetadataRead.Unavailable ->
+                    ExceptionMetadataWrite.Unavailable
+
+                is ScopedMetadataRead.Value -> {
+                    val current = stored.payload?.let(::decode)
+                    if (stored.payload != null &&
+                        current == null
+                    ) {
+                        return@withLock ExceptionMetadataWrite.Unavailable
+                    }
+                    when {
+                        current == null -> save(intent)
+
+                        current.scope != intent.scope ->
+                            ExceptionMetadataWrite.Unavailable
+
+                        current.command != intent.command ||
+                            current.initiatedByMembershipId != intent.initiatedByMembershipId ->
+                            ExceptionMetadataWrite.Conflict
+
+                        current.status ==
+                            ExceptionIntentStatus.UnknownOutcome &&
+                            intent.status == ExceptionIntentStatus.Pending ->
+                            ExceptionMetadataWrite.Conflict
+
+                        current == intent -> ExceptionMetadataWrite.Saved
+
+                        else -> save(intent)
+                    }
+                }
+            }
+        }
 
     override suspend fun clearIntent(
         scope: DriverAttemptScopeIdentity,
         idempotencyKey: String
-    ): DriverDeliveryOperationalExceptionMetadataWrite = mutex(scope).withLock {
+    ): ExceptionMetadataWrite = mutex(scope).withLock {
         when (val stored = local.load(scope.toLocal())) {
-            ScopedMetadataRead.Unavailable -> DriverDeliveryOperationalExceptionMetadataWrite.Unavailable
+            ScopedMetadataRead.Unavailable ->
+                ExceptionMetadataWrite.Unavailable
+
             is ScopedMetadataRead.Value -> {
-                val payload = stored.payload ?: return@withLock DriverDeliveryOperationalExceptionMetadataWrite.Saved
-                val current = decode(payload) ?: return@withLock DriverDeliveryOperationalExceptionMetadataWrite.Unavailable
+                val payload =
+                    stored.payload
+                        ?: return@withLock ExceptionMetadataWrite.Saved
+                val current =
+                    decode(payload)
+                        ?: return@withLock ExceptionMetadataWrite.Unavailable
                 if (current.scope != scope || current.command.idempotencyKey != idempotencyKey) {
-                    DriverDeliveryOperationalExceptionMetadataWrite.Stale
+                    ExceptionMetadataWrite.Stale
                 } else if (local.clear(scope.toLocal())) {
-                    DriverDeliveryOperationalExceptionMetadataWrite.Saved
+                    ExceptionMetadataWrite.Saved
                 } else {
-                    DriverDeliveryOperationalExceptionMetadataWrite.Unavailable
+                    ExceptionMetadataWrite.Unavailable
                 }
             }
         }
     }
 
-    private suspend fun save(intent: DriverDeliveryOperationalExceptionIntent): DriverDeliveryOperationalExceptionMetadataWrite =
+    private suspend fun save(intent: OperationalExceptionIntent): ExceptionMetadataWrite =
         if (local.save(intent.scope.toLocal(), encode(intent))) {
-            DriverDeliveryOperationalExceptionMetadataWrite.Saved
+            ExceptionMetadataWrite.Saved
         } else {
-            DriverDeliveryOperationalExceptionMetadataWrite.Unavailable
+            ExceptionMetadataWrite.Unavailable
         }
 
-    private fun encode(intent: DriverDeliveryOperationalExceptionIntent): String {
+    private fun encode(intent: OperationalExceptionIntent): String {
         val command = intent.command
         return JsonObject(
             mapOf(
@@ -338,33 +431,41 @@ internal class AppDriverDeliveryOperationalExceptionMetadataStore(
         ).toString()
     }
 
-    private fun decode(payload: String): DriverDeliveryOperationalExceptionIntent? = try {
+    private fun decode(payload: String): OperationalExceptionIntent? = try {
         val root = Json.parseToJsonElement(payload).jsonObject
         require(root.requiredLong("schema") == 1L)
         val scope = DriverAttemptScopeIdentity(
-            root.requiredString("userId"), root.requiredString("tenantId"),
-            root.requiredString("workspaceId"), root.requiredString("membershipId")
+            root.requiredString("userId"),
+            root.requiredString("tenantId"),
+            root.requiredString("workspaceId"),
+            root.requiredString("membershipId")
         )
         val body = root.requiredStringOrEmpty("frozenBody")
-        DriverDeliveryOperationalExceptionIntent(
+        OperationalExceptionIntent(
             scope = scope,
-            command = DriverDeliveryOperationalExceptionCommand(
+            command = ExceptionCommand(
                 deliveryId = root.requiredString("deliveryId"),
                 exceptionId = root.requiredString("exceptionId"),
-                action = DriverDeliveryOperationalExceptionAction.valueOf(root.requiredString("action")),
+                action = OperationalExceptionAction.valueOf(
+                    root.requiredString("action")
+                ),
                 expectedDeliveryVersion = root.requiredLong("expectedDeliveryVersion"),
                 idempotencyKey = root.requiredString("idempotencyKey"),
                 frozenBody = body
             ),
             initiatedByMembershipId = root.requiredString("initiatedByMembershipId"),
             initiatedAt = root.requiredString("initiatedAt"),
-            status = DriverDeliveryOperationalExceptionIntentStatus.valueOf(root.requiredString("status"))
+            status = ExceptionIntentStatus.valueOf(
+                root.requiredString("status")
+            )
         )
     } catch (_: Exception) {
         null
     }
 
-    private fun mutex(scope: DriverAttemptScopeIdentity): Mutex = locks.computeIfAbsent(scope) { Mutex() }
+    private fun mutex(scope: DriverAttemptScopeIdentity): Mutex = locks.computeIfAbsent(scope) {
+        Mutex()
+    }
 
     private fun DriverAttemptScopeIdentity.toLocal() =
         ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
@@ -386,7 +487,7 @@ internal class AppDriverDeliveryOperationalExceptionMetadataStore(
     }
 }
 
-private fun DriverOperationalExceptionTransport.toFeatureException() = DriverDeliveryOperationalException(
+private fun ExceptionTransport.toFeatureException() = OperationalException(
     id = id,
     sourceKind = sourceKind,
     sourceIncidentId = sourceIncidentId,
@@ -423,13 +524,16 @@ internal object DriverDeliveryOperationalExceptionsModule {
     fun provideOperationalExceptionsGateway(
         sessions: SessionCoordinator,
         api: NexaDriverDeliveryOperationalExceptionsGateway
-    ): DriverDeliveryOperationalExceptionsGateway = OperationsDriverDeliveryOperationalExceptionsGateway(sessions, api)
+    ): ExceptionsGateway = OperationsDriverDeliveryOperationalExceptionsGateway(sessions, api)
 
     @Provides
     @Singleton
     fun provideOperationalExceptionMetadataStore(
         @ApplicationContext context: Context
-    ): DriverDeliveryOperationalExceptionMetadataStore = AppDriverDeliveryOperationalExceptionMetadataStore(
-        AndroidScopedMetadataStore(context, ScopedMetadataPurpose.DriverDeliveryOperationalException)
+    ): ExceptionMetadataStore = AppDriverDeliveryOperationalExceptionMetadataStore(
+        AndroidScopedMetadataStore(
+            context,
+            ScopedMetadataPurpose.DriverDeliveryOperationalException
+        )
     )
 }

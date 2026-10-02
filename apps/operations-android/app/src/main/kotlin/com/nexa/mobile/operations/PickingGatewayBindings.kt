@@ -9,9 +9,11 @@ import com.nexa.mobile.operations.core.auth.session.VerifiedSession
 import com.nexa.mobile.operations.core.network.NexaPickingGateway
 import com.nexa.mobile.operations.core.network.PickingAllocationLineProjection as NetworkAllocationLine
 import com.nexa.mobile.operations.core.network.PickingAllocationProjection as NetworkAllocation
+import com.nexa.mobile.operations.core.network.PickingConfirmationRequest
 import com.nexa.mobile.operations.core.network.PickingFulfillmentLineProjection as NetworkFulfillmentLine
 import com.nexa.mobile.operations.core.network.PickingFulfillmentProjection as NetworkFulfillment
 import com.nexa.mobile.operations.core.network.PickingNetworkOutcome
+import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.feature.warehouse.FulfillmentPickingLine
 import com.nexa.mobile.operations.feature.warehouse.FulfillmentPickingSnapshot
 import com.nexa.mobile.operations.feature.warehouse.PickingAllocationLine
@@ -24,6 +26,7 @@ import com.nexa.mobile.operations.feature.warehouse.PickingIntentCommand
 import com.nexa.mobile.operations.feature.warehouse.PickingLoadResult
 import com.nexa.mobile.operations.feature.warehouse.PickingMetadataStore
 import com.nexa.mobile.operations.feature.warehouse.PickingMutationResult
+import com.nexa.mobile.operations.feature.warehouse.PickingViewModel
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -278,19 +281,18 @@ internal class OperationsPickingGateway @Inject constructor(
         expirationDate = expirationDate
     )
 
-    private fun PickingConfirmationCommand.toNetwork() =
-        com.nexa.mobile.operations.core.network.PickingConfirmationRequest(
-            fulfillmentId = fulfillmentId,
-            expectedFulfillmentVersion = expectedFulfillmentVersion,
-            allocationVersion = allocationVersion,
-            fulfillmentLineId = fulfillmentLineId,
-            skuId = skuId,
-            physicalAllocationLineId = physicalAllocationLineId,
-            lotId = lotId,
-            warehouseId = warehouseId,
-            quantity = quantity,
-            unit = unit
-        )
+    private fun PickingConfirmationCommand.toNetwork() = PickingConfirmationRequest(
+        fulfillmentId = fulfillmentId,
+        expectedFulfillmentVersion = expectedFulfillmentVersion,
+        allocationVersion = allocationVersion,
+        fulfillmentLineId = fulfillmentLineId,
+        skuId = skuId,
+        physicalAllocationLineId = physicalAllocationLineId,
+        lotId = lotId,
+        warehouseId = warehouseId,
+        quantity = quantity,
+        unit = unit
+    )
 
     private sealed interface Authorization {
         data class Current(val lease: AccessTokenLease) : Authorization
@@ -315,10 +317,10 @@ internal class PickingGatewayBindings @Inject constructor(
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(
                 modelClass.isAssignableFrom(
-                    com.nexa.mobile.operations.feature.warehouse.PickingViewModel::class.java
+                    PickingViewModel::class.java
                 )
             )
-            return com.nexa.mobile.operations.feature.warehouse.PickingViewModel(
+            return PickingViewModel(
                 gateway,
                 metadataStore
             ) as T
@@ -331,11 +333,10 @@ internal class PickingGatewayBindings @Inject constructor(
 internal object PickingGatewayModule {
     @Provides
     @Singleton
-    fun featurePickingGateway(implementation: OperationsPickingGateway): PickingGateway = implementation
+    fun featurePickingGateway(implementation: OperationsPickingGateway): PickingGateway =
+        implementation
 
     @Provides
     @Singleton
-    fun pickingGateway(
-        protectedCalls: com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-    ) = NexaPickingGateway(protectedCalls)
+    fun pickingGateway(protectedCalls: ProtectedCallExecutor) = NexaPickingGateway(protectedCalls)
 }

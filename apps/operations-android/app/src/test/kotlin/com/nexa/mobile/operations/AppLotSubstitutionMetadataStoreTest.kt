@@ -22,7 +22,10 @@ class AppLotSubstitutionMetadataStoreTest {
         val original = intent(scope)
 
         assertEquals(LotSubstitutionMetadataWrite.Saved, first.freeze(original))
-        assertEquals(LotSubstitutionMetadataWrite.Saved, first.markUnknown(scope, original.idempotencyKey))
+        assertEquals(
+            LotSubstitutionMetadataWrite.Saved,
+            first.markUnknown(scope, original.idempotencyKey)
+        )
 
         val reconstructed = AppLotSubstitutionMetadataStore(backend)
         val restored = (reconstructed.load(scope) as LotSubstitutionMetadataRead.Available).value
@@ -34,7 +37,10 @@ class AppLotSubstitutionMetadataStoreTest {
 
         val changed = original.copy(frozenBody = original.frozenBody.replace("4.000", "3.000"))
         assertEquals(LotSubstitutionMetadataWrite.Unavailable, reconstructed.freeze(changed))
-        assertEquals(LotSubstitutionMetadataWrite.Unavailable, reconstructed.clear(scope, "stale-key"))
+        assertEquals(
+            LotSubstitutionMetadataWrite.Unavailable,
+            reconstructed.clear(scope, "stale-key")
+        )
         val unchanged = (reconstructed.load(scope) as LotSubstitutionMetadataRead.Available).value
         assertEquals(original.frozenBody, unchanged?.frozenBody)
         assertEquals(original.idempotencyKey, unchanged?.idempotencyKey)
@@ -58,7 +64,8 @@ class AppLotSubstitutionMetadataStoreTest {
             records[scope] = payload
             return true
         }
-        override suspend fun clear(scope: ScopedMetadataScope): Boolean = records.remove(scope) != null
+        override suspend fun clear(scope: ScopedMetadataScope): Boolean =
+            records.remove(scope) != null
     }
 
     private fun intent(scope: PickingScopeIdentity) = LotSubstitutionIntent(

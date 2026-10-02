@@ -38,9 +38,12 @@ internal class AppStockTransferReceiptObservationMetadataStore(
         scope: StockTransferScope
     ): StockTransferReceiptObservationMetadataRead = withScopeLock(scope) {
         when (val stored = safeLoad(scope)) {
-            TransferReceiptObservationScopedRead.Unavailable -> StockTransferReceiptObservationMetadataRead.Unavailable
+            TransferReceiptObservationScopedRead.Unavailable ->
+                StockTransferReceiptObservationMetadataRead.Unavailable
+
             is TransferReceiptObservationScopedRead.Value -> when (val payload = stored.payload) {
                 null -> StockTransferReceiptObservationMetadataRead.Available(null)
+
                 else -> payload.decodeIntent()?.takeIf { it.scope == scope }
                     ?.let(StockTransferReceiptObservationMetadataRead::Available)
                     ?: StockTransferReceiptObservationMetadataRead.Unavailable
@@ -51,12 +54,16 @@ internal class AppStockTransferReceiptObservationMetadataStore(
     override suspend fun saveIntent(
         intent: StockTransferReceiptObservationIntent
     ): StockTransferReceiptObservationMetadataWrite = withScopeLock(intent.scope) {
-        if (!intent.isValid()) return@withScopeLock StockTransferReceiptObservationMetadataWrite.Unavailable
+        if (!intent.isValid()) {
+            return@withScopeLock StockTransferReceiptObservationMetadataWrite.Unavailable
+        }
         val current = when (val stored = safeLoad(intent.scope)) {
             TransferReceiptObservationScopedRead.Unavailable ->
                 return@withScopeLock StockTransferReceiptObservationMetadataWrite.Unavailable
+
             is TransferReceiptObservationScopedRead.Value -> when (val payload = stored.payload) {
                 null -> null
+
                 else -> payload.decodeIntent()?.takeIf { it.scope == intent.scope }
                     ?: return@withScopeLock StockTransferReceiptObservationMetadataWrite.Unavailable
             }
@@ -71,8 +78,12 @@ internal class AppStockTransferReceiptObservationMetadataStore(
         scope: StockTransferScope,
         idempotencyKey: String
     ): StockTransferReceiptObservationMetadataWrite = withScopeLock(scope) {
-        if (idempotencyKey.isBlank()) return@withScopeLock StockTransferReceiptObservationMetadataWrite.Unavailable
-        val current = readIntent(scope) ?: return@withScopeLock StockTransferReceiptObservationMetadataWrite.Unavailable
+        if (idempotencyKey.isBlank()) {
+            return@withScopeLock StockTransferReceiptObservationMetadataWrite.Unavailable
+        }
+        val current =
+            readIntent(scope)
+                ?: return@withScopeLock StockTransferReceiptObservationMetadataWrite.Unavailable
         if (current.idempotencyKey != idempotencyKey) {
             return@withScopeLock StockTransferReceiptObservationMetadataWrite.Unavailable
         }
@@ -83,31 +94,41 @@ internal class AppStockTransferReceiptObservationMetadataStore(
         scope: StockTransferScope,
         idempotencyKey: String
     ): StockTransferReceiptObservationMetadataWrite = withScopeLock(scope) {
-        if (idempotencyKey.isBlank()) return@withScopeLock StockTransferReceiptObservationMetadataWrite.Unavailable
-        val current = readIntent(scope) ?: return@withScopeLock StockTransferReceiptObservationMetadataWrite.Unavailable
+        if (idempotencyKey.isBlank()) {
+            return@withScopeLock StockTransferReceiptObservationMetadataWrite.Unavailable
+        }
+        val current =
+            readIntent(scope)
+                ?: return@withScopeLock StockTransferReceiptObservationMetadataWrite.Unavailable
         if (current.idempotencyKey != idempotencyKey) {
             return@withScopeLock StockTransferReceiptObservationMetadataWrite.Unavailable
         }
-        if (backend.clear(scope)) StockTransferReceiptObservationMetadataWrite.Saved
-        else StockTransferReceiptObservationMetadataWrite.Unavailable
-    }
-
-    private suspend fun readIntent(scope: StockTransferScope): StockTransferReceiptObservationIntent? =
-        when (val stored = safeLoad(scope)) {
-            TransferReceiptObservationScopedRead.Unavailable -> null
-            is TransferReceiptObservationScopedRead.Value -> when (val payload = stored.payload) {
-                null -> null
-                else -> payload.decodeIntent()?.takeIf { it.scope == scope }
-            }
+        if (backend.clear(scope)) {
+            StockTransferReceiptObservationMetadataWrite.Saved
+        } else {
+            StockTransferReceiptObservationMetadataWrite.Unavailable
         }
-
-    private suspend fun safeLoad(scope: StockTransferScope): TransferReceiptObservationScopedRead = try {
-        backend.load(scope)
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (_: Exception) {
-        TransferReceiptObservationScopedRead.Unavailable
     }
+
+    private suspend fun readIntent(
+        scope: StockTransferScope
+    ): StockTransferReceiptObservationIntent? = when (val stored = safeLoad(scope)) {
+        TransferReceiptObservationScopedRead.Unavailable -> null
+
+        is TransferReceiptObservationScopedRead.Value -> when (val payload = stored.payload) {
+            null -> null
+            else -> payload.decodeIntent()?.takeIf { it.scope == scope }
+        }
+    }
+
+    private suspend fun safeLoad(scope: StockTransferScope): TransferReceiptObservationScopedRead =
+        try {
+            backend.load(scope)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            TransferReceiptObservationScopedRead.Unavailable
+        }
 
     private suspend fun write(
         intent: StockTransferReceiptObservationIntent
@@ -117,13 +138,22 @@ internal class AppStockTransferReceiptObservationMetadataStore(
         } catch (_: SerializationException) {
             return StockTransferReceiptObservationMetadataWrite.Unavailable
         }
-        return if (backend.save(intent.scope, encoded)) StockTransferReceiptObservationMetadataWrite.Saved
-        else StockTransferReceiptObservationMetadataWrite.Unavailable
+        return if (backend.save(intent.scope, encoded)) {
+            StockTransferReceiptObservationMetadataWrite.Saved
+        } else {
+            StockTransferReceiptObservationMetadataWrite.Unavailable
+        }
     }
 
     private fun String.decodeIntent(): StockTransferReceiptObservationIntent? = try {
         val stored = observationJson.decodeFromString<StoredReceiptObservationIntent>(this)
-        val scope = StockTransferScope(stored.userId, stored.tenantId, stored.workspaceId, stored.membershipId)
+        val scope =
+            StockTransferScope(
+                stored.userId,
+                stored.tenantId,
+                stored.workspaceId,
+                stored.membershipId
+            )
         val transfer = stored.transfer.toTransfer()
         val decoded = StockTransferReceiptObservationIntent(
             scope = scope,
@@ -160,14 +190,16 @@ internal class AppStockTransferReceiptObservationMetadataStore(
     private fun StockTransferReceiptTransfer.toStored() = StoredReceiptTransfer(
         id, sourceWarehouseId, sourceZoneId, sourceLotId, destinationWarehouseId, destinationZoneId,
         destinationLotId, skuId, catalogItemId, batchNumber, expirationDate, requestedQuantityText,
-        transferredQuantityText, mode, unit, status, reason, sourceVersionBefore, sourceVersionAfter,
+        transferredQuantityText, mode, unit, status, reason, sourceVersionBefore,
+        sourceVersionAfter,
         destinationVersionAfter, version, dispatchedAt, receivedAt
     )
 
     private fun StoredReceiptTransfer.toTransfer() = StockTransferReceiptTransfer(
         id, sourceWarehouseId, sourceZoneId, sourceLotId, destinationWarehouseId, destinationZoneId,
         destinationLotId, skuId, catalogItemId, batchNumber, expirationDate, requestedQuantityText,
-        transferredQuantityText, mode, unit, status, reason, sourceVersionBefore, sourceVersionAfter,
+        transferredQuantityText, mode, unit, status, reason, sourceVersionBefore,
+        sourceVersionAfter,
         destinationVersionAfter, version, dispatchedAt, receivedAt
     )
 
@@ -175,7 +207,8 @@ internal class AppStockTransferReceiptObservationMetadataStore(
         val date = observedExpirationDate
         return idempotencyKey.isNotBlank() && idempotencyKey.length <= 160 && transfer.isValid() &&
             observedBatchNumber.isNotBlank() && observedBatchNumber == observedBatchNumber.trim() &&
-            observedBatchNumber.length <= MAX_BATCH_LENGTH && observedBatchNumber.none(Char::isISOControl) &&
+            observedBatchNumber.length <= MAX_BATCH_LENGTH &&
+            observedBatchNumber.none(Char::isISOControl) &&
             (date == null || date.isCanonicalLocalDate()) &&
             observedQuantityText.toBigDecimalOrNull()?.signum()?.let { it >= 0 } == true &&
             observedUnit.isNotBlank() && observedUnit == observedUnit.trim() &&
@@ -183,13 +216,19 @@ internal class AppStockTransferReceiptObservationMetadataStore(
     }
 
     private fun StockTransferReceiptTransfer.isValid(): Boolean =
-        id.isUuid() && sourceWarehouseId.isUuid() && sourceZoneId.isUuid() && sourceLotId.isUuid() &&
+        id.isUuid() && sourceWarehouseId.isUuid() && sourceZoneId.isUuid() &&
+            sourceLotId.isUuid() &&
             destinationWarehouseId.isUuid() && destinationZoneId.isUuid() &&
-            (destinationLotId?.let { it.isUuid() } ?: true) && (skuId?.let { it.isUuid() } ?: true) &&
+            (
+                destinationLotId?.let {
+                    it.isUuid()
+                } ?: true
+                ) && (skuId?.let { it.isUuid() } ?: true) &&
             (catalogItemId?.let(CATALOG_ID::matches) ?: true) &&
             requestedQuantityText.toBigDecimalOrNull()?.signum() == 1 &&
             transferredQuantityText.toBigDecimalOrNull()?.signum() == 1 &&
-            batchNumber?.isNotBlank() == true && status == "IN_TRANSIT" && dispatchedAt?.isNotBlank() == true &&
+            batchNumber?.isNotBlank() == true && status == "IN_TRANSIT" &&
+            dispatchedAt?.isNotBlank() == true &&
             unit.isNotBlank() && version >= 0 && sourceVersionBefore >= 0
 
     private fun String.isUuid(): Boolean = try {
@@ -207,7 +246,8 @@ internal class AppStockTransferReceiptObservationMetadataStore(
     private suspend fun <T> withScopeLock(scope: StockTransferScope, action: suspend () -> T): T =
         locks.getOrPut(scope.lockKey()) { Mutex() }.withLock { action() }
 
-    private fun StockTransferScope.toLocal() = ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
+    private fun StockTransferScope.toLocal() =
+        ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
 
     private fun StockTransferScope.lockKey(): String {
         val bytes = listOf(userId, tenantId, workspaceId, membershipId).joinToString("\u0000")
@@ -276,11 +316,15 @@ internal object AppStockTransferReceiptObservationMetadataBindings {
     @Singleton
     fun stockTransferReceiptObservationMetadataStore(
         @ApplicationContext context: Context
-    ): StockTransferReceiptObservationMetadataStore = AppStockTransferReceiptObservationMetadataStore(
-        AndroidTransferReceiptObservationScopedBackend(
-            AndroidScopedMetadataStore(context, ScopedMetadataPurpose.StockTransferReceiptObservation)
+    ): StockTransferReceiptObservationMetadataStore =
+        AppStockTransferReceiptObservationMetadataStore(
+            AndroidTransferReceiptObservationScopedBackend(
+                AndroidScopedMetadataStore(
+                    context,
+                    ScopedMetadataPurpose.StockTransferReceiptObservation
+                )
+            )
         )
-    )
 }
 
 internal sealed interface TransferReceiptObservationScopedRead {
@@ -300,12 +344,17 @@ internal class AndroidTransferReceiptObservationScopedBackend(
     override suspend fun load(scope: StockTransferScope): TransferReceiptObservationScopedRead =
         when (val stored = store.load(scope.toLocal())) {
             ScopedMetadataRead.Unavailable -> TransferReceiptObservationScopedRead.Unavailable
-            is ScopedMetadataRead.Value -> TransferReceiptObservationScopedRead.Value(stored.payload)
+
+            is ScopedMetadataRead.Value -> TransferReceiptObservationScopedRead.Value(
+                stored.payload
+            )
         }
 
-    override suspend fun save(scope: StockTransferScope, payload: String): Boolean = store.save(scope.toLocal(), payload)
+    override suspend fun save(scope: StockTransferScope, payload: String): Boolean =
+        store.save(scope.toLocal(), payload)
 
     override suspend fun clear(scope: StockTransferScope): Boolean = store.clear(scope.toLocal())
 
-    private fun StockTransferScope.toLocal() = ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
+    private fun StockTransferScope.toLocal() =
+        ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
 }

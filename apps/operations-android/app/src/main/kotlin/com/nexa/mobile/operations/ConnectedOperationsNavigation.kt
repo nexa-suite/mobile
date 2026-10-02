@@ -38,19 +38,31 @@ internal object ConnectedOperationsNavigation {
     ): VerifiedContextAuthority? {
         if (session != SessionState.Active || access.stage != AccessStage.WorkAuthorized ||
             access.authorityEpoch <= 0 || warehouse.authorityEpoch != access.authorityEpoch
-        ) return null
+        ) {
+            return null
+        }
         val context = access.activeContext?.takeIf { it.isCurrent } ?: return null
         val authority = context.verifiedAuthority ?: return null
-        if (listOf(authority.userId, authority.tenantId, authority.workspaceId, authority.membershipId)
-            .any(String::isBlank)
-        ) return null
+        if (listOf(
+                authority.userId,
+                authority.tenantId,
+                authority.workspaceId,
+                authority.membershipId
+            )
+                .any(String::isBlank)
+        ) {
+            return null
+        }
         val operationalContext = warehouse.activeContext ?: return null
         if (operationalContext.authorityEpoch != access.authorityEpoch) return null
         val identity = operationalContext.verifiedIdentity ?: return null
         if (identity.userId != authority.userId || identity.tenantId != authority.tenantId ||
-            identity.workspaceId != authority.workspaceId || identity.membershipId != authority.membershipId ||
+            identity.workspaceId != authority.workspaceId ||
+            identity.membershipId != authority.membershipId ||
             identity.permissions != authority.permissions
-        ) return null
+        ) {
+            return null
+        }
         return authority
     }
 
@@ -61,7 +73,10 @@ internal object ConnectedOperationsNavigation {
         warehouse: WarehouseUiState
     ): List<ConnectedOperationEntry> {
         val authority = currentAuthority(session, access, warehouse) ?: return emptyList()
-        return entries.filter { entry -> entry.visibleInHub && authority.permissions.any(entry.readPermissions::contains) }
+        return entries.filter { entry ->
+            entry.visibleInHub &&
+                authority.permissions.any(entry.readPermissions::contains)
+        }
     }
 
     fun open(
@@ -72,8 +87,11 @@ internal object ConnectedOperationsNavigation {
     ): ConnectedOperationRoute? {
         val authority = currentAuthority(session, access, warehouse) ?: return null
         if (authority.permissions.none(entry.readPermissions::contains)) return null
-        return ConnectedOperationRoute(entry.key, access.authorityEpoch,
-            authority.copy(permissions = authority.permissions.toSet()))
+        return ConnectedOperationRoute(
+            entry.key,
+            access.authorityEpoch,
+            authority.copy(permissions = authority.permissions.toSet())
+        )
     }
 
     fun permits(
@@ -86,7 +104,8 @@ internal object ConnectedOperationsNavigation {
         val entry = entries.singleOrNull { it.key == route.entryKey } ?: return false
         if (route.authorityEpoch != access.authorityEpoch) return false
         val current = currentAuthority(session, access, warehouse) ?: return false
-        return current == route.authority && current.permissions.any(entry.readPermissions::contains)
+        return current == route.authority &&
+            current.permissions.any(entry.readPermissions::contains)
     }
 }
 

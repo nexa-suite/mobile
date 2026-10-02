@@ -10,22 +10,21 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.feature.delivery.DriverAttemptScopeIdentity
 import com.nexa.mobile.operations.feature.delivery.DriverIncidentCommand
-import com.nexa.mobile.operations.feature.delivery.DriverIncidentType
-import com.nexa.mobile.operations.feature.delivery.DriverIncidentEvidenceDraft
-import com.nexa.mobile.operations.feature.delivery.DriverIncidentEvidenceStage
+import com.nexa.mobile.operations.feature.delivery.DriverIncidentEvidenceDraft as IncidentEvidenceDraft
+import com.nexa.mobile.operations.feature.delivery.DriverIncidentEvidenceStage as IncidentEvidenceStage
 import com.nexa.mobile.operations.feature.delivery.DriverIncidentMetadata
 import com.nexa.mobile.operations.feature.delivery.DriverIncidentMetadataRead
-import com.nexa.mobile.operations.feature.delivery.DriverIncidentMetadataStore
-import com.nexa.mobile.operations.feature.delivery.DriverIncidentMetadataWrite
+import com.nexa.mobile.operations.feature.delivery.DriverIncidentMetadataStore as IncidentMetadataStore
+import com.nexa.mobile.operations.feature.delivery.DriverIncidentMetadataWrite as IncidentMetadataWrite
 import com.nexa.mobile.operations.feature.delivery.DriverIncidentRecordStatus
-import com.nexa.mobile.operations.feature.delivery.DriverIncidentSelectionContext
+import com.nexa.mobile.operations.feature.delivery.DriverIncidentSelectionContext as IncidentSelectionContext
+import com.nexa.mobile.operations.feature.delivery.DriverIncidentType
 import com.nexa.mobile.operations.feature.delivery.DriverProofFileCandidate
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import javax.inject.Singleton
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.io.File
@@ -33,16 +32,19 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.security.KeyStore
 import java.security.MessageDigest
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -52,28 +54,36 @@ import kotlinx.serialization.json.longOrNull
 internal class AppDriverIncidentMetadataStore(
     context: Context,
     private val local: AndroidScopedMetadataStore
-) : DriverIncidentMetadataStore {
+) : IncidentMetadataStore {
     private val appContext = context.applicationContext
-    private val artifactDirectory = File(appContext.noBackupFilesDir, "driver-delivery-incident-evidence")
+    private val artifactDirectory =
+        File(appContext.noBackupFilesDir, "driver-delivery-incident-evidence")
     private val plaintextDirectory = File(appContext.cacheDir, "driver-delivery-incident-upload")
     override suspend fun load(scope: DriverAttemptScopeIdentity): DriverIncidentMetadataRead =
         mutex(scope).withLock {
             when (val stored = local.load(scope.toLocal())) {
                 ScopedMetadataRead.Unavailable -> DriverIncidentMetadataRead.Unavailable
+
                 is ScopedMetadataRead.Value -> {
                     val payload = stored.payload
                         ?: return@withLock DriverIncidentMetadataRead.Available(null)
                     val metadata = decode(payload)
                         ?: return@withLock DriverIncidentMetadataRead.Unavailable
-                    if (metadata.scope != scope) return@withLock DriverIncidentMetadataRead.Unavailable
+                    if (metadata.scope !=
+                        scope
+                    ) {
+                        return@withLock DriverIncidentMetadataRead.Unavailable
+                    }
                     val evidence = metadata.evidence?.let { candidate ->
                         when (candidate.stage) {
-                            DriverIncidentEvidenceStage.UploadPending -> candidate.copy(
-                                stage = DriverIncidentEvidenceStage.UploadUnknownOutcome
+                            IncidentEvidenceStage.UploadPending -> candidate.copy(
+                                stage = IncidentEvidenceStage.UploadUnknownOutcome
                             )
-                            DriverIncidentEvidenceStage.AttachPending -> candidate.copy(
-                                stage = DriverIncidentEvidenceStage.AttachUnknownOutcome
+
+                            IncidentEvidenceStage.AttachPending -> candidate.copy(
+                                stage = IncidentEvidenceStage.AttachUnknownOutcome
                             )
+
                             else -> candidate
                         }
                     }
@@ -96,108 +106,153 @@ internal class AppDriverIncidentMetadataStore(
             }
         }
 
-    override suspend fun saveDraft(metadata: DriverIncidentMetadata): DriverIncidentMetadataWrite =
+    override suspend fun saveDraft(metadata: DriverIncidentMetadata): IncidentMetadataWrite =
         mutex(metadata.scope).withLock {
             when (val stored = local.load(metadata.scope.toLocal())) {
-                ScopedMetadataRead.Unavailable -> DriverIncidentMetadataWrite.Unavailable
+                ScopedMetadataRead.Unavailable -> IncidentMetadataWrite.Unavailable
+
                 is ScopedMetadataRead.Value -> {
                     val current = stored.payload?.let(::decode)
-                    if (stored.payload != null && current == null) return@withLock DriverIncidentMetadataWrite.Unavailable
+                    if (stored.payload != null &&
+                        current == null
+                    ) {
+                        return@withLock IncidentMetadataWrite.Unavailable
+                    }
                     when {
-                        metadata.status != DriverIncidentRecordStatus.Draft || metadata.command != null ->
-                            DriverIncidentMetadataWrite.Unavailable
+                        metadata.status != DriverIncidentRecordStatus.Draft ||
+                            metadata.command != null ->
+                            IncidentMetadataWrite.Unavailable
+
                         current == null -> save(metadata)
-                        current.scope != metadata.scope -> DriverIncidentMetadataWrite.Unavailable
-                        current.deliveryId != metadata.deliveryId || current.attemptId != metadata.attemptId ->
-                            DriverIncidentMetadataWrite.Conflict
-                        current.draftId != metadata.draftId -> DriverIncidentMetadataWrite.Conflict
-                        current.status != DriverIncidentRecordStatus.Draft -> DriverIncidentMetadataWrite.Conflict
+
+                        current.scope != metadata.scope -> IncidentMetadataWrite.Unavailable
+
+                        current.deliveryId != metadata.deliveryId ||
+                            current.attemptId != metadata.attemptId ->
+                            IncidentMetadataWrite.Conflict
+
+                        current.draftId != metadata.draftId -> IncidentMetadataWrite.Conflict
+
+                        current.status != DriverIncidentRecordStatus.Draft ->
+                            IncidentMetadataWrite.Conflict
+
                         else -> save(metadata)
                     }
                 }
             }
         }
 
-    override suspend fun persistIntent(metadata: DriverIncidentMetadata): DriverIncidentMetadataWrite =
+    override suspend fun persistIntent(metadata: DriverIncidentMetadata): IncidentMetadataWrite =
         mutex(metadata.scope).withLock {
             when (val stored = local.load(metadata.scope.toLocal())) {
-                ScopedMetadataRead.Unavailable -> DriverIncidentMetadataWrite.Unavailable
+                ScopedMetadataRead.Unavailable -> IncidentMetadataWrite.Unavailable
+
                 is ScopedMetadataRead.Value -> {
                     val current = stored.payload?.let(::decode)
-                        ?: return@withLock DriverIncidentMetadataWrite.Stale
+                        ?: return@withLock IncidentMetadataWrite.Stale
                     val command = metadata.command
                     if (metadata.status == DriverIncidentRecordStatus.Draft || command == null) {
-                        return@withLock DriverIncidentMetadataWrite.Unavailable
+                        return@withLock IncidentMetadataWrite.Unavailable
                     }
-                    if (current.scope != metadata.scope || current.deliveryId != metadata.deliveryId ||
-                        current.attemptId != metadata.attemptId || current.draftId != metadata.draftId
-                    ) return@withLock DriverIncidentMetadataWrite.Conflict
+                    if (current.scope != metadata.scope ||
+                        current.deliveryId != metadata.deliveryId ||
+                        current.attemptId != metadata.attemptId ||
+                        current.draftId != metadata.draftId
+                    ) {
+                        return@withLock IncidentMetadataWrite.Conflict
+                    }
                     when {
-                        current.command == command && current.status == metadata.status -> save(metadata)
-                        current.command == command && current.status == DriverIncidentRecordStatus.UnknownOutcome &&
-                            metadata.status == DriverIncidentRecordStatus.Pending -> DriverIncidentMetadataWrite.Conflict
-                        current.status == DriverIncidentRecordStatus.Draft && current.command == null &&
+                        current.command == command && current.status == metadata.status -> save(
+                            metadata
+                        )
+
+                        current.command == command &&
+                            current.status == DriverIncidentRecordStatus.UnknownOutcome &&
+                            metadata.status == DriverIncidentRecordStatus.Pending ->
+                            IncidentMetadataWrite.Conflict
+
+                        current.status == DriverIncidentRecordStatus.Draft &&
+                            current.command == null &&
                             current.draftId == metadata.draftId &&
-                            current.reason == metadata.reason && current.description == metadata.description &&
-                            current.place == metadata.place && current.type == metadata.type -> save(metadata)
-                        else -> DriverIncidentMetadataWrite.Conflict
+                            current.reason == metadata.reason &&
+                            current.description == metadata.description &&
+                            current.place == metadata.place &&
+                            current.type == metadata.type -> save(
+                            metadata
+                        )
+
+                        else -> IncidentMetadataWrite.Conflict
                     }
                 }
             }
         }
 
-    override suspend fun persistRecorded(metadata: DriverIncidentMetadata): DriverIncidentMetadataWrite =
+    override suspend fun persistRecorded(metadata: DriverIncidentMetadata): IncidentMetadataWrite =
         mutex(metadata.scope).withLock {
             when (val stored = local.load(metadata.scope.toLocal())) {
-                ScopedMetadataRead.Unavailable -> DriverIncidentMetadataWrite.Unavailable
+                ScopedMetadataRead.Unavailable -> IncidentMetadataWrite.Unavailable
+
                 is ScopedMetadataRead.Value -> {
                     val current = stored.payload?.let(::decode)
-                        ?: return@withLock DriverIncidentMetadataWrite.Stale
+                        ?: return@withLock IncidentMetadataWrite.Stale
                     if (metadata.status != DriverIncidentRecordStatus.RecordedWithEvidence ||
                         metadata.command != null || metadata.incidentId.isNullOrBlank() ||
                         metadata.evidence == null || current.scope != metadata.scope ||
-                        current.deliveryId != metadata.deliveryId || current.attemptId != metadata.attemptId ||
+                        current.deliveryId != metadata.deliveryId ||
+                        current.attemptId != metadata.attemptId ||
                         current.draftId != metadata.draftId || current.command == null ||
-                        current.reason != metadata.reason || current.description != metadata.description ||
+                        current.reason != metadata.reason ||
+                        current.description != metadata.description ||
                         current.place != metadata.place || current.type != metadata.type ||
                         current.severity != metadata.severity ||
                         current.operationalExceptionId != metadata.operationalExceptionId ||
                         current.evidence != metadata.evidence
-                    ) return@withLock DriverIncidentMetadataWrite.Conflict
+                    ) {
+                        return@withLock IncidentMetadataWrite.Conflict
+                    }
                     save(metadata)
                 }
             }
         }
 
     override suspend fun stageReturnedEvidence(
-        context: DriverIncidentSelectionContext,
+        context: IncidentSelectionContext,
         candidate: DriverProofFileCandidate
-    ): DriverIncidentMetadataWrite = mutex(context.scope).withLock {
+    ): IncidentMetadataWrite = mutex(context.scope).withLock {
         try {
             when (val stored = local.load(context.scope.toLocal())) {
-                ScopedMetadataRead.Unavailable -> DriverIncidentMetadataWrite.Unavailable
+                ScopedMetadataRead.Unavailable -> IncidentMetadataWrite.Unavailable
+
                 is ScopedMetadataRead.Value -> {
                     val current = stored.payload?.let(::decode)
-                        ?: return@withLock DriverIncidentMetadataWrite.Stale
-                    if (current.scope != context.scope || current.deliveryId != context.deliveryId ||
-                        current.attemptId != context.attemptId || current.draftId != context.draftId ||
+                        ?: return@withLock IncidentMetadataWrite.Stale
+                    if (
+                        current.scope != context.scope ||
+                        current.deliveryId != context.deliveryId ||
+                        current.attemptId != context.attemptId ||
+                        current.draftId != context.draftId ||
                         current.draftVersion != context.deliveryVersion ||
-                        current.status != DriverIncidentRecordStatus.Draft || current.command != null ||
-                        current.evidence?.stage !in setOf(null, DriverIncidentEvidenceStage.Staged)
-                    ) return@withLock DriverIncidentMetadataWrite.Conflict
-                    val evidence = DriverIncidentEvidenceDraft(
-                        fileToken = java.util.UUID.randomUUID().toString(),
+                        current.status != DriverIncidentRecordStatus.Draft ||
+                        current.command != null ||
+                        current.evidence?.stage !in setOf(null, IncidentEvidenceStage.Staged)
+                    ) {
+                        return@withLock IncidentMetadataWrite.Conflict
+                    }
+                    val evidence = IncidentEvidenceDraft(
+                        fileToken = UUID.randomUUID().toString(),
                         originalFilename = candidate.originalFilename,
                         contentType = candidate.declaredContentType,
                         byteSize = candidate.byteSize,
                         checksumSha256 = candidate.checksumSha256
                     )
                     if (!writeEncryptedArtifact(context.scope, evidence, candidate)) {
-                        return@withLock DriverIncidentMetadataWrite.Unavailable
+                        return@withLock IncidentMetadataWrite.Unavailable
                     }
                     val saved = save(current.copy(evidence = evidence))
-                    if (saved == DriverIncidentMetadataWrite.Saved) {
-                        current.evidence?.let { deleteEncryptedArtifact(context.scope, it.fileToken) }
+                    if (saved == IncidentMetadataWrite.Saved) {
+                        current.evidence?.let {
+                            deleteEncryptedArtifact(context.scope, it.fileToken)
+                        }
                     } else {
                         deleteEncryptedArtifact(context.scope, evidence.fileToken)
                     }
@@ -209,70 +264,91 @@ internal class AppDriverIncidentMetadataStore(
         }
     }
 
-    override suspend fun updateRecordedEvidence(metadata: DriverIncidentMetadata): DriverIncidentMetadataWrite =
-        mutex(metadata.scope).withLock {
-            when (val stored = local.load(metadata.scope.toLocal())) {
-                ScopedMetadataRead.Unavailable -> DriverIncidentMetadataWrite.Unavailable
-                is ScopedMetadataRead.Value -> {
-                    val current = stored.payload?.let(::decode)
-                        ?: return@withLock DriverIncidentMetadataWrite.Stale
-                    val before = current.evidence
-                    val after = metadata.evidence
-                    if (metadata.status != DriverIncidentRecordStatus.RecordedWithEvidence ||
-                        metadata.command != null || current.status != DriverIncidentRecordStatus.RecordedWithEvidence ||
-                        current.scope != metadata.scope || current.deliveryId != metadata.deliveryId ||
-                        current.attemptId != metadata.attemptId || current.draftId != metadata.draftId ||
-                        current.incidentId != metadata.incidentId || before == null || after == null ||
-                        before.fileToken != after.fileToken || before.originalFilename != after.originalFilename ||
-                        before.contentType != after.contentType || before.byteSize != after.byteSize ||
-                        before.checksumSha256 != after.checksumSha256 || !validEvidenceTransition(before.stage, after.stage)
-                    ) return@withLock DriverIncidentMetadataWrite.Conflict
-                    save(metadata)
+    override suspend fun updateRecordedEvidence(
+        metadata: DriverIncidentMetadata
+    ): IncidentMetadataWrite = mutex(metadata.scope).withLock {
+        when (val stored = local.load(metadata.scope.toLocal())) {
+            ScopedMetadataRead.Unavailable -> IncidentMetadataWrite.Unavailable
+
+            is ScopedMetadataRead.Value -> {
+                val current = stored.payload?.let(::decode)
+                    ?: return@withLock IncidentMetadataWrite.Stale
+                val before = current.evidence
+                val after = metadata.evidence
+                if (metadata.status != DriverIncidentRecordStatus.RecordedWithEvidence ||
+                    metadata.command != null ||
+                    current.status != DriverIncidentRecordStatus.RecordedWithEvidence ||
+                    current.scope != metadata.scope || current.deliveryId != metadata.deliveryId ||
+                    current.attemptId != metadata.attemptId ||
+                    current.draftId != metadata.draftId ||
+                    current.incidentId != metadata.incidentId || before == null || after == null ||
+                    before.fileToken != after.fileToken ||
+                    before.originalFilename != after.originalFilename ||
+                    before.contentType != after.contentType || before.byteSize != after.byteSize ||
+                    before.checksumSha256 != after.checksumSha256 ||
+                    !validEvidenceTransition(before.stage, after.stage)
+                ) {
+                    return@withLock IncidentMetadataWrite.Conflict
                 }
+                save(metadata)
             }
         }
-
-    override suspend fun loadCandidate(metadata: DriverIncidentMetadata): DriverProofFileCandidate? =
-        mutex(metadata.scope).withLock {
-            metadata.evidence?.let { decryptArtifact(metadata.scope, it) }
-        }
-
-    override suspend fun clearCandidate(metadata: DriverIncidentMetadata): Boolean = mutex(metadata.scope).withLock {
-        metadata.evidence?.let { deleteEncryptedArtifact(metadata.scope, it.fileToken) } ?: true
     }
+
+    override suspend fun loadCandidate(
+        metadata: DriverIncidentMetadata
+    ): DriverProofFileCandidate? = mutex(metadata.scope).withLock {
+        metadata.evidence?.let { decryptArtifact(metadata.scope, it) }
+    }
+
+    override suspend fun clearCandidate(metadata: DriverIncidentMetadata): Boolean =
+        mutex(metadata.scope).withLock {
+            metadata.evidence?.let { deleteEncryptedArtifact(metadata.scope, it.fileToken) } ?: true
+        }
 
     override suspend fun clearIntent(
         scope: DriverAttemptScopeIdentity,
         deliveryId: String,
         idempotencyKey: String
-    ): DriverIncidentMetadataWrite = mutex(scope).withLock {
+    ): IncidentMetadataWrite = mutex(scope).withLock {
         when (val stored = local.load(scope.toLocal())) {
-            ScopedMetadataRead.Unavailable -> DriverIncidentMetadataWrite.Unavailable
+            ScopedMetadataRead.Unavailable -> IncidentMetadataWrite.Unavailable
+
             is ScopedMetadataRead.Value -> {
-                val payload = stored.payload ?: return@withLock DriverIncidentMetadataWrite.Saved
-                val current = decode(payload) ?: return@withLock DriverIncidentMetadataWrite.Unavailable
+                val payload = stored.payload ?: return@withLock IncidentMetadataWrite.Saved
+                val current =
+                    decode(payload) ?: return@withLock IncidentMetadataWrite.Unavailable
                 if (current.scope != scope || current.deliveryId != deliveryId ||
                     current.command?.idempotencyKey != idempotencyKey
                 ) {
-                    DriverIncidentMetadataWrite.Stale
+                    IncidentMetadataWrite.Stale
                 } else if (current.evidence != null) {
-                    save(current.copy(status = DriverIncidentRecordStatus.Draft, command = null,
-                        incidentId = null, recordedAt = null, recordedByMembershipId = null,
-                        deliveryVersion = null, severity = null, operationalExceptionId = null))
+                    save(
+                        current.copy(
+                            status = DriverIncidentRecordStatus.Draft,
+                            command = null,
+                            incidentId = null,
+                            recordedAt = null,
+                            recordedByMembershipId = null,
+                            deliveryVersion = null,
+                            severity = null,
+                            operationalExceptionId = null
+                        )
+                    )
                 } else if (local.clear(scope.toLocal())) {
-                    DriverIncidentMetadataWrite.Saved
+                    IncidentMetadataWrite.Saved
                 } else {
-                    DriverIncidentMetadataWrite.Unavailable
+                    IncidentMetadataWrite.Unavailable
                 }
             }
         }
     }
 
-    private suspend fun save(metadata: DriverIncidentMetadata): DriverIncidentMetadataWrite =
+    private suspend fun save(metadata: DriverIncidentMetadata): IncidentMetadataWrite =
         if (local.save(metadata.scope.toLocal(), encode(metadata))) {
-            DriverIncidentMetadataWrite.Saved
+            IncidentMetadataWrite.Saved
         } else {
-            DriverIncidentMetadataWrite.Unavailable
+            IncidentMetadataWrite.Unavailable
         }
 
     private fun encode(metadata: DriverIncidentMetadata): String {
@@ -293,36 +369,43 @@ internal class AppDriverIncidentMetadataStore(
                 "place" to JsonPrimitive(metadata.place),
                 "type" to (metadata.type?.let { JsonPrimitive(it.name) } ?: JsonNull),
                 "status" to JsonPrimitive(metadata.status.name),
-                "command" to (command?.let {
-                    JsonObject(
-                        linkedMapOf(
-                            "expectedVersion" to JsonPrimitive(it.expectedVersion),
-                            "idempotencyKey" to JsonPrimitive(it.idempotencyKey),
-                            "reason" to JsonPrimitive(it.reason),
-                            "description" to JsonPrimitive(it.description),
-                            "place" to JsonPrimitive(it.place),
-                            "frozenBody" to JsonPrimitive(it.frozenBody),
-                            "type" to (it.type?.let { type -> JsonPrimitive(type.name) } ?: JsonNull)
+                "command" to (
+                    command?.let {
+                        JsonObject(
+                            linkedMapOf(
+                                "expectedVersion" to JsonPrimitive(it.expectedVersion),
+                                "idempotencyKey" to JsonPrimitive(it.idempotencyKey),
+                                "reason" to JsonPrimitive(it.reason),
+                                "description" to JsonPrimitive(it.description),
+                                "place" to JsonPrimitive(it.place),
+                                "frozenBody" to JsonPrimitive(it.frozenBody),
+                                "type" to
+                                    (it.type?.let { type -> JsonPrimitive(type.name) } ?: JsonNull)
+                            )
                         )
-                    )
-                } ?: JsonPrimitive("")),
+                    } ?: JsonPrimitive("")
+                    ),
                 "incidentId" to (metadata.incidentId?.let(::JsonPrimitive) ?: JsonNull),
                 "evidence" to (metadata.evidence?.let(::encodeEvidence) ?: JsonNull),
                 "recordedAt" to (metadata.recordedAt?.let(::JsonPrimitive) ?: JsonNull),
-                "recordedByMembershipId" to (metadata.recordedByMembershipId?.let(::JsonPrimitive) ?: JsonNull),
+                "recordedByMembershipId" to
+                    (metadata.recordedByMembershipId?.let(::JsonPrimitive) ?: JsonNull),
                 "deliveryVersion" to (metadata.deliveryVersion?.let(::JsonPrimitive) ?: JsonNull),
                 "severity" to (metadata.severity?.let(::JsonPrimitive) ?: JsonNull),
-                "operationalExceptionId" to (metadata.operationalExceptionId?.let(::JsonPrimitive) ?: JsonNull)
+                "operationalExceptionId" to
+                    (metadata.operationalExceptionId?.let(::JsonPrimitive) ?: JsonNull)
             )
         ).toString()
     }
 
     private fun decode(payload: String): DriverIncidentMetadata? = try {
-        val root = kotlinx.serialization.json.Json.parseToJsonElement(payload).jsonObject
+        val root = Json.parseToJsonElement(payload).jsonObject
         require(root.requiredLong("schema") == 1L)
         val scope = DriverAttemptScopeIdentity(
-            root.requiredString("userId"), root.requiredString("tenantId"),
-            root.requiredString("workspaceId"), root.requiredString("membershipId")
+            root.requiredString("userId"),
+            root.requiredString("tenantId"),
+            root.requiredString("workspaceId"),
+            root.requiredString("membershipId")
         )
         val deliveryId = root.requiredString("deliveryId")
         val attemptId = root.requiredString("attemptId")
@@ -368,7 +451,7 @@ internal class AppDriverIncidentMetadataStore(
         null
     }
 
-    private fun encodeEvidence(evidence: DriverIncidentEvidenceDraft) = JsonObject(
+    private fun encodeEvidence(evidence: IncidentEvidenceDraft) = JsonObject(
         linkedMapOf(
             "fileToken" to JsonPrimitive(evidence.fileToken),
             "originalFilename" to JsonPrimitive(evidence.originalFilename),
@@ -376,21 +459,24 @@ internal class AppDriverIncidentMetadataStore(
             "byteSize" to JsonPrimitive(evidence.byteSize),
             "checksumSha256" to JsonPrimitive(evidence.checksumSha256),
             "stage" to JsonPrimitive(evidence.stage.name),
-            "uploadIdempotencyKey" to (evidence.uploadIdempotencyKey?.let(::JsonPrimitive) ?: JsonNull),
+            "uploadIdempotencyKey" to
+                (evidence.uploadIdempotencyKey?.let(::JsonPrimitive) ?: JsonNull),
             "evidenceId" to (evidence.evidenceId?.let(::JsonPrimitive) ?: JsonNull),
-            "attachIdempotencyKey" to (evidence.attachIdempotencyKey?.let(::JsonPrimitive) ?: JsonNull),
-            "attachExpectedVersion" to (evidence.attachExpectedVersion?.let(::JsonPrimitive) ?: JsonNull),
+            "attachIdempotencyKey" to
+                (evidence.attachIdempotencyKey?.let(::JsonPrimitive) ?: JsonNull),
+            "attachExpectedVersion" to
+                (evidence.attachExpectedVersion?.let(::JsonPrimitive) ?: JsonNull),
             "attachBody" to (evidence.attachBody?.let(::JsonPrimitive) ?: JsonNull)
         )
     )
 
-    private fun decodeEvidence(value: JsonObject) = DriverIncidentEvidenceDraft(
+    private fun decodeEvidence(value: JsonObject) = IncidentEvidenceDraft(
         fileToken = value.requiredString("fileToken"),
         originalFilename = value.requiredString("originalFilename"),
         contentType = value.requiredString("contentType"),
         byteSize = value.requiredLong("byteSize"),
         checksumSha256 = value.requiredString("checksumSha256"),
-        stage = DriverIncidentEvidenceStage.valueOf(value.requiredString("stage")),
+        stage = IncidentEvidenceStage.valueOf(value.requiredString("stage")),
         uploadIdempotencyKey = value.optionalString("uploadIdempotencyKey"),
         evidenceId = value.optionalString("evidenceId"),
         attachIdempotencyKey = value.optionalString("attachIdempotencyKey"),
@@ -399,41 +485,58 @@ internal class AppDriverIncidentMetadataStore(
     )
 
     private fun validEvidenceTransition(
-        before: DriverIncidentEvidenceStage,
-        after: DriverIncidentEvidenceStage
+        before: IncidentEvidenceStage,
+        after: IncidentEvidenceStage
     ): Boolean = when (before) {
-        DriverIncidentEvidenceStage.Staged -> after in setOf(
-            DriverIncidentEvidenceStage.Staged, DriverIncidentEvidenceStage.UploadPending
+        IncidentEvidenceStage.Staged -> after in setOf(
+            IncidentEvidenceStage.Staged,
+            IncidentEvidenceStage.UploadPending
         )
-        DriverIncidentEvidenceStage.UploadPending -> after in setOf(
-            DriverIncidentEvidenceStage.UploadPending, DriverIncidentEvidenceStage.UploadUnknownOutcome,
-            DriverIncidentEvidenceStage.AwaitingAvailability, DriverIncidentEvidenceStage.Staged
+
+        IncidentEvidenceStage.UploadPending -> after in setOf(
+            IncidentEvidenceStage.UploadPending,
+            IncidentEvidenceStage.UploadUnknownOutcome,
+            IncidentEvidenceStage.AwaitingAvailability,
+            IncidentEvidenceStage.Staged
         )
-        DriverIncidentEvidenceStage.UploadUnknownOutcome -> after in setOf(
-            DriverIncidentEvidenceStage.UploadUnknownOutcome, DriverIncidentEvidenceStage.UploadPending,
-            DriverIncidentEvidenceStage.AwaitingAvailability, DriverIncidentEvidenceStage.Staged
+
+        IncidentEvidenceStage.UploadUnknownOutcome -> after in setOf(
+            IncidentEvidenceStage.UploadUnknownOutcome,
+            IncidentEvidenceStage.UploadPending,
+            IncidentEvidenceStage.AwaitingAvailability,
+            IncidentEvidenceStage.Staged
         )
-        DriverIncidentEvidenceStage.AwaitingAvailability -> after in setOf(
-            DriverIncidentEvidenceStage.AwaitingAvailability, DriverIncidentEvidenceStage.AvailableForReview
+
+        IncidentEvidenceStage.AwaitingAvailability -> after in setOf(
+            IncidentEvidenceStage.AwaitingAvailability,
+            IncidentEvidenceStage.AvailableForReview
         )
-        DriverIncidentEvidenceStage.AvailableForReview -> after in setOf(
-            DriverIncidentEvidenceStage.AvailableForReview, DriverIncidentEvidenceStage.AwaitingAvailability,
-            DriverIncidentEvidenceStage.AttachPending
+
+        IncidentEvidenceStage.AvailableForReview -> after in setOf(
+            IncidentEvidenceStage.AvailableForReview,
+            IncidentEvidenceStage.AwaitingAvailability,
+            IncidentEvidenceStage.AttachPending
         )
-        DriverIncidentEvidenceStage.AttachPending -> after in setOf(
-            DriverIncidentEvidenceStage.AttachPending, DriverIncidentEvidenceStage.AttachUnknownOutcome,
-            DriverIncidentEvidenceStage.Linked, DriverIncidentEvidenceStage.AvailableForReview
+
+        IncidentEvidenceStage.AttachPending -> after in setOf(
+            IncidentEvidenceStage.AttachPending,
+            IncidentEvidenceStage.AttachUnknownOutcome,
+            IncidentEvidenceStage.Linked,
+            IncidentEvidenceStage.AvailableForReview
         )
-        DriverIncidentEvidenceStage.AttachUnknownOutcome -> after in setOf(
-            DriverIncidentEvidenceStage.AttachUnknownOutcome, DriverIncidentEvidenceStage.AttachPending,
-            DriverIncidentEvidenceStage.Linked
+
+        IncidentEvidenceStage.AttachUnknownOutcome -> after in setOf(
+            IncidentEvidenceStage.AttachUnknownOutcome,
+            IncidentEvidenceStage.AttachPending,
+            IncidentEvidenceStage.Linked
         )
-        DriverIncidentEvidenceStage.Linked -> after == DriverIncidentEvidenceStage.Linked
+
+        IncidentEvidenceStage.Linked -> after == IncidentEvidenceStage.Linked
     }
 
     private fun writeEncryptedArtifact(
         scope: DriverAttemptScopeIdentity,
-        evidence: DriverIncidentEvidenceDraft,
+        evidence: IncidentEvidenceDraft,
         candidate: DriverProofFileCandidate
     ): Boolean = try {
         require(candidate.file.isFile && candidate.file.length() == candidate.byteSize)
@@ -459,7 +562,9 @@ internal class AppDriverIncidentMetadataStore(
                     cipher.update(buffer, 0, count)?.let(output::write)
                 }
             }
-            require(total == evidence.byteSize && digest.digest().toHex() == evidence.checksumSha256)
+            require(
+                total == evidence.byteSize && digest.digest().toHex() == evidence.checksumSha256
+            )
             output.write(cipher.doFinal())
             atomic.finishWrite(output)
         } catch (failure: Exception) {
@@ -473,16 +578,24 @@ internal class AppDriverIncidentMetadataStore(
 
     private fun decryptArtifact(
         scope: DriverAttemptScopeIdentity,
-        evidence: DriverIncidentEvidenceDraft
+        evidence: IncidentEvidenceDraft
     ): DriverProofFileCandidate? {
         var plaintext: File? = null
         return try {
-            val bytes = AtomicFile(artifactFile(scope, evidence.fileToken)).openRead().use { it.readBytes() }
-            require(bytes.size in (ARTIFACT_HEADER.size + IV_BYTES + GCM_TAG_BYTES)..MAX_ENCRYPTED_BYTES)
+            val bytes = AtomicFile(artifactFile(scope, evidence.fileToken)).openRead().use {
+                it.readBytes()
+            }
+            require(
+                bytes.size in (ARTIFACT_HEADER.size + IV_BYTES + GCM_TAG_BYTES)..MAX_ENCRYPTED_BYTES
+            )
             require(bytes.copyOfRange(0, ARTIFACT_HEADER.size).contentEquals(ARTIFACT_HEADER))
             val iv = bytes.copyOfRange(ARTIFACT_HEADER.size, ARTIFACT_HEADER.size + IV_BYTES)
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.DECRYPT_MODE, artifactKeyForRead() ?: return null, GCMParameterSpec(128, iv))
+            cipher.init(
+                Cipher.DECRYPT_MODE,
+                artifactKeyForRead() ?: return null,
+                GCMParameterSpec(128, iv)
+            )
             cipher.updateAAD(artifactBinding(scope, evidence.fileToken))
             check(plaintextDirectory.isDirectory || plaintextDirectory.mkdirs())
             plaintext = File.createTempFile("incident-upload-", ".bin", plaintextDirectory)
@@ -508,22 +621,31 @@ internal class AppDriverIncidentMetadataStore(
                 digest.update(tail)
                 output.write(tail)
             }
-            require(total == evidence.byteSize && digest.digest().toHex() == evidence.checksumSha256)
-            DriverProofFileCandidate(plaintext, evidence.originalFilename, evidence.contentType,
-                evidence.byteSize, evidence.checksumSha256)
+            require(
+                total == evidence.byteSize && digest.digest().toHex() == evidence.checksumSha256
+            )
+            DriverProofFileCandidate(
+                plaintext,
+                evidence.originalFilename,
+                evidence.contentType,
+                evidence.byteSize,
+                evidence.checksumSha256
+            )
         } catch (_: Exception) {
             plaintext?.delete()
             null
         }
     }
 
-    private fun deleteEncryptedArtifact(scope: DriverAttemptScopeIdentity, token: String): Boolean = try {
-        val file = artifactFile(scope, token)
-        AtomicFile(file).delete()
-        !file.exists() && !File("${file.path}.bak").exists() && !File("${file.path}.new").exists()
-    } catch (_: Exception) {
-        false
-    }
+    private fun deleteEncryptedArtifact(scope: DriverAttemptScopeIdentity, token: String): Boolean =
+        try {
+            val file = artifactFile(scope, token)
+            AtomicFile(file).delete()
+            !file.exists() && !File("${file.path}.bak").exists() &&
+                !File("${file.path}.new").exists()
+        } catch (_: Exception) {
+            false
+        }
 
     private fun artifactFile(scope: DriverAttemptScopeIdentity, token: String): File {
         val name = artifactBinding(scope, token).sha256().toHex()
@@ -533,8 +655,14 @@ internal class AppDriverIncidentMetadataStore(
     private fun artifactBinding(scope: DriverAttemptScopeIdentity, token: String): ByteArray {
         val bytes = ByteArrayOutputStream()
         DataOutputStream(bytes).use { output ->
-            listOf("NEXA-DRIVER-INCIDENT-ARTIFACT-v1", scope.userId, scope.tenantId,
-                scope.workspaceId, scope.membershipId, token).forEach { value ->
+            listOf(
+                "NEXA-DRIVER-INCIDENT-ARTIFACT-v1",
+                scope.userId,
+                scope.tenantId,
+                scope.workspaceId,
+                scope.membershipId,
+                token
+            ).forEach { value ->
                 val encoded = value.toByteArray(Charsets.UTF_8)
                 output.writeInt(encoded.size)
                 output.write(encoded)
@@ -552,37 +680,46 @@ internal class AppDriverIncidentMetadataStore(
 
     private fun artifactKeyForWrite(): SecretKey = artifactKeyForRead() ?: KeyGenerator
         .getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").run {
-            init(KeyGenParameterSpec.Builder(ARTIFACT_KEY_ALIAS,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setKeySize(256)
-                .setRandomizedEncryptionRequired(true)
-                .build())
+            init(
+                KeyGenParameterSpec.Builder(
+                    ARTIFACT_KEY_ALIAS,
+                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+                )
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setKeySize(256)
+                    .setRandomizedEncryptionRequired(true)
+                    .build()
+            )
             generateKey()
         }
 
     private fun ByteArray.sha256(): ByteArray = MessageDigest.getInstance("SHA-256").digest(this)
     private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it.toInt() and 255) }
 
-    private fun JsonObject.optionalObject(key: String): JsonObject? = when (val element = this[key]) {
-        null, JsonNull -> null
-        else -> element as? JsonObject ?: error("Driver incident metadata field is invalid")
-    }
+    private fun JsonObject.optionalObject(key: String): JsonObject? =
+        when (val element = this[key]) {
+            null, JsonNull -> null
+            else -> element as? JsonObject ?: error("Driver incident metadata field is invalid")
+        }
 
     private fun JsonObject.optionalString(key: String): String? = when (val element = this[key]) {
         null, JsonNull -> null
+
         else -> element.jsonPrimitive.takeIf(JsonPrimitive::isString)?.content
             ?: error("Driver incident metadata field is invalid")
     }
 
     private fun JsonObject.optionalLong(key: String): Long? = when (val element = this[key]) {
         null, JsonNull -> null
+
         else -> element.jsonPrimitive.takeUnless(JsonPrimitive::isString)?.longOrNull
             ?: error("Driver incident metadata field is invalid")
     }
 
-    private fun mutex(scope: DriverAttemptScopeIdentity): Mutex = locks.computeIfAbsent(scope) { Mutex() }
+    private fun mutex(scope: DriverAttemptScopeIdentity): Mutex = locks.computeIfAbsent(scope) {
+        Mutex()
+    }
 
     private fun DriverAttemptScopeIdentity.toLocal() =
         ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
@@ -601,7 +738,8 @@ internal class AppDriverIncidentMetadataStore(
 
     private companion object {
         val locks = ConcurrentHashMap<DriverAttemptScopeIdentity, Mutex>()
-        const val ARTIFACT_KEY_ALIAS = "com.nexa.mobile.operations.driver-delivery-incident-artifact.v1"
+        const val ARTIFACT_KEY_ALIAS =
+            "com.nexa.mobile.operations.driver-delivery-incident-artifact.v1"
         val ARTIFACT_HEADER = "NXDI1".toByteArray(Charsets.US_ASCII)
         const val IV_BYTES = 12
         const val GCM_TAG_BYTES = 16
@@ -618,7 +756,7 @@ internal object DriverIncidentMetadataModule {
     @Singleton
     fun provideDriverIncidentMetadataStore(
         @ApplicationContext context: Context
-    ): DriverIncidentMetadataStore = AppDriverIncidentMetadataStore(
+    ): IncidentMetadataStore = AppDriverIncidentMetadataStore(
         context,
         AndroidScopedMetadataStore(context, ScopedMetadataPurpose.DriverDeliveryIncident)
     )

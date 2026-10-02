@@ -17,6 +17,7 @@ import com.nexa.mobile.operations.feature.access.AccessUiState
 import com.nexa.mobile.operations.feature.access.ContextChooserMode
 import com.nexa.mobile.operations.feature.access.ContextChooserPhase
 import com.nexa.mobile.operations.feature.access.ContextChooserScreen
+import com.nexa.mobile.operations.feature.access.ContextChooserUiState
 import com.nexa.mobile.operations.feature.access.PermissionHint
 import com.nexa.mobile.operations.feature.warehouse.ConfirmedSkuScreen
 import com.nexa.mobile.operations.feature.warehouse.OperationsWorkEntryScreen
@@ -164,8 +165,13 @@ internal fun RootNavigation(
     val destination = when {
         protectedContentAllowed && connectedOperationRoute != null &&
             ConnectedOperationsNavigation.permits(
-                connectedOperationRoute, connectedOperationEntries, state, accessState, warehouseState
+                connectedOperationRoute,
+                connectedOperationEntries,
+                state,
+                accessState,
+                warehouseState
             ) -> ProductDestination.ConnectedOperation
+
         protectedContentAllowed -> when (warehouseState.route) {
             WarehouseRoute.WorkEntry -> ProductDestination.WorkEntry
 
@@ -252,7 +258,8 @@ internal fun RootNavigation(
                 )
 
                 ProductDestination.ConnectedOperation -> mutableStateListOf<Any>(
-                    ProductDestination.WorkEntry, ProductDestination.ConnectedOperation
+                    ProductDestination.WorkEntry,
+                    ProductDestination.ConnectedOperation
                 )
 
                 ProductDestination.Picking -> mutableStateListOf<Any>(
@@ -328,7 +335,10 @@ internal fun RootNavigation(
                                 additionalWorkContent = {
                                     ConnectedOperationsEntries(
                                         entries = ConnectedOperationsNavigation.visibleEntries(
-                                            connectedOperationEntries, state, accessState, warehouseState
+                                            connectedOperationEntries,
+                                            state,
+                                            accessState,
+                                            warehouseState
                                         ),
                                         onOpen = onOpenConnectedOperation
                                     )
@@ -622,8 +632,7 @@ private fun AccessUiState.forSession(
     }
 }
 
-private fun AccessUiState.chooserFallback() =
-    com.nexa.mobile.operations.feature.access.ContextChooserUiState(
-        mode = ContextChooserMode.Initial,
-        phase = ContextChooserPhase.Loading
-    )
+private fun AccessUiState.chooserFallback() = ContextChooserUiState(
+    mode = ContextChooserMode.Initial,
+    phase = ContextChooserPhase.Loading
+)

@@ -6,18 +6,19 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
-import com.nexa.mobile.operations.core.network.DispatchHandoffIdentityNetworkOutcome
+import com.nexa.mobile.operations.core.network.DispatchHandoffIdentityNetworkOutcome as HandoffIdentityOutcome
+import com.nexa.mobile.operations.core.network.DispatchHandoffIdentityProjection as HandoffIdentityProjection
 import com.nexa.mobile.operations.core.network.NexaDispatchHandoffIdentityGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityContext
 import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityIdentity
 import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIdentity
-import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIdentityCommand
-import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIdentityGateway
-import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIdentityMetadataStore
-import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIdentityViewModel
+import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIdentityCommand as HandoffIdentityCommand
+import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIdentityGateway as HandoffIdentityGateway
+import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIdentityMetadataStore as HandoffIdentityMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIdentityViewModel as HandoffIdentityViewModel
 import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIssueResult
-import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffValidationResult
+import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffValidationResult as HandoffValidationResult
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -31,16 +32,20 @@ import kotlinx.coroutines.CancellationException
 internal class OperationsDispatchHandoffIdentityGateway @Inject constructor(
     private val sessions: SessionCoordinator,
     private val handoffs: NexaDispatchHandoffIdentityGateway
-) : DispatchHandoffIdentityGateway {
+) : HandoffIdentityGateway {
     override suspend fun issue(
-        command: DispatchHandoffIdentityCommand,
+        command: HandoffIdentityCommand,
         context: DispatchAuthorityContext
     ): DispatchHandoffIssueResult {
         val authorization = authorize(context, HANDOFF_WRITE_PERMISSION)
         if (authorization !is Authorization.Current) return authorization.toIssueResult()
         val outcome = try {
-            handoffs.issue(command.deliveryId, command.assignmentId,
-                command.idempotencyKey, command.frozenBody)
+            handoffs.issue(
+                command.deliveryId,
+                command.assignmentId,
+                command.idempotencyKey,
+                command.frozenBody
+            )
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -48,25 +53,36 @@ internal class OperationsDispatchHandoffIdentityGateway @Inject constructor(
         }
         if (!isCurrent(context, authorization.lease)) return authorityDrift(context).toIssueResult()
         return when (outcome) {
-            is DispatchHandoffIdentityNetworkOutcome.Identity -> {
+            is HandoffIdentityOutcome.Identity -> {
                 val value = outcome.value
                 if (!value.deliveryId.equals(command.deliveryId, ignoreCase = true) ||
                     !value.assignmentId.equals(command.assignmentId, ignoreCase = true)
-                ) DispatchHandoffIssueResult.UnknownOutcome
-                else {
+                ) {
+                    DispatchHandoffIssueResult.UnknownOutcome
+                } else {
                     val identity = value.toFeature()
                     value.token?.let { DispatchHandoffIssueResult.Issued(identity, it) }
                         ?: DispatchHandoffIssueResult.AcceptedWithoutToken(identity)
                 }
             }
-            is DispatchHandoffIdentityNetworkOutcome.Rejected ->
+
+            is HandoffIdentityOutcome.Rejected ->
                 DispatchHandoffIssueResult.Rejected(outcome.code)
-            DispatchHandoffIdentityNetworkOutcome.NotFound -> DispatchHandoffIssueResult.NotFound
-            DispatchHandoffIdentityNetworkOutcome.UnknownOutcome,
-            DispatchHandoffIdentityNetworkOutcome.Unavailable -> DispatchHandoffIssueResult.UnknownOutcome
-            DispatchHandoffIdentityNetworkOutcome.PermissionDenied -> DispatchHandoffIssueResult.PermissionDenied
-            DispatchHandoffIdentityNetworkOutcome.ContextInvalidated -> DispatchHandoffIssueResult.ContextInvalidated
-            DispatchHandoffIdentityNetworkOutcome.SessionInvalidated -> DispatchHandoffIssueResult.SessionInvalidated
+
+            HandoffIdentityOutcome.NotFound -> DispatchHandoffIssueResult.NotFound
+
+            HandoffIdentityOutcome.UnknownOutcome,
+            HandoffIdentityOutcome.Unavailable ->
+                DispatchHandoffIssueResult.UnknownOutcome
+
+            HandoffIdentityOutcome.PermissionDenied ->
+                DispatchHandoffIssueResult.PermissionDenied
+
+            HandoffIdentityOutcome.ContextInvalidated ->
+                DispatchHandoffIssueResult.ContextInvalidated
+
+            HandoffIdentityOutcome.SessionInvalidated ->
+                DispatchHandoffIssueResult.SessionInvalidated
         }
     }
 
@@ -75,7 +91,7 @@ internal class OperationsDispatchHandoffIdentityGateway @Inject constructor(
         assignmentId: String,
         token: String,
         context: DispatchAuthorityContext
-    ): DispatchHandoffValidationResult {
+    ): HandoffValidationResult {
         val authorization = authorize(context, HANDOFF_READ_PERMISSION)
         if (authorization !is Authorization.Current) return authorization.toValidationResult()
         val outcome = try {
@@ -83,43 +99,86 @@ internal class OperationsDispatchHandoffIdentityGateway @Inject constructor(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            return DispatchHandoffValidationResult.Unavailable
+            return HandoffValidationResult.Unavailable
         }
-        if (!isCurrent(context, authorization.lease)) return authorityDrift(context).toValidationResult()
+        if (!isCurrent(
+                context,
+                authorization.lease
+            )
+        ) {
+            return authorityDrift(context).toValidationResult()
+        }
         return when (outcome) {
-            is DispatchHandoffIdentityNetworkOutcome.Identity -> {
+            is HandoffIdentityOutcome.Identity -> {
                 val value = outcome.value
-                if (value.token != null || !value.deliveryId.equals(deliveryId, ignoreCase = true) ||
+                if (value.token != null || !value.deliveryId.equals(
+                        deliveryId,
+                        ignoreCase = true
+                    ) ||
                     !value.assignmentId.equals(assignmentId, ignoreCase = true)
-                ) DispatchHandoffValidationResult.Unavailable
-                else DispatchHandoffValidationResult.Validated(value.toFeature())
+                ) {
+                    HandoffValidationResult.Unavailable
+                } else {
+                    HandoffValidationResult.Validated(value.toFeature())
+                }
             }
-            is DispatchHandoffIdentityNetworkOutcome.Rejected ->
-                DispatchHandoffValidationResult.Rejected(outcome.code)
-            DispatchHandoffIdentityNetworkOutcome.NotFound -> DispatchHandoffValidationResult.NotFound
-            DispatchHandoffIdentityNetworkOutcome.UnknownOutcome,
-            DispatchHandoffIdentityNetworkOutcome.Unavailable -> DispatchHandoffValidationResult.Unavailable
-            DispatchHandoffIdentityNetworkOutcome.PermissionDenied -> DispatchHandoffValidationResult.PermissionDenied
-            DispatchHandoffIdentityNetworkOutcome.ContextInvalidated -> DispatchHandoffValidationResult.ContextInvalidated
-            DispatchHandoffIdentityNetworkOutcome.SessionInvalidated -> DispatchHandoffValidationResult.SessionInvalidated
+
+            is HandoffIdentityOutcome.Rejected ->
+                HandoffValidationResult.Rejected(outcome.code)
+
+            HandoffIdentityOutcome.NotFound ->
+                HandoffValidationResult.NotFound
+
+            HandoffIdentityOutcome.UnknownOutcome,
+            HandoffIdentityOutcome.Unavailable ->
+                HandoffValidationResult.Unavailable
+
+            HandoffIdentityOutcome.PermissionDenied ->
+                HandoffValidationResult.PermissionDenied
+
+            HandoffIdentityOutcome.ContextInvalidated ->
+                HandoffValidationResult.ContextInvalidated
+
+            HandoffIdentityOutcome.SessionInvalidated ->
+                HandoffValidationResult.SessionInvalidated
         }
     }
 
-    private suspend fun authorize(context: DispatchAuthorityContext, permission: String): Authorization {
-        if (sessions.sessionState.value != SessionState.Active) return Authorization.SessionInvalidated
+    private suspend fun authorize(
+        context: DispatchAuthorityContext,
+        permission: String
+    ): Authorization {
+        if (sessions.sessionState.value !=
+            SessionState.Active
+        ) {
+            return Authorization.SessionInvalidated
+        }
         val lease = sessions.currentAccess() ?: return Authorization.SessionInvalidated
         val identity = context.identity ?: return Authorization.ContextInvalidated
         val verified = sessions.verifiedSession.value ?: return Authorization.ContextInvalidated
         if (context.authorityEpoch <= 0 || listOf(
-                identity.userId, identity.tenantId, identity.workspaceId, identity.membershipId
+                identity.userId,
+                identity.tenantId,
+                identity.workspaceId,
+                identity.membershipId
             ).any(String::isBlank) || !verified.matches(identity)
-        ) return Authorization.ContextInvalidated
-        return if (permission in identity.permissions) Authorization.Current(lease)
-        else Authorization.PermissionDenied
+        ) {
+            return Authorization.ContextInvalidated
+        }
+        return if (permission in identity.permissions) {
+            Authorization.Current(lease)
+        } else {
+            Authorization.PermissionDenied
+        }
     }
 
-    private suspend fun isCurrent(context: DispatchAuthorityContext, lease: AccessTokenLease): Boolean {
-        if (sessions.sessionState.value != SessionState.Active || !sessions.isEpochCurrent(lease.epoch)) {
+    private suspend fun isCurrent(
+        context: DispatchAuthorityContext,
+        lease: AccessTokenLease
+    ): Boolean {
+        if (sessions.sessionState.value != SessionState.Active ||
+            !sessions.isEpochCurrent(lease.epoch)
+        ) {
             return false
         }
         val identity = context.identity ?: return false
@@ -128,9 +187,11 @@ internal class OperationsDispatchHandoffIdentityGateway @Inject constructor(
 
     private suspend fun authorityDrift(context: DispatchAuthorityContext): Authorization = when {
         sessions.sessionState.value != SessionState.Active -> Authorization.SessionInvalidated
+
         sessions.verifiedSession.value?.let { verified ->
             context.identity?.let { verified.matches(it) } == true
         } == true -> Authorization.SessionInvalidated
+
         else -> Authorization.ContextInvalidated
     }
 
@@ -146,29 +207,47 @@ internal class OperationsDispatchHandoffIdentityGateway @Inject constructor(
         is Authorization.Current -> error("current authorization is not a failure")
     }
 
-    private fun Authorization.toValidationResult(): DispatchHandoffValidationResult = when (this) {
-        Authorization.SessionInvalidated -> DispatchHandoffValidationResult.SessionInvalidated
-        Authorization.ContextInvalidated -> DispatchHandoffValidationResult.ContextInvalidated
-        Authorization.PermissionDenied -> DispatchHandoffValidationResult.PermissionDenied
+    private fun Authorization.toValidationResult(): HandoffValidationResult = when (this) {
+        Authorization.SessionInvalidated -> HandoffValidationResult.SessionInvalidated
+        Authorization.ContextInvalidated -> HandoffValidationResult.ContextInvalidated
+        Authorization.PermissionDenied -> HandoffValidationResult.PermissionDenied
         is Authorization.Current -> error("current authorization is not a failure")
     }
 
-    private fun DispatchHandoffIdentityNetworkOutcome.toIssueResult(): DispatchHandoffIssueResult = when (this) {
-        DispatchHandoffIdentityNetworkOutcome.SessionInvalidated -> DispatchHandoffIssueResult.SessionInvalidated
-        DispatchHandoffIdentityNetworkOutcome.ContextInvalidated -> DispatchHandoffIssueResult.ContextInvalidated
-        DispatchHandoffIdentityNetworkOutcome.PermissionDenied -> DispatchHandoffIssueResult.PermissionDenied
+    private fun HandoffIdentityOutcome.toIssueResult(): DispatchHandoffIssueResult = when (this) {
+        HandoffIdentityOutcome.SessionInvalidated ->
+            DispatchHandoffIssueResult.SessionInvalidated
+
+        HandoffIdentityOutcome.ContextInvalidated ->
+            DispatchHandoffIssueResult.ContextInvalidated
+
+        HandoffIdentityOutcome.PermissionDenied ->
+            DispatchHandoffIssueResult.PermissionDenied
+
         else -> DispatchHandoffIssueResult.UnknownOutcome
     }
 
-    private fun DispatchHandoffIdentityNetworkOutcome.toValidationResult(): DispatchHandoffValidationResult = when (this) {
-        DispatchHandoffIdentityNetworkOutcome.SessionInvalidated -> DispatchHandoffValidationResult.SessionInvalidated
-        DispatchHandoffIdentityNetworkOutcome.ContextInvalidated -> DispatchHandoffValidationResult.ContextInvalidated
-        DispatchHandoffIdentityNetworkOutcome.PermissionDenied -> DispatchHandoffValidationResult.PermissionDenied
-        else -> DispatchHandoffValidationResult.Unavailable
+    private fun HandoffIdentityOutcome.toValidationResult(): HandoffValidationResult = when (this) {
+        HandoffIdentityOutcome.SessionInvalidated ->
+            HandoffValidationResult.SessionInvalidated
+
+        HandoffIdentityOutcome.ContextInvalidated ->
+            HandoffValidationResult.ContextInvalidated
+
+        HandoffIdentityOutcome.PermissionDenied ->
+            HandoffValidationResult.PermissionDenied
+
+        else -> HandoffValidationResult.Unavailable
     }
 
-    private fun com.nexa.mobile.operations.core.network.DispatchHandoffIdentityProjection.toFeature() =
-        DispatchHandoffIdentity(handoffId, deliveryId, assignmentId, deliveryVersion, expiresAt, status)
+    private fun HandoffIdentityProjection.toFeature() = DispatchHandoffIdentity(
+        handoffId,
+        deliveryId,
+        assignmentId,
+        deliveryVersion,
+        expiresAt,
+        status
+    )
 
     private sealed interface Authorization {
         data class Current(val lease: AccessTokenLease) : Authorization
@@ -185,13 +264,13 @@ internal class OperationsDispatchHandoffIdentityGateway @Inject constructor(
 
 internal class DispatchHandoffIdentityGatewayBindings @Inject constructor(
     private val gateway: OperationsDispatchHandoffIdentityGateway,
-    private val metadataStore: DispatchHandoffIdentityMetadataStore
+    private val metadataStore: HandoffIdentityMetadataStore
 ) {
     fun viewModelFactory(): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            require(modelClass.isAssignableFrom(DispatchHandoffIdentityViewModel::class.java))
-            return DispatchHandoffIdentityViewModel(gateway, metadataStore) as T
+            require(modelClass.isAssignableFrom(HandoffIdentityViewModel::class.java))
+            return HandoffIdentityViewModel(gateway, metadataStore) as T
         }
     }
 }
@@ -208,6 +287,6 @@ internal object DispatchHandoffIdentityGatewayModule {
     @Singleton
     fun provideDispatchHandoffIdentityGatewayBindings(
         gateway: OperationsDispatchHandoffIdentityGateway,
-        metadataStore: DispatchHandoffIdentityMetadataStore
+        metadataStore: HandoffIdentityMetadataStore
     ) = DispatchHandoffIdentityGatewayBindings(gateway, metadataStore)
 }

@@ -5,9 +5,9 @@ import com.nexa.mobile.operations.core.local.scoped.AndroidScopedMetadataStore
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
-import com.nexa.mobile.operations.feature.delivery.DriverAttemptIntentMetadata
+import com.nexa.mobile.operations.feature.delivery.DriverAttemptIntentMetadata as AttemptIntentMetadata
 import com.nexa.mobile.operations.feature.delivery.DriverAttemptMetadataRead
-import com.nexa.mobile.operations.feature.delivery.DriverAttemptMetadataStatus
+import com.nexa.mobile.operations.feature.delivery.DriverAttemptMetadataStatus as AttemptMetadataStatus
 import com.nexa.mobile.operations.feature.delivery.DriverAttemptMetadataStore
 import com.nexa.mobile.operations.feature.delivery.DriverAttemptMetadataWrite
 import com.nexa.mobile.operations.feature.delivery.DriverAttemptScopeIdentity
@@ -28,20 +28,23 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
 /** Typed driver-start intent adapter over purpose and scope bound encrypted local storage. */
-internal class AppDriverAttemptMetadataStore(
-    private val local: AndroidScopedMetadataStore
-) : DriverAttemptMetadataStore {
+internal class AppDriverAttemptMetadataStore(private val local: AndroidScopedMetadataStore) :
+    DriverAttemptMetadataStore {
     override suspend fun loadIntent(scope: DriverAttemptScopeIdentity): DriverAttemptMetadataRead =
         mutex(scope).withLock {
             when (val stored = local.load(scope.toLocal())) {
                 ScopedMetadataRead.Unavailable -> DriverAttemptMetadataRead.Unavailable
 
                 is ScopedMetadataRead.Value -> {
-                    val payload = stored.payload ?: return@withLock DriverAttemptMetadataRead.Available(null)
-                    val intent = decode(payload) ?: return@withLock DriverAttemptMetadataRead.Unavailable
+                    val payload =
+                        stored.payload ?: return@withLock DriverAttemptMetadataRead.Available(null)
+                    val intent =
+                        decode(payload) ?: return@withLock DriverAttemptMetadataRead.Unavailable
                     if (intent.scope != scope) return@withLock DriverAttemptMetadataRead.Unavailable
-                    if (intent.status == DriverAttemptMetadataStatus.Pending) {
-                        val recovered = intent.copy(status = DriverAttemptMetadataStatus.UnknownOutcome)
+                    if (intent.status == AttemptMetadataStatus.Pending) {
+                        val recovered = intent.copy(
+                            status = AttemptMetadataStatus.UnknownOutcome
+                        )
                         if (!local.save(scope.toLocal(), encode(recovered))) {
                             DriverAttemptMetadataRead.Unavailable
                         } else {
@@ -54,7 +57,7 @@ internal class AppDriverAttemptMetadataStore(
             }
         }
 
-    override suspend fun saveIntent(intent: DriverAttemptIntentMetadata): DriverAttemptMetadataWrite =
+    override suspend fun saveIntent(intent: AttemptIntentMetadata): DriverAttemptMetadataWrite =
         mutex(intent.scope).withLock {
             when (val stored = local.load(intent.scope.toLocal())) {
                 ScopedMetadataRead.Unavailable -> DriverAttemptMetadataWrite.Unavailable
@@ -79,8 +82,8 @@ internal class AppDriverAttemptMetadataStore(
                         DriverAttemptMetadataWrite.Conflict
                     } else if (current == intent) {
                         DriverAttemptMetadataWrite.Saved
-                    } else if (current.status == DriverAttemptMetadataStatus.UnknownOutcome &&
-                        intent.status == DriverAttemptMetadataStatus.Pending
+                    } else if (current.status == AttemptMetadataStatus.UnknownOutcome &&
+                        intent.status == AttemptMetadataStatus.Pending
                     ) {
                         DriverAttemptMetadataWrite.Conflict
                     } else if (local.save(intent.scope.toLocal(), encode(intent))) {
@@ -98,9 +101,11 @@ internal class AppDriverAttemptMetadataStore(
     ): DriverAttemptMetadataWrite = mutex(scope).withLock {
         when (val stored = local.load(scope.toLocal())) {
             ScopedMetadataRead.Unavailable -> DriverAttemptMetadataWrite.Unavailable
+
             is ScopedMetadataRead.Value -> {
                 val payload = stored.payload ?: return@withLock DriverAttemptMetadataWrite.Saved
-                val current = decode(payload) ?: return@withLock DriverAttemptMetadataWrite.Unavailable
+                val current =
+                    decode(payload) ?: return@withLock DriverAttemptMetadataWrite.Unavailable
                 if (current.scope != scope || current.idempotencyKey != idempotencyKey) {
                     DriverAttemptMetadataWrite.Stale
                 } else if (local.clear(scope.toLocal())) {
@@ -115,7 +120,7 @@ internal class AppDriverAttemptMetadataStore(
     private fun mutex(scope: DriverAttemptScopeIdentity): Mutex =
         locks.computeIfAbsent(scope) { Mutex() }
 
-    private fun encode(intent: DriverAttemptIntentMetadata): String = JsonObject(
+    private fun encode(intent: AttemptIntentMetadata): String = JsonObject(
         mapOf(
             "schema" to JsonPrimitive(1),
             "userId" to JsonPrimitive(intent.scope.userId),
@@ -129,12 +134,12 @@ internal class AppDriverAttemptMetadataStore(
         )
     ).toString()
 
-    private fun decode(payload: String): DriverAttemptIntentMetadata? = try {
+    private fun decode(payload: String): AttemptIntentMetadata? = try {
         val value = Json.parseToJsonElement(payload).jsonObject
         if (value.requiredLong("schema") != 1L) {
             null
         } else {
-            DriverAttemptIntentMetadata(
+            AttemptIntentMetadata(
                 scope = DriverAttemptScopeIdentity(
                     value.requiredString("userId"),
                     value.requiredString("tenantId"),
@@ -144,7 +149,7 @@ internal class AppDriverAttemptMetadataStore(
                 idempotencyKey = value.requiredString("idempotencyKey"),
                 deliveryId = value.requiredString("deliveryId"),
                 expectedVersion = value.requiredLong("expectedVersion"),
-                status = DriverAttemptMetadataStatus.valueOf(value.requiredString("status"))
+                status = AttemptMetadataStatus.valueOf(value.requiredString("status"))
             )
         }
     } catch (_: Exception) {

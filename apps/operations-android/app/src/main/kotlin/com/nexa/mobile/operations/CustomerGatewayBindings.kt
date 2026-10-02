@@ -51,7 +51,8 @@ internal class OperationsCustomerGateway @Inject constructor(
 
             is CustomerNetworkResult.Detail -> CustomerResult.Detail(result.value.toFeature())
 
-            CustomerNetworkResult.PermissionDenied, CustomerNetworkResult.SessionInvalidated -> CustomerResult.PermissionDenied
+            CustomerNetworkResult.PermissionDenied, CustomerNetworkResult.SessionInvalidated ->
+                CustomerResult.PermissionDenied
 
             CustomerNetworkResult.Unavailable -> CustomerResult.Unavailable
         }

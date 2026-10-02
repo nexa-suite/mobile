@@ -6,6 +6,7 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
+import com.nexa.mobile.operations.core.network.DispositionLotProjection
 import com.nexa.mobile.operations.core.network.DispositionNetworkOutcome
 import com.nexa.mobile.operations.core.network.NexaDispositionGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
@@ -180,23 +181,22 @@ internal class OperationsDispositionGateway @Inject constructor(
                 DispositionGatewayResult.SessionInvalidated
         }
 
-    private fun com.nexa.mobile.operations.core.network.DispositionLotProjection.toFeature() =
-        DispositionLotFacts(
-            id = id,
-            warehouseId = warehouseId,
-            zoneId = zoneId,
-            catalogItemId = catalogItemId,
-            skuId = skuId,
-            batchNumber = batchNumber,
-            expirationDate = expirationDate,
-            receivedAt = receivedAt,
-            onHand = onHand,
-            reserved = reserved,
-            available = available,
-            unit = unit,
-            status = status,
-            version = version
-        )
+    private fun DispositionLotProjection.toFeature() = DispositionLotFacts(
+        id = id,
+        warehouseId = warehouseId,
+        zoneId = zoneId,
+        catalogItemId = catalogItemId,
+        skuId = skuId,
+        batchNumber = batchNumber,
+        expirationDate = expirationDate,
+        receivedAt = receivedAt,
+        onHand = onHand,
+        reserved = reserved,
+        available = available,
+        unit = unit,
+        status = status,
+        version = version
+    )
 
     private sealed interface Authorization {
         data class Current(val lease: AccessTokenLease) : Authorization

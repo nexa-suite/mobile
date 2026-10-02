@@ -34,7 +34,10 @@ class AppStockTransferReceiptObservationMetadataStoreTest {
             StockTransferReceiptObservationMetadataWrite.Unavailable,
             store.clearIntent(scopeA, "stale-key")
         )
-        assertEquals(StockTransferReceiptObservationMetadataRead.Available(pending), store.loadIntent(scopeA))
+        assertEquals(
+            StockTransferReceiptObservationMetadataRead.Available(pending),
+            store.loadIntent(scopeA)
+        )
 
         assertEquals(
             StockTransferReceiptObservationMetadataWrite.Saved,
@@ -53,7 +56,10 @@ class AppStockTransferReceiptObservationMetadataStoreTest {
         val backend = MemoryBackend().apply { values[scopeA] = "{broken" }
         val store = AppStockTransferReceiptObservationMetadataStore(backend)
 
-        assertEquals(StockTransferReceiptObservationMetadataRead.Unavailable, store.loadIntent(scopeA))
+        assertEquals(
+            StockTransferReceiptObservationMetadataRead.Unavailable,
+            store.loadIntent(scopeA)
+        )
         assertEquals(
             StockTransferReceiptObservationMetadataWrite.Unavailable,
             store.saveIntent(intent(scopeA, "replacement-key", "4.2"))

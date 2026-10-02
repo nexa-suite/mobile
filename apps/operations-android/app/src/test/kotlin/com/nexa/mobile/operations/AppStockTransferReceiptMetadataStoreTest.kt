@@ -41,13 +41,26 @@ class AppStockTransferReceiptMetadataStoreTest {
         assertEquals(1, writes.count { it == StockTransferReceiptMetadataWrite.Saved })
         assertEquals(1, writes.count { it == StockTransferReceiptMetadataWrite.Unavailable })
 
-        val current = (firstStore.loadIntent(scopeA) as StockTransferReceiptMetadataRead.Available).value!!
-        val staleKey = if (current.idempotencyKey == "receipt-key-a") "receipt-key-b" else "receipt-key-a"
+        val current = (
+            firstStore.loadIntent(
+                scopeA
+            ) as StockTransferReceiptMetadataRead.Available
+            ).value!!
+        val staleKey = if (current.idempotencyKey ==
+            "receipt-key-a"
+        ) {
+            "receipt-key-b"
+        } else {
+            "receipt-key-a"
+        }
         assertEquals(
             StockTransferReceiptMetadataWrite.Unavailable,
             firstStore.clearIntent(scopeA, staleKey)
         )
-        assertEquals(StockTransferReceiptMetadataRead.Available(current), firstStore.loadIntent(scopeA))
+        assertEquals(
+            StockTransferReceiptMetadataRead.Available(current),
+            firstStore.loadIntent(scopeA)
+        )
     }
 
     @Test
@@ -61,8 +74,15 @@ class AppStockTransferReceiptMetadataStoreTest {
             store.markUnknownOutcome(scopeA, pending.idempotencyKey)
         )
 
-        val restored = (store.loadIntent(scopeA) as StockTransferReceiptMetadataRead.Available).value!!
-        assertEquals(pending.copy(status = StockTransferReceiptIntentStatus.UnknownOutcome), restored)
+        val restored = (
+            store.loadIntent(
+                scopeA
+            ) as StockTransferReceiptMetadataRead.Available
+            ).value!!
+        assertEquals(
+            pending.copy(status = StockTransferReceiptIntentStatus.UnknownOutcome),
+            restored
+        )
         assertEquals("3.500", restored.transfer.transferredQuantityText)
         assertEquals(
             StockTransferReceiptMetadataWrite.Unavailable,
@@ -108,8 +128,11 @@ class AppStockTransferReceiptMetadataStoreTest {
         var failReads = false
 
         override suspend fun load(scope: StockTransferScope): TransferReceiptScopedRead =
-            if (failReads) TransferReceiptScopedRead.Unavailable
-            else TransferReceiptScopedRead.Value(values[scope])
+            if (failReads) {
+                TransferReceiptScopedRead.Unavailable
+            } else {
+                TransferReceiptScopedRead.Value(values[scope])
+            }
 
         override suspend fun save(scope: StockTransferScope, payload: String): Boolean {
             if (failReads) return false

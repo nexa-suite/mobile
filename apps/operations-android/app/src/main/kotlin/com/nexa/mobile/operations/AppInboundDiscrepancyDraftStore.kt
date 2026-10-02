@@ -28,8 +28,8 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -37,15 +37,20 @@ import kotlinx.serialization.json.Json
 internal class AppInboundDiscrepancyDraftStore(
     private val backend: InboundDiscrepancyScopedMetadataBackend
 ) : InboundDiscrepancyDraftStore {
-    override suspend fun load(scope: InboundDiscrepancyScope): InboundDiscrepancyDraftRead = withScopeLock(scope) {
-        when (val stored = safeLoad(scope)) {
-            InboundDiscrepancyScopedRead.Unavailable -> InboundDiscrepancyDraftRead.Unavailable
-            is InboundDiscrepancyScopedRead.Value -> stored.payload?.let { it.decodeDraft() }
-                ?.let(InboundDiscrepancyDraftRead::Available)
-                ?: if (stored.payload == null) InboundDiscrepancyDraftRead.Available(null)
-                else InboundDiscrepancyDraftRead.Unavailable
+    override suspend fun load(scope: InboundDiscrepancyScope): InboundDiscrepancyDraftRead =
+        withScopeLock(scope) {
+            when (val stored = safeLoad(scope)) {
+                InboundDiscrepancyScopedRead.Unavailable -> InboundDiscrepancyDraftRead.Unavailable
+
+                is InboundDiscrepancyScopedRead.Value -> stored.payload?.let { it.decodeDraft() }
+                    ?.let(InboundDiscrepancyDraftRead::Available)
+                    ?: if (stored.payload == null) {
+                        InboundDiscrepancyDraftRead.Available(null)
+                    } else {
+                        InboundDiscrepancyDraftRead.Unavailable
+                    }
+            }
         }
-    }
 
     override suspend fun save(
         scope: InboundDiscrepancyScope,
@@ -54,15 +59,35 @@ internal class AppInboundDiscrepancyDraftStore(
         if (!draft.isValid()) return@withScopeLock InboundDiscrepancyDraftWrite.Unavailable
         val stored = safeLoad(scope)
         val existing = when (stored) {
-            InboundDiscrepancyScopedRead.Unavailable -> return@withScopeLock InboundDiscrepancyDraftWrite.Unavailable
+            InboundDiscrepancyScopedRead.Unavailable ->
+                return@withScopeLock InboundDiscrepancyDraftWrite.Unavailable
+
             is InboundDiscrepancyScopedRead.Value -> stored.payload?.decodeDraft()
-                ?: if (stored.payload == null) null else return@withScopeLock InboundDiscrepancyDraftWrite.Unavailable
+                ?: if (stored.payload ==
+                    null
+                ) {
+                    null
+                } else {
+                    return@withScopeLock InboundDiscrepancyDraftWrite.Unavailable
+                }
         }
-        if (existing != null && existing.id != draft.id) return@withScopeLock InboundDiscrepancyDraftWrite.Conflict
-        val payload = try { discrepancyJson.encodeToString(draft.toStored()) }
-        catch (_: SerializationException) { return@withScopeLock InboundDiscrepancyDraftWrite.Unavailable }
-        if (backend.save(scope, payload)) InboundDiscrepancyDraftWrite.Saved
-        else InboundDiscrepancyDraftWrite.Unavailable
+        if (existing != null &&
+            existing.id != draft.id
+        ) {
+            return@withScopeLock InboundDiscrepancyDraftWrite.Conflict
+        }
+        val payload = try {
+            discrepancyJson.encodeToString(draft.toStored())
+        } catch (
+            _: SerializationException
+        ) {
+            return@withScopeLock InboundDiscrepancyDraftWrite.Unavailable
+        }
+        if (backend.save(scope, payload)) {
+            InboundDiscrepancyDraftWrite.Saved
+        } else {
+            InboundDiscrepancyDraftWrite.Unavailable
+        }
     }
 
     override suspend fun discard(
@@ -71,37 +96,66 @@ internal class AppInboundDiscrepancyDraftStore(
     ): InboundDiscrepancyDraftWrite = withScopeLock(scope) {
         if (expectedDraftId.isBlank()) return@withScopeLock InboundDiscrepancyDraftWrite.Conflict
         val existing = when (val stored = safeLoad(scope)) {
-            InboundDiscrepancyScopedRead.Unavailable -> return@withScopeLock InboundDiscrepancyDraftWrite.Unavailable
+            InboundDiscrepancyScopedRead.Unavailable ->
+                return@withScopeLock InboundDiscrepancyDraftWrite.Unavailable
+
             is InboundDiscrepancyScopedRead.Value -> stored.payload?.decodeDraft()
-                ?: if (stored.payload == null) null else return@withScopeLock InboundDiscrepancyDraftWrite.Unavailable
+                ?: if (stored.payload ==
+                    null
+                ) {
+                    null
+                } else {
+                    return@withScopeLock InboundDiscrepancyDraftWrite.Unavailable
+                }
         } ?: return@withScopeLock InboundDiscrepancyDraftWrite.Conflict
-        if (existing.id != expectedDraftId || existing.caseId != null || existing.pendingAction != null) {
+        if (existing.id != expectedDraftId || existing.caseId != null ||
+            existing.pendingAction != null
+        ) {
             return@withScopeLock InboundDiscrepancyDraftWrite.Conflict
         }
-        if (backend.clear(scope)) InboundDiscrepancyDraftWrite.Discarded
-        else InboundDiscrepancyDraftWrite.Unavailable
+        if (backend.clear(scope)) {
+            InboundDiscrepancyDraftWrite.Discarded
+        } else {
+            InboundDiscrepancyDraftWrite.Unavailable
+        }
     }
 
-    private suspend fun safeLoad(scope: InboundDiscrepancyScope): InboundDiscrepancyScopedRead = try {
-        backend.load(scope)
-    } catch (cancelled: CancellationException) { throw cancelled }
-    catch (_: Exception) { InboundDiscrepancyScopedRead.Unavailable }
+    private suspend fun safeLoad(scope: InboundDiscrepancyScope): InboundDiscrepancyScopedRead =
+        try {
+            backend.load(scope)
+        } catch (
+            cancelled: CancellationException
+        ) {
+            throw cancelled
+        } catch (_: Exception) {
+            InboundDiscrepancyScopedRead.Unavailable
+        }
 
-    private suspend fun <T> withScopeLock(scope: InboundDiscrepancyScope, action: suspend () -> T): T =
-        locks.getOrPut(scope.lockKey()) { Mutex() }.withLock { action() }
+    private suspend fun <T> withScopeLock(
+        scope: InboundDiscrepancyScope,
+        action: suspend () -> T
+    ): T = locks.getOrPut(scope.lockKey()) { Mutex() }.withLock { action() }
 
     private fun String.decodeDraft(): InboundDiscrepancyDraft? = try {
         val stored = discrepancyJson.decodeFromString<StoredInboundDiscrepancyDraft>(this)
-        if (stored.schemaVersion != SCHEMA_VERSION || stored.id.isBlank() || stored.capturedAtDeviceMillis <= 0 ||
-            stored.id.length > MAX_REFERENCE_LENGTH || stored.warehouseId.length > MAX_REFERENCE_LENGTH ||
-            stored.expectedSkuId.length > MAX_REFERENCE_LENGTH || stored.observedSkuId.length > MAX_REFERENCE_LENGTH ||
+        if (stored.schemaVersion != SCHEMA_VERSION || stored.id.isBlank() ||
+            stored.capturedAtDeviceMillis <= 0 ||
+            stored.id.length > MAX_REFERENCE_LENGTH ||
+            stored.warehouseId.length > MAX_REFERENCE_LENGTH ||
+            stored.expectedSkuId.length > MAX_REFERENCE_LENGTH ||
+            stored.observedSkuId.length > MAX_REFERENCE_LENGTH ||
             (stored.observedSkuLabel?.length ?: 0) > MAX_NOTE_LENGTH ||
-            stored.expectedBatchReference.length > MAX_REFERENCE_LENGTH || stored.observedBatchReference.length > MAX_REFERENCE_LENGTH ||
-            stored.expectedQuantityText.length > MAX_QUANTITY_LENGTH || stored.observedQuantityText.length > MAX_QUANTITY_LENGTH ||
+            stored.expectedBatchReference.length > MAX_REFERENCE_LENGTH ||
+            stored.observedBatchReference.length > MAX_REFERENCE_LENGTH ||
+            stored.expectedQuantityText.length > MAX_QUANTITY_LENGTH ||
+            stored.observedQuantityText.length > MAX_QUANTITY_LENGTH ||
             stored.unit.length > 32 || stored.reasonDetails.length > MAX_NOTE_LENGTH ||
-            stored.observationNotes.length > MAX_NOTE_LENGTH || (stored.createBody?.length ?: 0) > MAX_COMMAND_LENGTH ||
+            stored.observationNotes.length > MAX_NOTE_LENGTH ||
+            (stored.createBody?.length ?: 0) > MAX_COMMAND_LENGTH ||
             (stored.submitBody?.length ?: 0) > MAX_COMMAND_LENGTH
-        ) return null
+        ) {
+            return null
+        }
         InboundDiscrepancyDraft(
             id = stored.id,
             warehouseId = stored.warehouseId,
@@ -129,8 +183,11 @@ internal class AppInboundDiscrepancyDraftStore(
             submitBody = stored.submitBody,
             pendingAction = stored.pendingAction?.let(InboundDiscrepancyPendingAction::valueOf)
         )
-    } catch (_: SerializationException) { null }
-    catch (_: IllegalArgumentException) { null }
+    } catch (_: SerializationException) {
+        null
+    } catch (_: IllegalArgumentException) {
+        null
+    }
 
     private fun InboundDiscrepancyDraft.toStored() = StoredInboundDiscrepancyDraft(
         schemaVersion = SCHEMA_VERSION,
@@ -161,21 +218,35 @@ internal class AppInboundDiscrepancyDraftStore(
         pendingAction = pendingAction?.name
     )
 
-    private fun InboundDiscrepancyDraft.isValid(): Boolean = id.isNotBlank() && id.length <= MAX_REFERENCE_LENGTH &&
-        warehouseId.length <= MAX_REFERENCE_LENGTH && expectedSkuId.length <= MAX_REFERENCE_LENGTH &&
-        observedSkuId.length <= MAX_REFERENCE_LENGTH && (observedSkuLabel?.length ?: 0) <= MAX_NOTE_LENGTH &&
-        expectedBatchReference.length <= MAX_REFERENCE_LENGTH && observedBatchReference.length <= MAX_REFERENCE_LENGTH &&
-        expectedQuantityText.length <= MAX_QUANTITY_LENGTH && observedQuantityText.length <= MAX_QUANTITY_LENGTH &&
-        unit.length <= 32 && reasonDetails.length <= MAX_NOTE_LENGTH && observationNotes.length <= MAX_NOTE_LENGTH &&
-        capturedAtDeviceMillis > 0 && (createBody?.length ?: 0) <= MAX_COMMAND_LENGTH &&
-        (submitBody?.length ?: 0) <= MAX_COMMAND_LENGTH && caseVersion?.let { it >= 0 } != false
+    private fun InboundDiscrepancyDraft.isValid(): Boolean =
+        id.isNotBlank() && id.length <= MAX_REFERENCE_LENGTH &&
+            warehouseId.length <= MAX_REFERENCE_LENGTH &&
+            expectedSkuId.length <= MAX_REFERENCE_LENGTH &&
+            observedSkuId.length <= MAX_REFERENCE_LENGTH &&
+            (observedSkuLabel?.length ?: 0) <= MAX_NOTE_LENGTH &&
+            expectedBatchReference.length <= MAX_REFERENCE_LENGTH &&
+            observedBatchReference.length <= MAX_REFERENCE_LENGTH &&
+            expectedQuantityText.length <= MAX_QUANTITY_LENGTH &&
+            observedQuantityText.length <= MAX_QUANTITY_LENGTH &&
+            unit.length <= 32 && reasonDetails.length <= MAX_NOTE_LENGTH &&
+            observationNotes.length <= MAX_NOTE_LENGTH &&
+            capturedAtDeviceMillis > 0 && (createBody?.length ?: 0) <= MAX_COMMAND_LENGTH &&
+            (submitBody?.length ?: 0) <= MAX_COMMAND_LENGTH && caseVersion?.let { it >= 0 } != false
 
     private fun InboundDiscrepancyScope.lockKey(): String {
-        val bytes = listOf(userId, tenantId, workspaceId, membershipId).joinToString("\u0000").toByteArray()
-        return MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it.toInt() and 255) }
+        val bytes = listOf(
+            userId,
+            tenantId,
+            workspaceId,
+            membershipId
+        ).joinToString("\u0000").toByteArray()
+        return MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") {
+            "%02x".format(it.toInt() and 255)
+        }
     }
 
-    private fun InboundDiscrepancyScope.toLocal() = ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
+    private fun InboundDiscrepancyScope.toLocal() =
+        ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
 
     private companion object {
         const val SCHEMA_VERSION = 2
@@ -224,15 +295,19 @@ private val discrepancyJson = Json { ignoreUnknownKeys = false }
 internal object AppInboundDiscrepancyDraftBindings {
     @Provides
     @Singleton
-    fun inboundDiscrepancyDraftStore(@ApplicationContext context: Context): InboundDiscrepancyDraftStore =
-        AppInboundDiscrepancyDraftStore(AndroidInboundDiscrepancyScopedMetadataBackend(
+    fun inboundDiscrepancyDraftStore(
+        @ApplicationContext context: Context
+    ): InboundDiscrepancyDraftStore = AppInboundDiscrepancyDraftStore(
+        AndroidInboundDiscrepancyScopedMetadataBackend(
             AndroidScopedMetadataStore(context, ScopedMetadataPurpose.InboundDiscrepancyDraft)
-        ))
+        )
+    )
 
     @Provides
     @Singleton
-    fun inboundDiscrepancyArtifactStore(@ApplicationContext context: Context): InboundDiscrepancyEvidenceArtifactStore =
-        AppInboundDiscrepancyEvidenceArtifactStore(context)
+    fun inboundDiscrepancyArtifactStore(
+        @ApplicationContext context: Context
+    ): InboundDiscrepancyEvidenceArtifactStore = AppInboundDiscrepancyEvidenceArtifactStore(context)
 }
 
 internal object InboundDiscrepancyViewModelBindings {
@@ -268,7 +343,10 @@ internal class AndroidInboundDiscrepancyScopedMetadataBackend(
             ScopedMetadataRead.Unavailable -> InboundDiscrepancyScopedRead.Unavailable
             is ScopedMetadataRead.Value -> InboundDiscrepancyScopedRead.Value(result.payload)
         }
-    override suspend fun save(scope: InboundDiscrepancyScope, payload: String): Boolean = store.save(scope.toLocal(), payload)
-    override suspend fun clear(scope: InboundDiscrepancyScope): Boolean = store.clear(scope.toLocal())
-    private fun InboundDiscrepancyScope.toLocal() = ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
+    override suspend fun save(scope: InboundDiscrepancyScope, payload: String): Boolean =
+        store.save(scope.toLocal(), payload)
+    override suspend fun clear(scope: InboundDiscrepancyScope): Boolean =
+        store.clear(scope.toLocal())
+    private fun InboundDiscrepancyScope.toLocal() =
+        ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
 }

@@ -6,27 +6,27 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
-import com.nexa.mobile.operations.core.network.DispatchAssignmentNetworkOutcome
-import com.nexa.mobile.operations.core.network.DispatchDriverAssignmentProjection
-import com.nexa.mobile.operations.core.network.DispatchDriverAssignmentRequest
-import com.nexa.mobile.operations.core.network.DispatchReadinessNetworkOutcome
-import com.nexa.mobile.operations.core.network.DispatchReadinessProjection
+import com.nexa.mobile.operations.core.network.DispatchAssignmentNetworkOutcome as AssignmentOutcome
+import com.nexa.mobile.operations.core.network.DispatchDriverAssignmentProjection as DriverAssignmentProjection
+import com.nexa.mobile.operations.core.network.DispatchDriverAssignmentRequest as DriverAssignmentRequest
+import com.nexa.mobile.operations.core.network.DispatchReadinessNetworkOutcome as ReadinessOutcome
+import com.nexa.mobile.operations.core.network.DispatchReadinessProjection as ReadinessProjection
 import com.nexa.mobile.operations.core.network.NexaDispatchAssignmentGateway
 import com.nexa.mobile.operations.core.network.NexaDispatchReadinessGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentGateway
-import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentGatewayResult as AssignmentGatewayResult
 import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentIntent
-import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentMetadataStore
-import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentScopeIdentity
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentMetadataStore as AssignmentMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentScopeIdentity as AssignmentScopeIdentity
 import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentSnapshot
-import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentViewModel
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentViewModel as AssignmentViewModel
 import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityContext
 import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityIdentity
 import com.nexa.mobile.operations.feature.dispatch.DispatchDriverCandidate
 import com.nexa.mobile.operations.feature.dispatch.DispatchReadiness
 import com.nexa.mobile.operations.feature.dispatch.DispatchReadinessGateway
-import com.nexa.mobile.operations.feature.dispatch.DispatchReadinessGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.DispatchReadinessGatewayResult as ReadinessGatewayResult
 import com.nexa.mobile.operations.feature.dispatch.DispatchReadinessLine
 import com.nexa.mobile.operations.feature.dispatch.DispatchReadinessViewModel
 import com.nexa.mobile.operations.feature.dispatch.PreparedFulfillmentDriverAssignment
@@ -63,30 +63,30 @@ internal class OperationsDispatchAssignmentGateway @Inject constructor(
     override suspend fun load(
         fulfillmentId: String,
         context: DispatchAuthorityContext
-    ): DispatchAssignmentGatewayResult {
+    ): AssignmentGatewayResult {
         val authorization = authorize(context, requireAssignmentPermission = false)
         if (authorization !is Authorization.Current) return authorization.toResult()
 
         val currentReadiness = when (val result = readiness.detail(fulfillmentId)) {
-            is DispatchReadinessNetworkOutcome.Detail -> toFeature(result.item)
+            is ReadinessOutcome.Detail -> toFeature(result.item)
             else -> return result.toReadFailure()
         }
         if (currentReadiness.fulfillmentId != fulfillmentId) {
-            return DispatchAssignmentGatewayResult.ServiceUnavailable
+            return AssignmentGatewayResult.ServiceUnavailable
         }
         val candidates = when (val result = assignments.candidates()) {
-            is DispatchAssignmentNetworkOutcome.Candidates -> result.items.map {
+            is AssignmentOutcome.Candidates -> result.items.map {
                 DispatchDriverCandidate(it.membershipId, it.email, it.displayName)
             }
 
             else -> return result.toAssignmentFailure(mutation = false)
         }
         val currentAssignment = when (val result = assignments.current(fulfillmentId)) {
-            is DispatchAssignmentNetworkOutcome.Current -> result.item?.toFeature()
+            is AssignmentOutcome.Current -> result.item?.toFeature()
             else -> return result.toAssignmentFailure(mutation = false)
         }
         if (!isCurrent(context, authorization.lease)) return authorityDrift(context)
-        return DispatchAssignmentGatewayResult.Snapshot(
+        return AssignmentGatewayResult.Snapshot(
             DispatchAssignmentSnapshot(currentReadiness, candidates, currentAssignment)
         )
     }
@@ -96,28 +96,28 @@ internal class OperationsDispatchAssignmentGateway @Inject constructor(
         responsibleMembershipId: String,
         context: DispatchAuthorityContext,
         idempotencyKey: String
-    ): DispatchAssignmentGatewayResult {
+    ): AssignmentGatewayResult {
         val authorization = authorize(context, requireAssignmentPermission = true)
         if (authorization !is Authorization.Current) return authorization.toResult()
         val current = when (val result = readiness.detail(fulfillment.fulfillmentId)) {
-            is DispatchReadinessNetworkOutcome.Detail -> toFeature(result.item)
+            is ReadinessOutcome.Detail -> toFeature(result.item)
             else -> return result.toReadFailure()
         }
-        if (!current.matches(fulfillment)) return DispatchAssignmentGatewayResult.Stale
+        if (!current.matches(fulfillment)) return AssignmentGatewayResult.Stale
         if (!current.ready || current.fulfillmentStatus != "READY_FOR_DISPATCH") {
-            return DispatchAssignmentGatewayResult.NotReady
+            return AssignmentGatewayResult.NotReady
         }
         val candidates = when (val result = assignments.candidates()) {
-            is DispatchAssignmentNetworkOutcome.Candidates -> result.items
+            is AssignmentOutcome.Candidates -> result.items
             else -> return result.toAssignmentFailure(mutation = false)
         }
         if (candidates.none { it.membershipId == responsibleMembershipId }) {
-            return DispatchAssignmentGatewayResult.Conflict
+            return AssignmentGatewayResult.Conflict
         }
         if (!isCurrent(context, authorization.lease)) return authorityDrift(context)
 
         val result = assignments.assign(
-            DispatchDriverAssignmentRequest(
+            DriverAssignmentRequest(
                 fulfillmentId = current.fulfillmentId,
                 expectedFulfillmentVersion = current.fulfillmentVersion,
                 physicalAllocationId = current.physicalAllocationId,
@@ -128,8 +128,8 @@ internal class OperationsDispatchAssignmentGateway @Inject constructor(
         )
         if (!isCurrent(context, authorization.lease)) return authorityDrift(context)
         return when (result) {
-            is DispatchAssignmentNetworkOutcome.Assigned ->
-                DispatchAssignmentGatewayResult.Assigned(result.item.toFeature())
+            is AssignmentOutcome.Assigned ->
+                AssignmentGatewayResult.Assigned(result.item.toFeature())
 
             else -> result.toAssignmentFailure(mutation = true)
         }
@@ -138,46 +138,46 @@ internal class OperationsDispatchAssignmentGateway @Inject constructor(
     override suspend fun replay(
         intent: DispatchAssignmentIntent,
         context: DispatchAuthorityContext
-    ): DispatchAssignmentGatewayResult {
+    ): AssignmentGatewayResult {
         val authorization = authorize(context, requireAssignmentPermission = true)
         if (authorization !is Authorization.Current) return authorization.toResult()
-        val identity = context.identity ?: return DispatchAssignmentGatewayResult.ContextInvalidated
-        if (intent.scope != DispatchAssignmentScopeIdentity(
+        val identity = context.identity ?: return AssignmentGatewayResult.ContextInvalidated
+        if (intent.scope != AssignmentScopeIdentity(
                 identity.userId,
                 identity.tenantId,
                 identity.workspaceId,
                 identity.membershipId
             )
         ) {
-            return DispatchAssignmentGatewayResult.ContextInvalidated
+            return AssignmentGatewayResult.ContextInvalidated
         }
 
         val current = when (val result = readiness.detail(intent.fulfillmentId)) {
-            is DispatchReadinessNetworkOutcome.Detail -> toFeature(result.item)
+            is ReadinessOutcome.Detail -> toFeature(result.item)
             else -> return result.toReadFailure()
         }
         if (current.fulfillmentId != intent.fulfillmentId ||
             current.physicalAllocationId != intent.physicalAllocationId ||
             current.physicalAllocationVersion != intent.physicalAllocationVersion
         ) {
-            return DispatchAssignmentGatewayResult.Stale
+            return AssignmentGatewayResult.Stale
         }
         val candidates = when (val result = assignments.candidates()) {
-            is DispatchAssignmentNetworkOutcome.Candidates -> result.items
+            is AssignmentOutcome.Candidates -> result.items
             else -> return result.toAssignmentFailure(mutation = false)
         }
         if (candidates.none { it.membershipId == intent.responsibleMembershipId }) {
-            return DispatchAssignmentGatewayResult.Conflict
+            return AssignmentGatewayResult.Conflict
         }
 
         when (current.fulfillmentVersion) {
             intent.expectedFulfillmentVersion -> {
                 if (!current.ready || current.fulfillmentStatus != "READY_FOR_DISPATCH") {
-                    return DispatchAssignmentGatewayResult.NotReady
+                    return AssignmentGatewayResult.NotReady
                 }
                 when (val result = assignments.current(intent.fulfillmentId)) {
-                    is DispatchAssignmentNetworkOutcome.Current -> if (result.item != null) {
-                        return DispatchAssignmentGatewayResult.Stale
+                    is AssignmentOutcome.Current -> if (result.item != null) {
+                        return AssignmentGatewayResult.Stale
                     }
 
                     else -> return result.toAssignmentFailure(mutation = false)
@@ -186,24 +186,24 @@ internal class OperationsDispatchAssignmentGateway @Inject constructor(
 
             intent.expectedFulfillmentVersion + 1 -> {
                 val assigned = when (val result = assignments.current(intent.fulfillmentId)) {
-                    is DispatchAssignmentNetworkOutcome.Current -> result.item
+                    is AssignmentOutcome.Current -> result.item
                     else -> return result.toAssignmentFailure(mutation = false)
-                } ?: return DispatchAssignmentGatewayResult.Stale
+                } ?: return AssignmentGatewayResult.Stale
                 if (assigned.responsibleMembershipId != intent.responsibleMembershipId ||
                     assigned.physicalAllocationId != intent.physicalAllocationId ||
                     assigned.physicalAllocationVersion != intent.physicalAllocationVersion ||
                     assigned.fulfillmentVersion != current.fulfillmentVersion
                 ) {
-                    return DispatchAssignmentGatewayResult.Stale
+                    return AssignmentGatewayResult.Stale
                 }
             }
 
-            else -> return DispatchAssignmentGatewayResult.Stale
+            else -> return AssignmentGatewayResult.Stale
         }
         if (!isCurrent(context, authorization.lease)) return authorityDrift(context)
 
         val result = assignments.assign(
-            DispatchDriverAssignmentRequest(
+            DriverAssignmentRequest(
                 fulfillmentId = intent.fulfillmentId,
                 expectedFulfillmentVersion = intent.expectedFulfillmentVersion,
                 physicalAllocationId = intent.physicalAllocationId,
@@ -214,8 +214,8 @@ internal class OperationsDispatchAssignmentGateway @Inject constructor(
         )
         if (!isCurrent(context, authorization.lease)) return authorityDrift(context)
         return when (result) {
-            is DispatchAssignmentNetworkOutcome.Assigned ->
-                DispatchAssignmentGatewayResult.Assigned(result.item.toFeature())
+            is AssignmentOutcome.Assigned ->
+                AssignmentGatewayResult.Assigned(result.item.toFeature())
 
             else -> result.toAssignmentFailure(mutation = true)
         }
@@ -274,13 +274,13 @@ internal class OperationsDispatchAssignmentGateway @Inject constructor(
 
     private suspend fun authorityDrift(context: DispatchAuthorityContext) = when {
         sessions.sessionState.value != SessionState.Active ->
-            DispatchAssignmentGatewayResult.SessionInvalidated
+            AssignmentGatewayResult.SessionInvalidated
 
         sessions.verifiedSession.value?.let { verified ->
             context.identity?.let { expected -> verified.matches(expected) } == true
-        } == true -> DispatchAssignmentGatewayResult.SessionInvalidated
+        } == true -> AssignmentGatewayResult.SessionInvalidated
 
-        else -> DispatchAssignmentGatewayResult.ContextInvalidated
+        else -> AssignmentGatewayResult.ContextInvalidated
     }
 
     private fun VerifiedSession.matches(expected: DispatchAuthorityIdentity): Boolean =
@@ -296,79 +296,76 @@ internal class OperationsDispatchAssignmentGateway @Inject constructor(
             ready == expected.ready &&
             fulfillmentStatus == expected.fulfillmentStatus
 
-    private fun DispatchDriverAssignmentProjection.toFeature() =
-        PreparedFulfillmentDriverAssignment(
-            id = id,
-            fulfillmentId = fulfillmentId,
-            fulfillmentVersion = fulfillmentVersion,
-            physicalAllocationId = physicalAllocationId,
-            physicalAllocationVersion = physicalAllocationVersion,
-            responsibleMembershipId = responsibleMembershipId,
-            responsibleDisplayName = responsibleDisplayName,
-            assignedAt = assignedAt,
-            deliveryId = deliveryId,
-            plannedDispatchAt = plannedDispatchAt,
-            current = current
-        )
+    private fun DriverAssignmentProjection.toFeature() = PreparedFulfillmentDriverAssignment(
+        id = id,
+        fulfillmentId = fulfillmentId,
+        fulfillmentVersion = fulfillmentVersion,
+        physicalAllocationId = physicalAllocationId,
+        physicalAllocationVersion = physicalAllocationVersion,
+        responsibleMembershipId = responsibleMembershipId,
+        responsibleDisplayName = responsibleDisplayName,
+        assignedAt = assignedAt,
+        deliveryId = deliveryId,
+        plannedDispatchAt = plannedDispatchAt,
+        current = current
+    )
 
-    private fun toFeature(item: DispatchReadinessProjection) =
+    private fun toFeature(item: ReadinessProjection) =
         DispatchReadinessProjectionAdapter.toFeature(item)
 
-    private fun DispatchReadinessNetworkOutcome.toReadFailure(): DispatchAssignmentGatewayResult =
-        when (this) {
-            DispatchReadinessNetworkOutcome.NetworkUnavailable ->
-                DispatchAssignmentGatewayResult.NetworkUnavailable
+    private fun ReadinessOutcome.toReadFailure(): AssignmentGatewayResult = when (this) {
+        ReadinessOutcome.NetworkUnavailable ->
+            AssignmentGatewayResult.NetworkUnavailable
 
-            DispatchReadinessNetworkOutcome.ServiceUnavailable ->
-                DispatchAssignmentGatewayResult.ServiceUnavailable
+        ReadinessOutcome.ServiceUnavailable ->
+            AssignmentGatewayResult.ServiceUnavailable
 
-            DispatchReadinessNetworkOutcome.PermissionDenied ->
-                DispatchAssignmentGatewayResult.PermissionDenied
+        ReadinessOutcome.PermissionDenied ->
+            AssignmentGatewayResult.PermissionDenied
 
-            DispatchReadinessNetworkOutcome.ContextInvalidated ->
-                DispatchAssignmentGatewayResult.ContextInvalidated
+        ReadinessOutcome.ContextInvalidated ->
+            AssignmentGatewayResult.ContextInvalidated
 
-            DispatchReadinessNetworkOutcome.SessionInvalidated ->
-                DispatchAssignmentGatewayResult.SessionInvalidated
+        ReadinessOutcome.SessionInvalidated ->
+            AssignmentGatewayResult.SessionInvalidated
 
-            is DispatchReadinessNetworkOutcome.ListResult,
-            is DispatchReadinessNetworkOutcome.Detail ->
-                DispatchAssignmentGatewayResult.ServiceUnavailable
-        }
-
-    private fun DispatchAssignmentNetworkOutcome.toAssignmentFailure(
-        mutation: Boolean
-    ): DispatchAssignmentGatewayResult = when (this) {
-        DispatchAssignmentNetworkOutcome.NetworkUnavailable ->
-            DispatchAssignmentGatewayResult.NetworkUnavailable
-
-        DispatchAssignmentNetworkOutcome.UnknownOutcome ->
-            DispatchAssignmentGatewayResult.UnknownOutcome
-
-        DispatchAssignmentNetworkOutcome.ServiceUnavailable ->
-            DispatchAssignmentGatewayResult.ServiceUnavailable
-
-        DispatchAssignmentNetworkOutcome.PermissionDenied ->
-            DispatchAssignmentGatewayResult.PermissionDenied
-
-        DispatchAssignmentNetworkOutcome.ContextInvalidated ->
-            DispatchAssignmentGatewayResult.ContextInvalidated
-
-        DispatchAssignmentNetworkOutcome.SessionInvalidated ->
-            DispatchAssignmentGatewayResult.SessionInvalidated
-
-        DispatchAssignmentNetworkOutcome.Stale -> DispatchAssignmentGatewayResult.Stale
-
-        DispatchAssignmentNetworkOutcome.Conflict -> DispatchAssignmentGatewayResult.Conflict
-
-        is DispatchAssignmentNetworkOutcome.Candidates,
-        is DispatchAssignmentNetworkOutcome.Current,
-        is DispatchAssignmentNetworkOutcome.Assigned -> if (mutation) {
-            DispatchAssignmentGatewayResult.UnknownOutcome
-        } else {
-            DispatchAssignmentGatewayResult.ServiceUnavailable
-        }
+        is ReadinessOutcome.ListResult,
+        is ReadinessOutcome.Detail ->
+            AssignmentGatewayResult.ServiceUnavailable
     }
+
+    private fun AssignmentOutcome.toAssignmentFailure(mutation: Boolean): AssignmentGatewayResult =
+        when (this) {
+            AssignmentOutcome.NetworkUnavailable ->
+                AssignmentGatewayResult.NetworkUnavailable
+
+            AssignmentOutcome.UnknownOutcome ->
+                AssignmentGatewayResult.UnknownOutcome
+
+            AssignmentOutcome.ServiceUnavailable ->
+                AssignmentGatewayResult.ServiceUnavailable
+
+            AssignmentOutcome.PermissionDenied ->
+                AssignmentGatewayResult.PermissionDenied
+
+            AssignmentOutcome.ContextInvalidated ->
+                AssignmentGatewayResult.ContextInvalidated
+
+            AssignmentOutcome.SessionInvalidated ->
+                AssignmentGatewayResult.SessionInvalidated
+
+            AssignmentOutcome.Stale -> AssignmentGatewayResult.Stale
+
+            AssignmentOutcome.Conflict -> AssignmentGatewayResult.Conflict
+
+            is AssignmentOutcome.Candidates,
+            is AssignmentOutcome.Current,
+            is AssignmentOutcome.Assigned -> if (mutation) {
+                AssignmentGatewayResult.UnknownOutcome
+            } else {
+                AssignmentGatewayResult.ServiceUnavailable
+            }
+        }
 
     private sealed interface Authorization {
         data class Current(val lease: AccessTokenLease) : Authorization
@@ -377,10 +374,10 @@ internal class OperationsDispatchAssignmentGateway @Inject constructor(
         data object PermissionDenied : Authorization
     }
 
-    private fun Authorization.toResult(): DispatchAssignmentGatewayResult = when (this) {
-        Authorization.SessionInvalidated -> DispatchAssignmentGatewayResult.SessionInvalidated
-        Authorization.ContextInvalidated -> DispatchAssignmentGatewayResult.ContextInvalidated
-        Authorization.PermissionDenied -> DispatchAssignmentGatewayResult.PermissionDenied
+    private fun Authorization.toResult(): AssignmentGatewayResult = when (this) {
+        Authorization.SessionInvalidated -> AssignmentGatewayResult.SessionInvalidated
+        Authorization.ContextInvalidated -> AssignmentGatewayResult.ContextInvalidated
+        Authorization.PermissionDenied -> AssignmentGatewayResult.PermissionDenied
         is Authorization.Current -> error("authorized result is not a failure")
     }
 
@@ -397,7 +394,7 @@ internal class OperationsDispatchReadinessGateway @Inject constructor(
     private val sessions: SessionCoordinator,
     private val readiness: NexaDispatchReadinessGateway
 ) : DispatchReadinessGateway {
-    override suspend fun list(context: DispatchAuthorityContext): DispatchReadinessGatewayResult {
+    override suspend fun list(context: DispatchAuthorityContext): ReadinessGatewayResult {
         val authorization = authorize(context)
         if (authorization !is Authorization.Current) return authorization.toResult()
         val result = readiness.list().toFeatureResult()
@@ -407,7 +404,7 @@ internal class OperationsDispatchReadinessGateway @Inject constructor(
     override suspend fun detail(
         fulfillmentId: String,
         context: DispatchAuthorityContext
-    ): DispatchReadinessGatewayResult {
+    ): ReadinessGatewayResult {
         val authorization = authorize(context)
         if (authorization !is Authorization.Current) return authorization.toResult()
         val result = readiness.detail(fulfillmentId).toFeatureResult()
@@ -455,14 +452,14 @@ internal class OperationsDispatchReadinessGateway @Inject constructor(
 
     private suspend fun authorityDrift(context: DispatchAuthorityContext) = when {
         sessions.sessionState.value != SessionState.Active ->
-            DispatchReadinessGatewayResult.SessionInvalidated
+            ReadinessGatewayResult.SessionInvalidated
 
         sessions.verifiedSession.value?.let { verified ->
             context.identity?.let { expected -> verified.matches(expected) } == true
         } == true ->
-            DispatchReadinessGatewayResult.SessionInvalidated
+            ReadinessGatewayResult.SessionInvalidated
 
-        else -> DispatchReadinessGatewayResult.ContextInvalidated
+        else -> ReadinessGatewayResult.ContextInvalidated
     }
 
     private fun VerifiedSession.matches(expected: DispatchAuthorityIdentity): Boolean =
@@ -470,33 +467,32 @@ internal class OperationsDispatchReadinessGateway @Inject constructor(
             workspaceId == expected.workspaceId && membershipId == expected.membershipId &&
             permissions == expected.permissions
 
-    private fun DispatchReadinessNetworkOutcome.toFeatureResult(): DispatchReadinessGatewayResult =
-        when (this) {
-            is DispatchReadinessNetworkOutcome.ListResult ->
-                DispatchReadinessGatewayResult.ListResult(
-                    items = items.map(DispatchReadinessProjectionAdapter::toFeature),
-                    asOf = asOf
-                )
-
-            is DispatchReadinessNetworkOutcome.Detail -> DispatchReadinessGatewayResult.Detail(
-                DispatchReadinessProjectionAdapter.toFeature(item)
+    private fun ReadinessOutcome.toFeatureResult(): ReadinessGatewayResult = when (this) {
+        is ReadinessOutcome.ListResult ->
+            ReadinessGatewayResult.ListResult(
+                items = items.map(DispatchReadinessProjectionAdapter::toFeature),
+                asOf = asOf
             )
 
-            DispatchReadinessNetworkOutcome.NetworkUnavailable ->
-                DispatchReadinessGatewayResult.NetworkUnavailable
+        is ReadinessOutcome.Detail -> ReadinessGatewayResult.Detail(
+            DispatchReadinessProjectionAdapter.toFeature(item)
+        )
 
-            DispatchReadinessNetworkOutcome.ServiceUnavailable ->
-                DispatchReadinessGatewayResult.ServiceUnavailable
+        ReadinessOutcome.NetworkUnavailable ->
+            ReadinessGatewayResult.NetworkUnavailable
 
-            DispatchReadinessNetworkOutcome.PermissionDenied ->
-                DispatchReadinessGatewayResult.PermissionDenied
+        ReadinessOutcome.ServiceUnavailable ->
+            ReadinessGatewayResult.ServiceUnavailable
 
-            DispatchReadinessNetworkOutcome.ContextInvalidated ->
-                DispatchReadinessGatewayResult.ContextInvalidated
+        ReadinessOutcome.PermissionDenied ->
+            ReadinessGatewayResult.PermissionDenied
 
-            DispatchReadinessNetworkOutcome.SessionInvalidated ->
-                DispatchReadinessGatewayResult.SessionInvalidated
-        }
+        ReadinessOutcome.ContextInvalidated ->
+            ReadinessGatewayResult.ContextInvalidated
+
+        ReadinessOutcome.SessionInvalidated ->
+            ReadinessGatewayResult.SessionInvalidated
+    }
 
     private sealed interface Authorization {
         data class Current(val lease: AccessTokenLease) : Authorization
@@ -505,10 +501,10 @@ internal class OperationsDispatchReadinessGateway @Inject constructor(
         data object PermissionDenied : Authorization
     }
 
-    private fun Authorization.toResult(): DispatchReadinessGatewayResult = when (this) {
-        Authorization.SessionInvalidated -> DispatchReadinessGatewayResult.SessionInvalidated
-        Authorization.ContextInvalidated -> DispatchReadinessGatewayResult.ContextInvalidated
-        Authorization.PermissionDenied -> DispatchReadinessGatewayResult.PermissionDenied
+    private fun Authorization.toResult(): ReadinessGatewayResult = when (this) {
+        Authorization.SessionInvalidated -> ReadinessGatewayResult.SessionInvalidated
+        Authorization.ContextInvalidated -> ReadinessGatewayResult.ContextInvalidated
+        Authorization.PermissionDenied -> ReadinessGatewayResult.PermissionDenied
         is Authorization.Current -> error("authorized result is not a failure")
     }
 
@@ -518,39 +514,41 @@ internal class OperationsDispatchReadinessGateway @Inject constructor(
 }
 
 internal object DispatchReadinessProjectionAdapter {
-    fun toFeature(item: com.nexa.mobile.operations.core.network.DispatchReadinessProjection) =
-        DispatchReadiness(
-            subjectKind = item.subjectKind,
-            fulfillmentId = item.fulfillmentId,
-            fulfillmentVersion = item.fulfillmentVersion,
-            fulfillmentStatus = item.fulfillmentStatus,
-            physicalAllocationId = item.physicalAllocationId,
-            physicalAllocationStatus = item.physicalAllocationStatus,
-            physicalAllocationVersion = item.physicalAllocationVersion,
-            deliveryId = item.deliveryId,
-            deliveryStatus = item.deliveryStatus,
-            deliveryVersion = item.deliveryVersion,
-            allocationComplete = item.allocationComplete,
-            pickingComplete = item.pickingComplete,
-            pickingEvidenceComplete = item.pickingEvidenceComplete,
-            ready = item.ready,
-            reasons = item.reasons,
-            lines = item.lines.map {
-                DispatchReadinessLine(
-                    fulfillmentLineId = it.fulfillmentLineId,
-                    skuId = it.skuId,
-                    catalogItemId = it.catalogItemId,
-                    allocatedQuantity = it.allocatedQuantity,
-                    physicallyAllocatedQuantity = it.physicallyAllocatedQuantity,
-                    pickedQuantity = it.pickedQuantity,
-                    evidencedPickedQuantity = it.evidencedPickedQuantity,
-                    allocationComplete = it.allocationComplete,
-                    pickingComplete = it.pickingComplete,
-                    evidenceComplete = it.evidenceComplete
-                )
-            },
-            asOf = item.asOf
-        )
+    fun toFeature(item: ReadinessProjection) = DispatchReadiness(
+        subjectKind = item.subjectKind,
+        fulfillmentId = item.fulfillmentId,
+        fulfillmentVersion = item.fulfillmentVersion,
+        fulfillmentStatus = item.fulfillmentStatus,
+        physicalAllocationId = item.physicalAllocationId,
+        physicalAllocationStatus = item.physicalAllocationStatus,
+        physicalAllocationVersion = item.physicalAllocationVersion,
+        deliveryId = item.deliveryId,
+        deliveryStatus = item.deliveryStatus,
+        deliveryVersion = item.deliveryVersion,
+        windowStart = item.windowStart,
+        windowEnd = item.windowEnd,
+        windowSource = item.windowSource,
+        allocationComplete = item.allocationComplete,
+        pickingComplete = item.pickingComplete,
+        pickingEvidenceComplete = item.pickingEvidenceComplete,
+        ready = item.ready,
+        reasons = item.reasons,
+        lines = item.lines.map {
+            DispatchReadinessLine(
+                fulfillmentLineId = it.fulfillmentLineId,
+                skuId = it.skuId,
+                catalogItemId = it.catalogItemId,
+                allocatedQuantity = it.allocatedQuantity,
+                physicallyAllocatedQuantity = it.physicallyAllocatedQuantity,
+                pickedQuantity = it.pickedQuantity,
+                evidencedPickedQuantity = it.evidencedPickedQuantity,
+                allocationComplete = it.allocationComplete,
+                pickingComplete = it.pickingComplete,
+                evidenceComplete = it.evidenceComplete
+            )
+        },
+        asOf = item.asOf
+    )
 }
 
 internal class DispatchReadinessViewModelFactory @Inject constructor(
@@ -565,11 +563,11 @@ internal class DispatchReadinessViewModelFactory @Inject constructor(
 
 internal class DispatchAssignmentViewModelFactory @Inject constructor(
     private val gateway: OperationsDispatchAssignmentGateway,
-    private val metadata: DispatchAssignmentMetadataStore
+    private val metadata: AssignmentMetadataStore
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        require(modelClass.isAssignableFrom(DispatchAssignmentViewModel::class.java))
-        return DispatchAssignmentViewModel(gateway, metadata) as T
+        require(modelClass.isAssignableFrom(AssignmentViewModel::class.java))
+        return AssignmentViewModel(gateway, metadata) as T
     }
 }

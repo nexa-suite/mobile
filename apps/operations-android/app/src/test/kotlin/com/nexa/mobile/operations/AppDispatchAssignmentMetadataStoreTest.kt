@@ -4,10 +4,10 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataStore
 import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentIntent
-import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentIntentStatus
-import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentMetadataRead
-import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentMetadataWrite
-import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentScopeIdentity
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentIntentStatus as AssignmentIntentStatus
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentMetadataRead as AssignmentMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentMetadataWrite as AssignmentMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentScopeIdentity as AssignmentScopeIdentity
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -17,56 +17,59 @@ class AppDispatchAssignmentMetadataStoreTest {
     @Test
     fun pendingCommandSurvivesStoreReconstructionAndCannotChangeOrClearByStaleKey() = runTest {
         val encryptedRecords = FakeScopedMetadataStore()
-        val scope = DispatchAssignmentScopeIdentity(USER, TENANT, WORKSPACE, MEMBERSHIP)
-        val frozen = intent(scope, DispatchAssignmentIntentStatus.Pending)
+        val scope = AssignmentScopeIdentity(USER, TENANT, WORKSPACE, MEMBERSHIP)
+        val frozen = intent(scope, AssignmentIntentStatus.Pending)
         val first = AppDispatchAssignmentMetadataStore(encryptedRecords)
 
-        assertEquals(DispatchAssignmentMetadataWrite.Saved, first.saveIntent(frozen))
+        assertEquals(AssignmentMetadataWrite.Saved, first.saveIntent(frozen))
 
         val restored = AppDispatchAssignmentMetadataStore(encryptedRecords)
         val read = restored.loadIntent(scope, FULFILLMENT)
         assertEquals(
-            DispatchAssignmentMetadataRead.Available(
-                frozen.copy(status = DispatchAssignmentIntentStatus.UnknownOutcome)
+            AssignmentMetadataRead.Available(
+                frozen.copy(status = AssignmentIntentStatus.UnknownOutcome)
             ),
             read
         )
         assertEquals(
-            DispatchAssignmentMetadataWrite.Conflict,
+            AssignmentMetadataWrite.Conflict,
             restored.saveIntent(frozen.copy(responsibleMembershipId = OTHER_DRIVER))
         )
         assertEquals(
-            DispatchAssignmentMetadataWrite.Conflict,
+            AssignmentMetadataWrite.Conflict,
             restored.saveIntent(frozen)
         )
         assertEquals(
-            DispatchAssignmentMetadataWrite.Stale,
+            AssignmentMetadataWrite.Stale,
             restored.clearIntent(scope, FULFILLMENT, "different-key")
         )
         assertEquals(
-            DispatchAssignmentMetadataWrite.Saved,
+            AssignmentMetadataWrite.Saved,
             restored.clearIntent(scope, FULFILLMENT, frozen.idempotencyKey)
         )
-        assertEquals(DispatchAssignmentMetadataRead.Available(null), restored.loadIntent(scope, FULFILLMENT))
+        assertEquals(
+            AssignmentMetadataRead.Available(null),
+            restored.loadIntent(scope, FULFILLMENT)
+        )
     }
 
     @Test
     fun actorScopeIsBoundToTheFrozenIntent() = runTest {
         val local = FakeScopedMetadataStore()
         val store = AppDispatchAssignmentMetadataStore(local)
-        val original = DispatchAssignmentScopeIdentity(USER, TENANT, WORKSPACE, MEMBERSHIP)
-        assertEquals(DispatchAssignmentMetadataWrite.Saved, store.saveIntent(intent(original)))
+        val original = AssignmentScopeIdentity(USER, TENANT, WORKSPACE, MEMBERSHIP)
+        assertEquals(AssignmentMetadataWrite.Saved, store.saveIntent(intent(original)))
 
         val otherActor = original.copy(membershipId = OTHER_ACTOR)
 
         val read = store.loadIntent(otherActor, FULFILLMENT)
-        assertEquals(DispatchAssignmentMetadataRead.Available(null), read)
-        assertNull((read as DispatchAssignmentMetadataRead.Available).intent)
+        assertEquals(AssignmentMetadataRead.Available(null), read)
+        assertNull((read as AssignmentMetadataRead.Available).intent)
     }
 
     private fun intent(
-        scope: DispatchAssignmentScopeIdentity,
-        status: DispatchAssignmentIntentStatus = DispatchAssignmentIntentStatus.Pending
+        scope: AssignmentScopeIdentity,
+        status: AssignmentIntentStatus = AssignmentIntentStatus.Pending
     ) = DispatchAssignmentIntent(
         scope = scope,
         fulfillmentId = FULFILLMENT,

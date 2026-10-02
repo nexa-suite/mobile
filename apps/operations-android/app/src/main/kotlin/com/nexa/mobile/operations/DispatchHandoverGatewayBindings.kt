@@ -6,30 +6,35 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
-import com.nexa.mobile.operations.core.network.DispatchAssignmentNetworkOutcome
-import com.nexa.mobile.operations.core.network.DispatchDriverAssignmentProjection
-import com.nexa.mobile.operations.core.network.DispatchReadinessNetworkOutcome
-import com.nexa.mobile.operations.core.network.FulfillmentDispatchNetworkOutcome
-import com.nexa.mobile.operations.core.network.FulfillmentHandoffEvidenceNetworkOutcome
+import com.nexa.mobile.operations.core.network.DispatchAssignmentNetworkOutcome as AssignmentOutcome
+import com.nexa.mobile.operations.core.network.DispatchDriverAssignmentProjection as DriverAssignmentProjection
+import com.nexa.mobile.operations.core.network.DispatchReadinessNetworkOutcome as ReadinessOutcome
+import com.nexa.mobile.operations.core.network.FulfillmentDispatchNetworkOutcome as DispatchOutcome
+import com.nexa.mobile.operations.core.network.FulfillmentDispatchProjection as DispatchProjection
+import com.nexa.mobile.operations.core.network.FulfillmentHandoffEvidenceNetworkOutcome as HandoffEvidenceOutcome
+import com.nexa.mobile.operations.core.network.FulfillmentHandoffEvidenceProjection as HandoffEvidenceProjection
 import com.nexa.mobile.operations.core.network.NexaDispatchAssignmentGateway
 import com.nexa.mobile.operations.core.network.NexaDispatchReadinessGateway
 import com.nexa.mobile.operations.core.network.NexaFulfillmentDispatchGateway
 import com.nexa.mobile.operations.core.network.NexaOutgoingGoodsCheckGateway
-import com.nexa.mobile.operations.core.network.OutgoingGoodsCheckNetworkOutcome
+import com.nexa.mobile.operations.core.network.OutgoingGoodsCheckNetworkOutcome as OutgoingGoodsCheckOutcome
+import com.nexa.mobile.operations.core.network.OutgoingGoodsCheckProjection
+import com.nexa.mobile.operations.core.network.PhysicalAllocationProjection
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityContext
 import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityIdentity
 import com.nexa.mobile.operations.feature.dispatch.DispatchHandoverCommand
 import com.nexa.mobile.operations.feature.dispatch.DispatchHandoverEvidence
 import com.nexa.mobile.operations.feature.dispatch.DispatchHandoverGateway
-import com.nexa.mobile.operations.feature.dispatch.DispatchHandoverGatewayResult
-import com.nexa.mobile.operations.feature.dispatch.DispatchHandoverMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.DispatchHandoverGatewayResult as HandoverGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.DispatchHandoverMetadataStore as HandoverMetadataStore
 import com.nexa.mobile.operations.feature.dispatch.DispatchHandoverReceipt
 import com.nexa.mobile.operations.feature.dispatch.DispatchHandoverSnapshot
 import com.nexa.mobile.operations.feature.dispatch.DispatchHandoverViewModel
-import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsAllocation
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsAllocation as OutgoingGoodsAllocation
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsCheck
-import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsCheckLine
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsCheckLine as OutgoingGoodsCheckLine
+import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsDiscrepancy as OutgoingGoodsDiscrepancy
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsLine
 import com.nexa.mobile.operations.feature.dispatch.DispatchReadiness
 import com.nexa.mobile.operations.feature.dispatch.PreparedFulfillmentDriverAssignment
@@ -45,13 +50,15 @@ import javax.inject.Singleton
 internal object DispatchHandoverGatewayBindings {
     @Provides
     @Singleton
-    fun fulfillmentDispatchGateway(protectedCalls: ProtectedCallExecutor): NexaFulfillmentDispatchGateway =
-        NexaFulfillmentDispatchGateway(protectedCalls)
+    fun fulfillmentDispatchGateway(
+        protectedCalls: ProtectedCallExecutor
+    ): NexaFulfillmentDispatchGateway = NexaFulfillmentDispatchGateway(protectedCalls)
 
     @Provides
     @Singleton
-    fun dispatchHandoverGateway(operations: OperationsDispatchHandoverGateway): DispatchHandoverGateway =
-        operations
+    fun dispatchHandoverGateway(
+        operations: OperationsDispatchHandoverGateway
+    ): DispatchHandoverGateway = operations
 }
 
 /** Evaluates current BC-06 facts before consuming inventory and recording a real handover. */
@@ -66,56 +73,76 @@ internal class OperationsDispatchHandoverGateway @Inject constructor(
     override suspend fun load(
         fulfillment: DispatchReadiness,
         context: DispatchAuthorityContext
-    ): DispatchHandoverGatewayResult {
+    ): HandoverGatewayResult {
         val authorization = authorize(context)
         if (authorization !is Authorization.Current) return authorization.toResult()
 
         when (val current = dispatches.current(fulfillment.fulfillmentId)) {
-            is FulfillmentDispatchNetworkOutcome.Current -> if (current.fulfillment.status == HANDED_OVER) {
+            is DispatchOutcome.Current -> if (current.fulfillment.status ==
+                HANDED_OVER
+            ) {
                 val value = current.fulfillment
                 val receipt = value.toHandoverReceipt()
-                return when (val evidence = dispatches.currentHandoffEvidence(fulfillment.fulfillmentId)) {
-                    is FulfillmentHandoffEvidenceNetworkOutcome.Evidence -> {
+                return when (
+                    val evidence = dispatches.currentHandoffEvidence(
+                        fulfillment.fulfillmentId
+                    )
+                ) {
+                    is HandoffEvidenceOutcome.Evidence -> {
                         if (evidence.value.deliveryId != receipt.deliveryId ||
                             evidence.value.fulfillmentId != fulfillment.fulfillmentId
-                        ) DispatchHandoverGatewayResult.ServiceUnavailable
-                        else DispatchHandoverGatewayResult.AlreadyCompleted(
-                            receipt.copy(evidence = evidence.value.toFeature())
-                        )
+                        ) {
+                            HandoverGatewayResult.ServiceUnavailable
+                        } else {
+                            HandoverGatewayResult.AlreadyCompleted(
+                                receipt.copy(evidence = evidence.value.toFeature())
+                            )
+                        }
                     }
+
                     else -> evidence.toHandoverFailure()
                 }
             }
-            else -> if (current !is FulfillmentDispatchNetworkOutcome.Current) {
+
+            else -> if (current !is DispatchOutcome.Current) {
                 return current.toHandoverFailure()
             }
         }
 
         val currentReadiness = when (val result = readiness.detail(fulfillment.fulfillmentId)) {
-            is DispatchReadinessNetworkOutcome.Detail -> DispatchReadinessProjectionAdapter.toFeature(result.item)
+            is ReadinessOutcome.Detail ->
+                DispatchReadinessProjectionAdapter.toFeature(
+                    result.item
+                )
+
             else -> return result.toHandoverFailure()
         }
         if (!currentReadiness.fulfillmentId.equals(fulfillment.fulfillmentId, ignoreCase = true)) {
-            return DispatchHandoverGatewayResult.Stale
+            return HandoverGatewayResult.Stale
         }
         if (!isCurrent(context, authorization.lease)) return authorityDrift(context)
 
         val physical = when (val result = outgoingGoods.snapshot(fulfillment.fulfillmentId)) {
-            is OutgoingGoodsCheckNetworkOutcome.Snapshot -> result
+            is OutgoingGoodsCheckOutcome.Snapshot -> result
             else -> return result.toHandoverFailure()
         }
-        if (!physical.allocation.id.equals(currentReadiness.physicalAllocationId, ignoreCase = true) ||
+        if (!physical.allocation.id.equals(
+                currentReadiness.physicalAllocationId,
+                ignoreCase = true
+            ) ||
             physical.allocation.version != currentReadiness.physicalAllocationVersion
-        ) return DispatchHandoverGatewayResult.Stale
+        ) {
+            return HandoverGatewayResult.Stale
+        }
         if (!isCurrent(context, authorization.lease)) return authorityDrift(context)
 
         val assignment = when (val result = assignments.current(fulfillment.fulfillmentId)) {
-            is DispatchAssignmentNetworkOutcome.Current -> result.item?.toFeature()
+            is AssignmentOutcome.Current -> result.item?.toFeature()
             else -> return result.toHandoverFailure()
         }
         if (!isCurrent(context, authorization.lease)) return authorityDrift(context)
 
-        return DispatchHandoverGatewayResult.Snapshot(
+        return HandoverGatewayResult.Snapshot(
             DispatchHandoverSnapshot(
                 readiness = currentReadiness,
                 allocation = physical.allocation.toFeature(),
@@ -130,12 +157,14 @@ internal class OperationsDispatchHandoverGateway @Inject constructor(
         snapshot: DispatchHandoverSnapshot?,
         command: DispatchHandoverCommand,
         context: DispatchAuthorityContext
-    ): DispatchHandoverGatewayResult {
+    ): HandoverGatewayResult {
         val authorization = authorize(context)
         if (authorization !is Authorization.Current) return authorization.toResult()
         if (command.fulfillmentId != fulfillment.fulfillmentId ||
             !command.isValid()
-        ) return DispatchHandoverGatewayResult.Stale
+        ) {
+            return HandoverGatewayResult.Stale
+        }
 
         if (snapshot != null) {
             if (command.expectedFulfillmentVersion != snapshot.readiness.fulfillmentVersion ||
@@ -144,10 +173,12 @@ internal class OperationsDispatchHandoverGateway @Inject constructor(
                 command.driverAssignmentId != snapshot.driverAssignment?.id ||
                 command.driverAssignmentVersion != snapshot.driverAssignment?.fulfillmentVersion ||
                 command.outgoingGoodsCheckId != snapshot.outgoingCheck?.id
-            ) return DispatchHandoverGatewayResult.Stale
+            ) {
+                return HandoverGatewayResult.Stale
+            }
             val fresh = when (val result = load(snapshot.readiness, context)) {
-                is DispatchHandoverGatewayResult.Snapshot -> result.value
-                is DispatchHandoverGatewayResult.AlreadyCompleted -> return result
+                is HandoverGatewayResult.Snapshot -> result.value
+                is HandoverGatewayResult.AlreadyCompleted -> return result
                 else -> return result
             }
             if (!fresh.canConfirm ||
@@ -157,42 +188,61 @@ internal class OperationsDispatchHandoverGateway @Inject constructor(
                 fresh.driverAssignment?.id != command.driverAssignmentId ||
                 fresh.driverAssignment?.fulfillmentVersion != command.driverAssignmentVersion ||
                 fresh.outgoingCheck?.id != command.outgoingGoodsCheckId
-            ) return DispatchHandoverGatewayResult.Stale
+            ) {
+                return HandoverGatewayResult.Stale
+            }
         }
         if (!isCurrent(context, authorization.lease)) return authorityDrift(context)
 
-        return when (val result = dispatches.dispatch(
-            command.fulfillmentId,
-            command.expectedFulfillmentVersion,
-            command.idempotencyKey,
-            command.exactRequestBody
-        )) {
-            is FulfillmentDispatchNetworkOutcome.Dispatched -> {
-                if (!isCurrent(context, authorization.lease)) authorityDrift(context)
-                else when (val evidence = dispatches.currentHandoffEvidence(command.fulfillmentId)) {
-                    is FulfillmentHandoffEvidenceNetworkOutcome.Evidence -> {
-                        val fact = evidence.value
-                        if (!fact.fulfillmentId.equals(command.fulfillmentId, true) ||
-                            fact.deliveryId != result.fulfillment.deliveryId ||
-                            fact.fulfillmentVersion != command.expectedFulfillmentVersion + 1 ||
-                            fact.physicalAllocationId != command.physicalAllocationId ||
-                            fact.physicalAllocationVersion != command.physicalAllocationVersion ||
-                            fact.driverAssignmentId != command.driverAssignmentId ||
-                            fact.outgoingGoodsCheckId != command.outgoingGoodsCheckId
-                        ) DispatchHandoverGatewayResult.UnknownOutcome
-                        else if (!isCurrent(context, authorization.lease)) authorityDrift(context)
-                        else DispatchHandoverGatewayResult.Dispatched(
-                            result.fulfillment.toHandoverReceipt().copy(evidence = fact.toFeature())
-                        )
+        return when (
+            val result = dispatches.dispatch(
+                command.fulfillmentId,
+                command.expectedFulfillmentVersion,
+                command.idempotencyKey,
+                command.exactRequestBody
+            )
+        ) {
+            is DispatchOutcome.Dispatched -> {
+                if (!isCurrent(context, authorization.lease)) {
+                    authorityDrift(context)
+                } else {
+                    when (val evidence = dispatches.currentHandoffEvidence(command.fulfillmentId)) {
+                        is HandoffEvidenceOutcome.Evidence -> {
+                            val fact = evidence.value
+                            if (!fact.fulfillmentId.equals(command.fulfillmentId, true) ||
+                                fact.deliveryId != result.fulfillment.deliveryId ||
+                                fact.fulfillmentVersion != command.expectedFulfillmentVersion + 1 ||
+                                fact.physicalAllocationId != command.physicalAllocationId ||
+                                fact.physicalAllocationVersion !=
+                                command.physicalAllocationVersion ||
+                                fact.driverAssignmentId != command.driverAssignmentId ||
+                                fact.outgoingGoodsCheckId != command.outgoingGoodsCheckId
+                            ) {
+                                HandoverGatewayResult.UnknownOutcome
+                            } else if (!isCurrent(context, authorization.lease)) {
+                                authorityDrift(context)
+                            } else {
+                                HandoverGatewayResult.Dispatched(
+                                    result.fulfillment.toHandoverReceipt().copy(
+                                        evidence = fact.toFeature()
+                                    )
+                                )
+                            }
+                        }
+
+                        else -> evidence.toHandoverFailure()
                     }
-                    else -> evidence.toHandoverFailure()
                 }
             }
 
-            is FulfillmentDispatchNetworkOutcome.Current -> if (result.fulfillment.status == HANDED_OVER) {
-                DispatchHandoverGatewayResult.AlreadyCompleted(result.fulfillment.toHandoverReceipt())
+            is DispatchOutcome.Current -> if (result.fulfillment.status ==
+                HANDED_OVER
+            ) {
+                HandoverGatewayResult.AlreadyCompleted(
+                    result.fulfillment.toHandoverReceipt()
+                )
             } else {
-                DispatchHandoverGatewayResult.ServiceUnavailable
+                HandoverGatewayResult.ServiceUnavailable
             }
 
             else -> result.toHandoverFailure()
@@ -200,7 +250,11 @@ internal class OperationsDispatchHandoverGateway @Inject constructor(
     }
 
     private suspend fun authorize(context: DispatchAuthorityContext): Authorization {
-        if (sessions.sessionState.value != SessionState.Active) return Authorization.SessionInvalidated
+        if (sessions.sessionState.value !=
+            SessionState.Active
+        ) {
+            return Authorization.SessionInvalidated
+        }
         val lease = sessions.currentAccess() ?: return Authorization.SessionInvalidated
         val identity = context.identity ?: return Authorization.ContextInvalidated
         val verified = sessions.verifiedSession.value ?: return Authorization.ContextInvalidated
@@ -210,8 +264,12 @@ internal class OperationsDispatchHandoverGateway @Inject constructor(
                 identity.workspaceId,
                 identity.membershipId
             ).any(String::isBlank) || !verified.matches(identity)
-        ) return Authorization.ContextInvalidated
-        return if (MANAGE_PERMISSION in identity.permissions && READ_PERMISSION in identity.permissions) {
+        ) {
+            return Authorization.ContextInvalidated
+        }
+        return if (MANAGE_PERMISSION in identity.permissions &&
+            READ_PERMISSION in identity.permissions
+        ) {
             Authorization.Current(lease)
         } else {
             Authorization.PermissionDenied
@@ -224,7 +282,9 @@ internal class OperationsDispatchHandoverGateway @Inject constructor(
     ): Boolean {
         if (sessions.sessionState.value != SessionState.Active ||
             !sessions.isEpochCurrent(originalLease.epoch)
-        ) return false
+        ) {
+            return false
+        }
         val identity = context.identity ?: return false
         return sessions.verifiedSession.value?.matches(identity) == true &&
             MANAGE_PERMISSION in identity.permissions && READ_PERMISSION in identity.permissions
@@ -232,13 +292,13 @@ internal class OperationsDispatchHandoverGateway @Inject constructor(
 
     private suspend fun authorityDrift(context: DispatchAuthorityContext) = when {
         sessions.sessionState.value != SessionState.Active ->
-            DispatchHandoverGatewayResult.SessionInvalidated
+            HandoverGatewayResult.SessionInvalidated
 
         sessions.verifiedSession.value?.let { verified ->
             context.identity?.let { expected -> verified.matches(expected) } == true
-        } == true -> DispatchHandoverGatewayResult.SessionInvalidated
+        } == true -> HandoverGatewayResult.SessionInvalidated
 
-        else -> DispatchHandoverGatewayResult.ContextInvalidated
+        else -> HandoverGatewayResult.ContextInvalidated
     }
 
     private fun VerifiedSession.matches(expected: DispatchAuthorityIdentity): Boolean =
@@ -246,7 +306,7 @@ internal class OperationsDispatchHandoverGateway @Inject constructor(
             workspaceId == expected.workspaceId && membershipId == expected.membershipId &&
             permissions == expected.permissions
 
-    private fun DispatchDriverAssignmentProjection.toFeature() = PreparedFulfillmentDriverAssignment(
+    private fun DriverAssignmentProjection.toFeature() = PreparedFulfillmentDriverAssignment(
         id = id,
         fulfillmentId = fulfillmentId,
         fulfillmentVersion = fulfillmentVersion,
@@ -258,156 +318,226 @@ internal class OperationsDispatchHandoverGateway @Inject constructor(
         deliveryId = deliveryId
     )
 
-    private fun com.nexa.mobile.operations.core.network.PhysicalAllocationProjection.toFeature() =
-        DispatchOutgoingGoodsAllocation(
-            id = id,
-            status = status,
-            version = version,
-            asOf = asOf,
-            lines = lines.map {
-                DispatchOutgoingGoodsLine(
-                    physicalAllocationLineId = it.id,
-                    skuId = it.skuId,
-                    catalogItemId = it.catalogItemId,
-                    expectedLotId = it.lotId,
-                    allocatedQuantity = it.quantity,
-                    releasedQuantity = it.releasedQuantity,
-                    consumedQuantity = it.consumedQuantity,
-                    remainingQuantity = it.remainingQuantity,
-                    unit = it.unit
-                )
-            }
-        )
+    private fun PhysicalAllocationProjection.toFeature() = OutgoingGoodsAllocation(
+        id = id,
+        status = status,
+        version = version,
+        asOf = asOf,
+        lines = lines.map {
+            DispatchOutgoingGoodsLine(
+                physicalAllocationLineId = it.id,
+                skuId = it.skuId,
+                catalogItemId = it.catalogItemId,
+                expectedLotId = it.lotId,
+                allocatedQuantity = it.quantity,
+                releasedQuantity = it.releasedQuantity,
+                consumedQuantity = it.consumedQuantity,
+                remainingQuantity = it.remainingQuantity,
+                unit = it.unit
+            )
+        }
+    )
 
-    private fun com.nexa.mobile.operations.core.network.OutgoingGoodsCheckProjection.toFeature() =
-        DispatchOutgoingGoodsCheck(
-            id = id,
-            fulfillmentId = fulfillmentId,
-            fulfillmentVersion = fulfillmentVersion,
-            physicalAllocationId = physicalAllocationId,
-            physicalAllocationVersion = physicalAllocationVersion,
-            matches = matches,
-            current = current,
-            openDiscrepancy = openDiscrepancy,
-            checkedAt = checkedAt,
-            lines = lines.map {
-                DispatchOutgoingGoodsCheckLine(
-                    it.physicalAllocationLineId,
-                    it.expectedLotId,
-                    it.observedLotId,
-                    it.expectedQuantity,
-                    it.observedQuantity,
-                    it.unit,
-                    it.matches
-                )
-            },
-            replayed = replayed,
-            discrepancy = discrepancy?.let { detail ->
-                com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsDiscrepancy(
-                    id = detail.id,
-                    fulfillmentVersion = detail.fulfillmentVersion,
-                    physicalAllocationId = detail.physicalAllocationId,
-                    physicalAllocationVersion = detail.physicalAllocationVersion,
-                    checkedByMembershipId = detail.checkedByMembershipId,
-                    checkedAt = detail.checkedAt,
-                    lines = detail.lines.map {
-                        DispatchOutgoingGoodsCheckLine(it.physicalAllocationLineId, it.expectedLotId, it.observedLotId,
-                            it.expectedQuantity, it.observedQuantity, it.unit, it.matches)
-                    }
-                )
-            }
-        )
+    private fun OutgoingGoodsCheckProjection.toFeature() = DispatchOutgoingGoodsCheck(
+        id = id,
+        fulfillmentId = fulfillmentId,
+        fulfillmentVersion = fulfillmentVersion,
+        physicalAllocationId = physicalAllocationId,
+        physicalAllocationVersion = physicalAllocationVersion,
+        matches = matches,
+        current = current,
+        openDiscrepancy = openDiscrepancy,
+        checkedAt = checkedAt,
+        lines = lines.map {
+            OutgoingGoodsCheckLine(
+                it.physicalAllocationLineId,
+                it.expectedLotId,
+                it.observedLotId,
+                it.expectedQuantity,
+                it.observedQuantity,
+                it.unit,
+                it.matches
+            )
+        },
+        replayed = replayed,
+        discrepancy = discrepancy?.let { detail ->
+            OutgoingGoodsDiscrepancy(
+                id = detail.id,
+                fulfillmentVersion = detail.fulfillmentVersion,
+                physicalAllocationId = detail.physicalAllocationId,
+                physicalAllocationVersion = detail.physicalAllocationVersion,
+                checkedByMembershipId = detail.checkedByMembershipId,
+                checkedAt = detail.checkedAt,
+                lines = detail.lines.map {
+                    OutgoingGoodsCheckLine(
+                        it.physicalAllocationLineId,
+                        it.expectedLotId,
+                        it.observedLotId,
+                        it.expectedQuantity,
+                        it.observedQuantity,
+                        it.unit,
+                        it.matches
+                    )
+                }
+            )
+        }
+    )
 
-    private fun com.nexa.mobile.operations.core.network.FulfillmentDispatchProjection.toHandoverReceipt() =
-        DispatchHandoverReceipt(
-            fulfillmentId = fulfillmentId,
-            fulfillmentStatus = status,
-            fulfillmentVersion = version,
-            deliveryId = requireNotNull(deliveryId),
-            deliveryStatus = requireNotNull(deliveryStatus),
-            deliveryVersion = requireNotNull(deliveryVersion),
-            recordedAt = updatedAt
-        )
+    private fun DispatchProjection.toHandoverReceipt() = DispatchHandoverReceipt(
+        fulfillmentId = fulfillmentId,
+        fulfillmentStatus = status,
+        fulfillmentVersion = version,
+        deliveryId = requireNotNull(deliveryId),
+        deliveryStatus = requireNotNull(deliveryStatus),
+        deliveryVersion = requireNotNull(deliveryVersion),
+        recordedAt = updatedAt
+    )
 
-    private fun com.nexa.mobile.operations.core.network.FulfillmentHandoffEvidenceProjection.toFeature() =
-        DispatchHandoverEvidence(
-            evidenceId = id,
-            fulfillmentVersion = fulfillmentVersion,
-            deliveryId = deliveryId,
-            warehouseActorMembershipId = warehouseActorMembershipId,
-            driverAssignmentId = driverAssignmentId,
-            driverMembershipId = driverMembershipId,
-            physicalAllocationId = physicalAllocationId,
-            physicalAllocationVersion = physicalAllocationVersion,
-            outgoingGoodsCheckId = outgoingGoodsCheckId,
-            occurredAt = occurredAt,
-            current = current
-        )
+    private fun HandoffEvidenceProjection.toFeature() = DispatchHandoverEvidence(
+        evidenceId = id,
+        fulfillmentVersion = fulfillmentVersion,
+        deliveryId = deliveryId,
+        warehouseActorMembershipId = warehouseActorMembershipId,
+        driverAssignmentId = driverAssignmentId,
+        driverMembershipId = driverMembershipId,
+        physicalAllocationId = physicalAllocationId,
+        physicalAllocationVersion = physicalAllocationVersion,
+        outgoingGoodsCheckId = outgoingGoodsCheckId,
+        occurredAt = occurredAt,
+        current = current
+    )
 
-    private fun DispatchReadinessNetworkOutcome.toHandoverFailure(): DispatchHandoverGatewayResult = when (this) {
-        DispatchReadinessNetworkOutcome.NetworkUnavailable -> DispatchHandoverGatewayResult.NetworkUnavailable
-        DispatchReadinessNetworkOutcome.ServiceUnavailable -> DispatchHandoverGatewayResult.ServiceUnavailable
-        DispatchReadinessNetworkOutcome.PermissionDenied -> DispatchHandoverGatewayResult.PermissionDenied
-        DispatchReadinessNetworkOutcome.ContextInvalidated -> DispatchHandoverGatewayResult.ContextInvalidated
-        DispatchReadinessNetworkOutcome.SessionInvalidated -> DispatchHandoverGatewayResult.SessionInvalidated
-        is DispatchReadinessNetworkOutcome.Detail,
-        is DispatchReadinessNetworkOutcome.ListResult -> DispatchHandoverGatewayResult.ServiceUnavailable
+    private fun ReadinessOutcome.toHandoverFailure(): HandoverGatewayResult = when (this) {
+        ReadinessOutcome.NetworkUnavailable ->
+            HandoverGatewayResult.NetworkUnavailable
+
+        ReadinessOutcome.ServiceUnavailable ->
+            HandoverGatewayResult.ServiceUnavailable
+
+        ReadinessOutcome.PermissionDenied ->
+            HandoverGatewayResult.PermissionDenied
+
+        ReadinessOutcome.ContextInvalidated ->
+            HandoverGatewayResult.ContextInvalidated
+
+        ReadinessOutcome.SessionInvalidated ->
+            HandoverGatewayResult.SessionInvalidated
+
+        is ReadinessOutcome.Detail,
+        is ReadinessOutcome.ListResult ->
+            HandoverGatewayResult.ServiceUnavailable
     }
 
-    private fun OutgoingGoodsCheckNetworkOutcome.toHandoverFailure(): DispatchHandoverGatewayResult = when (this) {
-        OutgoingGoodsCheckNetworkOutcome.NetworkUnavailable -> DispatchHandoverGatewayResult.NetworkUnavailable
-        OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable -> DispatchHandoverGatewayResult.ServiceUnavailable
-        OutgoingGoodsCheckNetworkOutcome.PermissionDenied -> DispatchHandoverGatewayResult.PermissionDenied
-        OutgoingGoodsCheckNetworkOutcome.ContextInvalidated -> DispatchHandoverGatewayResult.ContextInvalidated
-        OutgoingGoodsCheckNetworkOutcome.SessionInvalidated -> DispatchHandoverGatewayResult.SessionInvalidated
-        OutgoingGoodsCheckNetworkOutcome.Stale -> DispatchHandoverGatewayResult.Stale
-        OutgoingGoodsCheckNetworkOutcome.Conflict -> DispatchHandoverGatewayResult.Conflict
-        OutgoingGoodsCheckNetworkOutcome.UnknownOutcome -> DispatchHandoverGatewayResult.UnknownOutcome
-        is OutgoingGoodsCheckNetworkOutcome.Recorded,
-        is OutgoingGoodsCheckNetworkOutcome.Snapshot,
-        is OutgoingGoodsCheckNetworkOutcome.Resolved -> DispatchHandoverGatewayResult.ServiceUnavailable
+    private fun OutgoingGoodsCheckOutcome.toHandoverFailure(): HandoverGatewayResult = when (this) {
+        OutgoingGoodsCheckOutcome.NetworkUnavailable ->
+            HandoverGatewayResult.NetworkUnavailable
+
+        OutgoingGoodsCheckOutcome.ServiceUnavailable ->
+            HandoverGatewayResult.ServiceUnavailable
+
+        OutgoingGoodsCheckOutcome.PermissionDenied ->
+            HandoverGatewayResult.PermissionDenied
+
+        OutgoingGoodsCheckOutcome.ContextInvalidated ->
+            HandoverGatewayResult.ContextInvalidated
+
+        OutgoingGoodsCheckOutcome.SessionInvalidated ->
+            HandoverGatewayResult.SessionInvalidated
+
+        OutgoingGoodsCheckOutcome.Stale -> HandoverGatewayResult.Stale
+
+        OutgoingGoodsCheckOutcome.Conflict -> HandoverGatewayResult.Conflict
+
+        OutgoingGoodsCheckOutcome.UnknownOutcome ->
+            HandoverGatewayResult.UnknownOutcome
+
+        is OutgoingGoodsCheckOutcome.Recorded,
+        is OutgoingGoodsCheckOutcome.Snapshot,
+        is OutgoingGoodsCheckOutcome.Resolved ->
+            HandoverGatewayResult.ServiceUnavailable
     }
 
-    private fun DispatchAssignmentNetworkOutcome.toHandoverFailure(): DispatchHandoverGatewayResult = when (this) {
-        DispatchAssignmentNetworkOutcome.NetworkUnavailable -> DispatchHandoverGatewayResult.NetworkUnavailable
-        DispatchAssignmentNetworkOutcome.ServiceUnavailable -> DispatchHandoverGatewayResult.ServiceUnavailable
-        DispatchAssignmentNetworkOutcome.PermissionDenied -> DispatchHandoverGatewayResult.PermissionDenied
-        DispatchAssignmentNetworkOutcome.ContextInvalidated -> DispatchHandoverGatewayResult.ContextInvalidated
-        DispatchAssignmentNetworkOutcome.SessionInvalidated -> DispatchHandoverGatewayResult.SessionInvalidated
-        DispatchAssignmentNetworkOutcome.Stale -> DispatchHandoverGatewayResult.Stale
-        DispatchAssignmentNetworkOutcome.Conflict -> DispatchHandoverGatewayResult.Conflict
-        DispatchAssignmentNetworkOutcome.UnknownOutcome -> DispatchHandoverGatewayResult.UnknownOutcome
-        is DispatchAssignmentNetworkOutcome.Assigned,
-        is DispatchAssignmentNetworkOutcome.Candidates,
-        is DispatchAssignmentNetworkOutcome.Current -> DispatchHandoverGatewayResult.ServiceUnavailable
+    private fun AssignmentOutcome.toHandoverFailure(): HandoverGatewayResult = when (this) {
+        AssignmentOutcome.NetworkUnavailable ->
+            HandoverGatewayResult.NetworkUnavailable
+
+        AssignmentOutcome.ServiceUnavailable ->
+            HandoverGatewayResult.ServiceUnavailable
+
+        AssignmentOutcome.PermissionDenied ->
+            HandoverGatewayResult.PermissionDenied
+
+        AssignmentOutcome.ContextInvalidated ->
+            HandoverGatewayResult.ContextInvalidated
+
+        AssignmentOutcome.SessionInvalidated ->
+            HandoverGatewayResult.SessionInvalidated
+
+        AssignmentOutcome.Stale -> HandoverGatewayResult.Stale
+
+        AssignmentOutcome.Conflict -> HandoverGatewayResult.Conflict
+
+        AssignmentOutcome.UnknownOutcome ->
+            HandoverGatewayResult.UnknownOutcome
+
+        is AssignmentOutcome.Assigned,
+        is AssignmentOutcome.Candidates,
+        is AssignmentOutcome.Current ->
+            HandoverGatewayResult.ServiceUnavailable
     }
 
-    private fun FulfillmentDispatchNetworkOutcome.toHandoverFailure(): DispatchHandoverGatewayResult = when (this) {
-        FulfillmentDispatchNetworkOutcome.NetworkUnavailable -> DispatchHandoverGatewayResult.NetworkUnavailable
-        FulfillmentDispatchNetworkOutcome.UnknownOutcome -> DispatchHandoverGatewayResult.UnknownOutcome
-        FulfillmentDispatchNetworkOutcome.ServiceUnavailable -> DispatchHandoverGatewayResult.ServiceUnavailable
-        FulfillmentDispatchNetworkOutcome.PermissionDenied -> DispatchHandoverGatewayResult.PermissionDenied
-        FulfillmentDispatchNetworkOutcome.ContextInvalidated -> DispatchHandoverGatewayResult.ContextInvalidated
-        FulfillmentDispatchNetworkOutcome.SessionInvalidated -> DispatchHandoverGatewayResult.SessionInvalidated
-        FulfillmentDispatchNetworkOutcome.Stale -> DispatchHandoverGatewayResult.Stale
-        FulfillmentDispatchNetworkOutcome.Conflict -> DispatchHandoverGatewayResult.Conflict
-        is FulfillmentDispatchNetworkOutcome.Current,
-        is FulfillmentDispatchNetworkOutcome.Dispatched -> DispatchHandoverGatewayResult.ServiceUnavailable
+    private fun DispatchOutcome.toHandoverFailure(): HandoverGatewayResult = when (this) {
+        DispatchOutcome.NetworkUnavailable ->
+            HandoverGatewayResult.NetworkUnavailable
+
+        DispatchOutcome.UnknownOutcome ->
+            HandoverGatewayResult.UnknownOutcome
+
+        DispatchOutcome.ServiceUnavailable ->
+            HandoverGatewayResult.ServiceUnavailable
+
+        DispatchOutcome.PermissionDenied ->
+            HandoverGatewayResult.PermissionDenied
+
+        DispatchOutcome.ContextInvalidated ->
+            HandoverGatewayResult.ContextInvalidated
+
+        DispatchOutcome.SessionInvalidated ->
+            HandoverGatewayResult.SessionInvalidated
+
+        DispatchOutcome.Stale -> HandoverGatewayResult.Stale
+
+        DispatchOutcome.Conflict -> HandoverGatewayResult.Conflict
+
+        is DispatchOutcome.Current,
+        is DispatchOutcome.Dispatched ->
+            HandoverGatewayResult.ServiceUnavailable
     }
 
-    private fun FulfillmentHandoffEvidenceNetworkOutcome.toHandoverFailure(): DispatchHandoverGatewayResult = when (this) {
-        FulfillmentHandoffEvidenceNetworkOutcome.NetworkUnavailable -> DispatchHandoverGatewayResult.NetworkUnavailable
-        FulfillmentHandoffEvidenceNetworkOutcome.ServiceUnavailable -> DispatchHandoverGatewayResult.ServiceUnavailable
-        FulfillmentHandoffEvidenceNetworkOutcome.PermissionDenied -> DispatchHandoverGatewayResult.PermissionDenied
-        FulfillmentHandoffEvidenceNetworkOutcome.ContextInvalidated -> DispatchHandoverGatewayResult.ContextInvalidated
-        FulfillmentHandoffEvidenceNetworkOutcome.SessionInvalidated -> DispatchHandoverGatewayResult.SessionInvalidated
-        is FulfillmentHandoffEvidenceNetworkOutcome.Evidence -> DispatchHandoverGatewayResult.ServiceUnavailable
+    private fun HandoffEvidenceOutcome.toHandoverFailure(): HandoverGatewayResult = when (this) {
+        HandoffEvidenceOutcome.NetworkUnavailable ->
+            HandoverGatewayResult.NetworkUnavailable
+
+        HandoffEvidenceOutcome.ServiceUnavailable ->
+            HandoverGatewayResult.ServiceUnavailable
+
+        HandoffEvidenceOutcome.PermissionDenied ->
+            HandoverGatewayResult.PermissionDenied
+
+        HandoffEvidenceOutcome.ContextInvalidated ->
+            HandoverGatewayResult.ContextInvalidated
+
+        HandoffEvidenceOutcome.SessionInvalidated ->
+            HandoverGatewayResult.SessionInvalidated
+
+        is HandoffEvidenceOutcome.Evidence ->
+            HandoverGatewayResult.ServiceUnavailable
     }
 
-    private fun Authorization.toResult(): DispatchHandoverGatewayResult = when (this) {
-        Authorization.SessionInvalidated -> DispatchHandoverGatewayResult.SessionInvalidated
-        Authorization.ContextInvalidated -> DispatchHandoverGatewayResult.ContextInvalidated
-        Authorization.PermissionDenied -> DispatchHandoverGatewayResult.PermissionDenied
+    private fun Authorization.toResult(): HandoverGatewayResult = when (this) {
+        Authorization.SessionInvalidated -> HandoverGatewayResult.SessionInvalidated
+        Authorization.ContextInvalidated -> HandoverGatewayResult.ContextInvalidated
+        Authorization.PermissionDenied -> HandoverGatewayResult.PermissionDenied
         is Authorization.Current -> error("authorized result is not a failure")
     }
 
@@ -427,7 +557,7 @@ internal class OperationsDispatchHandoverGateway @Inject constructor(
 
 internal class DispatchHandoverViewModelFactory @Inject constructor(
     private val gateway: DispatchHandoverGateway,
-    private val metadata: DispatchHandoverMetadataStore
+    private val metadata: HandoverMetadataStore
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {

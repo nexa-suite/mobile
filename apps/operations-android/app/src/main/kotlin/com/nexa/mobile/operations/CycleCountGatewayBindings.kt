@@ -6,8 +6,9 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
-import com.nexa.mobile.operations.core.network.CycleCountCountCommand
 import com.nexa.mobile.operations.core.network.CycleCountCorrectionCommand
+import com.nexa.mobile.operations.core.network.CycleCountCountCommand
+import com.nexa.mobile.operations.core.network.CycleCountLotProjection
 import com.nexa.mobile.operations.core.network.CycleCountNetworkOutcome
 import com.nexa.mobile.operations.core.network.NexaCycleCountGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
@@ -42,19 +43,41 @@ internal class OperationsCycleCountGateway @Inject constructor(
         val result = safeLookup {
             when (val response = cycleCounts.lots(page)) {
                 is CycleCountNetworkOutcome.Lots -> CycleCountLookupResult.Lots(
-                    response.items.map { it.toFeatureLot() }, response.page, response.total
+                    response.items.map { it.toFeatureLot() },
+                    response.page,
+                    response.total
                 )
-                CycleCountNetworkOutcome.NetworkUnavailable -> CycleCountLookupResult.NetworkUnavailable
+
+                CycleCountNetworkOutcome.NetworkUnavailable ->
+                    CycleCountLookupResult.NetworkUnavailable
+
                 CycleCountNetworkOutcome.PermissionDenied -> CycleCountLookupResult.PermissionDenied
-                CycleCountNetworkOutcome.ContextInvalidated -> CycleCountLookupResult.ContextInvalidated
-                CycleCountNetworkOutcome.SessionInvalidated -> CycleCountLookupResult.SessionInvalidated
+
+                CycleCountNetworkOutcome.ContextInvalidated ->
+                    CycleCountLookupResult.ContextInvalidated
+
+                CycleCountNetworkOutcome.SessionInvalidated ->
+                    CycleCountLookupResult.SessionInvalidated
+
                 else -> CycleCountLookupResult.ServiceUnavailable
             }
         }
-        return if (currentAfter(authority, before.lease, LOT_READ_PERMISSIONS)) result else authorityDrift(authority)
+        return if (currentAfter(
+                authority,
+                before.lease,
+                LOT_READ_PERMISSIONS
+            )
+        ) {
+            result
+        } else {
+            authorityDrift(authority)
+        }
     }
 
-    override suspend fun record(intent: CycleCountIntent, authority: CycleCountAuthority): CycleCountResult {
+    override suspend fun record(
+        intent: CycleCountIntent,
+        authority: CycleCountAuthority
+    ): CycleCountResult {
         if (intent.scope != authority.scope) return CycleCountResult.ContextInvalidated
         val before = authorize(authority, COUNT_WRITE_PERMISSIONS)
         if (before !is Authorization.Current) return before.toCommandFailure()
@@ -78,9 +101,13 @@ internal class OperationsCycleCountGateway @Inject constructor(
         } catch (_: Exception) {
             CycleCountResult.UnknownOutcome
         }
-        return if (currentAfter(authority, before.lease, COUNT_WRITE_PERMISSIONS)) result else when (authorityDrift(authority)) {
-            CycleCountLookupResult.SessionInvalidated -> CycleCountResult.SessionInvalidated
-            else -> CycleCountResult.ContextInvalidated
+        return if (currentAfter(authority, before.lease, COUNT_WRITE_PERMISSIONS)) {
+            result
+        } else {
+            when (authorityDrift(authority)) {
+                CycleCountLookupResult.SessionInvalidated -> CycleCountResult.SessionInvalidated
+                else -> CycleCountResult.ContextInvalidated
+            }
         }
     }
 
@@ -111,19 +138,35 @@ internal class OperationsCycleCountGateway @Inject constructor(
         } catch (_: Exception) {
             CycleCountResult.UnknownOutcome
         }
-        return if (currentAfter(authority, before.lease, CORRECTION_PERMISSIONS)) result else when (authorityDrift(authority)) {
-            CycleCountLookupResult.SessionInvalidated -> CycleCountResult.SessionInvalidated
-            else -> CycleCountResult.ContextInvalidated
+        return if (currentAfter(authority, before.lease, CORRECTION_PERMISSIONS)) {
+            result
+        } else {
+            when (authorityDrift(authority)) {
+                CycleCountLookupResult.SessionInvalidated -> CycleCountResult.SessionInvalidated
+                else -> CycleCountResult.ContextInvalidated
+            }
         }
     }
 
-    private suspend fun authorize(authority: CycleCountAuthority, required: Set<String>): Authorization {
-        if (sessions.sessionState.value != SessionState.Active) return Authorization.SessionInvalidated
+    private suspend fun authorize(
+        authority: CycleCountAuthority,
+        required: Set<String>
+    ): Authorization {
+        if (sessions.sessionState.value !=
+            SessionState.Active
+        ) {
+            return Authorization.SessionInvalidated
+        }
         val lease = sessions.currentAccess() ?: return Authorization.SessionInvalidated
         val verified = sessions.verifiedSession.value ?: return Authorization.ContextInvalidated
         if (!verified.matches(authority)) return Authorization.ContextInvalidated
-        val allowed = if (required == LOT_READ_PERMISSIONS) authority.permissions.any(required::contains)
-        else authority.permissions.containsAll(required)
+        val allowed = if (required ==
+            LOT_READ_PERMISSIONS
+        ) {
+            authority.permissions.any(required::contains)
+        } else {
+            authority.permissions.containsAll(required)
+        }
         return if (allowed) Authorization.Current(lease) else Authorization.PermissionDenied
     }
 
@@ -132,22 +175,39 @@ internal class OperationsCycleCountGateway @Inject constructor(
         originalLease: AccessTokenLease,
         required: Set<String>
     ): Boolean {
-        if (sessions.sessionState.value != SessionState.Active || !sessions.isEpochCurrent(originalLease.epoch)) return false
+        if (sessions.sessionState.value != SessionState.Active ||
+            !sessions.isEpochCurrent(originalLease.epoch)
+        ) {
+            return false
+        }
         val current = sessions.verifiedSession.value ?: return false
-        val allowed = if (required == LOT_READ_PERMISSIONS) authority.permissions.any(required::contains)
-        else authority.permissions.containsAll(required)
+        val allowed = if (required ==
+            LOT_READ_PERMISSIONS
+        ) {
+            authority.permissions.any(required::contains)
+        } else {
+            authority.permissions.containsAll(required)
+        }
         return current.matches(authority) && allowed
     }
 
-    private suspend fun authorityDrift(authority: CycleCountAuthority): CycleCountLookupResult = when {
-        sessions.sessionState.value != SessionState.Active -> CycleCountLookupResult.SessionInvalidated
-        sessions.verifiedSession.value?.matches(authority) == true -> CycleCountLookupResult.SessionInvalidated
-        else -> CycleCountLookupResult.ContextInvalidated
-    }
+    private suspend fun authorityDrift(authority: CycleCountAuthority): CycleCountLookupResult =
+        when {
+            sessions.sessionState.value != SessionState.Active ->
+                CycleCountLookupResult.SessionInvalidated
+
+            sessions.verifiedSession.value?.matches(
+                authority
+            ) == true -> CycleCountLookupResult.SessionInvalidated
+
+            else -> CycleCountLookupResult.ContextInvalidated
+        }
 
     private fun VerifiedSession.matches(authority: CycleCountAuthority): Boolean =
-        hasAuthorizedContext && userId == authority.scope.userId && tenantId == authority.scope.tenantId &&
-            workspaceId == authority.scope.workspaceId && membershipId == authority.scope.membershipId &&
+        hasAuthorizedContext && userId == authority.scope.userId &&
+            tenantId == authority.scope.tenantId &&
+            workspaceId == authority.scope.workspaceId &&
+            membershipId == authority.scope.membershipId &&
             permissions == authority.permissions
 
     private fun Authorization.toLookupFailure(): CycleCountLookupResult = when (this) {
@@ -172,33 +232,48 @@ internal class OperationsCycleCountGateway @Inject constructor(
                 count.unit, count.status, count.actorMembershipId, count.recordedAt.toString()
             )
         )
+
         is CycleCountNetworkOutcome.Applied -> CycleCountResult.Applied(
             CycleCountCorrection(
-                correction.id, correction.countId, correction.lotId, correction.warehouseId, correction.zoneId,
+                correction.id, correction.countId, correction.lotId,
+                correction.warehouseId, correction.zoneId,
                 correction.lotVersionBefore, correction.lotVersionAfter,
                 correction.quantityBefore.toPlainString(), correction.quantityAfter.toPlainString(),
                 correction.quantityDelta.toPlainString(), correction.unit,
                 correction.actorMembershipId, correction.recordedAt.toString()
             )
         )
+
         is CycleCountNetworkOutcome.Rejected -> CycleCountResult.Rejected(code)
+
         CycleCountNetworkOutcome.UnknownOutcome -> CycleCountResult.UnknownOutcome
+
         CycleCountNetworkOutcome.PreconditionFailed -> CycleCountResult.PreconditionFailed
+
         CycleCountNetworkOutcome.Conflict -> CycleCountResult.Conflict
+
         CycleCountNetworkOutcome.NetworkUnavailable -> CycleCountResult.NetworkUnavailable
+
         CycleCountNetworkOutcome.ServiceUnavailable -> CycleCountResult.ServiceUnavailable
+
         CycleCountNetworkOutcome.PermissionDenied -> CycleCountResult.PermissionDenied
+
         CycleCountNetworkOutcome.ContextInvalidated -> CycleCountResult.ContextInvalidated
+
         CycleCountNetworkOutcome.SessionInvalidated -> CycleCountResult.SessionInvalidated
+
         is CycleCountNetworkOutcome.Lots -> CycleCountResult.ServiceUnavailable
     }
 
-    private fun com.nexa.mobile.operations.core.network.CycleCountLotProjection.toFeatureLot() = CycleCountLot(
+    private fun CycleCountLotProjection.toFeatureLot() = CycleCountLot(
         id, warehouseId, zoneId, catalogItemId, batchNumber, expirationDate.toString(),
-        onHand.toPlainString(), reserved.toPlainString(), available.toPlainString(), unit, status, version
+        onHand.toPlainString(), reserved.toPlainString(), available.toPlainString(),
+        unit, status, version
     )
 
-    private suspend fun safeLookup(block: suspend () -> CycleCountLookupResult): CycleCountLookupResult = try {
+    private suspend fun safeLookup(
+        block: suspend () -> CycleCountLookupResult
+    ): CycleCountLookupResult = try {
         block()
     } catch (cancelled: CancellationException) {
         throw cancelled
@@ -239,7 +314,9 @@ internal object CycleCountGatewayBindings {
 
     @Provides
     @Singleton
-    fun cycleCountMetadataBackend(backend: AndroidCycleCountMetadataBackend): CycleCountMetadataBackend = backend
+    fun cycleCountMetadataBackend(
+        backend: AndroidCycleCountMetadataBackend
+    ): CycleCountMetadataBackend = backend
 }
 
 internal object CycleCountViewModelBindings {

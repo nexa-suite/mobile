@@ -5,47 +5,52 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
-import com.nexa.mobile.operations.core.network.DriverDeliveryNetworkOutcome
-import com.nexa.mobile.operations.core.network.DriverRemainingQuantityLineProjection
+import com.nexa.mobile.operations.core.network.DriverBusinessEvidenceProjection as BusinessEvidenceProjection
+import com.nexa.mobile.operations.core.network.DriverDeliveryAttemptProjection as AttemptProjection
+import com.nexa.mobile.operations.core.network.DriverDeliveryNetworkOutcome as Outcome
 import com.nexa.mobile.operations.core.network.DriverDeliveryProjection
+import com.nexa.mobile.operations.core.network.DriverProofOfDeliveryProjection as ProofOfDeliveryProjection
+import com.nexa.mobile.operations.core.network.DriverRemainingQuantityLineProjection as RemainingQuantityLineProjection
 import com.nexa.mobile.operations.core.network.NexaDriverDeliveryGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.feature.delivery.DriverAttemptStartCommand
-import com.nexa.mobile.operations.feature.delivery.DriverAttemptStartResult
-import com.nexa.mobile.operations.feature.delivery.DriverAttemptMetadataStore
 import com.nexa.mobile.operations.feature.delivery.DriverArrivalCommand
 import com.nexa.mobile.operations.feature.delivery.DriverArrivalMetadataStore
 import com.nexa.mobile.operations.feature.delivery.DriverArrivalResult
 import com.nexa.mobile.operations.feature.delivery.DriverArrivalSummary
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOutcomeLine
+import com.nexa.mobile.operations.feature.delivery.DriverAttemptMetadataStore
+import com.nexa.mobile.operations.feature.delivery.DriverAttemptStartCommand
+import com.nexa.mobile.operations.feature.delivery.DriverAttemptStartResult
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryArrivalFact
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryAttempt
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryAuthority
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryGateway
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryLoadResult
+import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOutcomeLine
 import com.nexa.mobile.operations.feature.delivery.DriverDeliverySnapshot
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryViewModel
 import com.nexa.mobile.operations.feature.delivery.DriverOutcomeCommand
 import com.nexa.mobile.operations.feature.delivery.DriverOutcomeMetadataStore
 import com.nexa.mobile.operations.feature.delivery.DriverOutcomeResult
 import com.nexa.mobile.operations.feature.delivery.DriverOutcomeSummary
-import com.nexa.mobile.operations.feature.delivery.DriverProofCreateCommand
-import com.nexa.mobile.operations.feature.delivery.DriverProofCreateResult
-import com.nexa.mobile.operations.feature.delivery.DriverProofUploadCommand
-import com.nexa.mobile.operations.feature.delivery.DriverProofUploadResult
 import com.nexa.mobile.operations.feature.delivery.DriverProofAttachCommand
 import com.nexa.mobile.operations.feature.delivery.DriverProofAttachResult
-import com.nexa.mobile.operations.feature.delivery.DriverProofEvidenceStatusResult
-import com.nexa.mobile.operations.feature.delivery.DriverProofEvidenceSummary
-import com.nexa.mobile.operations.feature.delivery.DriverProofSummary
-import com.nexa.mobile.operations.feature.delivery.DriverProofMetadataStore
+import com.nexa.mobile.operations.feature.delivery.DriverProofCreateCommand
+import com.nexa.mobile.operations.feature.delivery.DriverProofCreateResult
 import com.nexa.mobile.operations.feature.delivery.DriverProofEvidenceKind
+import com.nexa.mobile.operations.feature.delivery.DriverProofEvidenceStatusResult as ProofEvidenceStatusResult
+import com.nexa.mobile.operations.feature.delivery.DriverProofEvidenceSummary
+import com.nexa.mobile.operations.feature.delivery.DriverProofMetadataStore
+import com.nexa.mobile.operations.feature.delivery.DriverProofSummary
+import com.nexa.mobile.operations.feature.delivery.DriverProofUploadCommand
+import com.nexa.mobile.operations.feature.delivery.DriverProofUploadResult
+import com.nexa.mobile.operations.feature.delivery.DriverRemainingQuantityLine as RemainingQuantityLine
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -57,7 +62,7 @@ import kotlinx.coroutines.CancellationException
 /** Hands the server-authorized destination snapshot to an external navigation app. */
 fun launchDriverDirections(context: Context, destination: String): Boolean {
     val address = destination.trim().takeIf(String::isNotEmpty) ?: return false
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${Uri.encode(address)}"))
+    val intent = Intent(Intent.ACTION_VIEW, "geo:0,0?q=${Uri.encode(address)}".toUri())
     if (context !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     return try {
         if (intent.resolveActivity(context.packageManager) == null) return false
@@ -90,11 +95,11 @@ internal class OperationsDriverDeliveryGateway @Inject constructor(
         }
         if (!currentAfter(authority, before.lease)) return authorityDrift(authority)
         return when (outcome) {
-            is DriverDeliveryNetworkOutcome.Assigned -> DriverDeliveryLoadResult.ListLoaded(
+            is Outcome.Assigned -> DriverDeliveryLoadResult.ListLoaded(
                 outcome.items.map { it.toFeature() }
             )
 
-            DriverDeliveryNetworkOutcome.NotFound -> DriverDeliveryLoadResult.NotFound
+            Outcome.NotFound -> DriverDeliveryLoadResult.NotFound
 
             else -> outcome.toLoadFailure()
         }
@@ -115,11 +120,11 @@ internal class OperationsDriverDeliveryGateway @Inject constructor(
         }
         if (!currentAfter(authority, before.lease)) return authorityDrift(authority)
         return when (outcome) {
-            is DriverDeliveryNetworkOutcome.Detail -> DriverDeliveryLoadResult.DetailLoaded(
+            is Outcome.Detail -> DriverDeliveryLoadResult.DetailLoaded(
                 outcome.item.toFeature()
             )
 
-            DriverDeliveryNetworkOutcome.NotFound -> DriverDeliveryLoadResult.NotFound
+            Outcome.NotFound -> DriverDeliveryLoadResult.NotFound
 
             else -> outcome.toLoadFailure()
         }
@@ -145,39 +150,45 @@ internal class OperationsDriverDeliveryGateway @Inject constructor(
         // A dispatched mutation followed by authority drift has an unknown server outcome.
         if (!currentAfter(authority, before.lease)) return DriverAttemptStartResult.UnknownOutcome
         return when (outcome) {
-            is DriverDeliveryNetworkOutcome.Started -> DriverAttemptStartResult.Started(
+            is Outcome.Started -> DriverAttemptStartResult.Started(
                 outcome.delivery.toFeature(),
                 outcome.attempt.toFeature()
             )
 
-            is DriverDeliveryNetworkOutcome.Rejected -> DriverAttemptStartResult.Rejected(
+            is Outcome.Rejected -> DriverAttemptStartResult.Rejected(
                 outcome.code
             )
 
-            DriverDeliveryNetworkOutcome.StaleVersion -> DriverAttemptStartResult.StaleVersion
+            Outcome.StaleVersion -> DriverAttemptStartResult.StaleVersion
 
-            DriverDeliveryNetworkOutcome.NotFound -> DriverAttemptStartResult.NotFound
+            Outcome.NotFound -> DriverAttemptStartResult.NotFound
 
-            DriverDeliveryNetworkOutcome.UnknownOutcome -> DriverAttemptStartResult.UnknownOutcome
+            Outcome.UnknownOutcome -> DriverAttemptStartResult.UnknownOutcome
 
-            DriverDeliveryNetworkOutcome.NetworkUnavailable -> DriverAttemptStartResult.UnknownOutcome
+            Outcome.NetworkUnavailable ->
+                DriverAttemptStartResult.UnknownOutcome
 
-            DriverDeliveryNetworkOutcome.ServiceUnavailable -> DriverAttemptStartResult.UnknownOutcome
+            Outcome.ServiceUnavailable ->
+                DriverAttemptStartResult.UnknownOutcome
 
-            DriverDeliveryNetworkOutcome.PermissionDenied -> DriverAttemptStartResult.PermissionDenied
+            Outcome.PermissionDenied ->
+                DriverAttemptStartResult.PermissionDenied
 
-            DriverDeliveryNetworkOutcome.ContextInvalidated -> DriverAttemptStartResult.ContextInvalidated
+            Outcome.ContextInvalidated ->
+                DriverAttemptStartResult.ContextInvalidated
 
-            DriverDeliveryNetworkOutcome.SessionInvalidated -> DriverAttemptStartResult.SessionInvalidated
+            Outcome.SessionInvalidated ->
+                DriverAttemptStartResult.SessionInvalidated
 
-            is DriverDeliveryNetworkOutcome.Assigned,
-            is DriverDeliveryNetworkOutcome.Detail,
-            is DriverDeliveryNetworkOutcome.OutcomeRecorded,
-            is DriverDeliveryNetworkOutcome.ArrivalRecorded,
-            is DriverDeliveryNetworkOutcome.ProofCreated,
-            is DriverDeliveryNetworkOutcome.ProofEvidenceUploaded,
-            is DriverDeliveryNetworkOutcome.ProofEvidenceStatus,
-            is DriverDeliveryNetworkOutcome.ProofEvidenceAttached -> DriverAttemptStartResult.ServiceUnavailable
+            is Outcome.Assigned,
+            is Outcome.Detail,
+            is Outcome.OutcomeRecorded,
+            is Outcome.ArrivalRecorded,
+            is Outcome.ProofCreated,
+            is Outcome.ProofEvidenceUploaded,
+            is Outcome.ProofEvidenceStatus,
+            is Outcome.ProofEvidenceAttached ->
+                DriverAttemptStartResult.ServiceUnavailable
         }
     }
 
@@ -202,9 +213,11 @@ internal class OperationsDriverDeliveryGateway @Inject constructor(
         }
         if (!currentAfter(authority, before.lease)) return DriverOutcomeResult.UnknownOutcome
         return when (outcome) {
-            is DriverDeliveryNetworkOutcome.OutcomeRecorded -> {
+            is Outcome.OutcomeRecorded -> {
                 val value = outcome.value
-                if (value.attemptId != command.attemptId || value.deliveryId != command.deliveryId ||
+                if (
+                    value.attemptId != command.attemptId ||
+                    value.deliveryId != command.deliveryId ||
                     value.outcome != command.outcome.name
                 ) {
                     DriverOutcomeResult.UnknownOutcome
@@ -217,9 +230,12 @@ internal class OperationsDriverDeliveryGateway @Inject constructor(
                             value.deliveryVersion,
                             value.partial,
                             value.remainingLines.map { line ->
-                                com.nexa.mobile.operations.feature.delivery.DriverRemainingQuantityLine(
-                                    line.fulfillmentLineId, line.skuId, line.catalogItemId,
-                                    line.quantity, line.unit
+                                RemainingQuantityLine(
+                                    line.fulfillmentLineId,
+                                    line.skuId,
+                                    line.catalogItemId,
+                                    line.quantity,
+                                    line.unit
                                 )
                             }
                         )
@@ -227,23 +243,33 @@ internal class OperationsDriverDeliveryGateway @Inject constructor(
                 }
             }
 
-            is DriverDeliveryNetworkOutcome.Rejected -> DriverOutcomeResult.Rejected(outcome.code)
-            DriverDeliveryNetworkOutcome.NotFound -> DriverOutcomeResult.NotFound
-            DriverDeliveryNetworkOutcome.StaleVersion -> DriverOutcomeResult.StaleVersion
-            DriverDeliveryNetworkOutcome.UnknownOutcome,
-            DriverDeliveryNetworkOutcome.NetworkUnavailable,
-            DriverDeliveryNetworkOutcome.ServiceUnavailable -> DriverOutcomeResult.UnknownOutcome
-            DriverDeliveryNetworkOutcome.PermissionDenied -> DriverOutcomeResult.PermissionDenied
-            DriverDeliveryNetworkOutcome.ContextInvalidated -> DriverOutcomeResult.ContextInvalidated
-            DriverDeliveryNetworkOutcome.SessionInvalidated -> DriverOutcomeResult.SessionInvalidated
-            is DriverDeliveryNetworkOutcome.Assigned,
-            is DriverDeliveryNetworkOutcome.Detail,
-            is DriverDeliveryNetworkOutcome.Started,
-            is DriverDeliveryNetworkOutcome.ArrivalRecorded,
-            is DriverDeliveryNetworkOutcome.ProofCreated,
-            is DriverDeliveryNetworkOutcome.ProofEvidenceUploaded,
-            is DriverDeliveryNetworkOutcome.ProofEvidenceStatus,
-            is DriverDeliveryNetworkOutcome.ProofEvidenceAttached -> DriverOutcomeResult.ServiceUnavailable
+            is Outcome.Rejected -> DriverOutcomeResult.Rejected(outcome.code)
+
+            Outcome.NotFound -> DriverOutcomeResult.NotFound
+
+            Outcome.StaleVersion -> DriverOutcomeResult.StaleVersion
+
+            Outcome.UnknownOutcome,
+            Outcome.NetworkUnavailable,
+            Outcome.ServiceUnavailable -> DriverOutcomeResult.UnknownOutcome
+
+            Outcome.PermissionDenied -> DriverOutcomeResult.PermissionDenied
+
+            Outcome.ContextInvalidated ->
+                DriverOutcomeResult.ContextInvalidated
+
+            Outcome.SessionInvalidated ->
+                DriverOutcomeResult.SessionInvalidated
+
+            is Outcome.Assigned,
+            is Outcome.Detail,
+            is Outcome.Started,
+            is Outcome.ArrivalRecorded,
+            is Outcome.ProofCreated,
+            is Outcome.ProofEvidenceUploaded,
+            is Outcome.ProofEvidenceStatus,
+            is Outcome.ProofEvidenceAttached ->
+                DriverOutcomeResult.ServiceUnavailable
         }
     }
 
@@ -268,9 +294,10 @@ internal class OperationsDriverDeliveryGateway @Inject constructor(
         }
         if (!currentAfter(authority, before.lease)) return DriverArrivalResult.UnknownOutcome
         return when (outcome) {
-            is DriverDeliveryNetworkOutcome.ArrivalRecorded -> {
+            is Outcome.ArrivalRecorded -> {
                 val value = outcome.value
-                if (value.deliveryId != command.deliveryId || value.attemptId != command.attemptId ||
+                if (value.deliveryId != command.deliveryId ||
+                    value.attemptId != command.attemptId ||
                     value.actorMembershipId != authority.membershipId ||
                     value.deliveryVersion < command.expectedVersion || value.arrivedAt.isBlank()
                 ) {
@@ -278,30 +305,43 @@ internal class OperationsDriverDeliveryGateway @Inject constructor(
                 } else {
                     DriverArrivalResult.Recorded(
                         DriverArrivalSummary(
-                            value.id, value.deliveryId, value.attemptId,
-                            value.arrivedAt, value.deliveryVersion
+                            value.id,
+                            value.deliveryId,
+                            value.attemptId,
+                            value.arrivedAt,
+                            value.deliveryVersion
                         )
                     )
                 }
             }
 
-            is DriverDeliveryNetworkOutcome.Rejected -> DriverArrivalResult.Rejected(outcome.code)
-            DriverDeliveryNetworkOutcome.NotFound -> DriverArrivalResult.NotFound
-            DriverDeliveryNetworkOutcome.StaleVersion -> DriverArrivalResult.StaleVersion
-            DriverDeliveryNetworkOutcome.UnknownOutcome,
-            DriverDeliveryNetworkOutcome.NetworkUnavailable,
-            DriverDeliveryNetworkOutcome.ServiceUnavailable -> DriverArrivalResult.UnknownOutcome
-            DriverDeliveryNetworkOutcome.PermissionDenied -> DriverArrivalResult.PermissionDenied
-            DriverDeliveryNetworkOutcome.ContextInvalidated -> DriverArrivalResult.ContextInvalidated
-            DriverDeliveryNetworkOutcome.SessionInvalidated -> DriverArrivalResult.SessionInvalidated
-            is DriverDeliveryNetworkOutcome.Assigned,
-            is DriverDeliveryNetworkOutcome.Detail,
-            is DriverDeliveryNetworkOutcome.Started,
-            is DriverDeliveryNetworkOutcome.OutcomeRecorded,
-            is DriverDeliveryNetworkOutcome.ProofCreated,
-            is DriverDeliveryNetworkOutcome.ProofEvidenceUploaded,
-            is DriverDeliveryNetworkOutcome.ProofEvidenceStatus,
-            is DriverDeliveryNetworkOutcome.ProofEvidenceAttached -> DriverArrivalResult.ServiceUnavailable
+            is Outcome.Rejected -> DriverArrivalResult.Rejected(outcome.code)
+
+            Outcome.NotFound -> DriverArrivalResult.NotFound
+
+            Outcome.StaleVersion -> DriverArrivalResult.StaleVersion
+
+            Outcome.UnknownOutcome,
+            Outcome.NetworkUnavailable,
+            Outcome.ServiceUnavailable -> DriverArrivalResult.UnknownOutcome
+
+            Outcome.PermissionDenied -> DriverArrivalResult.PermissionDenied
+
+            Outcome.ContextInvalidated ->
+                DriverArrivalResult.ContextInvalidated
+
+            Outcome.SessionInvalidated ->
+                DriverArrivalResult.SessionInvalidated
+
+            is Outcome.Assigned,
+            is Outcome.Detail,
+            is Outcome.Started,
+            is Outcome.OutcomeRecorded,
+            is Outcome.ProofCreated,
+            is Outcome.ProofEvidenceUploaded,
+            is Outcome.ProofEvidenceStatus,
+            is Outcome.ProofEvidenceAttached ->
+                DriverArrivalResult.ServiceUnavailable
         }
     }
 
@@ -309,140 +349,284 @@ internal class OperationsDriverDeliveryGateway @Inject constructor(
     private suspend fun authorizeProof(authority: DriverDeliveryAuthority): Authorization {
         val current = authorize(authority, setOf("dispatch.start_route"))
         if (current !is Authorization.Current) return current
-        return if ("document.upload" in authority.permissions) current else Authorization.PermissionDenied
+        return if ("document.upload" in
+            authority.permissions
+        ) {
+            current
+        } else {
+            Authorization.PermissionDenied
+        }
     }
 
-    override suspend fun createProof(command: DriverProofCreateCommand, authority: DriverDeliveryAuthority): DriverProofCreateResult {
+    override suspend fun createProof(
+        command: DriverProofCreateCommand,
+        authority: DriverDeliveryAuthority
+    ): DriverProofCreateResult {
         val before = authorize(authority, setOf("dispatch.start_route"))
-        if (before !is Authorization.Current) return when (before) {
-            Authorization.SessionInvalidated -> DriverProofCreateResult.SessionInvalidated
-            Authorization.ContextInvalidated -> DriverProofCreateResult.ContextInvalidated
-            else -> DriverProofCreateResult.PermissionDenied
+        if (before !is Authorization.Current) {
+            return when (before) {
+                Authorization.SessionInvalidated -> DriverProofCreateResult.SessionInvalidated
+                Authorization.ContextInvalidated -> DriverProofCreateResult.ContextInvalidated
+                else -> DriverProofCreateResult.PermissionDenied
+            }
         }
         val result = try {
-            deliveryApi.createProofOfDelivery(command.deliveryId, command.attemptId, command.expectedVersion,
-                command.idempotencyKey, command.frozenBody)
-        } catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { return DriverProofCreateResult.UnknownOutcome }
+            deliveryApi.createProofOfDelivery(
+                command.deliveryId,
+                command.attemptId,
+                command.expectedVersion,
+                command.idempotencyKey,
+                command.frozenBody
+            )
+        } catch (
+            cancelled: CancellationException
+        ) {
+            throw cancelled
+        } catch (_: Exception) {
+            return DriverProofCreateResult.UnknownOutcome
+        }
         if (!currentAfter(authority, before.lease)) return DriverProofCreateResult.UnknownOutcome
         return when (result) {
-            is DriverDeliveryNetworkOutcome.ProofCreated -> if (result.value.deliveryId == command.deliveryId &&
-                result.value.attemptId == command.attemptId && result.value.actorMembershipId == authority.membershipId) {
+            is Outcome.ProofCreated -> if (result.value.deliveryId ==
+                command.deliveryId &&
+                result.value.attemptId == command.attemptId &&
+                result.value.actorMembershipId == authority.membershipId
+            ) {
                 DriverProofCreateResult.Created(result.value.toProof())
-            } else DriverProofCreateResult.UnknownOutcome
-            is DriverDeliveryNetworkOutcome.Rejected -> DriverProofCreateResult.Rejected(result.code)
-            DriverDeliveryNetworkOutcome.NotFound -> DriverProofCreateResult.NotFound
-            DriverDeliveryNetworkOutcome.StaleVersion -> DriverProofCreateResult.StaleVersion
-            DriverDeliveryNetworkOutcome.PermissionDenied -> DriverProofCreateResult.PermissionDenied
-            DriverDeliveryNetworkOutcome.ContextInvalidated -> DriverProofCreateResult.ContextInvalidated
-            DriverDeliveryNetworkOutcome.SessionInvalidated -> DriverProofCreateResult.SessionInvalidated
+            } else {
+                DriverProofCreateResult.UnknownOutcome
+            }
+
+            is Outcome.Rejected -> DriverProofCreateResult.Rejected(
+                result.code
+            )
+
+            Outcome.NotFound -> DriverProofCreateResult.NotFound
+
+            Outcome.StaleVersion -> DriverProofCreateResult.StaleVersion
+
+            Outcome.PermissionDenied ->
+                DriverProofCreateResult.PermissionDenied
+
+            Outcome.ContextInvalidated ->
+                DriverProofCreateResult.ContextInvalidated
+
+            Outcome.SessionInvalidated ->
+                DriverProofCreateResult.SessionInvalidated
+
             else -> DriverProofCreateResult.UnknownOutcome
         }
     }
 
-    override suspend fun uploadProofEvidence(command: DriverProofUploadCommand, authority: DriverDeliveryAuthority): DriverProofUploadResult {
+    override suspend fun uploadProofEvidence(
+        command: DriverProofUploadCommand,
+        authority: DriverDeliveryAuthority
+    ): DriverProofUploadResult {
         val before = authorizeProof(authority)
-        if (before !is Authorization.Current) return when (before) {
-            Authorization.SessionInvalidated -> DriverProofUploadResult.SessionInvalidated
-            Authorization.ContextInvalidated -> DriverProofUploadResult.ContextInvalidated
-            else -> DriverProofUploadResult.PermissionDenied
+        if (before !is Authorization.Current) {
+            return when (before) {
+                Authorization.SessionInvalidated -> DriverProofUploadResult.SessionInvalidated
+                Authorization.ContextInvalidated -> DriverProofUploadResult.ContextInvalidated
+                else -> DriverProofUploadResult.PermissionDenied
+            }
         }
         val file = command.candidate
         val result = try {
-            deliveryApi.uploadProofEvidence(command.proofId, command.idempotencyKey, file.file,
-                file.originalFilename, file.declaredContentType, file.byteSize, file.checksumSha256)
-        } catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { return DriverProofUploadResult.UnknownOutcome }
+            deliveryApi.uploadProofEvidence(
+                command.proofId,
+                command.idempotencyKey,
+                file.file,
+                file.originalFilename,
+                file.declaredContentType,
+                file.byteSize,
+                file.checksumSha256
+            )
+        } catch (
+            cancelled: CancellationException
+        ) {
+            throw cancelled
+        } catch (_: Exception) {
+            return DriverProofUploadResult.UnknownOutcome
+        }
         if (!currentAfter(authority, before.lease)) return DriverProofUploadResult.UnknownOutcome
         return when (result) {
-            is DriverDeliveryNetworkOutcome.ProofEvidenceUploaded -> if (result.value.subjectType == "PROOF_OF_DELIVERY" &&
-                result.value.subjectId == command.proofId && result.value.byteSize == file.byteSize &&
+            is Outcome.ProofEvidenceUploaded -> if (result.value.subjectType ==
+                "PROOF_OF_DELIVERY" &&
+                result.value.subjectId == command.proofId &&
+                result.value.byteSize == file.byteSize &&
                 result.value.declaredContentType == file.declaredContentType &&
-                result.value.checksumSha256?.equals(file.checksumSha256, ignoreCase = true) == true) {
+                result.value.checksumSha256?.equals(file.checksumSha256, ignoreCase = true) == true
+            ) {
                 DriverProofUploadResult.Uploaded(result.value.toEvidence())
-            } else DriverProofUploadResult.UnknownOutcome
-            is DriverDeliveryNetworkOutcome.Rejected -> DriverProofUploadResult.Rejected(result.code)
-            DriverDeliveryNetworkOutcome.NotFound -> DriverProofUploadResult.NotFound
-            DriverDeliveryNetworkOutcome.PermissionDenied -> DriverProofUploadResult.PermissionDenied
-            DriverDeliveryNetworkOutcome.ContextInvalidated -> DriverProofUploadResult.ContextInvalidated
-            DriverDeliveryNetworkOutcome.SessionInvalidated -> DriverProofUploadResult.SessionInvalidated
+            } else {
+                DriverProofUploadResult.UnknownOutcome
+            }
+
+            is Outcome.Rejected -> DriverProofUploadResult.Rejected(
+                result.code
+            )
+
+            Outcome.NotFound -> DriverProofUploadResult.NotFound
+
+            Outcome.PermissionDenied ->
+                DriverProofUploadResult.PermissionDenied
+
+            Outcome.ContextInvalidated ->
+                DriverProofUploadResult.ContextInvalidated
+
+            Outcome.SessionInvalidated ->
+                DriverProofUploadResult.SessionInvalidated
+
             else -> DriverProofUploadResult.UnknownOutcome
         }
     }
 
-    override suspend fun proofEvidenceStatus(evidenceId: String, proofId: String, authority: DriverDeliveryAuthority): DriverProofEvidenceStatusResult {
+    override suspend fun proofEvidenceStatus(
+        evidenceId: String,
+        proofId: String,
+        authority: DriverDeliveryAuthority
+    ): ProofEvidenceStatusResult {
         val before = authorize(authority, setOf("document.read"))
-        if (before !is Authorization.Current) return when (before) {
-            Authorization.SessionInvalidated -> DriverProofEvidenceStatusResult.SessionInvalidated
-            Authorization.ContextInvalidated -> DriverProofEvidenceStatusResult.ContextInvalidated
-            else -> DriverProofEvidenceStatusResult.PermissionDenied
+        if (before !is Authorization.Current) {
+            return when (before) {
+                Authorization.SessionInvalidated ->
+                    ProofEvidenceStatusResult.SessionInvalidated
+
+                Authorization.ContextInvalidated ->
+                    ProofEvidenceStatusResult.ContextInvalidated
+
+                else -> ProofEvidenceStatusResult.PermissionDenied
+            }
         }
-        val result = try { deliveryApi.proofEvidence(evidenceId) }
-        catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { return DriverProofEvidenceStatusResult.ServiceUnavailable }
-        if (!currentAfter(authority, before.lease)) return when (authorityDrift(authority)) {
-            DriverDeliveryLoadResult.ContextInvalidated -> DriverProofEvidenceStatusResult.ContextInvalidated
-            else -> DriverProofEvidenceStatusResult.SessionInvalidated
+        val result = try {
+            deliveryApi.proofEvidence(evidenceId)
+        } catch (
+            cancelled: CancellationException
+        ) {
+            throw cancelled
+        } catch (
+            _: Exception
+        ) {
+            return ProofEvidenceStatusResult.ServiceUnavailable
+        }
+        if (!currentAfter(authority, before.lease)) {
+            return when (authorityDrift(authority)) {
+                DriverDeliveryLoadResult.ContextInvalidated ->
+                    ProofEvidenceStatusResult.ContextInvalidated
+
+                else -> ProofEvidenceStatusResult.SessionInvalidated
+            }
         }
         return when (result) {
-            is DriverDeliveryNetworkOutcome.ProofEvidenceStatus -> if (result.value.id == evidenceId &&
-                result.value.subjectType == "PROOF_OF_DELIVERY" && result.value.subjectId == proofId) {
-                DriverProofEvidenceStatusResult.Loaded(result.value.toEvidence())
-            } else DriverProofEvidenceStatusResult.ServiceUnavailable
-            DriverDeliveryNetworkOutcome.NotFound -> DriverProofEvidenceStatusResult.NotFound
-            DriverDeliveryNetworkOutcome.PermissionDenied -> DriverProofEvidenceStatusResult.PermissionDenied
-            DriverDeliveryNetworkOutcome.ContextInvalidated -> DriverProofEvidenceStatusResult.ContextInvalidated
-            DriverDeliveryNetworkOutcome.SessionInvalidated -> DriverProofEvidenceStatusResult.SessionInvalidated
-            else -> DriverProofEvidenceStatusResult.ServiceUnavailable
+            is Outcome.ProofEvidenceStatus ->
+                if (result.value.id == evidenceId &&
+                    result.value.subjectType == "PROOF_OF_DELIVERY" &&
+                    result.value.subjectId == proofId
+                ) {
+                    ProofEvidenceStatusResult.Loaded(result.value.toEvidence())
+                } else {
+                    ProofEvidenceStatusResult.ServiceUnavailable
+                }
+
+            Outcome.NotFound -> ProofEvidenceStatusResult.NotFound
+
+            Outcome.PermissionDenied ->
+                ProofEvidenceStatusResult.PermissionDenied
+
+            Outcome.ContextInvalidated ->
+                ProofEvidenceStatusResult.ContextInvalidated
+
+            Outcome.SessionInvalidated ->
+                ProofEvidenceStatusResult.SessionInvalidated
+
+            else -> ProofEvidenceStatusResult.ServiceUnavailable
         }
     }
 
-    override suspend fun attachProofEvidence(command: DriverProofAttachCommand, authority: DriverDeliveryAuthority): DriverProofAttachResult {
+    override suspend fun attachProofEvidence(
+        command: DriverProofAttachCommand,
+        authority: DriverDeliveryAuthority
+    ): DriverProofAttachResult {
         val before = authorizeProof(authority)
-        if (before !is Authorization.Current) return when (before) {
-            Authorization.SessionInvalidated -> DriverProofAttachResult.SessionInvalidated
-            Authorization.ContextInvalidated -> DriverProofAttachResult.ContextInvalidated
-            else -> DriverProofAttachResult.PermissionDenied
+        if (before !is Authorization.Current) {
+            return when (before) {
+                Authorization.SessionInvalidated -> DriverProofAttachResult.SessionInvalidated
+                Authorization.ContextInvalidated -> DriverProofAttachResult.ContextInvalidated
+                else -> DriverProofAttachResult.PermissionDenied
+            }
         }
         val result = try {
-            deliveryApi.attachProofEvidence(command.deliveryId, command.attemptId, command.proofId,
-                command.expectedVersion, command.idempotencyKey, command.frozenBody)
-        } catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { return DriverProofAttachResult.UnknownOutcome }
+            deliveryApi.attachProofEvidence(
+                command.deliveryId,
+                command.attemptId,
+                command.proofId,
+                command.expectedVersion,
+                command.idempotencyKey,
+                command.frozenBody
+            )
+        } catch (
+            cancelled: CancellationException
+        ) {
+            throw cancelled
+        } catch (_: Exception) {
+            return DriverProofAttachResult.UnknownOutcome
+        }
         if (!currentAfter(authority, before.lease)) return DriverProofAttachResult.UnknownOutcome
         return when (result) {
-            is DriverDeliveryNetworkOutcome.ProofEvidenceAttached -> {
+            is Outcome.ProofEvidenceAttached -> {
                 val proof = result.value
                 val attachedId = when (command.evidenceKind) {
                     DriverProofEvidenceKind.PHOTO -> proof.photoEvidenceObjectId
                     DriverProofEvidenceKind.SIGNATURE -> proof.signatureEvidenceObjectId
                 }
                 if (proof.id == command.proofId && proof.deliveryId == command.deliveryId &&
-                    proof.attemptId == command.attemptId && proof.actorMembershipId == authority.membershipId &&
-                    attachedId == command.evidenceObjectId) DriverProofAttachResult.Attached(proof.toProof())
-                else DriverProofAttachResult.UnknownOutcome
+                    proof.attemptId == command.attemptId &&
+                    proof.actorMembershipId == authority.membershipId &&
+                    attachedId == command.evidenceObjectId
+                ) {
+                    DriverProofAttachResult.Attached(proof.toProof())
+                } else {
+                    DriverProofAttachResult.UnknownOutcome
+                }
             }
-            is DriverDeliveryNetworkOutcome.Rejected -> DriverProofAttachResult.Rejected(result.code)
-            DriverDeliveryNetworkOutcome.NotFound -> DriverProofAttachResult.NotFound
-            DriverDeliveryNetworkOutcome.StaleVersion -> DriverProofAttachResult.StaleVersion
-            DriverDeliveryNetworkOutcome.PermissionDenied -> DriverProofAttachResult.PermissionDenied
-            DriverDeliveryNetworkOutcome.ContextInvalidated -> DriverProofAttachResult.ContextInvalidated
-            DriverDeliveryNetworkOutcome.SessionInvalidated -> DriverProofAttachResult.SessionInvalidated
+
+            is Outcome.Rejected -> DriverProofAttachResult.Rejected(
+                result.code
+            )
+
+            Outcome.NotFound -> DriverProofAttachResult.NotFound
+
+            Outcome.StaleVersion -> DriverProofAttachResult.StaleVersion
+
+            Outcome.PermissionDenied ->
+                DriverProofAttachResult.PermissionDenied
+
+            Outcome.ContextInvalidated ->
+                DriverProofAttachResult.ContextInvalidated
+
+            Outcome.SessionInvalidated ->
+                DriverProofAttachResult.SessionInvalidated
+
             else -> DriverProofAttachResult.UnknownOutcome
         }
     }
 
-    private fun com.nexa.mobile.operations.core.network.DriverProofOfDeliveryProjection.toProof() = DriverProofSummary(
-        proofId = id, deliveryId = deliveryId, attemptId = attemptId, status = status, receiverName = receiverName,
+    private fun ProofOfDeliveryProjection.toProof() = DriverProofSummary(
+        proofId = id, deliveryId = deliveryId, attemptId = attemptId,
+        status = status, receiverName = receiverName,
         capturedAt = capturedAt, photoEvidenceObjectId = photoEvidenceObjectId,
         signatureEvidenceObjectId = signatureEvidenceObjectId, deliveryVersion = deliveryVersion,
         actorMembershipId = actorMembershipId
     )
 
-    private fun com.nexa.mobile.operations.core.network.DriverBusinessEvidenceProjection.toEvidence() = DriverProofEvidenceSummary(
-        evidenceId = id, lifecycleStatus = lifecycleStatus, contentType = declaredContentType,
-        checksumSha256 = checksumSha256, byteSize = byteSize,
-        subjectType = subjectType, subjectId = subjectId
+    private fun BusinessEvidenceProjection.toEvidence() = DriverProofEvidenceSummary(
+        evidenceId = id,
+        lifecycleStatus = lifecycleStatus,
+        contentType = declaredContentType,
+        checksumSha256 = checksumSha256,
+        byteSize = byteSize,
+        subjectType = subjectType,
+        subjectId = subjectId
     )
 
     private suspend fun authorize(
@@ -502,15 +686,23 @@ internal class OperationsDriverDeliveryGateway @Inject constructor(
         is Authorization.Current -> error("authorized result is not a failure")
     }
 
-    private fun DriverDeliveryNetworkOutcome.toLoadFailure(): DriverDeliveryLoadResult =
-        when (this) {
-            DriverDeliveryNetworkOutcome.NetworkUnavailable -> DriverDeliveryLoadResult.NetworkUnavailable
-            DriverDeliveryNetworkOutcome.PermissionDenied -> DriverDeliveryLoadResult.PermissionDenied
-            DriverDeliveryNetworkOutcome.ContextInvalidated -> DriverDeliveryLoadResult.ContextInvalidated
-            DriverDeliveryNetworkOutcome.SessionInvalidated -> DriverDeliveryLoadResult.SessionInvalidated
-            DriverDeliveryNetworkOutcome.NotFound -> DriverDeliveryLoadResult.NotFound
-            else -> DriverDeliveryLoadResult.ServiceUnavailable
-        }
+    private fun Outcome.toLoadFailure(): DriverDeliveryLoadResult = when (this) {
+        Outcome.NetworkUnavailable ->
+            DriverDeliveryLoadResult.NetworkUnavailable
+
+        Outcome.PermissionDenied ->
+            DriverDeliveryLoadResult.PermissionDenied
+
+        Outcome.ContextInvalidated ->
+            DriverDeliveryLoadResult.ContextInvalidated
+
+        Outcome.SessionInvalidated ->
+            DriverDeliveryLoadResult.SessionInvalidated
+
+        Outcome.NotFound -> DriverDeliveryLoadResult.NotFound
+
+        else -> DriverDeliveryLoadResult.ServiceUnavailable
+    }
 
     private fun Authorization.toOutcomeFailure(): DriverOutcomeResult = when (this) {
         Authorization.SessionInvalidated -> DriverOutcomeResult.SessionInvalidated
@@ -550,7 +742,7 @@ internal class OperationsDriverDeliveryGateway @Inject constructor(
         }
     )
 
-    private fun com.nexa.mobile.operations.core.network.DriverDeliveryAttemptProjection.toFeature() =
+    private fun AttemptProjection.toFeature() =
         DriverDeliveryAttempt(id, attemptNumber, status, startedByMembershipId, startedAt)
 
     private sealed interface Authorization {

@@ -7,15 +7,15 @@ import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
 import com.nexa.mobile.operations.core.network.NexaPickingGateway
-import com.nexa.mobile.operations.core.network.PickingWorkListNetworkOutcome
-import com.nexa.mobile.operations.core.network.PickingWorkListProjection as NetworkPage
 import com.nexa.mobile.operations.core.network.PickingWorkListItemProjection as NetworkItem
+import com.nexa.mobile.operations.core.network.PickingWorkListNetworkOutcome as PickingWorkListOutcome
+import com.nexa.mobile.operations.core.network.PickingWorkListProjection as NetworkPage
 import com.nexa.mobile.operations.feature.warehouse.PickingAuthority
 import com.nexa.mobile.operations.feature.warehouse.PickingWorkItem
 import com.nexa.mobile.operations.feature.warehouse.PickingWorkListGateway
-import com.nexa.mobile.operations.feature.warehouse.PickingWorkPage
 import com.nexa.mobile.operations.feature.warehouse.PickingWorkListResult
 import com.nexa.mobile.operations.feature.warehouse.PickingWorkListViewModel
+import com.nexa.mobile.operations.feature.warehouse.PickingWorkPage
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -42,14 +42,23 @@ internal class OperationsPickingWorkListGateway @Inject constructor(
         }
         if (!currentAfter(authority, before.lease)) return authorityDrift(authority)
         return when (outcome) {
-            is PickingWorkListNetworkOutcome.Loaded -> PickingWorkListResult.Loaded(
+            is PickingWorkListOutcome.Loaded -> PickingWorkListResult.Loaded(
                 outcome.value.toFeature()
             )
-            PickingWorkListNetworkOutcome.NetworkUnavailable -> PickingWorkListResult.NetworkUnavailable
-            PickingWorkListNetworkOutcome.ServiceUnavailable -> PickingWorkListResult.ServiceUnavailable
-            PickingWorkListNetworkOutcome.PermissionDenied -> PickingWorkListResult.PermissionDenied
-            PickingWorkListNetworkOutcome.ContextInvalidated -> PickingWorkListResult.ContextInvalidated
-            PickingWorkListNetworkOutcome.SessionInvalidated -> PickingWorkListResult.SessionInvalidated
+
+            PickingWorkListOutcome.NetworkUnavailable ->
+                PickingWorkListResult.NetworkUnavailable
+
+            PickingWorkListOutcome.ServiceUnavailable ->
+                PickingWorkListResult.ServiceUnavailable
+
+            PickingWorkListOutcome.PermissionDenied -> PickingWorkListResult.PermissionDenied
+
+            PickingWorkListOutcome.ContextInvalidated ->
+                PickingWorkListResult.ContextInvalidated
+
+            PickingWorkListOutcome.SessionInvalidated ->
+                PickingWorkListResult.SessionInvalidated
         }
     }
 

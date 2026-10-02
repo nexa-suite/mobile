@@ -228,7 +228,9 @@ internal object OperationsCapabilities {
         ) {
             val authority = context.verifiedAuthority ?: return false
             val scannerIdentity = warehouseContext.verifiedIdentity ?: return false
-            if (capability.guardBehavior == CapabilityGuardBehavior.PickingInCurrentAuthorityEpoch &&
+            if (
+                capability.guardBehavior ==
+                CapabilityGuardBehavior.PickingInCurrentAuthorityEpoch &&
                 authority.permissions.none { it == "fulfillment.read" || it == "fulfillment:read" }
             ) {
                 return false

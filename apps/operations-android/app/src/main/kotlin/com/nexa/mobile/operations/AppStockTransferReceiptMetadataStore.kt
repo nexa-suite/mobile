@@ -18,13 +18,14 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import java.security.MessageDigest
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -32,43 +33,57 @@ import kotlinx.serialization.json.Json
 internal class AppStockTransferReceiptMetadataStore(
     private val backend: TransferReceiptScopedMetadataBackend
 ) : StockTransferReceiptMetadataStore {
-    override suspend fun loadIntent(scope: StockTransferScope): StockTransferReceiptMetadataRead = withScopeLock(scope) {
-        when (val stored = safeLoad(scope)) {
-            TransferReceiptScopedRead.Unavailable -> StockTransferReceiptMetadataRead.Unavailable
-            is TransferReceiptScopedRead.Value -> when (val payload = stored.payload) {
-                null -> StockTransferReceiptMetadataRead.Available(null)
-                else -> payload.decodeIntent()?.takeIf { it.scope == scope }
-                    ?.let(StockTransferReceiptMetadataRead::Available)
-                    ?: StockTransferReceiptMetadataRead.Unavailable
-            }
-        }
-    }
-
-    override suspend fun saveIntent(intent: StockTransferReceiptIntent): StockTransferReceiptMetadataWrite =
-        withScopeLock(intent.scope) {
-            if (!intent.isValid()) return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
-            val current = when (val stored = safeLoad(intent.scope)) {
+    override suspend fun loadIntent(scope: StockTransferScope): StockTransferReceiptMetadataRead =
+        withScopeLock(scope) {
+            when (val stored = safeLoad(scope)) {
                 TransferReceiptScopedRead.Unavailable ->
-                    return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
+                    StockTransferReceiptMetadataRead.Unavailable
+
                 is TransferReceiptScopedRead.Value -> when (val payload = stored.payload) {
-                    null -> null
-                    else -> payload.decodeIntent()?.takeIf { it.scope == intent.scope }
-                        ?: return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
+                    null -> StockTransferReceiptMetadataRead.Available(null)
+
+                    else -> payload.decodeIntent()?.takeIf { it.scope == scope }
+                        ?.let(StockTransferReceiptMetadataRead::Available)
+                        ?: StockTransferReceiptMetadataRead.Unavailable
                 }
             }
-            if (current != null && !current.sameFrozenCommand(intent)) {
-                return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
-            }
-            write(intent)
         }
+
+    override suspend fun saveIntent(
+        intent: StockTransferReceiptIntent
+    ): StockTransferReceiptMetadataWrite = withScopeLock(intent.scope) {
+        if (!intent.isValid()) return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
+        val current = when (val stored = safeLoad(intent.scope)) {
+            TransferReceiptScopedRead.Unavailable ->
+                return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
+
+            is TransferReceiptScopedRead.Value -> when (val payload = stored.payload) {
+                null -> null
+
+                else -> payload.decodeIntent()?.takeIf { it.scope == intent.scope }
+                    ?: return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
+            }
+        }
+        if (current != null && !current.sameFrozenCommand(intent)) {
+            return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
+        }
+        write(intent)
+    }
 
     override suspend fun markUnknownOutcome(
         scope: StockTransferScope,
         idempotencyKey: String
     ): StockTransferReceiptMetadataWrite = withScopeLock(scope) {
-        if (idempotencyKey.isBlank()) return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
-        val current = readIntent(scope) ?: return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
-        if (current.idempotencyKey != idempotencyKey) return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
+        if (idempotencyKey.isBlank()) {
+            return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
+        }
+        val current =
+            readIntent(scope) ?: return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
+        if (current.idempotencyKey !=
+            idempotencyKey
+        ) {
+            return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
+        }
         write(current.copy(status = StockTransferReceiptIntentStatus.UnknownOutcome))
     }
 
@@ -76,15 +91,30 @@ internal class AppStockTransferReceiptMetadataStore(
         scope: StockTransferScope,
         idempotencyKey: String
     ): StockTransferReceiptMetadataWrite = withScopeLock(scope) {
-        if (idempotencyKey.isBlank()) return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
-        val current = readIntent(scope) ?: return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
-        if (current.idempotencyKey != idempotencyKey) return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
-        if (backend.clear(scope)) StockTransferReceiptMetadataWrite.Saved else StockTransferReceiptMetadataWrite.Unavailable
+        if (idempotencyKey.isBlank()) {
+            return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
+        }
+        val current =
+            readIntent(scope) ?: return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
+        if (current.idempotencyKey !=
+            idempotencyKey
+        ) {
+            return@withScopeLock StockTransferReceiptMetadataWrite.Unavailable
+        }
+        if (backend.clear(
+                scope
+            )
+        ) {
+            StockTransferReceiptMetadataWrite.Saved
+        } else {
+            StockTransferReceiptMetadataWrite.Unavailable
+        }
     }
 
     private suspend fun readIntent(scope: StockTransferScope): StockTransferReceiptIntent? {
         return when (val stored = safeLoad(scope)) {
             TransferReceiptScopedRead.Unavailable -> null
+
             is TransferReceiptScopedRead.Value -> when (val payload = stored.payload) {
                 null -> null
                 else -> payload.decodeIntent()?.takeIf { it.scope == scope } ?: return null
@@ -100,14 +130,19 @@ internal class AppStockTransferReceiptMetadataStore(
         TransferReceiptScopedRead.Unavailable
     }
 
-    private suspend fun write(intent: StockTransferReceiptIntent): StockTransferReceiptMetadataWrite {
+    private suspend fun write(
+        intent: StockTransferReceiptIntent
+    ): StockTransferReceiptMetadataWrite {
         val encoded = try {
             transferReceiptJson.encodeToString(intent.toStored())
         } catch (_: SerializationException) {
             return StockTransferReceiptMetadataWrite.Unavailable
         }
-        return if (backend.save(intent.scope, encoded)) StockTransferReceiptMetadataWrite.Saved
-        else StockTransferReceiptMetadataWrite.Unavailable
+        return if (backend.save(intent.scope, encoded)) {
+            StockTransferReceiptMetadataWrite.Saved
+        } else {
+            StockTransferReceiptMetadataWrite.Unavailable
+        }
     }
 
     private fun String.decodeIntent(): StockTransferReceiptIntent? = try {
@@ -115,12 +150,21 @@ internal class AppStockTransferReceiptMetadataStore(
         val transfer = stored.transfer.toTransfer()
         if (stored.schemaVersion != SCHEMA_VERSION || stored.idempotencyKey.isBlank() ||
             stored.idempotencyKey.length > 160 || !transfer.isValid()
-        ) null else StockTransferReceiptIntent(
-            scope = StockTransferScope(stored.userId, stored.tenantId, stored.workspaceId, stored.membershipId),
-            idempotencyKey = stored.idempotencyKey,
-            transfer = transfer,
-            status = StockTransferReceiptIntentStatus.valueOf(stored.status)
-        )
+        ) {
+            null
+        } else {
+            StockTransferReceiptIntent(
+                scope = StockTransferScope(
+                    stored.userId,
+                    stored.tenantId,
+                    stored.workspaceId,
+                    stored.membershipId
+                ),
+                idempotencyKey = stored.idempotencyKey,
+                transfer = transfer,
+                status = StockTransferReceiptIntentStatus.valueOf(stored.status)
+            )
+        }
     } catch (_: SerializationException) {
         null
     } catch (_: IllegalArgumentException) {
@@ -141,14 +185,16 @@ internal class AppStockTransferReceiptMetadataStore(
     private fun StockTransferReceiptTransfer.toStored() = StoredTransferReceiptTransfer(
         id, sourceWarehouseId, sourceZoneId, sourceLotId, destinationWarehouseId, destinationZoneId,
         destinationLotId, skuId, catalogItemId, batchNumber, expirationDate, requestedQuantityText,
-        transferredQuantityText, mode, unit, status, reason, sourceVersionBefore, sourceVersionAfter,
+        transferredQuantityText, mode, unit, status, reason, sourceVersionBefore,
+        sourceVersionAfter,
         destinationVersionAfter, version, dispatchedAt, receivedAt
     )
 
     private fun StoredTransferReceiptTransfer.toTransfer() = StockTransferReceiptTransfer(
         id, sourceWarehouseId, sourceZoneId, sourceLotId, destinationWarehouseId, destinationZoneId,
         destinationLotId, skuId, catalogItemId, batchNumber, expirationDate, requestedQuantityText,
-        transferredQuantityText, mode, unit, status, reason, sourceVersionBefore, sourceVersionAfter,
+        transferredQuantityText, mode, unit, status, reason, sourceVersionBefore,
+        sourceVersionAfter,
         destinationVersionAfter, version, dispatchedAt, receivedAt
     )
 
@@ -156,7 +202,8 @@ internal class AppStockTransferReceiptMetadataStore(
         idempotencyKey.isNotBlank() && idempotencyKey.length <= 160 && transfer.isValid()
 
     private fun StockTransferReceiptTransfer.isValid(): Boolean =
-        id.isUuid() && sourceWarehouseId.isUuid() && sourceZoneId.isUuid() && sourceLotId.isUuid() &&
+        id.isUuid() && sourceWarehouseId.isUuid() && sourceZoneId.isUuid() &&
+            sourceLotId.isUuid() &&
             destinationWarehouseId.isUuid() && destinationZoneId.isUuid() &&
             (destinationLotId?.let { it.isUuid() } ?: true) &&
             (skuId?.let { it.isUuid() } ?: true) &&
@@ -166,7 +213,7 @@ internal class AppStockTransferReceiptMetadataStore(
             unit.isNotBlank() && status.isNotBlank() && version >= 0 && sourceVersionBefore >= 0
 
     private fun String.isUuid(): Boolean = try {
-        java.util.UUID.fromString(this).toString().equals(this, ignoreCase = true)
+        UUID.fromString(this).toString().equals(this, ignoreCase = true)
     } catch (_: IllegalArgumentException) {
         false
     }
@@ -174,7 +221,8 @@ internal class AppStockTransferReceiptMetadataStore(
     private suspend fun <T> withScopeLock(scope: StockTransferScope, action: suspend () -> T): T =
         locks.getOrPut(scope.lockKey()) { Mutex() }.withLock { action() }
 
-    private fun StockTransferScope.toLocal() = ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
+    private fun StockTransferScope.toLocal() =
+        ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
 
     private fun StockTransferScope.lockKey(): String {
         val bytes = listOf(userId, tenantId, workspaceId, membershipId).joinToString("\u0000")
@@ -188,7 +236,6 @@ internal class AppStockTransferReceiptMetadataStore(
         val CATALOG_ID = Regex("(?i)CAT-[A-Z0-9-]{1,63}")
         val locks = ConcurrentHashMap<String, Mutex>()
     }
-
 }
 
 @Serializable
@@ -237,12 +284,13 @@ private val transferReceiptJson = Json { ignoreUnknownKeys = false }
 internal object AppStockTransferReceiptMetadataBindings {
     @Provides
     @Singleton
-    fun stockTransferReceiptMetadataStore(@ApplicationContext context: Context): StockTransferReceiptMetadataStore =
-        AppStockTransferReceiptMetadataStore(
-            AndroidTransferReceiptScopedMetadataBackend(
-                AndroidScopedMetadataStore(context, ScopedMetadataPurpose.StockTransferReceipt)
-            )
+    fun stockTransferReceiptMetadataStore(
+        @ApplicationContext context: Context
+    ): StockTransferReceiptMetadataStore = AppStockTransferReceiptMetadataStore(
+        AndroidTransferReceiptScopedMetadataBackend(
+            AndroidScopedMetadataStore(context, ScopedMetadataPurpose.StockTransferReceipt)
         )
+    )
 }
 
 internal sealed interface TransferReceiptScopedRead {
@@ -265,8 +313,10 @@ internal class AndroidTransferReceiptScopedMetadataBackend(
             is ScopedMetadataRead.Value -> TransferReceiptScopedRead.Value(result.payload)
         }
 
-    override suspend fun save(scope: StockTransferScope, payload: String): Boolean = store.save(scope.toLocal(), payload)
+    override suspend fun save(scope: StockTransferScope, payload: String): Boolean =
+        store.save(scope.toLocal(), payload)
     override suspend fun clear(scope: StockTransferScope): Boolean = store.clear(scope.toLocal())
 
-    private fun StockTransferScope.toLocal() = ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
+    private fun StockTransferScope.toLocal() =
+        ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
 }

@@ -22,7 +22,10 @@ class AppCycleCountMetadataStoreTest {
         val original = countIntent()
 
         assertEquals(CycleCountMetadataWrite.Saved, firstProcess.freezeCount(original))
-        assertEquals(CycleCountMetadataWrite.Saved, firstProcess.markCountUnknown(scope, original.idempotencyKey))
+        assertEquals(
+            CycleCountMetadataWrite.Saved,
+            firstProcess.markCountUnknown(scope, original.idempotencyKey)
+        )
 
         val reconstructedStore = AppCycleCountMetadataStore(backend)
         val restored = (reconstructedStore.load(scope) as CycleCountMetadataRead.Available).value
@@ -39,7 +42,10 @@ class AppCycleCountMetadataStoreTest {
             reconstructedStore.saveDraft(CycleCountStoredWork(scope, OTHER_LOT_ID, "2"))
         )
         val unchanged = (reconstructedStore.load(scope) as CycleCountMetadataRead.Available).value
-        assertEquals(original, unchanged?.countIntent?.copy(status = CycleCountIntentStatus.Pending))
+        assertEquals(
+            original,
+            unchanged?.countIntent?.copy(status = CycleCountIntentStatus.Pending)
+        )
     }
 
     private class MemoryBackend : CycleCountMetadataBackend {

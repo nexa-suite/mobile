@@ -8,18 +8,20 @@ import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
 import com.nexa.mobile.operations.core.network.NexaReceivingGateway
 import com.nexa.mobile.operations.core.network.NexaStockTransferGateway
-import com.nexa.mobile.operations.core.network.StockTransferLookupNetworkOutcome
-import com.nexa.mobile.operations.core.network.StockTransferNetworkOutcome
+import com.nexa.mobile.operations.core.network.ReceivingNetworkOutcome
+import com.nexa.mobile.operations.core.network.StockTransferLookupNetworkOutcome as StockTransferLookupOutcome
+import com.nexa.mobile.operations.core.network.StockTransferNetworkOutcome as StockTransferOutcome
 import com.nexa.mobile.operations.core.network.StockTransferProjection
-import com.nexa.mobile.operations.core.network.StockTransferReceiptObservationNetworkOutcome
+import com.nexa.mobile.operations.core.network.StockTransferReceiptObservationNetworkOutcome as StockTransferReceiptObservationOutcome
 import com.nexa.mobile.operations.feature.warehouse.StockTransferAuthority
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptGateway
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptIntent
+import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptLookupResult
+import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptMetadataStore
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservation
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservationIntent
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservationMetadataStore
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservationResult
-import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptLookupResult
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptResult
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptTransfer
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptViewModel
@@ -38,27 +40,45 @@ internal class OperationsStockTransferReceiptGateway @Inject constructor(
     private val receiving: NexaReceivingGateway,
     private val transfers: NexaStockTransferGateway
 ) : StockTransferReceiptGateway {
-    override suspend fun warehouses(authority: StockTransferAuthority): StockTransferReceiptLookupResult {
+    override suspend fun warehouses(
+        authority: StockTransferAuthority
+    ): StockTransferReceiptLookupResult {
         val before = authorize(authority, LOOKUP_PERMISSIONS)
         if (before !is Authorization.Current) return before.toLookupFailure()
         val result = safeLookup {
             when (val response = receiving.warehouses()) {
-                is com.nexa.mobile.operations.core.network.ReceivingNetworkOutcome.Warehouses ->
+                is ReceivingNetworkOutcome.Warehouses ->
                     StockTransferReceiptLookupResult.Warehouses(
-                        response.items.map { TransferWarehouseChoice(it.id, it.code, it.name, it.status) }
+                        response.items.map {
+                            TransferWarehouseChoice(it.id, it.code, it.name, it.status)
+                        }
                     )
-                com.nexa.mobile.operations.core.network.ReceivingNetworkOutcome.NetworkUnavailable ->
+
+                ReceivingNetworkOutcome.NetworkUnavailable ->
                     StockTransferReceiptLookupResult.NetworkUnavailable
-                com.nexa.mobile.operations.core.network.ReceivingNetworkOutcome.PermissionDenied ->
+
+                ReceivingNetworkOutcome.PermissionDenied ->
                     StockTransferReceiptLookupResult.PermissionDenied
-                com.nexa.mobile.operations.core.network.ReceivingNetworkOutcome.ContextInvalidated ->
+
+                ReceivingNetworkOutcome.ContextInvalidated ->
                     StockTransferReceiptLookupResult.ContextInvalidated
-                com.nexa.mobile.operations.core.network.ReceivingNetworkOutcome.SessionInvalidated ->
+
+                ReceivingNetworkOutcome.SessionInvalidated ->
                     StockTransferReceiptLookupResult.SessionInvalidated
+
                 else -> StockTransferReceiptLookupResult.ServiceUnavailable
             }
         }
-        return if (currentAfter(authority, before.lease, LOOKUP_PERMISSIONS)) result else authorityDrift(authority)
+        return if (currentAfter(
+                authority,
+                before.lease,
+                LOOKUP_PERMISSIONS
+            )
+        ) {
+            result
+        } else {
+            authorityDrift(authority)
+        }
     }
 
     override suspend fun transfers(
@@ -70,19 +90,38 @@ internal class OperationsStockTransferReceiptGateway @Inject constructor(
         if (before !is Authorization.Current) return before.toLookupFailure()
         val result = safeLookup {
             when (val response = transfers.transfersForDestination(destinationWarehouseId, page)) {
-                is StockTransferLookupNetworkOutcome.Page -> StockTransferReceiptLookupResult.TransferPage(
-                    items = response.items.map { it.toReceiptTransfer() },
-                    page = response.page,
-                    total = response.total
-                )
-                StockTransferLookupNetworkOutcome.NetworkUnavailable -> StockTransferReceiptLookupResult.NetworkUnavailable
-                StockTransferLookupNetworkOutcome.PermissionDenied -> StockTransferReceiptLookupResult.PermissionDenied
-                StockTransferLookupNetworkOutcome.ContextInvalidated -> StockTransferReceiptLookupResult.ContextInvalidated
-                StockTransferLookupNetworkOutcome.SessionInvalidated -> StockTransferReceiptLookupResult.SessionInvalidated
+                is StockTransferLookupOutcome.Page ->
+                    StockTransferReceiptLookupResult.TransferPage(
+                        items = response.items.map { it.toReceiptTransfer() },
+                        page = response.page,
+                        total = response.total
+                    )
+
+                StockTransferLookupOutcome.NetworkUnavailable ->
+                    StockTransferReceiptLookupResult.NetworkUnavailable
+
+                StockTransferLookupOutcome.PermissionDenied ->
+                    StockTransferReceiptLookupResult.PermissionDenied
+
+                StockTransferLookupOutcome.ContextInvalidated ->
+                    StockTransferReceiptLookupResult.ContextInvalidated
+
+                StockTransferLookupOutcome.SessionInvalidated ->
+                    StockTransferReceiptLookupResult.SessionInvalidated
+
                 else -> StockTransferReceiptLookupResult.ServiceUnavailable
             }
         }
-        return if (currentAfter(authority, before.lease, LOOKUP_PERMISSIONS)) result else authorityDrift(authority)
+        return if (currentAfter(
+                authority,
+                before.lease,
+                LOOKUP_PERMISSIONS
+            )
+        ) {
+            result
+        } else {
+            authorityDrift(authority)
+        }
     }
 
     override suspend fun transfer(
@@ -93,16 +132,34 @@ internal class OperationsStockTransferReceiptGateway @Inject constructor(
         if (before !is Authorization.Current) return before.toLookupFailure()
         val result = safeLookup {
             when (val response = transfers.transfer(transferId)) {
-                is StockTransferLookupNetworkOutcome.Transfer ->
+                is StockTransferLookupOutcome.Transfer ->
                     StockTransferReceiptLookupResult.Transfer(response.item.toReceiptTransfer())
-                StockTransferLookupNetworkOutcome.NetworkUnavailable -> StockTransferReceiptLookupResult.NetworkUnavailable
-                StockTransferLookupNetworkOutcome.PermissionDenied -> StockTransferReceiptLookupResult.PermissionDenied
-                StockTransferLookupNetworkOutcome.ContextInvalidated -> StockTransferReceiptLookupResult.ContextInvalidated
-                StockTransferLookupNetworkOutcome.SessionInvalidated -> StockTransferReceiptLookupResult.SessionInvalidated
+
+                StockTransferLookupOutcome.NetworkUnavailable ->
+                    StockTransferReceiptLookupResult.NetworkUnavailable
+
+                StockTransferLookupOutcome.PermissionDenied ->
+                    StockTransferReceiptLookupResult.PermissionDenied
+
+                StockTransferLookupOutcome.ContextInvalidated ->
+                    StockTransferReceiptLookupResult.ContextInvalidated
+
+                StockTransferLookupOutcome.SessionInvalidated ->
+                    StockTransferReceiptLookupResult.SessionInvalidated
+
                 else -> StockTransferReceiptLookupResult.ServiceUnavailable
             }
         }
-        return if (currentAfter(authority, before.lease, LOOKUP_PERMISSIONS)) result else authorityDrift(authority)
+        return if (currentAfter(
+                authority,
+                before.lease,
+                LOOKUP_PERMISSIONS
+            )
+        ) {
+            result
+        } else {
+            authorityDrift(authority)
+        }
     }
 
     override suspend fun receive(
@@ -113,15 +170,24 @@ internal class OperationsStockTransferReceiptGateway @Inject constructor(
         val before = authorize(authority, WRITE_PERMISSIONS)
         if (before !is Authorization.Current) return before.toCommandFailure()
         val result = try {
-            transfers.receiveTransfer(intent.transfer.toNetworkProjection(), intent.idempotencyKey).toReceiptResult()
+            transfers.receiveTransfer(
+                intent.transfer.toNetworkProjection(),
+                intent.idempotencyKey
+            ).toReceiptResult()
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
             StockTransferReceiptResult.UnknownOutcome
         }
-        return if (currentAfter(authority, before.lease, WRITE_PERMISSIONS)) result else when (authorityDrift(authority)) {
-            StockTransferReceiptLookupResult.SessionInvalidated -> StockTransferReceiptResult.SessionInvalidated
-            else -> StockTransferReceiptResult.ContextInvalidated
+        return if (currentAfter(authority, before.lease, WRITE_PERMISSIONS)) {
+            result
+        } else {
+            when (authorityDrift(authority)) {
+                StockTransferReceiptLookupResult.SessionInvalidated ->
+                    StockTransferReceiptResult.SessionInvalidated
+
+                else -> StockTransferReceiptResult.ContextInvalidated
+            }
         }
     }
 
@@ -129,24 +195,33 @@ internal class OperationsStockTransferReceiptGateway @Inject constructor(
         intent: StockTransferReceiptObservationIntent,
         authority: StockTransferAuthority
     ): StockTransferReceiptObservationResult {
-        if (intent.scope != authority.scope) return StockTransferReceiptObservationResult.ContextInvalidated
+        if (intent.scope !=
+            authority.scope
+        ) {
+            return StockTransferReceiptObservationResult.ContextInvalidated
+        }
         val before = authorize(authority, WRITE_PERMISSIONS)
         if (before !is Authorization.Current) return before.toObservationFailure()
         val result = try {
-            when (val response = transfers.observeTransferArrival(
-                expectedTransfer = intent.transfer.toNetworkProjection(),
-                observedBatchNumber = intent.observedBatchNumber,
-                observedExpirationDate = intent.observedExpirationDate,
-                observedQuantity = requireNotNull(intent.observedQuantityText.toBigDecimalOrNull()),
-                unit = intent.observedUnit,
-                idempotencyKey = intent.idempotencyKey
-            )) {
-                is StockTransferReceiptObservationNetworkOutcome.Recorded ->
+            when (
+                val response = transfers.observeTransferArrival(
+                    expectedTransfer = intent.transfer.toNetworkProjection(),
+                    observedBatchNumber = intent.observedBatchNumber,
+                    observedExpirationDate = intent.observedExpirationDate,
+                    observedQuantity = requireNotNull(
+                        intent.observedQuantityText.toBigDecimalOrNull()
+                    ),
+                    unit = intent.observedUnit,
+                    idempotencyKey = intent.idempotencyKey
+                )
+            ) {
+                is StockTransferReceiptObservationOutcome.Recorded ->
                     if (response.observation.actorMembershipId == authority.membershipId) {
                         response.toReceiptObservationResult()
                     } else {
                         StockTransferReceiptObservationResult.UnknownOutcome
                     }
+
                 else -> response.toReceiptObservationResult()
             }
         } catch (cancelled: CancellationException) {
@@ -154,19 +229,35 @@ internal class OperationsStockTransferReceiptGateway @Inject constructor(
         } catch (_: Exception) {
             StockTransferReceiptObservationResult.UnknownOutcome
         }
-        return if (currentAfter(authority, before.lease, WRITE_PERMISSIONS)) result else when (authorityDrift(authority)) {
-            StockTransferReceiptLookupResult.SessionInvalidated -> StockTransferReceiptObservationResult.SessionInvalidated
-            else -> StockTransferReceiptObservationResult.ContextInvalidated
+        return if (currentAfter(authority, before.lease, WRITE_PERMISSIONS)) {
+            result
+        } else {
+            when (authorityDrift(authority)) {
+                StockTransferReceiptLookupResult.SessionInvalidated ->
+                    StockTransferReceiptObservationResult.SessionInvalidated
+
+                else -> StockTransferReceiptObservationResult.ContextInvalidated
+            }
         }
     }
 
-    private suspend fun authorize(authority: StockTransferAuthority, required: Set<String>): Authorization {
-        if (sessions.sessionState.value != SessionState.Active) return Authorization.SessionInvalidated
+    private suspend fun authorize(
+        authority: StockTransferAuthority,
+        required: Set<String>
+    ): Authorization {
+        if (sessions.sessionState.value !=
+            SessionState.Active
+        ) {
+            return Authorization.SessionInvalidated
+        }
         val lease = sessions.currentAccess() ?: return Authorization.SessionInvalidated
         val verified = sessions.verifiedSession.value ?: return Authorization.ContextInvalidated
         if (!verified.matches(authority)) return Authorization.ContextInvalidated
-        return if (authority.permissions.any { it in required }) Authorization.Current(lease)
-        else Authorization.PermissionDenied
+        return if (authority.permissions.any { it in required }) {
+            Authorization.Current(lease)
+        } else {
+            Authorization.PermissionDenied
+        }
     }
 
     private suspend fun currentAfter(
@@ -174,14 +265,25 @@ internal class OperationsStockTransferReceiptGateway @Inject constructor(
         originalLease: AccessTokenLease,
         required: Set<String>
     ): Boolean {
-        if (sessions.sessionState.value != SessionState.Active || !sessions.isEpochCurrent(originalLease.epoch)) return false
+        if (sessions.sessionState.value != SessionState.Active ||
+            !sessions.isEpochCurrent(originalLease.epoch)
+        ) {
+            return false
+        }
         val current = sessions.verifiedSession.value ?: return false
         return current.matches(authority) && authority.permissions.any { it in required }
     }
 
-    private suspend fun authorityDrift(authority: StockTransferAuthority): StockTransferReceiptLookupResult = when {
-        sessions.sessionState.value != SessionState.Active -> StockTransferReceiptLookupResult.SessionInvalidated
-        sessions.verifiedSession.value?.matches(authority) == true -> StockTransferReceiptLookupResult.SessionInvalidated
+    private suspend fun authorityDrift(
+        authority: StockTransferAuthority
+    ): StockTransferReceiptLookupResult = when {
+        sessions.sessionState.value != SessionState.Active ->
+            StockTransferReceiptLookupResult.SessionInvalidated
+
+        sessions.verifiedSession.value?.matches(
+            authority
+        ) == true -> StockTransferReceiptLookupResult.SessionInvalidated
+
         else -> StockTransferReceiptLookupResult.ContextInvalidated
     }
 
@@ -204,60 +306,99 @@ internal class OperationsStockTransferReceiptGateway @Inject constructor(
         is Authorization.Current -> error("authorized result is not a command failure")
     }
 
-    private fun Authorization.toObservationFailure(): StockTransferReceiptObservationResult = when (this) {
-        Authorization.SessionInvalidated -> StockTransferReceiptObservationResult.SessionInvalidated
-        Authorization.ContextInvalidated -> StockTransferReceiptObservationResult.ContextInvalidated
-        Authorization.PermissionDenied -> StockTransferReceiptObservationResult.PermissionDenied
-        is Authorization.Current -> error("authorized result is not an observation failure")
-    }
+    private fun Authorization.toObservationFailure(): StockTransferReceiptObservationResult =
+        when (this) {
+            Authorization.SessionInvalidated ->
+                StockTransferReceiptObservationResult.SessionInvalidated
 
-    private fun StockTransferNetworkOutcome.toReceiptResult(): StockTransferReceiptResult = when (this) {
-        is StockTransferNetworkOutcome.Confirmed -> StockTransferReceiptResult.Confirmed(transfer.toReceiptTransfer())
-        is StockTransferNetworkOutcome.Rejected -> StockTransferReceiptResult.Rejected(code)
-        StockTransferNetworkOutcome.UnknownOutcome -> StockTransferReceiptResult.UnknownOutcome
-        StockTransferNetworkOutcome.PreconditionFailed -> StockTransferReceiptResult.PreconditionFailed
-        StockTransferNetworkOutcome.Conflict -> StockTransferReceiptResult.Conflict
-        StockTransferNetworkOutcome.NetworkUnavailable -> StockTransferReceiptResult.NetworkUnavailable
-        StockTransferNetworkOutcome.ServiceUnavailable -> StockTransferReceiptResult.ServiceUnavailable
-        StockTransferNetworkOutcome.PermissionDenied -> StockTransferReceiptResult.PermissionDenied
-        StockTransferNetworkOutcome.ContextInvalidated -> StockTransferReceiptResult.ContextInvalidated
-        StockTransferNetworkOutcome.SessionInvalidated -> StockTransferReceiptResult.SessionInvalidated
-    }
+            Authorization.ContextInvalidated ->
+                StockTransferReceiptObservationResult.ContextInvalidated
 
-    private fun StockTransferReceiptObservationNetworkOutcome.toReceiptObservationResult(): StockTransferReceiptObservationResult = when (this) {
-        is StockTransferReceiptObservationNetworkOutcome.Recorded -> {
-            val value = observation
-            StockTransferReceiptObservationResult.Recorded(
-                StockTransferReceiptObservation(
-                    observationId = value.observationId,
-                    transferId = value.transferId,
-                    transferVersion = value.transferVersion,
-                    observedBatchNumber = value.observedBatchNumber,
-                    observedExpirationDate = value.observedExpirationDate,
-                    observedQuantityText = value.observedQuantity.toPlainString(),
-                    observedUnit = value.observedUnit,
-                    hasDifference = value.hasDifference,
-                    actorMembershipId = value.actorMembershipId,
-                    recordedAt = value.recordedAt
-                )
-            )
+            Authorization.PermissionDenied -> StockTransferReceiptObservationResult.PermissionDenied
+
+            is Authorization.Current -> error("authorized result is not an observation failure")
         }
-        is StockTransferReceiptObservationNetworkOutcome.Rejected -> StockTransferReceiptObservationResult.Rejected(code)
-        StockTransferReceiptObservationNetworkOutcome.UnknownOutcome -> StockTransferReceiptObservationResult.UnknownOutcome
-        StockTransferReceiptObservationNetworkOutcome.PreconditionFailed ->
-            StockTransferReceiptObservationResult.PreconditionFailed
-        StockTransferReceiptObservationNetworkOutcome.Conflict -> StockTransferReceiptObservationResult.Conflict
-        StockTransferReceiptObservationNetworkOutcome.NetworkUnavailable ->
-            StockTransferReceiptObservationResult.NetworkUnavailable
-        StockTransferReceiptObservationNetworkOutcome.ServiceUnavailable ->
-            StockTransferReceiptObservationResult.ServiceUnavailable
-        StockTransferReceiptObservationNetworkOutcome.PermissionDenied ->
-            StockTransferReceiptObservationResult.PermissionDenied
-        StockTransferReceiptObservationNetworkOutcome.ContextInvalidated ->
-            StockTransferReceiptObservationResult.ContextInvalidated
-        StockTransferReceiptObservationNetworkOutcome.SessionInvalidated ->
-            StockTransferReceiptObservationResult.SessionInvalidated
+
+    private fun StockTransferOutcome.toReceiptResult(): StockTransferReceiptResult = when (this) {
+        is StockTransferOutcome.Confirmed -> StockTransferReceiptResult.Confirmed(
+            transfer.toReceiptTransfer()
+        )
+
+        is StockTransferOutcome.Rejected -> StockTransferReceiptResult.Rejected(code)
+
+        StockTransferOutcome.UnknownOutcome -> StockTransferReceiptResult.UnknownOutcome
+
+        StockTransferOutcome.PreconditionFailed ->
+            StockTransferReceiptResult.PreconditionFailed
+
+        StockTransferOutcome.Conflict -> StockTransferReceiptResult.Conflict
+
+        StockTransferOutcome.NetworkUnavailable ->
+            StockTransferReceiptResult.NetworkUnavailable
+
+        StockTransferOutcome.ServiceUnavailable ->
+            StockTransferReceiptResult.ServiceUnavailable
+
+        StockTransferOutcome.PermissionDenied ->
+            StockTransferReceiptResult.PermissionDenied
+
+        StockTransferOutcome.ContextInvalidated ->
+            StockTransferReceiptResult.ContextInvalidated
+
+        StockTransferOutcome.SessionInvalidated ->
+            StockTransferReceiptResult.SessionInvalidated
     }
+
+    private fun StockTransferReceiptObservationOutcome.toReceiptObservationResult():
+        StockTransferReceiptObservationResult =
+        when (this) {
+            is StockTransferReceiptObservationOutcome.Recorded -> {
+                val value = observation
+                StockTransferReceiptObservationResult.Recorded(
+                    StockTransferReceiptObservation(
+                        observationId = value.observationId,
+                        transferId = value.transferId,
+                        transferVersion = value.transferVersion,
+                        observedBatchNumber = value.observedBatchNumber,
+                        observedExpirationDate = value.observedExpirationDate,
+                        observedQuantityText = value.observedQuantity.toPlainString(),
+                        observedUnit = value.observedUnit,
+                        hasDifference = value.hasDifference,
+                        actorMembershipId = value.actorMembershipId,
+                        recordedAt = value.recordedAt
+                    )
+                )
+            }
+
+            is StockTransferReceiptObservationOutcome.Rejected ->
+                StockTransferReceiptObservationResult.Rejected(
+                    code
+                )
+
+            StockTransferReceiptObservationOutcome.UnknownOutcome ->
+                StockTransferReceiptObservationResult.UnknownOutcome
+
+            StockTransferReceiptObservationOutcome.PreconditionFailed ->
+                StockTransferReceiptObservationResult.PreconditionFailed
+
+            StockTransferReceiptObservationOutcome.Conflict ->
+                StockTransferReceiptObservationResult.Conflict
+
+            StockTransferReceiptObservationOutcome.NetworkUnavailable ->
+                StockTransferReceiptObservationResult.NetworkUnavailable
+
+            StockTransferReceiptObservationOutcome.ServiceUnavailable ->
+                StockTransferReceiptObservationResult.ServiceUnavailable
+
+            StockTransferReceiptObservationOutcome.PermissionDenied ->
+                StockTransferReceiptObservationResult.PermissionDenied
+
+            StockTransferReceiptObservationOutcome.ContextInvalidated ->
+                StockTransferReceiptObservationResult.ContextInvalidated
+
+            StockTransferReceiptObservationOutcome.SessionInvalidated ->
+                StockTransferReceiptObservationResult.SessionInvalidated
+        }
 
     private fun StockTransferProjection.toReceiptTransfer() = StockTransferReceiptTransfer(
         id = id,
@@ -337,19 +478,25 @@ internal class OperationsStockTransferReceiptGateway @Inject constructor(
 internal object StockTransferReceiptGatewayBindings {
     @Provides
     @Singleton
-    fun stockTransferReceiptGateway(gateway: OperationsStockTransferReceiptGateway): StockTransferReceiptGateway = gateway
+    fun stockTransferReceiptGateway(
+        gateway: OperationsStockTransferReceiptGateway
+    ): StockTransferReceiptGateway = gateway
 }
 
 internal object StockTransferReceiptViewModelBindings {
     fun viewModelFactory(
         gateway: StockTransferReceiptGateway,
-        metadataStore: com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptMetadataStore,
+        metadataStore: StockTransferReceiptMetadataStore,
         observationMetadataStore: StockTransferReceiptObservationMetadataStore
     ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass.isAssignableFrom(StockTransferReceiptViewModel::class.java))
-            return StockTransferReceiptViewModel(gateway, metadataStore, observationMetadataStore) as T
+            return StockTransferReceiptViewModel(
+                gateway,
+                metadataStore,
+                observationMetadataStore
+            ) as T
         }
     }
 }

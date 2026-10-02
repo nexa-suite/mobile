@@ -21,8 +21,8 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Singleton
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -35,14 +35,18 @@ internal class AppStockTransferMetadataStore(
     ): TransferMetadataRead<StockTransferIntent> = withScopeLock(scope) {
         when (val read = local.load(scope)) {
             StockTransferScopedRead.Unavailable -> TransferMetadataRead.Unavailable
+
             is StockTransferScopedRead.Value -> {
                 val payload = read.payload
                 if (payload == null) {
                     TransferMetadataRead.Available(null)
                 } else {
                     val intent = payload.decode(scope)
-                    if (intent == null) TransferMetadataRead.Unavailable
-                    else TransferMetadataRead.Available(intent)
+                    if (intent == null) {
+                        TransferMetadataRead.Unavailable
+                    } else {
+                        TransferMetadataRead.Available(intent)
+                    }
                 }
             }
         }
@@ -53,6 +57,7 @@ internal class AppStockTransferMetadataStore(
             val existing = readCurrent(intent.scope)
             when (existing) {
                 TransferMetadataRead.Unavailable -> TransferMetadataWrite.Unavailable
+
                 is TransferMetadataRead.Available -> {
                     val current = existing.value
                     if (current != null && !current.sameFrozenCommand(intent)) {
@@ -70,8 +75,10 @@ internal class AppStockTransferMetadataStore(
     ): TransferMetadataWrite = withScopeLock(scope) {
         when (val existing = readCurrent(scope)) {
             TransferMetadataRead.Unavailable -> TransferMetadataWrite.Unavailable
+
             is TransferMetadataRead.Available -> {
-                val intent = existing.value ?: return@withScopeLock TransferMetadataWrite.Unavailable
+                val intent =
+                    existing.value ?: return@withScopeLock TransferMetadataWrite.Unavailable
                 if (intent.idempotencyKey != idempotencyKey) {
                     TransferMetadataWrite.Unavailable
                 } else {
@@ -87,6 +94,7 @@ internal class AppStockTransferMetadataStore(
     ): TransferMetadataWrite = withScopeLock(scope) {
         when (val existing = readCurrent(scope)) {
             TransferMetadataRead.Unavailable -> TransferMetadataWrite.Unavailable
+
             is TransferMetadataRead.Available -> {
                 val intent = existing.value
                 when {
@@ -99,16 +107,21 @@ internal class AppStockTransferMetadataStore(
         }
     }
 
-    private suspend fun readCurrent(scope: StockTransferScope): TransferMetadataRead<StockTransferIntent> =
-        when (val read = local.load(scope)) {
-            StockTransferScopedRead.Unavailable -> TransferMetadataRead.Unavailable
-            is StockTransferScopedRead.Value -> {
-                val payload = read.payload
-                if (payload == null) TransferMetadataRead.Available(null)
-                else payload.decode(scope)?.let { TransferMetadataRead.Available(it) }
+    private suspend fun readCurrent(
+        scope: StockTransferScope
+    ): TransferMetadataRead<StockTransferIntent> = when (val read = local.load(scope)) {
+        StockTransferScopedRead.Unavailable -> TransferMetadataRead.Unavailable
+
+        is StockTransferScopedRead.Value -> {
+            val payload = read.payload
+            if (payload == null) {
+                TransferMetadataRead.Available(null)
+            } else {
+                payload.decode(scope)?.let { TransferMetadataRead.Available(it) }
                     ?: TransferMetadataRead.Unavailable
             }
         }
+    }
 
     private suspend fun write(intent: StockTransferIntent): TransferMetadataWrite =
         if (local.save(intent.scope, intent.encode())) {
@@ -117,8 +130,10 @@ internal class AppStockTransferMetadataStore(
             TransferMetadataWrite.Unavailable
         }
 
-    private suspend fun <T> withScopeLock(scope: StockTransferScope, operation: suspend () -> T): T =
-        locks.getOrPut(scope.lockKey()) { Mutex() }.withLock { operation() }
+    private suspend fun <T> withScopeLock(
+        scope: StockTransferScope,
+        operation: suspend () -> T
+    ): T = locks.getOrPut(scope.lockKey()) { Mutex() }.withLock { operation() }
 
     private fun StockTransferIntent.encode(): String = transferMetadataJson.encodeToString(
         StoredTransferIntent(
@@ -155,7 +170,8 @@ internal class AppStockTransferMetadataStore(
 
     private fun StockTransferIntent.sameFrozenCommand(other: StockTransferIntent): Boolean =
         scope == other.scope && idempotencyKey == other.idempotencyKey &&
-            frozenPayload == other.frozenPayload && expectedSourceVersion == other.expectedSourceVersion
+            frozenPayload == other.frozenPayload &&
+            expectedSourceVersion == other.expectedSourceVersion
 
     private fun StockTransferScope.lockKey(): String {
         val bytes = listOf(userId, tenantId, workspaceId, membershipId).joinToString("\u0000")
@@ -187,12 +203,13 @@ private val transferMetadataJson = Json { ignoreUnknownKeys = false }
 internal object AppStockTransferMetadataBindings {
     @Provides
     @Singleton
-    fun stockTransferMetadataStore(@ApplicationContext context: Context): StockTransferMetadataStore =
-        AppStockTransferMetadataStore(
-            AndroidStockTransferScopedMetadataBackend(
-                AndroidScopedMetadataStore(context, ScopedMetadataPurpose.StockTransfer)
-            )
+    fun stockTransferMetadataStore(
+        @ApplicationContext context: Context
+    ): StockTransferMetadataStore = AppStockTransferMetadataStore(
+        AndroidStockTransferScopedMetadataBackend(
+            AndroidScopedMetadataStore(context, ScopedMetadataPurpose.StockTransfer)
         )
+    )
 }
 
 private fun StockTransferScope.toLocal() =

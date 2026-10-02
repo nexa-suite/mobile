@@ -6,7 +6,7 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.feature.delivery.DriverArrivalCommand
-import com.nexa.mobile.operations.feature.delivery.DriverArrivalIntentMetadata
+import com.nexa.mobile.operations.feature.delivery.DriverArrivalIntentMetadata as ArrivalIntentMetadata
 import com.nexa.mobile.operations.feature.delivery.DriverArrivalIntentStatus
 import com.nexa.mobile.operations.feature.delivery.DriverArrivalMetadataRead
 import com.nexa.mobile.operations.feature.delivery.DriverArrivalMetadataStore
@@ -17,8 +17,8 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import javax.inject.Singleton
 import java.util.concurrent.ConcurrentHashMap
+import javax.inject.Singleton
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
@@ -29,13 +29,13 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
 /** Typed arrival intent storage; contains no access token, permissions, or server truth. */
-internal class AppDriverArrivalMetadataStore(
-    private val local: AndroidScopedMetadataStore
-) : DriverArrivalMetadataStore {
+internal class AppDriverArrivalMetadataStore(private val local: AndroidScopedMetadataStore) :
+    DriverArrivalMetadataStore {
     override suspend fun loadIntent(scope: DriverAttemptScopeIdentity): DriverArrivalMetadataRead =
         mutex(scope).withLock {
             when (val stored = local.load(scope.toLocal())) {
                 ScopedMetadataRead.Unavailable -> DriverArrivalMetadataRead.Unavailable
+
                 is ScopedMetadataRead.Value -> {
                     val payload = stored.payload
                         ?: return@withLock DriverArrivalMetadataRead.Available(null)
@@ -43,7 +43,9 @@ internal class AppDriverArrivalMetadataStore(
                         ?: return@withLock DriverArrivalMetadataRead.Unavailable
                     if (intent.scope != scope) return@withLock DriverArrivalMetadataRead.Unavailable
                     if (intent.status == DriverArrivalIntentStatus.Pending) {
-                        val recovered = intent.copy(status = DriverArrivalIntentStatus.UnknownOutcome)
+                        val recovered = intent.copy(
+                            status = DriverArrivalIntentStatus.UnknownOutcome
+                        )
                         if (local.save(scope.toLocal(), encode(recovered))) {
                             DriverArrivalMetadataRead.Available(recovered)
                         } else {
@@ -56,10 +58,11 @@ internal class AppDriverArrivalMetadataStore(
             }
         }
 
-    override suspend fun saveIntent(intent: DriverArrivalIntentMetadata): DriverArrivalMetadataWrite =
+    override suspend fun saveIntent(intent: ArrivalIntentMetadata): DriverArrivalMetadataWrite =
         mutex(intent.scope).withLock {
             when (val stored = local.load(intent.scope.toLocal())) {
                 ScopedMetadataRead.Unavailable -> DriverArrivalMetadataWrite.Unavailable
+
                 is ScopedMetadataRead.Value -> {
                     val current = stored.payload?.let(::decode)
                     if (stored.payload != null && current == null) {
@@ -67,11 +70,17 @@ internal class AppDriverArrivalMetadataStore(
                     }
                     when {
                         current == null -> save(intent)
+
                         current.scope != intent.scope -> DriverArrivalMetadataWrite.Unavailable
+
                         current.command != intent.command -> DriverArrivalMetadataWrite.Conflict
+
                         current.status == DriverArrivalIntentStatus.UnknownOutcome &&
-                            intent.status == DriverArrivalIntentStatus.Pending -> DriverArrivalMetadataWrite.Conflict
+                            intent.status == DriverArrivalIntentStatus.Pending ->
+                            DriverArrivalMetadataWrite.Conflict
+
                         current == intent -> DriverArrivalMetadataWrite.Saved
+
                         else -> save(intent)
                     }
                 }
@@ -84,9 +93,11 @@ internal class AppDriverArrivalMetadataStore(
     ): DriverArrivalMetadataWrite = mutex(scope).withLock {
         when (val stored = local.load(scope.toLocal())) {
             ScopedMetadataRead.Unavailable -> DriverArrivalMetadataWrite.Unavailable
+
             is ScopedMetadataRead.Value -> {
                 val payload = stored.payload ?: return@withLock DriverArrivalMetadataWrite.Saved
-                val current = decode(payload) ?: return@withLock DriverArrivalMetadataWrite.Unavailable
+                val current =
+                    decode(payload) ?: return@withLock DriverArrivalMetadataWrite.Unavailable
                 if (current.scope != scope || current.command.idempotencyKey != idempotencyKey) {
                     DriverArrivalMetadataWrite.Stale
                 } else if (local.clear(scope.toLocal())) {
@@ -98,14 +109,14 @@ internal class AppDriverArrivalMetadataStore(
         }
     }
 
-    private suspend fun save(intent: DriverArrivalIntentMetadata): DriverArrivalMetadataWrite =
+    private suspend fun save(intent: ArrivalIntentMetadata): DriverArrivalMetadataWrite =
         if (local.save(intent.scope.toLocal(), encode(intent))) {
             DriverArrivalMetadataWrite.Saved
         } else {
             DriverArrivalMetadataWrite.Unavailable
         }
 
-    private fun encode(intent: DriverArrivalIntentMetadata): String {
+    private fun encode(intent: ArrivalIntentMetadata): String {
         val command = intent.command
         return JsonObject(
             mapOf(
@@ -124,14 +135,16 @@ internal class AppDriverArrivalMetadataStore(
         ).toString()
     }
 
-    private fun decode(payload: String): DriverArrivalIntentMetadata? = try {
+    private fun decode(payload: String): ArrivalIntentMetadata? = try {
         val root = Json.parseToJsonElement(payload).jsonObject
         require(root.requiredLong("schema") == 1L)
         val scope = DriverAttemptScopeIdentity(
-            root.requiredString("userId"), root.requiredString("tenantId"),
-            root.requiredString("workspaceId"), root.requiredString("membershipId")
+            root.requiredString("userId"),
+            root.requiredString("tenantId"),
+            root.requiredString("workspaceId"),
+            root.requiredString("membershipId")
         )
-        DriverArrivalIntentMetadata(
+        ArrivalIntentMetadata(
             scope,
             DriverArrivalCommand(
                 deliveryId = root.requiredString("deliveryId"),
@@ -146,7 +159,9 @@ internal class AppDriverArrivalMetadataStore(
         null
     }
 
-    private fun mutex(scope: DriverAttemptScopeIdentity): Mutex = locks.computeIfAbsent(scope) { Mutex() }
+    private fun mutex(scope: DriverAttemptScopeIdentity): Mutex = locks.computeIfAbsent(scope) {
+        Mutex()
+    }
 
     private fun DriverAttemptScopeIdentity.toLocal() =
         ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
