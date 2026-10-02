@@ -4,12 +4,12 @@ This repository contains the Nexa Operations Android client. The Android project
 
 ## Toolchain
 
-- JDK 17, Gradle 9.6.0, Android Gradle Plugin 9.4.1, Kotlin 2.4.20, KSP 2.3.12
+- JDK 17, Gradle 9.7.1, Android Gradle Plugin 9.4.1, Kotlin 2.4.20, KSP 2.3.12
 - Android SDK 37 for compilation and target behavior; minSdk 29
 - Compose BOM 2026.09.00, Navigation 3 1.1.7, Hilt 2.60.1
 - Retrofit 3.0.0, OkHttp 4.12.0, kotlinx serialization 1.11.0
 
-Install JDK 17, Android SDK package `platforms;android-37.0`, and `build-tools;36.0.0`. The checked in Gradle wrapper downloads Gradle 9.6.0. Use an API 37 emulator for feature verification and an API 29 emulator for promotion verification. See the [verification guide](docs/verification.md) for exact commands and evidence locations.
+Install JDK 17, Android SDK package `platforms;android-37.0`, and `build-tools;36.0.0`. The checked in Gradle wrapper downloads Gradle 9.7.1. Use an API 37 emulator for feature verification and an API 29 emulator for promotion verification. See the [verification guide](docs/verification.md) for exact commands and evidence locations.
 
 ## Modules
 

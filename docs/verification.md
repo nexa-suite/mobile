@@ -1,6 +1,6 @@
 # Android foundation verification
 
-Run Gradle commands from `apps/operations-android` with JDK 17. Install Android SDK packages `platforms;android-37.0`, `build-tools;36.0.0`, and `platform-tools`. Keep the Gradle wrapper and dependency verification metadata in the repository; review the bytes and source of a new dependency artifact before accepting its checksum. The wrapper pins the official SHA-256 for the Gradle 9.6.0 binary distribution.
+Run Gradle commands from `apps/operations-android` with JDK 17. Install Android SDK packages `platforms;android-37.0`, `build-tools;36.0.0`, and `platform-tools`. Keep the Gradle wrapper and dependency verification metadata in the repository; review the bytes and source of a new dependency artifact before accepting its checksum. The wrapper pins the official SHA-256 for the Gradle 9.7.1 binary distribution.
 
 ## Local static and JVM gates
 
