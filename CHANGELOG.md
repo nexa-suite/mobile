@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.0] - 2026-10-02
+
+Operations Wave 4 functional remediation and local Android delivery. See
+[release notes](docs/releases/v0.4.0.md) for verified scope and distribution limits.
+
+- Integrate authorized Warehouse, Dispatch, Delivery, Sales and exception coordination workflows.
+- Fix scoped inventory pagination, native navigation, Android 17 local-network recovery and receiving selection layout.
+- Preserve strict dependency verification, protected session storage, server authorization and explicit command replay.
+- Add opt-in native integration and role capture evidence without embedding credentials.
+
 ## [0.3.0-alpha.1] - 2026-10-01
 
 Wave 4 source checkpoint, published as prerelease with known validation failures.
