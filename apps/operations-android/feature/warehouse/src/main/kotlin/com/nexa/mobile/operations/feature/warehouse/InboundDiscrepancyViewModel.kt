@@ -625,6 +625,9 @@ class InboundDiscrepancyViewModel(
         val requestGeneration = generation
         mutableState.update {
             it.copy(
+                createIdempotencyKey = frozen.createIdempotencyKey,
+                createBody = frozen.createBody,
+                pendingAction = frozen.pendingAction,
                 isSaving = true,
                 flow = InboundDiscrepancyFlowStatus.CreatingCase,
                 validationError = null,
