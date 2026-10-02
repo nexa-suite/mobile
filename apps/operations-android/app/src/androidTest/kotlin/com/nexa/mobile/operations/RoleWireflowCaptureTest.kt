@@ -7,6 +7,7 @@ import android.os.Build
 import android.view.inputmethod.InputMethodManager
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasClickAction
@@ -25,6 +26,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.feature.access.AccessStage
 import com.nexa.mobile.operations.feature.access.AccessViewModel
+import com.nexa.mobile.operations.feature.dispatch.R as DispatchR
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
@@ -62,10 +64,16 @@ class RoleWireflowCaptureTest {
         waitForAuthorizedHome()
         captureScreen("$roleSlug-home.png")
 
-        openEntryAndCapture(entry1!!, "$roleSlug-entry-1.png")
+        openEntryAndCapture(
+            entry1!!,
+            "$roleSlug-entry-1.png",
+            roleSlug == BOM_ROLE_SLUG
+        )
         if (entry2 != null) {
             returnToAuthorizedHome(entry2)
             openEntryAndCapture(entry2, "$roleSlug-entry-2.png")
+        } else if (roleSlug == BOM_ROLE_SLUG) {
+            returnViaBusinessExceptionsBack(entry1)
         }
     }
 
@@ -105,17 +113,51 @@ class RoleWireflowCaptureTest {
         composeRule.onNode(entryAction(nextEntry)).performScrollTo().assertIsDisplayed()
     }
 
-    private fun openEntryAndCapture(label: String, filename: String) {
+    private fun openEntryAndCapture(
+        label: String,
+        filename: String,
+        businessExceptionsRoute: Boolean = false
+    ) {
         val entry = entryAction(label)
+        if (businessExceptionsRoute) {
+            assertTrue(
+                "current server-authorized context must include delivery.exception.read",
+                hasBOMReadPermission()
+            )
+        }
         composeRule.onNode(entry).performScrollTo().assertIsDisplayed().performClick()
         composeRule.waitUntil(timeoutMillis = WAIT_MILLIS) {
-            hasCurrentProtectedContext() && hasConnectedBackAction()
+            hasCurrentProtectedContext() && if (businessExceptionsRoute) {
+                hasBusinessExceptionsTitle()
+            } else {
+                hasConnectedBackAction()
+            }
         }
         assertTrue(
             "current server-authorized context must remain active",
             hasCurrentProtectedContext()
         )
+        if (businessExceptionsRoute) {
+            composeRule.onNodeWithText(businessExceptionsTitle()).assertIsDisplayed()
+        }
         captureScreen(filename)
+    }
+
+    private fun returnViaBusinessExceptionsBack(entry: String) {
+        composeRule.onNodeWithText(businessExceptionsBackLabel())
+            .performScrollTo()
+            .assertIsDisplayed()
+            .assertHasClickAction()
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = WAIT_MILLIS) {
+            hasCurrentProtectedContext() && hasEntry(entry)
+        }
+        assertTrue(
+            "server-authorized context must remain active after returning",
+            hasCurrentProtectedContext()
+        )
+        composeRule.onNode(CURRENT_CONTEXT).assertIsDisplayed()
+        composeRule.onNode(entryAction(entry)).performScrollTo().assertIsDisplayed()
     }
 
     private fun hasCurrentProtectedContext(): Boolean {
@@ -126,9 +168,23 @@ class RoleWireflowCaptureTest {
             active != null && active.isCurrent && active.verifiedAuthority != null
     }
 
-    private fun isSessionActive(): Boolean =
-        ViewModelProvider(composeRule.activity)[RootViewModel::class.java].state.value ==
-            SessionState.Active
+    private fun hasBOMReadPermission(): Boolean =
+        ViewModelProvider(composeRule.activity)[AccessViewModel::class.java]
+            .state.value.activeContext?.verifiedAuthority?.permissions
+            ?.contains(BOM_READ_PERMISSION) == true
+
+    private fun hasEntry(label: String): Boolean =
+        composeRule.onAllNodes(entryAction(label)).fetchSemanticsNodes().isNotEmpty()
+
+    private fun hasBusinessExceptionsTitle(): Boolean =
+        composeRule.onAllNodes(hasText(businessExceptionsTitle()))
+            .fetchSemanticsNodes().isNotEmpty()
+
+    private fun businessExceptionsTitle(): String =
+        composeRule.activity.getString(DispatchR.string.bom_exceptions_title)
+
+    private fun businessExceptionsBackLabel(): String =
+        composeRule.activity.getString(DispatchR.string.bom_exceptions_back)
 
     private fun hasConnectedBackAction(): Boolean {
         val backIcon = composeRule.onAllNodes(
@@ -139,6 +195,10 @@ class RoleWireflowCaptureTest {
             .fetchSemanticsNodes().isNotEmpty()
         return backIcon || backText
     }
+
+    private fun isSessionActive(): Boolean =
+        ViewModelProvider(composeRule.activity)[RootViewModel::class.java].state.value ==
+            SessionState.Active
 
     private fun dismissKeyboard() {
         composeRule.runOnIdle {
@@ -201,6 +261,8 @@ class RoleWireflowCaptureTest {
     private companion object {
         const val WAIT_MILLIS = 15_000L
         const val CAPTURE_DIRECTORY = "wireflow-captures"
+        const val BOM_READ_PERMISSION = "delivery.exception.read"
+        const val BOM_ROLE_SLUG = "bom"
         val CURRENT_CONTEXT = hasContentDescription("Contexto actual:", substring = true)
         val ROLE_SLUG = Regex("[a-z-]+")
     }
