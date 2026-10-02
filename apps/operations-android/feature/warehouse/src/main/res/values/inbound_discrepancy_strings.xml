@@ -49,7 +49,10 @@
     <string name="discrepancy_case_id">Case: %1$s</string>
     <string name="discrepancy_rejected">Request rejected: %1$s</string>
     <string name="discrepancy_select_photo">Select evidence photo</string>
-    <string name="discrepancy_photo_staged">Encrypted photo staged: %1$s · %2$s · %3$d bytes</string>
+    <plurals name="discrepancy_photo_staged">
+        <item quantity="one">Encrypted photo staged: %1$s · %2$s · %3$d byte</item>
+        <item quantity="other">Encrypted photo staged: %1$s · %2$s · %3$d bytes</item>
+    </plurals>
     <string name="discrepancy_upload_photo">Upload selected photo</string>
     <string name="discrepancy_refresh_evidence">Refresh evidence status</string>
     <string name="discrepancy_submit_review">Submit for review</string>

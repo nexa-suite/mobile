@@ -349,7 +349,7 @@
     <string name="temperature_evidence_fahrenheit">°F</string>
     <string name="temperature_evidence_fahrenheit_selected">✓ °F</string>
     <string name="temperature_evidence_time">Hora observada</string>
-    <string name="temperature_evidence_time_help">Usa fecha y hora ISO 8601 con zona horaria, por ejemplo 2026-09-30T10:15:00-05:00.</string>
+    <string name="temperature_evidence_time_help">Usa fecha y hora ISO 8601 con zona horaria; usa Z para UTC.</string>
     <string name="temperature_evidence_error_subject">Ingresa o selecciona un lote o almacén.</string>
     <string name="temperature_evidence_error_unit">Selecciona una unidad de temperatura.</string>
     <string name="temperature_evidence_error_value">Ingresa una lectura.</string>

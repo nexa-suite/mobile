@@ -29,6 +29,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -382,8 +383,9 @@ fun DeliveryLoadScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                stringResource(
-                                    R.string.delivery_load_version_stops,
+                                pluralStringResource(
+                                    R.plurals.delivery_load_version_stops,
+                                    load.orderedStops.size,
                                     load.status,
                                     load.version,
                                     load.orderedStops.size

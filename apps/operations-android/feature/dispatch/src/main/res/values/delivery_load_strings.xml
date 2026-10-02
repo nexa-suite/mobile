@@ -19,7 +19,7 @@
     <string name="delivery_load_plan_window_body">This append-only plan records the dispatch actor and reason. Existing commercial windows cannot be replaced here.</string>
     <string name="delivery_load_window_start">Window start</string>
     <string name="delivery_load_window_end">Window end</string>
-    <string name="delivery_load_window_iso_hint">Enter ISO-8601 date and time with a timezone, for example 2026-10-02T14:00:00Z.</string>
+    <string name="delivery_load_window_iso_hint">Enter an ISO 8601 date and time with a timezone.</string>
     <string name="delivery_load_window_reason">Reason for this window</string>
     <string name="delivery_load_save_window">Save window plan</string>
     <string name="delivery_load_cancel_window">Cancel</string>
@@ -41,7 +41,10 @@
     <string name="delivery_load_assigned_list">Assigned loads</string>
     <string name="delivery_load_current_list">Current loads</string>
     <string name="delivery_load_id">Load %1$s</string>
-    <string name="delivery_load_version_stops">%1$s · version %2$d · %3$d stops</string>
+    <plurals name="delivery_load_version_stops">
+        <item quantity="one">%1$s · version %2$d · %3$d stop</item>
+        <item quantity="other">%1$s · version %2$d · %3$d stops</item>
+    </plurals>
     <string name="delivery_load_driver_id">Assigned driver: %1$s</string>
     <string name="delivery_load_stop_delivery">%1$d. Delivery %2$s</string>
     <string name="delivery_load_review_delivery">Review delivery</string>
