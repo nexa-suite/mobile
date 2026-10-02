@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
@@ -14,6 +15,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.DisposableEffect
@@ -22,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -173,11 +176,91 @@ import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
 import com.nexa.mobile.operations.visibility.OperationsOverviewScreen
 import dagger.hilt.android.AndroidEntryPoint
 import java.math.BigDecimal
+import java.net.URI
 import javax.inject.Inject
 import kotlinx.coroutines.launch
 
+internal enum class LocalNetworkPermissionAction { SignIn, RetrySession, RetryContexts }
+
+internal class LocalNetworkPermissionContinuation {
+    private var pending: LocalNetworkPermissionAction? = null
+
+    fun begin(action: LocalNetworkPermissionAction) {
+        pending = action
+    }
+
+    fun resolve(granted: Boolean): LocalNetworkPermissionAction? {
+        val action = pending
+        pending = null
+        return action.takeIf { granted }
+    }
+}
+
+internal fun requiresLocalNetworkPermission(
+    apiLevel: Int,
+    debugBuild: Boolean,
+    apiBaseUrl: String
+): Boolean {
+    if (apiLevel < 37 || !debugBuild) return false
+    val host = runCatching { URI(apiBaseUrl).host?.lowercase()?.trim('[', ']') }
+        .getOrNull() ?: return false
+    val octets = host.split('.').map { it.toIntOrNull() }
+    val ipv4 = octets.size == 4 && octets.all { it != null && it in 0..255 }
+    return host == "localhost" || host.endsWith(".localhost") || host.endsWith(".local") ||
+        host == "host.docker.internal" || host == "::1" ||
+        (
+            ':' in host && (
+                host.startsWith(
+                    "fe80:"
+                ) || host.startsWith("fc") || host.startsWith("fd")
+                )
+            ) ||
+        (
+            ipv4 && (
+                octets[0] == 10 || octets[0] == 127 ||
+                    (octets[0] == 192 && octets[1] == 168) ||
+                    (octets[0] == 169 && octets[1] == 254) ||
+                    (octets[0] == 172 && octets[1]!! in 16..31) || host == "0.0.0.0"
+                )
+            )
+}
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    private val localNetworkContinuation = LocalNetworkPermissionContinuation()
+    private var localNetworkPermissionDenied by mutableStateOf(false)
+    private val localNetworkPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        when (localNetworkContinuation.resolve(granted)) {
+            LocalNetworkPermissionAction.SignIn -> accessViewModel.signIn()
+            LocalNetworkPermissionAction.RetrySession -> viewModel.retrySessionValidation()
+            LocalNetworkPermissionAction.RetryContexts -> accessViewModel.retryContextList()
+            null -> Unit
+        }
+        localNetworkPermissionDenied = !granted
+    }
+
+    private fun withLocalNetworkPermission(action: LocalNetworkPermissionAction) {
+        if (Build.VERSION.SDK_INT >= 37 && requiresLocalNetworkPermission(
+                Build.VERSION.SDK_INT,
+                BuildConfig.DEBUG,
+                BuildConfig.API_BASE_URL
+            ) &&
+            checkSelfPermission(Manifest.permission.ACCESS_LOCAL_NETWORK) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            localNetworkContinuation.begin(action)
+            localNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+        } else {
+            when (action) {
+                LocalNetworkPermissionAction.SignIn -> accessViewModel.signIn()
+                LocalNetworkPermissionAction.RetrySession -> viewModel.retrySessionValidation()
+                LocalNetworkPermissionAction.RetryContexts -> accessViewModel.retryContextList()
+            }
+        }
+    }
+
     @Inject internal lateinit var receivingBindings: ReceivingGatewayBindings
     private val receivingViewModel: ReceivingViewModel by viewModels {
         receivingBindings.viewModelFactory()
@@ -511,6 +594,30 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             OperationsTheme {
+                if (localNetworkPermissionDenied) {
+                    AlertDialog(
+                        onDismissRequest = { localNetworkPermissionDenied = false },
+                        title = { Text(stringResource(R.string.local_network_permission_title)) },
+                        text = { Text(stringResource(R.string.local_network_permission_reason)) },
+                        confirmButton = {
+                            TextButton(onClick = { localNetworkPermissionDenied = false }) {
+                                Text(stringResource(R.string.local_network_permission_back))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = {
+                                localNetworkPermissionDenied = false
+                                startActivity(
+                                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                        data = "package:$packageName".toUri()
+                                    }
+                                )
+                            }) {
+                                Text(stringResource(R.string.local_network_permission_settings))
+                            }
+                        }
+                    )
+                }
                 val driverProofPicker =
                     rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
                         val selection = pendingDriverProofPicker
@@ -4086,12 +4193,12 @@ class MainActivity : ComponentActivity() {
                     onIdentifierChanged = accessViewModel::identifierChanged,
                     onPasswordChanged = accessViewModel::passwordChanged,
                     onPasswordVisibilityChanged = accessViewModel::togglePasswordVisibility,
-                    onSignIn = accessViewModel::signIn,
+                    onSignIn = { withLocalNetworkPermission(LocalNetworkPermissionAction.SignIn) },
                     onRetry = {
                         if ((state as? SessionState.Restoring)?.canRetryConnection == true) {
-                            viewModel.retrySessionValidation()
+                            withLocalNetworkPermission(LocalNetworkPermissionAction.RetrySession)
                         } else {
-                            accessViewModel.retryContextList()
+                            withLocalNetworkPermission(LocalNetworkPermissionAction.RetryContexts)
                         }
                     },
                     onLogout = {

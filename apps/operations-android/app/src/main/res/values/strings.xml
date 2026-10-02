@@ -58,4 +58,8 @@
     <string name="commercial_catalog_empty">Sin productos permitidos para esta búsqueda.</string>
     <string name="picking_manual_reference">Abrir por referencia</string>
     <string name="customer_prepare_request">Preparar solicitud para este cliente</string>
+    <string name="local_network_permission_title">Acceso al API local</string>
+    <string name="local_network_permission_reason">Esta compilación local necesita acceso a dispositivos cercanos para conectar con tu API de desarrollo. Concédelo al iniciar sesión o habilítalo en los ajustes de la app. No se reintentará la conexión automáticamente.</string>
+    <string name="local_network_permission_back">Volver al acceso</string>
+    <string name="local_network_permission_settings">Ajustes de la app</string>
 </resources>
