@@ -1,5 +1,7 @@
 package com.nexa.mobile.operations.core.local.temperature
 
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 import java.io.FileNotFoundException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -25,6 +27,27 @@ class TemperatureEvidenceMetadataStoreCoreTest {
         assertEquals(snapshot, restored)
         assertEquals("-18.765432100", restored.intent?.payload?.value)
         assertEquals("2026-09-30T15:22:33Z", restored.intent?.payload?.occurredAt)
+        assertEquals("5.125", restored.intent?.payload?.affectedQuantity)
+        assertEquals("photo-0001", restored.intent?.payload?.evidenceObjectId)
+        assertEquals(7L, restored.intent?.payload?.expectedLotVersion)
+        assertEquals("Warehouse exception", restored.intent?.payload?.reason)
+        assertEquals(SOURCE_EVIDENCE_ID, restored.intent?.payload?.sourceEvidenceId)
+        assertEquals("Warehouse exception", restored.draft?.reasonText)
+        assertEquals("photo-0001", restored.draft?.evidenceObjectId)
+    }
+
+    @Test
+    fun legacyV1DraftAndUnknownIntentDecodeWithNewOptionalFieldsAbsent() {
+        val decoded = TemperatureEvidenceMetadataCodec.decode(legacyV1Record())
+
+        assertEquals(draftV1(), decoded.draft)
+        assertEquals("temperature-intent-01", decoded.intent?.idempotencyKey)
+        assertEquals("-18.765432100", decoded.intent?.payload?.value)
+        assertEquals(null, decoded.intent?.payload?.evidenceObjectId)
+        assertEquals(null, decoded.intent?.payload?.expectedLotVersion)
+        assertEquals(null, decoded.intent?.payload?.affectedQuantity)
+        assertEquals(null, decoded.intent?.payload?.reason)
+        assertEquals(null, decoded.intent?.payload?.sourceEvidenceId)
     }
 
     @Test
@@ -35,7 +58,7 @@ class TemperatureEvidenceMetadataStoreCoreTest {
 
         assertFails { TemperatureEvidenceMetadataCodec.decode(encoded.copyOf(encoded.size - 1)) }
         assertFails { TemperatureEvidenceMetadataCodec.decode(encoded + 1) }
-        assertFails { TemperatureEvidenceMetadataCodec.decode(encoded.also { it[4] = 2 }) }
+        assertFails { TemperatureEvidenceMetadataCodec.decode(encoded.also { it[4] = 3 }) }
     }
 
     @Test
@@ -169,6 +192,18 @@ class TemperatureEvidenceMetadataStoreCoreTest {
         SUBJECT_ID,
         value,
         StoredTemperatureUnit.CELSIUS,
+        "2026-09-30T15:22:33Z",
+        affectedQuantityText = "5.125",
+        reasonText = "Warehouse exception",
+        sourceEvidenceIdText = SOURCE_EVIDENCE_ID,
+        evidenceObjectId = "photo-0001"
+    )
+
+    private fun draftV1() = TemperatureEvidenceDraftRecord(
+        StoredTemperatureSubjectType.LOT,
+        SUBJECT_ID,
+        "-18.765",
+        StoredTemperatureUnit.CELSIUS,
         "2026-09-30T15:22:33Z"
     )
 
@@ -181,10 +216,54 @@ class TemperatureEvidenceMetadataStoreCoreTest {
                 SUBJECT_ID,
                 "-18.765432100",
                 StoredTemperatureUnit.CELSIUS,
-                "2026-09-30T15:22:33Z"
+                "2026-09-30T15:22:33Z",
+                evidenceObjectId = "photo-0001",
+                expectedLotVersion = 7,
+                affectedQuantity = "5.125",
+                reason = "Warehouse exception",
+                sourceEvidenceId = SOURCE_EVIDENCE_ID
             ),
             TemperatureEvidenceIntentStatus.Pending
         )
+
+    private fun legacyV1Record(): ByteArray {
+        val bytes = ByteArrayOutputStream()
+        DataOutputStream(bytes).use { output ->
+            output.write(
+                byteArrayOf(
+                    'N'.code.toByte(),
+                    'X'.code.toByte(),
+                    'T'.code.toByte(),
+                    'E'.code.toByte()
+                )
+            )
+            output.writeByte(1)
+            listOf("user-1", "tenant-2", "workspace-3", "member-4").forEach {
+                output.writeText(it)
+            }
+            output.writeBoolean(true)
+            output.writeByte(StoredTemperatureSubjectType.LOT.ordinal)
+            output.writeText(SUBJECT_ID)
+            output.writeText("-18.765")
+            output.writeByte(StoredTemperatureUnit.CELSIUS.ordinal)
+            output.writeText("2026-09-30T15:22:33Z")
+            output.writeBoolean(true)
+            output.writeText("temperature-intent-01")
+            output.writeByte(StoredTemperatureSubjectType.LOT.ordinal)
+            output.writeText(SUBJECT_ID)
+            output.writeText("-18.765432100")
+            output.writeByte(StoredTemperatureUnit.CELSIUS.ordinal)
+            output.writeText("2026-09-30T15:22:33Z")
+            output.writeByte(1)
+        }
+        return bytes.toByteArray()
+    }
+
+    private fun DataOutputStream.writeText(value: String) {
+        val bytes = value.toByteArray(Charsets.UTF_8)
+        writeInt(bytes.size)
+        write(bytes)
+    }
 
     private fun assertFails(block: () -> Unit) {
         try {
@@ -225,5 +304,6 @@ class TemperatureEvidenceMetadataStoreCoreTest {
 
     private companion object {
         const val SUBJECT_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413401"
+        const val SOURCE_EVIDENCE_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413501"
     }
 }

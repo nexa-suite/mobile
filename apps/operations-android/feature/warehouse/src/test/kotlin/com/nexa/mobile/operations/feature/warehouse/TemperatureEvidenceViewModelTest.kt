@@ -5,6 +5,7 @@ package com.nexa.mobile.operations.feature.warehouse
 import java.math.BigDecimal
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -32,6 +33,7 @@ class TemperatureEvidenceViewModelTest {
         assertEquals("LOT-A · ACTIVE", viewModel.state.value.subjects.single().primaryLabel)
 
         viewModel.selectSubject(viewModel.state.value.subjects.single())
+        advanceUntilIdle()
         viewModel.valueChanged("-18.765432100")
         viewModel.unitChanged(TemperatureEvidenceUnit.CELSIUS)
         viewModel.occurredAtChanged("2026-09-30T10:22:33-05:00")
@@ -61,6 +63,7 @@ class TemperatureEvidenceViewModelTest {
         advanceUntilIdle()
         val subject = viewModel.state.value.subjects.single()
         viewModel.selectSubject(subject)
+        advanceUntilIdle()
         viewModel.valueChanged("4.2500")
         viewModel.occurredAtChanged("2026-09-30T15:22:33Z")
         viewModel.stageAndRecord()
@@ -86,7 +89,7 @@ class TemperatureEvidenceViewModelTest {
     }
 
     @Test
-    fun restoredPendingBecomesUnknownAndIsNeverSentAutomatically() = runTest {
+    fun restoredPendingBecomesUnknownAndOnlyExplicitRetryReusesExactExcursionPayload() = runTest {
         val scope = authority().scope
         val store = MemoryMetadataStore().apply {
             intent = TemperatureEvidenceIntent(
@@ -107,6 +110,18 @@ class TemperatureEvidenceViewModelTest {
         assertTrue(gateway.commands.isEmpty())
         assertEquals("restored-key", store.intent?.idempotencyKey)
         assertEquals("-18.765432100", store.intent?.payload?.value)
+        assertEquals(PHOTO_ID, store.intent?.payload?.evidenceObjectId)
+        assertEquals(7L, store.intent?.payload?.expectedLotVersion)
+        assertEquals("5.125000001", store.intent?.payload?.affectedQuantity)
+        assertEquals("Warehouse exception", store.intent?.payload?.reason)
+        assertEquals(SOURCE_EVIDENCE_ID, store.intent?.payload?.sourceEvidenceId)
+
+        viewModel.retryUnknownOutcome()
+        advanceUntilIdle()
+
+        assertEquals(1, gateway.commands.size)
+        assertEquals("restored-key", gateway.commands.single().second)
+        assertEquals(payload(), gateway.commands.single().first)
     }
 
     @Test
@@ -154,8 +169,9 @@ class TemperatureEvidenceViewModelTest {
             newIdempotencyKey = { "temperature-key-1" }
         )
 
-    private fun fill(viewModel: TemperatureEvidenceViewModel) {
-        viewModel.subjectIdChanged(LOT_ID)
+    private suspend fun TestScope.fill(viewModel: TemperatureEvidenceViewModel) {
+        viewModel.selectSubject(viewModel.state.value.subjects.single())
+        advanceUntilIdle()
         viewModel.valueChanged("-18.765")
         viewModel.occurredAtChanged("2026-09-30T15:22:33Z")
     }
@@ -171,11 +187,16 @@ class TemperatureEvidenceViewModelTest {
         )
 
     private fun payload() = TemperatureEvidencePayload(
-        TemperatureEvidenceSubjectType.LOT,
-        LOT_ID,
-        "-18.765432100",
-        TemperatureEvidenceUnit.CELSIUS,
-        "2026-09-30T15:22:33Z"
+        subjectType = TemperatureEvidenceSubjectType.LOT,
+        subjectId = LOT_ID,
+        value = "-18.765432100",
+        unit = TemperatureEvidenceUnit.CELSIUS,
+        occurredAt = "2026-09-30T15:22:33Z",
+        evidenceObjectId = PHOTO_ID,
+        expectedLotVersion = 7,
+        affectedQuantity = "5.125000001",
+        reason = "Warehouse exception",
+        sourceEvidenceId = SOURCE_EVIDENCE_ID
     )
 
     private fun facts(status: String) = TemperatureEvidenceFacts(
@@ -189,7 +210,8 @@ class TemperatureEvidenceViewModelTest {
         occurredAt = Instant.parse("2026-09-30T15:22:33Z"),
         actorMembershipId = MEMBERSHIP_ID,
         status = status,
-        source = "MANUAL"
+        source = "MANUAL",
+        remainingHeldQuantity = BigDecimal("5.125000001")
     )
 
     private inner class FakeGateway : TemperatureEvidenceGateway {
@@ -207,16 +229,34 @@ class TemperatureEvidenceViewModelTest {
             return TemperatureLookupResult.Subjects(
                 listOf(
                     TemperatureEvidenceSubject(
-                        LOT_ID,
-                        type,
-                        if (type ==
+                        id = if (type ==
                             TemperatureEvidenceSubjectType.LOT
                         ) {
+                            LOT_ID
+                        } else {
+                            WAREHOUSE_ID
+                        },
+                        type = type,
+                        primaryLabel = if (type == TemperatureEvidenceSubjectType.LOT) {
                             "LOT-A · ACTIVE"
                         } else {
                             "Cold store · WH-1"
                         },
-                        "Warehouse $WAREHOUSE_ID"
+                        detailLabel = "Warehouse $WAREHOUSE_ID",
+                        warehouseId = WAREHOUSE_ID,
+                        lotVersion = if (type == TemperatureEvidenceSubjectType.LOT) 7 else null,
+                        physicalRemaining = if (type == TemperatureEvidenceSubjectType.LOT) {
+                            BigDecimal("20.000000000")
+                        } else {
+                            null
+                        },
+                        quantityUnit = if (type ==
+                            TemperatureEvidenceSubjectType.LOT
+                        ) {
+                            "kg"
+                        } else {
+                            null
+                        }
                     )
                 )
             )
@@ -319,5 +359,7 @@ class TemperatureEvidenceViewModelTest {
         const val LOT_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413401"
         const val WAREHOUSE_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413101"
         const val EVIDENCE_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413501"
+        const val PHOTO_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413502"
+        const val SOURCE_EVIDENCE_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413503"
     }
 }

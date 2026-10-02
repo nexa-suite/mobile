@@ -19,6 +19,106 @@ import org.junit.Test
 
 class NexaTemperatureEvidenceGatewayTest {
     @Test
+    fun readsExactEvidenceSnapshotWithoutMutationKeyAndRejectsAnotherObject() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(jsonResponse(200, snapshotResponse()))
+            server.enqueue(
+                jsonResponse(
+                    200,
+                    snapshotResponse().replace(
+                        "\"id\":\"$EVIDENCE_ID\"",
+                        "\"id\":\"$OTHER_LOT_ID\""
+                    )
+                )
+            )
+            val adapter = gateway(server)
+            val result = adapter.snapshot(EVIDENCE_ID)
+                as TemperatureEvidenceNetworkOutcome.Confirmed
+            assertEquals(EVIDENCE_ID, result.response.id)
+            val request = server.takeRequest()
+            assertEquals("GET", request.method)
+            assertEquals("/api/v1/temperature-evidence/$EVIDENCE_ID", request.path)
+            assertEquals(null, request.getHeader("Idempotency-Key"))
+            assertEquals("Bearer access-1", request.getHeader("Authorization"))
+            assertEquals("OPEN", result.response.exceptionStatus)
+            assertEquals("HELD", result.response.evaluationStatus)
+            assertEquals("HOLD", result.response.disposition)
+            assertEquals("5.125000001", result.response.remainingHeldQuantity?.toPlainString())
+            assertEquals(1, result.response.selections.size)
+            assertEquals(
+                "5.125000001",
+                result.response.selections.single().remainingHeldQuantity?.toPlainString()
+            )
+            assertEquals(
+                TemperatureEvidenceNetworkOutcome.ServiceUnavailable,
+                adapter.snapshot(EVIDENCE_ID)
+            )
+        }
+    }
+
+    @Test
+    fun partialHoldFactsRequireWellFormedServerEvidenceAndKeepUnheldLotStatus() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val body = response(status = "OUT_OF_RANGE").dropLast(1) +
+                """, "evidenceObjectId":"$EVIDENCE_ID","expectedLotVersion":7,"resultingLotVersion":8,"inventoryTemperatureEvaluationId":"$EVIDENCE_ID","inventoryLotStatus":"AVAILABLE","affectedQuantity":5.123456789,"remainingHeldQuantity":2.000000001,"reason":"Affected cases","exceptionId":"$EVIDENCE_ID"}"""
+            server.enqueue(jsonResponse(201, body))
+            server.enqueue(jsonResponse(201, body.replace("5.123456789", "-5")))
+            server.enqueue(jsonResponse(201, body.replace("2.000000001", "-0.000000001")))
+            val adapter = gateway(server)
+            val outcome = adapter.record(command(), "server-facts", MEMBERSHIP_ID)
+                as TemperatureEvidenceNetworkOutcome.Confirmed
+            assertEquals("5.123456789", outcome.response.affectedQuantity?.toPlainString())
+            assertEquals(8L, outcome.response.resultingLotVersion)
+            assertEquals("AVAILABLE", outcome.response.inventoryLotStatus)
+            assertEquals(EVIDENCE_ID, outcome.response.exceptionId)
+            assertEquals("2.000000001", outcome.response.remainingHeldQuantity?.toPlainString())
+            assertEquals(
+                TemperatureEvidenceNetworkOutcome.ServiceUnavailable,
+                adapter.record(command(), "malformed-facts", MEMBERSHIP_ID)
+            )
+            assertEquals(
+                TemperatureEvidenceNetworkOutcome.ServiceUnavailable,
+                adapter.record(command(), "negative-held-quantity", MEMBERSHIP_ID)
+            )
+        }
+    }
+
+    @Test
+    fun explicitAffectedQuantityAndWarehouseSourcePreservePrecisionWithoutDisposition() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val body = response(status = "OUT_OF_RANGE").dropLast(1) +
+                """, "evidenceObjectId":"$EVIDENCE_ID","expectedLotVersion":7,"resultingLotVersion":8,"inventoryTemperatureEvaluationId":"$EVIDENCE_ID","inventoryLotStatus":"AVAILABLE","affectedQuantity":5.123456789,"remainingHeldQuantity":2.000000001,"reason":"Affected cases identified during warehouse review","sourceEvidenceId":"$EVIDENCE_ID"}"""
+            server.enqueue(jsonResponse(201, body))
+            val outcome = gateway(server).record(
+                command().copy(
+                    evidenceObjectId = EVIDENCE_ID,
+                    expectedLotVersion = 7,
+                    affectedQuantity = "5.123456789",
+                    reason = "Affected cases identified during warehouse review",
+                    sourceEvidenceId = EVIDENCE_ID
+                ),
+                "partial-hold-key",
+                MEMBERSHIP_ID
+            ) as TemperatureEvidenceNetworkOutcome.Confirmed
+            assertEquals("2.000000001", outcome.response.remainingHeldQuantity?.toPlainString())
+            val request = server.takeRequest()
+            val json = Json.parseToJsonElement(request.body.readUtf8()).jsonObject
+            assertEquals("partial-hold-key", request.getHeader("Idempotency-Key"))
+            assertEquals("5.123456789", json.getValue("affectedQuantity").jsonPrimitive.content)
+            assertFalse(json.getValue("affectedQuantity").jsonPrimitive.isString)
+            assertEquals("7", json.getValue("expectedLotVersion").jsonPrimitive.content)
+            assertEquals(EVIDENCE_ID, json.getValue("evidenceObjectId").jsonPrimitive.content)
+            assertEquals(EVIDENCE_ID, json.getValue("sourceEvidenceId").jsonPrimitive.content)
+            assertFalse(json.containsKey("disposition"))
+            assertFalse(json.containsKey("severity"))
+            assertFalse(json.containsKey("status"))
+        }
+    }
+
+    @Test
     fun recordsExactManualEvidenceWithStableKeyAndProjectsServerClassification() = runTest {
         MockWebServer().use { server ->
             server.start()
@@ -123,6 +223,9 @@ class NexaTemperatureEvidenceGatewayTest {
 
     private fun response(status: String = "WITHIN_RANGE") =
         """{"id":"$EVIDENCE_ID","subjectType":"LOT","subjectId":"$LOT_ID","lotId":"$LOT_ID","warehouseId":"$WAREHOUSE_ID","value":-18.765432100,"unit":"CELSIUS","occurredAt":"2026-09-30T15:22:33Z","actorMembershipId":"$MEMBERSHIP_ID","status":"$status","source":"MANUAL"}"""
+
+    private fun snapshotResponse() =
+        """{"id":"$EVIDENCE_ID","subjectType":"LOT","subjectId":"$LOT_ID","lotId":"$LOT_ID","warehouseId":"$WAREHOUSE_ID","value":-18.765432100,"unit":"CELSIUS","occurredAt":"2026-09-30T15:22:33Z","actorMembershipId":"$MEMBERSHIP_ID","status":"OUT_OF_RANGE","source":"MANUAL","exceptionId":"$EVIDENCE_ID","exceptionStatus":"OPEN","inventoryTemperatureEvaluationId":"$OTHER_LOT_ID","evaluationStatus":"HELD","disposition":"HOLD","inventoryLotStatus":"AVAILABLE","affectedQuantity":8.375000001,"remainingHeldQuantity":5.125000001,"selections":[{"temperatureEvidenceId":"$EVIDENCE_ID","lotId":"$LOT_ID","affectedQuantity":8.375000001,"expectedLotVersion":7,"resultingLotVersion":8,"inventoryTemperatureEvaluationId":"$OTHER_LOT_ID","inventoryLotStatus":"AVAILABLE","remainingHeldQuantity":5.125000001,"actorMembershipId":"$MEMBERSHIP_ID","occurredAt":"2026-09-30T15:22:33Z","evidenceObjectId":"$EVIDENCE_ID","reason":"Affected cases","evaluationStatus":"HELD","disposition":"HOLD","blocksCommittedExecution":true}]}"""
 
     private fun jsonResponse(status: Int, body: String) = MockResponse()
         .setResponseCode(status)
