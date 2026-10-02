@@ -16,6 +16,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -136,8 +137,9 @@ fun DriverDeliveryIncidentScreen(
         }
         state.evidence?.let { evidence ->
             Text(
-                stringResource(
-                    R.string.driver_incident_evidence_file,
+                pluralStringResource(
+                    R.plurals.driver_incident_evidence_file,
+                    evidence.byteSize.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
                     evidence.originalFilename,
                     evidence.byteSize
                 )

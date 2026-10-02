@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="driver_delivery_back">Volver</string>
     <string name="driver_delivery_title">Entregas asignadas</string>
@@ -103,7 +104,6 @@
     <string name="driver_delivery_outcome_rejected">Nexa rechazó el resultado. Actualiza el detalle antes de decidir de nuevo.</string>
     <string name="driver_delivery_outcome_rejected_code">Nexa rechazó el resultado (%1$s). Actualiza el detalle antes de decidir de nuevo.</string>
     <string name="driver_delivery_outcome_stale">Cambió la entrega o el intento. Actualiza el detalle y revisa las cantidades.</string>
-
     <string name="driver_incident_title">Registrar incidente de entrega</string>
     <string name="driver_incident_append_only_notice">Este registro añade un hecho al intento. No cambia su resultado ni confirma una resolución.</string>
     <string name="driver_incident_delivery">Entrega: %1$s</string>
@@ -136,12 +136,13 @@
     <string name="driver_incident_recorded">Registrado por miembro %1$s a las %2$s.</string>
     <string name="driver_incident_evidence_status">Evidencia: %1$s</string>
     <string name="driver_incident_evidence_not_resolution">La falta de evidencia vinculada no completa ni resuelve la entrega.</string>
+    <plurals name="driver_incident_evidence_file">
+        <item quantity="one">Archivo protegido: %1$s (%2$d byte)</item>
+        <item quantity="other">Archivo protegido: %1$s (%2$d bytes)</item>
+        <item quantity="many">Archivo protegido: %1$s (%2$d bytes)</item>
+    </plurals>
     <string name="driver_incident_cleanup_pending">Nexa respondió, pero el registro local de recuperación sigue pendiente. Actualiza para confirmar el estado.</string>
     <string name="driver_incident_select_evidence">Seleccionar evidencia del incidente</string>
-    <plurals name="driver_incident_evidence_file">
-        <item quantity="one">Protected file: %1$s (%2$d byte)</item>
-        <item quantity="other">Protected file: %1$s (%2$d bytes)</item>
-    </plurals>
     <string name="driver_incident_evidence_lifecycle">Estado de evidencia: %1$s</string>
     <string name="driver_incident_evidence_error">Evidencia: %1$s</string>
     <string name="driver_incident_evidence_working">Procesando evidencia…</string>
@@ -179,5 +180,5 @@
     <string name="driver_handoff_persistence_unavailable">No se pudo guardar la solicitud cifrada. No se enviará.</string>
     <string name="driver_handoff_separation">La validación del código y el recibo pertenecen al Buyer. Esta pantalla solo emite el código. El fallback aprobado no está implementado aquí.</string>
     <string name="driver_handoff_error">Estado: %1$s</string>
-    <string name="driver_instruction_source">Source: %1$s · Actor: %2$s · Recorded: %3$s</string>
+    <string name="driver_instruction_source">Origen: %1$s · registrado por: %2$s · fecha: %3$s</string>
 </resources>

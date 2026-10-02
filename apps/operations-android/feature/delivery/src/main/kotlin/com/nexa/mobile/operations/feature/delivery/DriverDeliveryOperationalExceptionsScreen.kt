@@ -27,6 +27,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -383,8 +384,9 @@ private fun OperationalExceptionCard(
                     },
                     supportingText = {
                         Text(
-                            stringResource(
-                                R.string.driver_operational_exceptions_resolution_length,
+                            pluralStringResource(
+                                R.plurals.driver_operational_exceptions_resolution_length,
+                                DRIVER_WARNING_RESOLUTION_MAX_CHARS,
                                 resolution.length,
                                 DRIVER_WARNING_RESOLUTION_MAX_CHARS
                             )

@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="dispatch_handoff_identity_title">Identidad de entrega y conductor</string>
     <string name="dispatch_handoff_identity_scope_notice">Vincula esta entrega con la asignación actual del conductor. Validar la identidad no registra aceptación, resultado del conductor ni recibo del comprador.</string>
