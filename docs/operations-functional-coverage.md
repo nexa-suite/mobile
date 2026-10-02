@@ -4,7 +4,7 @@
 
 This implementation follows the authorized functional-skeleton scope of 54 Operations stories. Buyer Mobile is excluded. The client uses current API authority, scoped encrypted local records and explicit manual recovery of uncertain commands. No story status below constitutes Product Acceptance, System Acceptance or Production Readiness.
 
-Closure work continues on `feature/w4-mobile-contract-closure` and `feature/w4-backend-contract-closure`; previous implementation branches remain preserved. No new pull request, merge, release or history rewrite is part of this delivery.
+The current technical candidate and bounded runtime evidence are recorded below. The story table continues to describe implementation status, not Product or System Acceptance.
 
 ## Story coverage
 
@@ -67,13 +67,13 @@ Closure work continues on `feature/w4-mobile-contract-closure` and `feature/w4-b
 
 ## Current validation
 
-Affected Android application compilation passed after integrating count correction, confirmed-SKU stock lookup, discrepancy resolution, POD evidence, protected returned-picker retention, lot-substitution requests and dispatch-plan changes. Focused local tests cover immutable command replay, scoped metadata, evidence subject binding, stale versions and the new server mutations. Final Android architecture check and debug APK assembly passed. Focused dispatch identity/temperature client tests passed. Integrated OpenApiContractIT passed with PostgreSQL migrations, including V126; API024 focused service tests passed 4/4 in its implementation worktree. Delivery thermal guard unit tests passed 2/2 and receiving excursion integration test passed 1/1. These are bounded technical checks, not full story acceptance.
+API candidate `e754280` passed 672 tests with zero failures and three CI workflows green. Mobile source candidate `424d13c` is version `0.4.0`; the candidate build and `ktlint` passed, and Mobile CI is green at `8e0f542`.
 
-No full native/device/design validation, screenshots, final-SHA CI, visual acceptance or production deployment is claimed. Earlier dispatch/network formatting failures were corrected; the final checks below supersede that attempt.
+On API 37, attempt 11 completed the Warehouse scenario with 8/8 HTTP 200 responses and one native test passing. Sales and Logistics each demonstrated navigation only. Report captures document the observed screens; they do not prove the untested role workflows. This is bounded candidate verification, not full story acceptance. Product Acceptance, System Acceptance, physical-device validation and production readiness remain open.
 
-## Local artifacts and access
+## Authorization boundary
 
-APK, candidate API executable and private existing local credentials are delivered outside Git. Warehouse access requires explicit grants under the accepted Membership + Warehouse policy and current Tenant/Workspace permissions. Four configured PLATFORM accounts and Buyer PORTAL authenticated through the local API with HTTP 200. Private credentials remain outside Git.
+Warehouse access requires explicit grants under the accepted Membership + Warehouse policy and current Tenant/Workspace permissions. Client visibility does not grant server authority.
 
 ## Owner closure and direct correction — 2026-10-01
 
@@ -85,7 +85,7 @@ Product closure does not establish missing API contracts. Owner subsequently app
 
 MOB-US-063 focused checks passed: 31 Delivery tests (including six new instruction ViewModel cases), four instruction gateway tests, strict application Kotlin compilation, three API domain tests and one PostgreSQL workflow integration test applying V130. Debug APK assembly passed for this increment. These checks do not establish full US-063 coverage, physical-device execution or Product/System Acceptance.
 
-## Final local technical closure — 2026-10-01
+## Earlier technical increment — 2026-10-01
 
 BOM coordination, missing-window Dispatch planning, compatible whole-load handoff,
 Customer instruction provenance, receiving/preparation evidence and BC-06 transit
@@ -111,10 +111,7 @@ fixed-search-path coordinate retention function. Docker runtime health is UP;
 four PLATFORM logins and Buyer PORTAL login returned HTTP 200 using existing local
 configuration. Raw coordinates retain the approved maximum 24-hour TTL.
 
-The default debug build uses `http://10.0.2.2:8080/` for the Android emulator.
-The delivered APK is assembled with `-PnexaDebugApiBaseUrl=http://127.0.0.1:8080/`
-and uses `adb reverse tcp:8080 tcp:8080` for USB devices or an emulator. Android Studio
-Rabbit 1 2026.2.1 reports READY through Android CLI; GUI Sync is not claimed.
-Source branches remain local and unmerged. Full-suite/final-SHA CI, physical-device
-tracking, provider readiness and Product/System Acceptance remain unverified.
+The final candidate checks are recorded above; they supersede the earlier suite and
+CI status for the listed snapshots. Physical-device validation, provider readiness,
+Product Acceptance, System Acceptance and production readiness remain unverified.
 Automatic IoT, advanced routing and Driver chat remain outside the approved V1.

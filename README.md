@@ -24,7 +24,7 @@ Install JDK 17, Android SDK package `platforms;android-37.0`, and `build-tools;3
 | `:feature:dispatch` | Dispatch assignment, readiness, handover, and outbound operational screens |
 | `:feature:delivery` | Current Driver delivery, attempt, arrival, outcome, proof, incident, and handoff UI |
 
-The API owns authentication, Tenant and Workspace authorization, and business outcomes. Client state and permission hints never grant server authority. The current Wave 4 identity and Catalog checkpoint is verified against Nexa API v0.19.0 (`89ff511c30976cbb1734ab16ecd3fadac0651ed4`); every issued session is checked through `GET /api/v1/session` before the client enters `Active`. Production gateways also consume protected Catalog list/detail reads. Manual identification requires explicit search and candidate selection; only a current successful detail response creates a display-only confirmed SKU. The debug-only review activity uses visibly synthetic fixtures. These flows remain technical continuation work, not Product Acceptance. See [Wave 4 verification](docs/wave4-verification.md), [product boundaries](docs/operations-product-boundaries.md), [design adoption seams](docs/mobile-design-adoption.md), [foundation architecture](docs/android-foundation.md) and [native session security](docs/native-session.md).
+The API owns authentication, Tenant and Workspace authorization, and business outcomes. Client state and permission hints never grant server authority. Every issued session is checked through `GET /api/v1/session` before the client enters `Active`. Production gateways also consume protected Catalog list/detail reads. Manual identification requires explicit search and candidate selection; only a current successful detail response creates a display-only confirmed SKU. The debug-only review activity uses visibly synthetic fixtures. The current technical candidate and its bounded integration evidence are recorded below; they do not establish Product Acceptance. See [Wave 4 verification](docs/wave4-verification.md), [product boundaries](docs/operations-product-boundaries.md), [design adoption seams](docs/mobile-design-adoption.md), [foundation architecture](docs/android-foundation.md) and [native session security](docs/native-session.md).
 
 ## Build and verify
 
@@ -50,4 +50,10 @@ The CI workflow in [android-verify.yml](.github/workflows/android-verify.yml) ru
 
 ## Current limits
 
-Scanner, dashboard and inventory workflows remain outside this slice. The app uses existing API contracts and does not contain live account credentials, a production API endpoint, or distribution signing configuration. No physical-device acceptance is claimed. Local sign-out clears protected state even when server revocation cannot be confirmed. Product Acceptance, System Acceptance and production readiness remain separate gates.
+Automatic IoT and advanced routing remain outside approved V1 scope. The app uses existing API contracts and does not contain live account credentials, a production API endpoint, or distribution signing configuration. No physical-device acceptance is claimed. Local sign-out clears protected state even when server revocation cannot be confirmed. Product Acceptance, System Acceptance and production readiness remain separate gates.
+
+## Current technical candidate — 2026-10-02
+
+The API candidate `e754280` passed 672 tests with no failures and three CI workflows green. The Mobile source candidate `424d13c` is version `0.4.0`; its candidate build and `ktlint` passed, and Mobile CI is green at `8e0f542`. These checks establish candidate-level technical verification only.
+
+On API 37, attempt 11 completed the Warehouse scenario with 8/8 HTTP 200 responses and one native test passing. The Sales and Logistics scenarios each demonstrated navigation only. Captured report flows document the observed screens; they do not establish the untested role workflows. Product Acceptance, System Acceptance, physical-device validation and production readiness remain open.
