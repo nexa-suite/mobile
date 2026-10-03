@@ -1,10 +1,10 @@
-# Wave 4 technical verification
+# Technical verification
 
 ## Protected entry and manual identification checkpoint — 2026-09-30
 
 Tested Android source: `9e6c212659fe91b24205180faa4968b999e0236d`.
 The following evidence concerns MOB-US-001, MOB-US-002, MOB-US-003 and
-MOB-US-012. It does not establish completion of the twenty-story Wave 4 scope.
+MOB-US-012. It does not establish completion of the wider story scope.
 
 The session coordinator closes protected state on foreground return and
 revalidates authority with the API. Verified context comparison includes user,

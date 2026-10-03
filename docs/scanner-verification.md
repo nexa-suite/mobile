@@ -1,4 +1,4 @@
-# Wave 4 scanner verification
+# Scanner verification
 
 MOB-US-011 adds CameraX preview with bundled ML Kit barcode recognition, protected server SKU-code/GTIN resolution, denied-permission recovery and manual identification fallback. Scanned candidates remain transient and cannot confirm stock or a receiving command. Modern SKU UUIDs remain distinct from legacy Catalog item identifiers.
 
@@ -19,6 +19,6 @@ The live test verifies manual identification and foreground revalidation after s
 
 ## Remaining evidence
 
-MOB-US-011 requires physical-device camera validation. API 29, process-death recovery, later Wave 4 capabilities and complete integration remain pending. Functional verification does not establish Product Acceptance, System Acceptance, design freeze or Production Readiness.
+MOB-US-011 requires physical-device camera validation. API 29, process-death recovery, later functional capabilities and complete integration remain pending. Functional verification does not establish Product Acceptance, System Acceptance, design freeze or Production Readiness.
 
 CI runs all-module JVM and instrumentation tasks, including newly registered modules. The live fixture remains opt-in; credentials and signing material are excluded from repository artifacts.

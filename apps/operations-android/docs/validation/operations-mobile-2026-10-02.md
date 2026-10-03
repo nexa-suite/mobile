@@ -93,6 +93,6 @@ The normal debug default remains `http://10.0.2.2:8080/`, which is intended for 
 - No authenticated live roles, warehouse business writes, or end-to-end API acceptance were exercised. Product Acceptance, visual review, System Acceptance, and production readiness remain open.
 - Release packaging and the non-local URL guard do not verify a live production endpoint or deployment.
 
-## Evidence and SCM handoff
+## Evidence record
 
-Raw Gradle logs and XML results were retained in the external Operations Mobile validation evidence bundle; generated evidence is not included in this source change. The source checkout remained at `7e3d4e37ec1edcd57b10531bf6bfc305d22bf669` with no application or test source diff. This report is the only file added by this validation handoff; existing untracked artifacts were preserved. The report is retained on the separate `docs/mobile-validation-2026-10-02` branch; the approved implementation commit and PR #19 head remain unchanged.
+Raw Gradle logs and XML results were retained in the external Operations Mobile validation evidence bundle; generated evidence is not included in this source change. The recorded run used source `7e3d4e37ec1edcd57b10531bf6bfc305d22bf669` with no application or test source diff. This report preserves the test scope, exclusions and limitations; existing untracked artifacts were preserved.

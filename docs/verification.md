@@ -82,9 +82,9 @@ This connected instrumentation command exited 0 on the local `Nexa_API37` AVD:
 - The run used the local dirty checkout at `0f6c620db8ec`; the results are not bound to an immutable candidate commit.
 - These instrumentation tests do not establish a live Android sign-in, access-context selection, or business workflow against the v0.18.0 API candidate. Product Acceptance remains open.
 
-## Observed Wave 2 candidate — 2026-09-27
+## Observed earlier candidate — 2026-09-27
 
-The final Wave 2 Android source passed the following local gates with strict dependency verification. The execution record retains the tested file hashes and Android source fingerprint `5286ca57b7be867cabbea380887c3929d37a7c16a525394cfd6088d11f4e1ae3` so that the signed candidate can be compared with the tested bytes.
+The final Android source for this earlier checkpoint passed the following local gates with strict dependency verification. The execution record retains the tested file hashes and Android source fingerprint `5286ca57b7be867cabbea380887c3929d37a7c16a525394cfd6088d11f4e1ae3` so that the signed candidate can be compared with the tested bytes.
 
 | Gate | Exit status | Tests | Failures / errors / skips |
 | --- | --- | --- | --- |

@@ -14,7 +14,7 @@ Source `a601b5d`, 2026-09-30, JDK 17 and strict dependency verification:
 - Architecture, ktlint, lint and debug assembly passed during integration.
 - 40 all-module API 37 instrumentation tests: zero failures, errors or skips. Four new core-local tests use real Android Keystore and AtomicFile for scope isolation, corrupt ciphertext, exact intent reconstruction and stale clear handling.
 
-Store-instance reconstruction is not process-death proof. Complete native receiving against the updated real API, API 29, process-death recovery and later Wave 4 integration remain pending. This record does not establish Product Acceptance, System Acceptance or Production Readiness.
+Store-instance reconstruction is not process-death proof. Complete native receiving against the updated real API, API 29, process-death recovery and later functional capabilities remain pending. This record does not establish Product Acceptance, System Acceptance or Production Readiness.
 
 ## Native API integration
 

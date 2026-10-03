@@ -4,7 +4,7 @@
 
 This implementation follows the authorized functional-skeleton scope of 54 Operations stories. Buyer Mobile is excluded. The client uses current API authority, scoped encrypted local records and explicit manual recovery of uncertain commands. No story status below constitutes Product Acceptance, System Acceptance or Production Readiness.
 
-The current technical candidate and bounded runtime evidence are recorded below. The story table continues to describe implementation status, not Product or System Acceptance.
+The current checkpoint and bounded runtime evidence are recorded below. The story table continues to describe implementation status, not Product or System Acceptance.
 
 ## Story coverage
 
@@ -67,9 +67,9 @@ The current technical candidate and bounded runtime evidence are recorded below.
 
 ## Current validation
 
-API candidate `e754280` passed 672 tests with zero failures and three CI workflows green. Mobile source candidate `424d13c` is version `0.4.0`; the candidate build and `ktlint` passed, and Mobile CI is green at `8e0f542`.
+The current API verification record reports 675 tests with zero failures. The Android Studio validation record for the recorded implementation snapshot reports 456 JVM tests with zero failures, errors or skips. The Android checkpoint is version `0.5.0` (`versionCode 6`); a local strict run passed `verifyAndroidArchitecture` and `:app:assembleDebug`, while the version bump has not been revalidated on a device.
 
-On API 37, attempt 11 completed the Warehouse scenario with 8/8 HTTP 200 responses and one native test passing. Sales and Logistics each demonstrated navigation only. Report captures document the observed screens; they do not prove the untested role workflows. This is bounded candidate verification, not full story acceptance. Product Acceptance, System Acceptance, physical-device validation and production readiness remain open.
+The latest recorded Android validation passed 53 instrumentation tests on each API 29 and API 37 emulator. A Samsung API 36 smoke installed and launched the debug APK without sign-in, role traversal, permission grant or screenshot capture. This is bounded technical verification, not full story acceptance. Product Acceptance, System Acceptance, physical-device workflow validation and production readiness remain open.
 
 ## Authorization boundary
 
