@@ -17,6 +17,24 @@ class WarehouseViewModelTest {
     @get:Rule val mainDispatcher = MainDispatcherRule()
 
     @Test
+    fun scannerRouteReturnsToWorkEntryAndManualSearchRemainsAvailable() {
+        val gateway = FakeWarehouseGateway()
+        val viewModel = WarehouseViewModel(gateway)
+        viewModel.enterOperations(context(1), TaskVisibilityHint.Available)
+
+        viewModel.openScanner()
+
+        assertEquals(WarehouseRoute.Scanner, viewModel.state.value.route)
+        assertNull(viewModel.state.value.search)
+        viewModel.back()
+        assertEquals(WarehouseRoute.WorkEntry, viewModel.state.value.route)
+        viewModel.openProductSearch()
+        assertEquals(WarehouseRoute.ProductSearch, viewModel.state.value.route)
+        assertEquals(0, gateway.searchCalls)
+        assertEquals(0, gateway.confirmationCalls)
+    }
+
+    @Test
     fun searchIsExplicitAndOneCandidateStillNeedsConfirmation() = runTest {
         val gateway = FakeWarehouseGateway().apply {
             searchResult = ProductSearchResult.Page(listOf(candidate), null)
@@ -331,6 +349,51 @@ class WarehouseViewModelTest {
         assertEquals(WorkEntryStatus.PermissionUnavailable, viewModel.state.value.workEntryStatus)
         assertNull(viewModel.state.value.search)
         assertNull(viewModel.state.value.confirmedSku)
+    }
+
+    @Test
+    fun sameEpochPermissionLossClearsConfirmedDataBeforePermissionReturns() = runTest {
+        for (lostHint in listOf(TaskVisibilityHint.Unavailable, TaskVisibilityHint.Unknown)) {
+            val gateway = FakeWarehouseGateway().apply {
+                searchResult = ProductSearchResult.Page(listOf(candidate), null)
+                confirmationResult = CandidateConfirmationResult.Confirmed(confirmed(candidate, 1))
+            }
+            val viewModel = readySearch(gateway)
+            viewModel.submitSearch()
+            advanceUntilIdle()
+            viewModel.selectCandidate(candidate.key)
+            advanceUntilIdle()
+            assertEquals(WarehouseRoute.ConfirmedSku, viewModel.state.value.route)
+            assertTrue(viewModel.state.value.search?.candidates?.isNotEmpty() == true)
+            assertEquals(candidate.sku, viewModel.state.value.confirmedSku?.sku)
+
+            viewModel.permissionHintChanged(lostHint)
+
+            assertEquals(1L, viewModel.state.value.authorityEpoch)
+            assertEquals(WarehouseRoute.WorkEntry, viewModel.state.value.route)
+            assertEquals(lostHint, viewModel.state.value.permissionHint)
+            assertNull(viewModel.state.value.search)
+            assertNull(viewModel.state.value.confirmedSku)
+            assertEquals(
+                if (lostHint == TaskVisibilityHint.Unavailable) {
+                    WorkEntryStatus.PermissionUnavailable
+                } else {
+                    WorkEntryStatus.PermissionUnknown
+                },
+                viewModel.state.value.workEntryStatus
+            )
+
+            viewModel.permissionHintChanged(TaskVisibilityHint.Available)
+
+            assertEquals(1L, viewModel.state.value.authorityEpoch)
+            assertEquals(WarehouseRoute.WorkEntry, viewModel.state.value.route)
+            assertEquals(WorkEntryStatus.TaskAvailable, viewModel.state.value.workEntryStatus)
+            assertNull(viewModel.state.value.search)
+            assertNull(viewModel.state.value.confirmedSku)
+            viewModel.openProductSearch()
+            assertEquals(ProductSearchStatus.Initial, viewModel.state.value.search?.status)
+            assertTrue(viewModel.state.value.search?.candidates.orEmpty().isEmpty())
+        }
     }
 
     private fun readySearch(gateway: WarehouseGateway) = WarehouseViewModel(gateway).apply {

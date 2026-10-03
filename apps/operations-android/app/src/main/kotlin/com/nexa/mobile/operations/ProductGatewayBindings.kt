@@ -2,12 +2,14 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.nexa.mobile.operations.core.auth.session.IssuedNativeSession
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
 import com.nexa.mobile.operations.core.network.AccessContextSelectionOutcome
 import com.nexa.mobile.operations.core.network.AccessContextsOutcome
 import com.nexa.mobile.operations.core.network.CatalogDetailOutcome
+import com.nexa.mobile.operations.core.network.CatalogDetailProjection
 import com.nexa.mobile.operations.core.network.CatalogSearchOutcome
 import com.nexa.mobile.operations.core.network.IdentitySignInOutcome
 import com.nexa.mobile.operations.core.network.NativeAccessContext
@@ -21,6 +23,7 @@ import com.nexa.mobile.operations.feature.access.ContextSelectionResult
 import com.nexa.mobile.operations.feature.access.CurrentSessionContextResult
 import com.nexa.mobile.operations.feature.access.PermissionHint
 import com.nexa.mobile.operations.feature.access.SignInResult
+import com.nexa.mobile.operations.feature.access.VerifiedContextAuthority
 import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
 import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
 import com.nexa.mobile.operations.feature.warehouse.CandidateConfirmationResult
@@ -210,24 +213,12 @@ internal class OperationsAccessGateway @Inject constructor(
             return CandidateConfirmationResult.PermissionDenied
         }
         return when (result) {
-            is CatalogDetailOutcome.Found -> {
-                val detail = result.value
-                CandidateConfirmationResult.Confirmed(
-                    ConfirmedSkuUiState(
-                        candidateKey = detail.catalogItemId,
-                        productDisplayName = detail.productFamilyName ?: detail.itemName,
-                        variant = detail.productVariantName,
-                        presentation = detail.presentation,
-                        sku = detail.skuCode,
-                        brand = detail.brandName,
-                        unit = detail.unitOfMeasure,
-                        packaging = detail.packagingType,
-                        coldChain = detail.coldChainRequirement,
-                        context = context,
-                        authorityEpoch = authorityEpoch
-                    )
-                )
-            }
+            is CatalogDetailOutcome.Found -> mapConfirmedCatalogDetail(
+                candidate = candidate,
+                detail = result.value,
+                context = context,
+                authorityEpoch = authorityEpoch
+            )
 
             CatalogDetailOutcome.CandidateUnavailable ->
                 CandidateConfirmationResult.CandidateUnavailable
@@ -249,13 +240,8 @@ internal class OperationsAccessGateway @Inject constructor(
         }
     }
 
-    private fun contextIsCurrent(expected: VerifiedSession, current: VerifiedSession): Boolean =
-        current.hasAuthorizedContext && current.userId == expected.userId &&
-            current.tenantId == expected.tenantId && current.workspaceId == expected.workspaceId &&
-            current.membershipId == expected.membershipId
-
     private suspend fun establishContext(
-        issued: com.nexa.mobile.operations.core.auth.session.IssuedNativeSession,
+        issued: IssuedNativeSession,
         expected: NativeAuthenticationSession,
         selectedMembershipId: String?
     ): WorkforceContextSummary? {
@@ -281,25 +267,67 @@ internal class OperationsAccessGateway @Inject constructor(
         hasAuthorizedContext && userId == expected.userId && tenantId == expected.tenantId &&
             workspaceId == expected.workspaceId && membershipId == expected.membershipId
 
-    private fun VerifiedSession.toWorkforceContext(): WorkforceContextSummary? {
-        if (!hasAuthorizedContext) return null
-        val membership = membershipId?.takeIf(String::isNotBlank) ?: return null
-        val tenant = tenantName?.takeIf(String::isNotBlank) ?: return null
-        val workspace = workspaceName?.takeIf(String::isNotBlank) ?: return null
-        val permissionHint = catalogReadHint(permissions)
-        return WorkforceContextSummary(
-            key = membership,
-            companyName = tenant,
-            workspaceName = workspace,
-            permissionHint = permissionHint
-        )
-    }
-
     private fun NativeAccessContext.toWorkforceContext() = WorkforceContextSummary(
         key = membershipId,
         companyName = tenantName,
         workspaceName = workspaceName,
         permissionHint = PermissionHint.Unknown
+    )
+}
+
+internal fun mapConfirmedCatalogDetail(
+    candidate: ProductCandidate,
+    detail: CatalogDetailProjection,
+    context: ActiveOperationsContext,
+    authorityEpoch: Long
+): CandidateConfirmationResult {
+    if (detail.catalogItemId != candidate.key || detail.skuCode != candidate.sku) {
+        return CandidateConfirmationResult.CandidateUnavailable
+    }
+    return CandidateConfirmationResult.Confirmed(
+        ConfirmedSkuUiState(
+            candidateKey = candidate.key,
+            productDisplayName = detail.productFamilyName ?: detail.itemName,
+            variant = detail.productVariantName,
+            presentation = detail.presentation,
+            sku = detail.skuCode,
+            brand = detail.brandName,
+            unit = detail.unitOfMeasure,
+            packaging = detail.packagingType,
+            coldChain = detail.coldChainRequirement,
+            context = context,
+            authorityEpoch = authorityEpoch
+        )
+    )
+}
+
+internal fun contextIsCurrent(expected: VerifiedSession, current: VerifiedSession): Boolean =
+    current.hasAuthorizedContext && current.userId == expected.userId &&
+        current.tenantId == expected.tenantId && current.workspaceId == expected.workspaceId &&
+        current.membershipId == expected.membershipId &&
+        current.permissions == expected.permissions
+
+internal fun VerifiedSession.toWorkforceContext(): WorkforceContextSummary? {
+    if (!hasAuthorizedContext) return null
+    val membership = membershipId?.takeIf(String::isNotBlank) ?: return null
+    val user = userId?.takeIf(String::isNotBlank) ?: return null
+    val tenantId = tenantId?.takeIf(String::isNotBlank) ?: return null
+    val workspaceId = workspaceId?.takeIf(String::isNotBlank) ?: return null
+    val tenant = tenantName?.takeIf(String::isNotBlank) ?: return null
+    val workspace = workspaceName?.takeIf(String::isNotBlank) ?: return null
+    val permissionHint = catalogReadHint(permissions)
+    return WorkforceContextSummary(
+        key = membership,
+        companyName = tenant,
+        workspaceName = workspace,
+        permissionHint = permissionHint,
+        verifiedAuthority = VerifiedContextAuthority(
+            userId = user,
+            tenantId = tenantId,
+            workspaceId = workspaceId,
+            membershipId = membership,
+            permissions = permissions.toSet()
+        )
     )
 }
 

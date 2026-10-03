@@ -23,8 +23,8 @@ android {
         applicationId = "com.nexa.mobile.operations"
         minSdk = 29
         targetSdk = 37
-        versionCode = 3
-        versionName = "0.2.0"
+        versionCode = 6
+        versionName = "0.5.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -92,14 +92,19 @@ tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn(valida
 
 dependencies {
     implementation(project(":core:auth"))
+    implementation(project(":core:local"))
     implementation(project(":core:network"))
+    implementation(project(":core:device"))
     implementation(project(":core:designsystem"))
     implementation(project(":feature:access"))
     implementation(project(":feature:warehouse"))
+    implementation(project(":feature:dispatch"))
+    implementation(project(":feature:delivery"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
     implementation(libs.activity.compose)
+    implementation(libs.camera.view)
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.viewmodel.ktx)
@@ -110,6 +115,7 @@ dependencies {
     implementation(libs.serialization.json)
     ksp(libs.hilt.compiler)
     testImplementation(libs.junit)
+    testImplementation(libs.coroutines.test)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.runner)

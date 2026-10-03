@@ -1,0 +1,13 @@
+# Receiving local metadata boundary
+
+`core:local` stores non-authoritative receiving form data and a frozen command intent. It does not confirm a product, receipt, lot, or stock quantity. A successful local write is only local persistence; the API remains authoritative for receiving outcomes.
+
+Each record is keyed by the SHA-256 hash of a length-prefixed `(userId, tenantId, workspaceId, membershipId)` tuple. AES-GCM additional authenticated data includes the same complete scope and the envelope schema. Ciphertext is written atomically with `AtomicFile` below `noBackupFilesDir`. Missing data reads as an available empty value; malformed records, missing keys, authentication failures, or storage errors return `Unavailable` and are never reset or overwritten by a save.
+
+Drafts retain editable text, optional warehouse and zone IDs, a plain product reference, lot, expiry, quantity, unit, temperature, and notes. Catalog item IDs and SKU UUIDs remain separate strings. A frozen intent retains the exact idempotency key and exact command fields, including nullable temperature and notes. It contains no permissions, credentials, authority epoch, confirmed-product wrapper, or server-returned lot/stock facts.
+
+An unresolved intent may transition between `Pending` and `UnknownOutcome` only while its key and complete payload stay equal. A different key or payload returns `Conflict`; clearing requires the expected current key, so a stale clear cannot remove a newer intent. Draft updates preserve the intent. This store does not dispatch or replay commands.
+
+The app adapter maps `ReceivingScopeIdentity` by copying the four primitive IDs. It maps the currently defined `ReceivingDraftMetadata` fields into `ReceivingDraftMetadataRecord`; the local record also reserves nullable draft notes, which the current feature contract does not expose. Catalog item IDs stay separate from SKU IDs. It maps `InboundReceiptRequest` into `ReceivingIntentPayload` and reconstructs the date and decimal values without rounding. Feature `Pending` / `UnknownOutcome` maps to the matching local status. `Conflict` and `Stale` become a non-saved feature result; `Saved` never means receipt confirmation.
+
+JVM tests cover codec/schema rejection, scope binding, intent immutability, stale clears, draft preservation, and concurrent read-modify-write. Android instrumentation tests cover Keystore-backed encryption, `AtomicFile`, scope isolation, corruption/key loss, stale clears, and reconstruction through a new store instance. Reconstruction proves durable record readability across store instances; it is not a process-death test.

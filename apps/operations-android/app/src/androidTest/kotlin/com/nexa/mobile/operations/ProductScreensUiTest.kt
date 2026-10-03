@@ -177,7 +177,7 @@ class ProductScreensUiTest {
             }
         }
 
-        composeRule.onAllNodesWithText("Operations").assertCountEquals(1)
+        composeRule.onAllNodesWithText("Nexa Operations").assertCountEquals(1)
         composeRule.onNodeWithText("Trabajo disponible").assertIsDisplayed()
         composeRule.onNodeWithText("Identificar producto").assertIsDisplayed()
         composeRule.onNodeWithText("Recibir", substring = true).assertDoesNotExist()

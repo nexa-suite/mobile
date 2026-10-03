@@ -1,6 +1,7 @@
 package com.nexa.mobile.operations
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
@@ -16,11 +17,17 @@ import com.nexa.mobile.operations.feature.access.AccessUiState
 import com.nexa.mobile.operations.feature.access.ContextChooserMode
 import com.nexa.mobile.operations.feature.access.ContextChooserPhase
 import com.nexa.mobile.operations.feature.access.ContextChooserScreen
+import com.nexa.mobile.operations.feature.access.ContextChooserUiState
+import com.nexa.mobile.operations.feature.access.PermissionHint
 import com.nexa.mobile.operations.feature.warehouse.ConfirmedSkuScreen
 import com.nexa.mobile.operations.feature.warehouse.OperationsWorkEntryScreen
+import com.nexa.mobile.operations.feature.warehouse.ProductScannerScreen
+import com.nexa.mobile.operations.feature.warehouse.ProductScannerUiState
 import com.nexa.mobile.operations.feature.warehouse.ProductSearchScreen
+import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
 import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute
 import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
+import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
 
 internal enum class RootDestination {
     Bootstrapping,
@@ -37,7 +44,12 @@ internal enum class ProductDestination {
     ContextChooser,
     WorkEntry,
     ProductSearch,
-    ConfirmedSku
+    ConfirmedSku,
+    Receiving,
+    StockCondition,
+    Picking,
+    ConnectedOperation,
+    Scanner
 }
 
 internal fun SessionState.rootDestination(): RootDestination = when (this) {
@@ -66,11 +78,31 @@ internal fun RootNavigation(
     onContextBack: () -> Unit = {},
     onChangeContext: () -> Unit = {},
     onIdentifyProduct: () -> Unit = {},
+    onScanProductCode: () -> Unit = {},
     onWarehouseBack: () -> Unit = {},
     onSearch: () -> Unit = {},
     onLoadMore: () -> Unit = {},
     onQueryChanged: (String) -> Unit = {},
-    onSelectCandidate: (String) -> Unit = {}
+    onSelectCandidate: (String) -> Unit = {},
+    scannerState: ProductScannerUiState = ProductScannerUiState.PermissionNotRequested(0),
+    scannerCameraPreview: @Composable (Modifier) -> Unit = {},
+    onScannerPermissionRequest: () -> Unit = {},
+    onScannerOpenSettings: () -> Unit = {},
+    onScannerRetry: () -> Unit = {},
+    onScannerManualSearch: () -> Unit = {},
+    onReceiveStock: () -> Unit = {},
+    receivingContent: @Composable () -> Unit = {},
+    onViewStock: () -> Unit = {},
+    onViewIdentifiedStorage: ((String) -> Unit)? = null,
+    stockConditionContent: @Composable () -> Unit = {},
+    onPickStock: () -> Unit = {},
+    pickingContent: @Composable () -> Unit = {},
+    connectedOperationRoute: ConnectedOperationRoute? = null,
+    connectedOperationEntries: List<ConnectedOperationEntry> = emptyList(),
+    onOpenConnectedOperation: (ConnectedOperationEntry) -> Unit = {},
+    connectedOperationContent: @Composable () -> Unit = {},
+    additionalWorkContent: @Composable () -> Unit = {},
+    onConnectedOperationBack: () -> Unit = {}
 ) {
     val isSessionActive = state == SessionState.Active
     val currentContext = accessState.activeContext
@@ -79,18 +111,120 @@ internal fun RootNavigation(
             warehouseState.activeContext?.authorityEpoch == accessState.authorityEpoch
     val protectedContentAllowed =
         isSessionActive && accessState.stage == AccessStage.WorkAuthorized &&
-            currentContext != null && warehouseContextMatches
+            currentContext?.isCurrent == true && warehouseContextMatches
+
+    val onWarehouseBackState = rememberUpdatedState(onWarehouseBack)
+    LaunchedEffect(
+        state,
+        accessState.stage,
+        accessState.authorityEpoch,
+        currentContext,
+        warehouseState.permissionHint,
+        warehouseState.workEntryStatus,
+        warehouseState.route,
+        warehouseState.authorityEpoch,
+        connectedOperationRoute?.entryKey
+    ) {
+        val permissionLostAtCurrentEpoch =
+            state == SessionState.Active &&
+                accessState.stage == AccessStage.WorkAuthorized &&
+                warehouseState.authorityEpoch == accessState.authorityEpoch &&
+                !OperationsCapabilities.permitsEntry(
+                    warehouseState.route,
+                    state,
+                    accessState,
+                    warehouseState
+                )
+        if (permissionLostAtCurrentEpoch && warehouseState.route != WarehouseRoute.WorkEntry) {
+            repeat(OperationsCapabilities.deepRouteInvalidationBackCount(warehouseState.route)) {
+                onWarehouseBackState.value()
+            }
+        }
+    }
+
+    val searchAllowed = OperationsCapabilities.permits(
+        WarehouseRoute.ProductSearch,
+        state,
+        accessState,
+        warehouseState
+    )
+    val skuAllowed = OperationsCapabilities.permits(
+        WarehouseRoute.ConfirmedSku,
+        state,
+        accessState,
+        warehouseState
+    )
+    val scannerAllowed = OperationsCapabilities.permits(
+        WarehouseRoute.Scanner,
+        state,
+        accessState,
+        warehouseState,
+        scannerState
+    )
 
     val destination = when {
+        protectedContentAllowed && connectedOperationRoute != null &&
+            ConnectedOperationsNavigation.permits(
+                connectedOperationRoute,
+                connectedOperationEntries,
+                state,
+                accessState,
+                warehouseState
+            ) -> ProductDestination.ConnectedOperation
+
         protectedContentAllowed -> when (warehouseState.route) {
             WarehouseRoute.WorkEntry -> ProductDestination.WorkEntry
 
-            WarehouseRoute.ProductSearch -> ProductDestination.ProductSearch
+            WarehouseRoute.ProductSearch -> if (searchAllowed) {
+                ProductDestination.ProductSearch
+            } else {
+                ProductDestination.WorkEntry
+            }
 
-            WarehouseRoute.ConfirmedSku -> if (
-                warehouseState.confirmedSku?.authorityEpoch == accessState.authorityEpoch
-            ) {
+            WarehouseRoute.ConfirmedSku -> if (skuAllowed) {
                 ProductDestination.ConfirmedSku
+            } else {
+                ProductDestination.WorkEntry
+            }
+
+            WarehouseRoute.Picking -> if (OperationsCapabilities.permitsEntry(
+                    WarehouseRoute.Picking,
+                    state,
+                    accessState,
+                    warehouseState
+                )
+            ) {
+                ProductDestination.Picking
+            } else {
+                ProductDestination.WorkEntry
+            }
+
+            WarehouseRoute.StockCondition -> if (OperationsCapabilities.permitsEntry(
+                    WarehouseRoute.StockCondition,
+                    state,
+                    accessState,
+                    warehouseState
+                )
+            ) {
+                ProductDestination.StockCondition
+            } else {
+                ProductDestination.WorkEntry
+            }
+
+            WarehouseRoute.Receiving -> if (OperationsCapabilities.permitsEntry(
+                    WarehouseRoute.Receiving,
+                    state,
+                    accessState,
+                    warehouseState
+                )
+            ) {
+                ProductDestination.Receiving
+            } else {
+                ProductDestination.WorkEntry
+            }
+
+            WarehouseRoute.Scanner -> if (scannerAllowed) {
+                ProductDestination.Scanner
             } else {
                 ProductDestination.WorkEntry
             }
@@ -107,7 +241,8 @@ internal fun RootNavigation(
         state.rootDestination(),
         destination,
         accessState.authorityEpoch,
-        warehouseState.authorityEpoch
+        warehouseState.authorityEpoch,
+        connectedOperationRoute?.entryKey
     ) {
         val backStack = remember(destination, accessState.chooser?.phase) {
             when (destination) {
@@ -120,6 +255,31 @@ internal fun RootNavigation(
                     ProductDestination.WorkEntry,
                     ProductDestination.ProductSearch,
                     ProductDestination.ConfirmedSku
+                )
+
+                ProductDestination.ConnectedOperation -> mutableStateListOf<Any>(
+                    ProductDestination.WorkEntry,
+                    ProductDestination.ConnectedOperation
+                )
+
+                ProductDestination.Picking -> mutableStateListOf<Any>(
+                    ProductDestination.WorkEntry,
+                    ProductDestination.Picking
+                )
+
+                ProductDestination.StockCondition -> mutableStateListOf<Any>(
+                    ProductDestination.WorkEntry,
+                    ProductDestination.StockCondition
+                )
+
+                ProductDestination.Receiving -> mutableStateListOf<Any>(
+                    ProductDestination.WorkEntry,
+                    ProductDestination.Receiving
+                )
+
+                ProductDestination.Scanner -> mutableStateListOf<Any>(
+                    ProductDestination.WorkEntry,
+                    ProductDestination.Scanner
                 )
 
                 ProductDestination.ContextChooser -> if (
@@ -167,9 +327,84 @@ internal fun RootNavigation(
                     ProductDestination.WorkEntry -> {
                         WarehouseContentNotice(accessState.notice) {
                             OperationsWorkEntryScreen(
-                                state = warehouseState,
+                                state = if (protectedContentAllowed) {
+                                    warehouseState
+                                } else {
+                                    warehouseState.copy(activeContext = null)
+                                },
+                                additionalWorkContent = {
+                                    ConnectedOperationsEntries(
+                                        entries = ConnectedOperationsNavigation.visibleEntries(
+                                            connectedOperationEntries,
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        ),
+                                        onOpen = onOpenConnectedOperation
+                                    )
+                                    additionalWorkContent()
+                                },
+                                onPickStock = {
+                                    if (OperationsCapabilities.permitsEntry(
+                                            WarehouseRoute.Picking,
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        )
+                                    ) {
+                                        onPickStock()
+                                    }
+                                },
+                                onViewStock = {
+                                    if (OperationsCapabilities.permitsEntry(
+                                            WarehouseRoute.StockCondition,
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        )
+                                    ) {
+                                        onViewStock()
+                                    }
+                                },
+                                onReceiveStock = {
+                                    if (OperationsCapabilities.permitsEntry(
+                                            WarehouseRoute.Receiving,
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        )
+                                    ) {
+                                        onReceiveStock()
+                                    }
+                                },
                                 onChangeContext = onChangeContext,
-                                onIdentifyProduct = onIdentifyProduct,
+                                onIdentifyProduct = {
+                                    if (OperationsCapabilities.permitsEntry(
+                                            WarehouseRoute.ProductSearch,
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        )
+                                    ) {
+                                        onIdentifyProduct()
+                                    }
+                                },
+                                onScanProductCode = {
+                                    if (OperationsCapabilities.permitsEntry(
+                                            WarehouseRoute.Scanner,
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        )
+                                    ) {
+                                        onScanProductCode()
+                                    }
+                                },
+                                capabilities = OperationsCapabilities.workEntryCapabilities(
+                                    state,
+                                    accessState,
+                                    warehouseState
+                                ),
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -177,17 +412,57 @@ internal fun RootNavigation(
 
                     ProductDestination.ProductSearch -> {
                         val search = warehouseState.search
-                        if (search != null && protectedContentAllowed) {
+                        if (search != null && searchAllowed) {
                             WarehouseContentNotice(accessState.notice) {
                                 ProductSearchScreen(
                                     state = search,
                                     activeContext = warehouseState.activeContext,
                                     onChangeContext = onChangeContext,
                                     onBack = onWarehouseBack,
-                                    onQueryChanged = onQueryChanged,
-                                    onSearch = onSearch,
-                                    onLoadMore = onLoadMore,
-                                    onSelectCandidate = onSelectCandidate,
+                                    onQueryChanged = { query ->
+                                        if (OperationsCapabilities.permits(
+                                                WarehouseRoute.ProductSearch,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            onQueryChanged(query)
+                                        }
+                                    },
+                                    onSearch = {
+                                        if (OperationsCapabilities.permits(
+                                                WarehouseRoute.ProductSearch,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            onSearch()
+                                        }
+                                    },
+                                    onLoadMore = {
+                                        if (OperationsCapabilities.permits(
+                                                WarehouseRoute.ProductSearch,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            onLoadMore()
+                                        }
+                                    },
+                                    onSelectCandidate = { key ->
+                                        if (OperationsCapabilities.permits(
+                                                WarehouseRoute.ProductSearch,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            onSelectCandidate(key)
+                                        }
+                                    },
                                     modifier = Modifier.weight(1f)
                                 )
                             }
@@ -204,7 +479,7 @@ internal fun RootNavigation(
 
                     ProductDestination.ConfirmedSku -> {
                         val confirmed = warehouseState.confirmedSku
-                        if (confirmed != null && protectedContentAllowed) {
+                        if (confirmed != null && skuAllowed) {
                             WarehouseContentNotice(accessState.notice) {
                                 ConfirmedSkuScreen(
                                     state = confirmed,
@@ -222,6 +497,38 @@ internal fun RootNavigation(
                         }
                     }
 
+                    ProductDestination.Receiving -> receivingContent()
+
+                    ProductDestination.StockCondition -> stockConditionContent()
+
+                    ProductDestination.Picking -> pickingContent()
+
+                    ProductDestination.ConnectedOperation -> connectedOperationContent()
+
+                    ProductDestination.Scanner -> {
+                        if (scannerAllowed) {
+                            ProductScannerScreen(
+                                state = scannerState,
+                                activeContext = warehouseState.activeContext,
+                                cameraPreview = scannerCameraPreview,
+                                onBack = onWarehouseBack,
+                                onChangeContext = onChangeContext,
+                                onRequestPermission = onScannerPermissionRequest,
+                                onOpenSettings = onScannerOpenSettings,
+                                onRetryScan = onScannerRetry,
+                                onManualSearch = onScannerManualSearch,
+                                onViewStorage = onViewIdentifiedStorage
+                            )
+                        } else {
+                            OperationsWorkEntryScreen(
+                                state = warehouseState,
+                                onChangeContext = onChangeContext,
+                                onIdentifyProduct = onIdentifyProduct,
+                                onScanProductCode = onScanProductCode
+                            )
+                        }
+                    }
+
                     else -> error("Unknown Product destination")
                 }
             }
@@ -230,8 +537,14 @@ internal fun RootNavigation(
             backStack = backStack,
             onBack = {
                 when (destination) {
+                    ProductDestination.ConnectedOperation -> onConnectedOperationBack()
+
                     ProductDestination.ProductSearch,
-                    ProductDestination.ConfirmedSku -> onWarehouseBack()
+                    ProductDestination.ConfirmedSku,
+                    ProductDestination.Receiving,
+                    ProductDestination.StockCondition,
+                    ProductDestination.Picking,
+                    ProductDestination.Scanner -> onWarehouseBack()
 
                     ProductDestination.ContextChooser -> {
                         val chooser = accessState.chooser
@@ -251,9 +564,14 @@ internal fun RootNavigation(
                     ProductDestination.Access,
                     ProductDestination.ContextChooser,
                     ProductDestination.WorkEntry,
+                    ProductDestination.ConnectedOperation,
                     ProductDestination.ProductSearch,
-                    ProductDestination.ConfirmedSku -> NavEntry(entryKey) {
-                        currentEntryRenderer.value(entryKey)
+                    ProductDestination.ConfirmedSku,
+                    ProductDestination.Receiving,
+                    ProductDestination.StockCondition,
+                    ProductDestination.Picking,
+                    ProductDestination.Scanner -> NavEntry(entryKey) {
+                        if (entryKey == destination) currentEntryRenderer.value(entryKey)
                     }
 
                     else -> error("Unknown Product destination")
@@ -315,8 +633,7 @@ private fun AccessUiState.forSession(
     }
 }
 
-private fun AccessUiState.chooserFallback() =
-    com.nexa.mobile.operations.feature.access.ContextChooserUiState(
-        mode = ContextChooserMode.Initial,
-        phase = ContextChooserPhase.Loading
-    )
+private fun AccessUiState.chooserFallback() = ContextChooserUiState(
+    mode = ContextChooserMode.Initial,
+    phase = ContextChooserPhase.Loading
+)

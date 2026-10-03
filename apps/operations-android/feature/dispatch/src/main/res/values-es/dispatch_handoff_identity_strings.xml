@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dispatch_handoff_identity_title">Identidad de entrega y conductor</string>
+    <string name="dispatch_handoff_identity_scope_notice">Vincula esta entrega con la asignación actual del conductor. Validar la identidad no registra aceptación, resultado del conductor ni recibo del comprador.</string>
+    <string name="dispatch_handoff_identity_delivery">Entrega: %1$s</string>
+    <string name="dispatch_handoff_identity_assignment">Asignación: %1$s</string>
+    <string name="dispatch_handoff_identity_status">Estado de identidad: %1$s</string>
+    <string name="dispatch_handoff_identity_version">Versión de entrega: %1$d</string>
+    <string name="dispatch_handoff_identity_expiry">Vence: %1$s</string>
+    <string name="dispatch_handoff_identity_error">Código: %1$s</string>
+    <string name="dispatch_handoff_identity_token_label">Código de un solo uso</string>
+    <string name="dispatch_handoff_identity_token_input">Código para validar</string>
+    <string name="dispatch_handoff_identity_hide">Ocultar código</string>
+    <string name="dispatch_handoff_identity_issue">Emitir identidad</string>
+    <string name="dispatch_handoff_identity_retry_same">Reintentar con la misma clave</string>
+    <string name="dispatch_handoff_identity_issue_replacement">Solicitar una identidad nueva</string>
+    <string name="dispatch_handoff_identity_validate">Validar identidad</string>
+    <string name="dispatch_handoff_identity_loading">Cargando estado local protegido…</string>
+    <string name="dispatch_handoff_identity_ready">Entrega y asignación seleccionadas. Emite identidad de forma explícita.</string>
+    <string name="dispatch_handoff_identity_issuing">Solicitando identidad al servidor…</string>
+    <string name="dispatch_handoff_identity_token_visible">Identidad emitida. Comparte el código solo con el conductor asignado.</string>
+    <string name="dispatch_handoff_identity_validating">Validando entrega, asignación y código con el servidor…</string>
+    <string name="dispatch_handoff_identity_validated">Identidad actual confirmada por el servidor. No registra aceptación, resultado del conductor ni recibo del comprador.</string>
+    <string name="dispatch_handoff_identity_unknown">Resultado incierto. Reintenta únicamente con la misma clave.</string>
+    <string name="dispatch_handoff_identity_reissue_required">El servidor no devolvió el código original. Solicita una identidad nueva de forma explícita.</string>
+    <string name="dispatch_handoff_identity_validation_rejected">Código inválido, vencido o vinculado a otra identidad. No se modificó ningún hecho de entrega.</string>
+    <string name="dispatch_handoff_identity_validation_unknown">No fue posible confirmar la identidad. Repite la validación manualmente.</string>
+    <string name="dispatch_handoff_identity_rejected">El servidor rechazó la solicitud de identidad.</string>
+    <string name="dispatch_handoff_identity_not_found">Entrega o asignación no disponible para esta identidad.</string>
+    <string name="dispatch_handoff_identity_unavailable">Servicio no disponible. Vuelve a intentarlo manualmente.</string>
+    <string name="dispatch_handoff_identity_permission_denied">Permiso de logística no vigente.</string>
+    <string name="dispatch_handoff_identity_context_invalid">El contexto de organización cambió. Vuelve a abrir la asignación.</string>
+    <string name="dispatch_handoff_identity_session_invalid">La sesión ya no está vigente. Vuelve a autenticarte.</string>
+    <string name="dispatch_handoff_identity_persistence_unavailable">No se pudo guardar de forma segura la solicitud antes de enviarla.</string>
+    <string name="dispatch_handoff_identity_separation">Esta pantalla solo vincula y valida identidad. No confirma entrega, recepción, aceptación ni movimientos de inventario.</string>
+</resources>
