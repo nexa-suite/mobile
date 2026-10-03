@@ -45,6 +45,45 @@ class WarehouseViewModel(
         }
     }
 
+    fun openPicking() {
+        val current = mutableState.value
+        if (current.activeContext == null ||
+            current.workEntryStatus != WorkEntryStatus.TaskAvailable
+        ) {
+            return
+        }
+        requestGeneration++
+        mutableState.value = current.copy(
+            route = WarehouseRoute.Picking,
+            search = null,
+            confirmedSku = null
+        )
+    }
+
+    fun openStockCondition() {
+        val current = mutableState.value
+        if (current.activeContext == null ||
+            current.workEntryStatus != WorkEntryStatus.TaskAvailable
+        ) {
+            return
+        }
+        requestGeneration++
+        mutableState.value =
+            current.copy(route = WarehouseRoute.StockCondition, search = null, confirmedSku = null)
+    }
+
+    fun openReceiving() {
+        val current = mutableState.value
+        if (current.activeContext == null ||
+            current.workEntryStatus != WorkEntryStatus.TaskAvailable
+        ) {
+            return
+        }
+        requestGeneration++
+        mutableState.value =
+            current.copy(route = WarehouseRoute.Receiving, search = null, confirmedSku = null)
+    }
+
     fun openProductSearch() {
         val current = mutableState.value
         if (current.workEntryStatus != WorkEntryStatus.TaskAvailable ||
@@ -56,6 +95,21 @@ class WarehouseViewModel(
         mutableState.value = current.copy(
             route = WarehouseRoute.ProductSearch,
             search = ProductSearchUiState(authorityEpoch = current.authorityEpoch),
+            confirmedSku = null
+        )
+    }
+
+    fun openScanner() {
+        val current = mutableState.value
+        if (current.workEntryStatus != WorkEntryStatus.TaskAvailable ||
+            current.activeContext == null
+        ) {
+            return
+        }
+        requestGeneration++
+        mutableState.value = current.copy(
+            route = WarehouseRoute.Scanner,
+            search = null,
             confirmedSku = null
         )
     }
@@ -255,12 +309,43 @@ class WarehouseViewModel(
                 )
             }
 
+            WarehouseRoute.Receiving, WarehouseRoute.Scanner, WarehouseRoute.StockCondition,
+            WarehouseRoute.Picking -> {
+                requestGeneration++
+                mutableState.value = current.copy(
+                    route = WarehouseRoute.WorkEntry,
+                    search = null,
+                    confirmedSku = null
+                )
+            }
+
             WarehouseRoute.WorkEntry -> Unit
         }
     }
 
     fun authorityReplaced(context: ActiveOperationsContext, permissionHint: TaskVisibilityHint) {
         enterOperations(context, permissionHint)
+    }
+
+    fun permissionHintChanged(permissionHint: TaskVisibilityHint) {
+        val current = mutableState.value
+        if (permissionHint == TaskVisibilityHint.Available &&
+            current.permissionHint == TaskVisibilityHint.Available
+        ) {
+            return
+        }
+        requestGeneration++
+        mutableState.value = current.copy(
+            route = WarehouseRoute.WorkEntry,
+            workEntryStatus = when (permissionHint) {
+                TaskVisibilityHint.Available -> WorkEntryStatus.TaskAvailable
+                TaskVisibilityHint.Unavailable -> WorkEntryStatus.PermissionUnavailable
+                TaskVisibilityHint.Unknown -> WorkEntryStatus.PermissionUnknown
+            },
+            permissionHint = permissionHint,
+            search = null,
+            confirmedSku = null
+        )
     }
 
     fun contextInvalidated() {
@@ -393,16 +478,7 @@ class WarehouseViewModel(
     }
 
     private fun permissionDenied() {
-        requestGeneration++
-        mutableState.update {
-            it.copy(
-                route = WarehouseRoute.WorkEntry,
-                workEntryStatus = WorkEntryStatus.PermissionUnavailable,
-                permissionHint = TaskVisibilityHint.Unavailable,
-                search = null,
-                confirmedSku = null
-            )
-        }
+        permissionHintChanged(TaskVisibilityHint.Unavailable)
     }
 
     private fun updateSearchFailure(status: ProductSearchStatus, generation: Long) {

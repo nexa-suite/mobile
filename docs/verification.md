@@ -1,19 +1,18 @@
 # Android foundation verification
 
-Run Gradle commands from `apps/operations-android` with JDK 17. Install Android SDK packages `platforms;android-37.0`, `build-tools;36.0.0`, and `platform-tools`. Keep the Gradle wrapper and dependency verification metadata in the repository; review the bytes and source of a new dependency artifact before accepting its checksum. The wrapper pins the official SHA-256 for the Gradle 9.6.0 binary distribution.
+Run Gradle commands from `apps/operations-android` with JDK 17. Install Android SDK packages `platforms;android-37.0`, `build-tools;36.0.0`, and `platform-tools`. Keep the Gradle wrapper and dependency verification metadata in the repository; review the bytes and source of a new dependency artifact before accepting its checksum. The wrapper pins the official SHA-256 for the Gradle 9.7.1 binary distribution.
 
 ## Local static and JVM gates
 
 ```sh
 cd apps/operations-android
 ./gradlew verifyAndroidArchitecture ktlintCheck lintDebug \
-  :core:auth:testDebugUnitTest :core:network:testDebugUnitTest \
-  :feature:access:testDebugUnitTest :feature:warehouse:testDebugUnitTest \
-  :app:testDebugUnitTest \
+  testDebugUnitTest \
   :app:assembleDebug --dependency-verification strict
 ```
 
-The JUnit XML files are in each module's `build/test-results/testDebugUnitTest`. Lint reports are under each module's `build/reports/lint-results-debug.html`. A zero exit status is necessary, but inspect the XML test and failure counts before recording a result.
+The JVM task covers every configured Android module, including new device/local
+foundations and feature modules. The JUnit XML files are in each module's `build/test-results/testDebugUnitTest`. Lint reports are under each module's `build/reports/lint-results-debug.html`. A zero exit status is necessary, but inspect the XML test and failure counts before recording a result.
 
 ## Emulator gates
 
@@ -22,10 +21,13 @@ Run one booted emulator at a time and confirm its API level before each connecte
 ```sh
 adb devices -l
 adb shell getprop ro.build.version.sdk
-./gradlew :core:auth:connectedDebugAndroidTest :app:connectedDebugAndroidTest \
+./gradlew connectedDebugAndroidTest \
   -Pandroid.testInstrumentationRunnerArguments.notClass=com.nexa.mobile.operations.LiveCandidateIdentityIntegrationTest \
   --dependency-verification strict
 ```
+
+The unqualified connected task includes instrumentation from every configured
+Android module. Modules without instrumentation sources contribute no tests.
 
 Use an API 37.0 image for feature verification and an API 29 image for promotion verification. On Apple Silicon the local image ABI is `arm64-v8a`; the Linux CI job uses `x86_64`. Install the matching `google_apis` system image for the host architecture. Check the generated XML in each module's `build/outputs/androidTest-results/connected/debug` directory after each run. Gradle can replace results from an earlier emulator run, so retain the API level, command, timestamp, and test counts in the execution record.
 
@@ -80,9 +82,9 @@ This connected instrumentation command exited 0 on the local `Nexa_API37` AVD:
 - The run used the local dirty checkout at `0f6c620db8ec`; the results are not bound to an immutable candidate commit.
 - These instrumentation tests do not establish a live Android sign-in, access-context selection, or business workflow against the v0.18.0 API candidate. Product Acceptance remains open.
 
-## Observed Wave 2 candidate — 2026-09-27
+## Observed earlier candidate — 2026-09-27
 
-The final Wave 2 Android source passed the following local gates with strict dependency verification. The execution record retains the tested file hashes and Android source fingerprint `5286ca57b7be867cabbea380887c3929d37a7c16a525394cfd6088d11f4e1ae3` so that the signed candidate can be compared with the tested bytes.
+The final Android source for this earlier checkpoint passed the following local gates with strict dependency verification. The execution record retains the tested file hashes and Android source fingerprint `5286ca57b7be867cabbea380887c3929d37a7c16a525394cfd6088d11f4e1ae3` so that the signed candidate can be compared with the tested bytes.
 
 | Gate | Exit status | Tests | Failures / errors / skips |
 | --- | --- | --- | --- |
@@ -108,3 +110,15 @@ Live instrumentation arguments were supplied through private Gradle project envi
 All six release-origin negative cases in CI were also rejected locally for the expected reason. APK inspection confirmed that the shrunk release excludes debug review classes/resources, cleartext configuration and `ACCESS_LOCAL_NETWORK`. The release origin remains verification-only and the APK is not distribution-signed.
 
 These are technical results. Human Product/UX Acceptance, System Acceptance and Production Readiness remain separate open gates.
+
+## Isolated local instrumented execution
+
+AGP 9.4.1's serial-device filter throws `UnsupportedOperationException` before tests when it removes from an immutable device collection. Local verification must use one connected device without `--serial` or `ANDROID_SERIAL`. The helper refuses to run when another device is connected; it does not stop, disconnect or mutate other devices. It also serializes Gradle workers and provides a bounded 6 GiB daemon heap for Android test dex assembly. CI already provisions a single emulator and does not use this serial filter.
+
+From the Android project, after starting only the chosen API29 or API37 emulator:
+
+```sh
+scripts/verify-connected-local.sh emulator-5554 --console=plain
+```
+
+Use the actual serial from `adb devices`. A refused invocation or a build failure is not instrumented test evidence. Optional live-identity tests still require private local credentials and exact API provenance.

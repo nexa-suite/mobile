@@ -1,14 +1,36 @@
 # Changelog
 
+## [0.5.0] - 2026-10-03
+
+Operations Android checkpoint, versionCode 6.
+
+- The current API verification record reports 675 tests with zero failures; the Android Studio validation record for the recorded implementation snapshot reports 456 JVM tests with zero failures, errors or skips.
+- Strict architecture verification and debug assembly passed locally. This checkpoint has no production distribution or Product, System or physical-device acceptance claim.
+
+## [0.4.0] - 2026-10-02
+
+Operations functional remediation and local Android delivery. See
+[release notes](docs/releases/v0.4.0.md) for verified scope and distribution limits.
+
+- Integrate authorized Warehouse, Dispatch, Delivery, Sales and exception coordination workflows.
+- Fix scoped inventory pagination, native navigation, Android 17 local-network recovery and receiving selection layout.
+- Preserve strict dependency verification, protected session storage, server authorization and explicit command replay.
+- Add opt-in native integration and role capture evidence without embedding credentials.
+
+## [0.3.0-alpha.1] - 2026-10-01
+
+Earlier source checkpoint, published as prerelease with known validation failures.
+See [release notes](docs/releases/v0.3.0-alpha.1.md). No stable readiness claim.
+
 ## 0.1.1 - 2026-09-28
 
 ### Added
 
-- Consolidated Wave 2 and design-readiness presentation baseline for Operations Android.
+- Consolidated the earlier implementation and design-readiness presentation baseline for Operations Android.
 - Authoritative warehouse identification, root navigation context routing, and debug review harness.
 - Protected `NexaCatalogGateway` with product search, detail gateway, and epoch-scoped warehouse invalidation.
 - Design-ready theme tokens and visual foundations aligned with Nexa Design Lab (Navy `#082846` palette, Knox biometric, high-contrast states).
-- SCM reconciliation unifying canonical branches across Wave 2 and Wave 3 handoff.
+- Source reconciliation unified the canonical implementation branches used by the earlier baseline.
 
 ## 0.1.0 - 2026-09-23
 

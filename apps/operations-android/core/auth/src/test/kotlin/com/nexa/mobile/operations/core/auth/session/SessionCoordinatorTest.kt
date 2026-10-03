@@ -18,6 +18,170 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionCoordinatorTest {
     @Test
+    fun concurrentForegroundReturnsHideWorkAndShareSessionCheck() = runTest {
+        val gateway = FakeGateway()
+        val coordinator = SessionCoordinator(FakeStore(), gateway, backgroundScope)
+        assertTrue(coordinator.signIn(NativeSignIn("synthetic", "synthetic", "synthetic")))
+        gateway.sessionGate = CompletableDeferred()
+
+        val waiting = List(12) { async { coordinator.verifyForegroundReturn() } }
+        runCurrent()
+        assertEquals(SessionState.Restoring(), coordinator.sessionState.value)
+        assertNull(coordinator.currentAccess())
+        assertNull(coordinator.verifiedSession.value)
+        assertEquals(2, gateway.sessionCalls)
+
+        gateway.sessionGate!!.complete(VerifiedSession(hasAuthorizedContext = true))
+        assertTrue(waiting.awaitAll().all { it })
+        assertEquals(SessionState.Active, coordinator.sessionState.value)
+        assertEquals(0, gateway.refreshCalls)
+    }
+
+    @Test
+    fun cancellingForegroundWaiterDoesNotCancelSharedCheck() = runTest {
+        val gateway = FakeGateway()
+        val coordinator = SessionCoordinator(FakeStore(), gateway, backgroundScope)
+        coordinator.signIn(NativeSignIn("synthetic", "synthetic", "synthetic"))
+        gateway.sessionGate = CompletableDeferred()
+        val cancelled = async { coordinator.verifyForegroundReturn() }
+        val waiting = async { coordinator.verifyForegroundReturn() }
+        runCurrent()
+
+        cancelled.cancel()
+        gateway.sessionGate!!.complete(VerifiedSession(hasAuthorizedContext = true))
+        assertTrue(waiting.await())
+        assertEquals(2, gateway.sessionCalls)
+        assertEquals(SessionState.Active, coordinator.sessionState.value)
+    }
+
+    @Test
+    fun unavailableReturnAllowsSafeRetryWithoutRefresh() = runTest {
+        val gateway = FakeGateway()
+        val coordinator = SessionCoordinator(FakeStore(), gateway, backgroundScope)
+        coordinator.signIn(NativeSignIn("synthetic", "synthetic", "synthetic"))
+        gateway.sessionUnavailable = true
+
+        assertFalse(coordinator.verifyForegroundReturn())
+        assertEquals(
+            SessionState.Restoring(canRetryConnection = true),
+            coordinator.sessionState.value
+        )
+        assertNull(coordinator.currentAccess())
+        gateway.sessionUnavailable = false
+        assertTrue(coordinator.retrySessionValidation())
+        assertEquals(SessionState.Active, coordinator.sessionState.value)
+        assertEquals(0, gateway.refreshCalls)
+    }
+
+    @Test
+    fun rejectedReturnRequiresReauthentication() = runTest {
+        val store = FakeStore()
+        val gateway = FakeGateway()
+        val coordinator = SessionCoordinator(store, gateway, backgroundScope)
+        coordinator.signIn(NativeSignIn("synthetic", "synthetic", "synthetic"))
+        gateway.sessionFailure = AuthGatewayFailure.DefinitiveRejection()
+        gateway.refreshFailure = AuthGatewayFailure.DefinitiveRejection()
+
+        assertFalse(coordinator.verifyForegroundReturn())
+        assertEquals(SessionState.ReauthenticationRequired, coordinator.sessionState.value)
+        assertEquals(StoredRefreshCredential.Missing, store.value)
+        assertNull(coordinator.currentAccess())
+        assertEquals(1, gateway.refreshCalls)
+    }
+
+    @Test
+    fun expiredForegroundAccessRotatesOnceAndRevalidates() = runTest {
+        val store = FakeStore()
+        val gateway = FakeGateway()
+        val coordinator = SessionCoordinator(store, gateway, backgroundScope)
+        coordinator.signIn(NativeSignIn("synthetic", "synthetic", "synthetic"))
+        val oldEpoch = coordinator.currentAccess()!!.epoch
+        gateway.sessionRejectionsRemaining = 1
+
+        assertTrue(coordinator.verifyForegroundReturn())
+        assertEquals(1, gateway.refreshCalls)
+        assertEquals(listOf("synthetic-r1"), gateway.dispatchedRefreshCredentials)
+        assertEquals(StoredRefreshCredential.Ready("synthetic-r2"), store.value)
+        assertEquals(3, gateway.sessionCalls)
+        assertFalse(coordinator.isEpochCurrent(oldEpoch))
+        assertEquals(SessionState.Active, coordinator.sessionState.value)
+    }
+
+    @Test
+    fun ambiguousForegroundRotationDoesNotRetryOldCredential() = runTest {
+        val store = FakeStore()
+        val gateway = FakeGateway().apply {
+            refreshFailure = AuthGatewayFailure.AmbiguousOutcome()
+        }
+        val coordinator = SessionCoordinator(store, gateway, backgroundScope)
+        coordinator.signIn(NativeSignIn("synthetic", "synthetic", "synthetic"))
+        gateway.sessionRejectionsRemaining = 1
+
+        assertFalse(coordinator.verifyForegroundReturn())
+        assertFalse(coordinator.verifyForegroundReturn())
+        assertEquals(1, gateway.refreshCalls)
+        assertEquals(1, store.takeCalls)
+        assertEquals(StoredRefreshCredential.Missing, store.value)
+        assertEquals(SessionState.ReauthenticationRequired, coordinator.sessionState.value)
+    }
+
+    @Test
+    fun returnPublishesOnlyFreshContextAndPermissions() = runTest {
+        val gateway = FakeGateway()
+        val coordinator = SessionCoordinator(FakeStore(), gateway, backgroundScope)
+        coordinator.signIn(NativeSignIn("synthetic", "synthetic", "synthetic"))
+        val oldEpoch = coordinator.currentAccess()!!.epoch
+        gateway.sessionGate = CompletableDeferred()
+
+        val waiting = async { coordinator.verifyForegroundReturn() }
+        runCurrent()
+        assertNull(coordinator.verifiedSession.value)
+        gateway.sessionGate!!.complete(
+            VerifiedSession(
+                hasAuthorizedContext = true,
+                workspaceId = "fresh-workspace",
+                permissions = setOf("catalog.read")
+            )
+        )
+
+        assertTrue(waiting.await())
+        assertFalse(coordinator.isEpochCurrent(oldEpoch))
+        assertEquals("fresh-workspace", coordinator.verifiedSession.value?.workspaceId)
+        assertEquals(setOf("catalog.read"), coordinator.verifiedSession.value?.permissions)
+    }
+
+    @Test
+    fun lateReturnAfterLogoutCannotRestoreAccess() = runTest {
+        val gateway = FakeGateway()
+        val coordinator = SessionCoordinator(FakeStore(), gateway, backgroundScope)
+        coordinator.signIn(NativeSignIn("synthetic", "synthetic", "synthetic"))
+        gateway.sessionGate = CompletableDeferred()
+        val waiting = async { coordinator.verifyForegroundReturn() }
+        runCurrent()
+
+        coordinator.logout()
+        gateway.sessionGate!!.complete(VerifiedSession(hasAuthorizedContext = true))
+        assertFalse(waiting.await())
+        assertEquals(SessionState.SignedOut, coordinator.sessionState.value)
+        assertNull(coordinator.currentAccess())
+    }
+
+    @Test
+    fun lateReturnCannotRestoreLoggedOutOrReplacedContext() = runTest {
+        val gateway = FakeGateway()
+        val coordinator = SessionCoordinator(FakeStore(), gateway, backgroundScope)
+        coordinator.signIn(NativeSignIn("synthetic", "synthetic", "synthetic"))
+        gateway.sessionGate = CompletableDeferred()
+        val waiting = async { coordinator.verifyForegroundReturn() }
+        runCurrent()
+        coordinator.invalidateContext()
+        gateway.sessionGate!!.complete(VerifiedSession(hasAuthorizedContext = true))
+        assertFalse(waiting.await())
+        assertEquals(SessionState.ContextRequired, coordinator.sessionState.value)
+        assertNull(coordinator.currentAccess())
+    }
+
+    @Test
     fun concurrentUnauthorizedCallersShareOneRotationAndAdvanceGenerationOnce() = runTest {
         val store = FakeStore()
         val gateway = FakeGateway()
@@ -274,6 +438,9 @@ class SessionCoordinatorTest {
         var refreshGate: CompletableDeferred<IssuedNativeSession>? = null
         var refreshFailure: Exception? = null
         var sessionUnavailable = false
+        var sessionFailure: Exception? = null
+        var sessionRejectionsRemaining = 0
+        var sessionGate: CompletableDeferred<VerifiedSession>? = null
         val dispatchedRefreshCredentials = mutableListOf<String>()
 
         override suspend fun signIn(input: NativeSignIn): IssuedNativeSession =
@@ -289,7 +456,12 @@ class SessionCoordinatorTest {
         override suspend fun currentSession(accessToken: String): VerifiedSession {
             sessionCalls++
             if (sessionUnavailable) throw AuthGatewayFailure.NetworkUnavailable()
-            return VerifiedSession(hasAuthorizedContext = true)
+            if (sessionRejectionsRemaining > 0) {
+                sessionRejectionsRemaining--
+                throw AuthGatewayFailure.DefinitiveRejection()
+            }
+            sessionFailure?.let { throw it }
+            return sessionGate?.await() ?: VerifiedSession(hasAuthorizedContext = true)
         }
 
         override suspend fun signOut(accessToken: String) {

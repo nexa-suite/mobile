@@ -25,3 +25,22 @@ the authorized access context. A failure left by an earlier session cannot
 log out a newly selected context; a current scoped failure still clears access.
 
 JVM tests cover state transitions, 20 concurrent callers, cancellation, generation, epoch races, and ambiguous outcomes. MockWebServer tests cover actual 20x401 replay, header placement, origin rejection, command identity, unsafe mutation replay denial, stale ETag responses, and Problem Details. Android instrumentation exercises Keystore encryption, unique IVs, tamper rejection, old ciphertext rejection after clear, atomic write recovery, and in-flight state on emulator APIs 37 and 29.
+
+## Foreground authority verification
+
+Returning an active activity to the foreground immediately closes protected
+content and clears the current access lease and verified context. One
+application-scoped flight checks the current session with the API before
+reopening access. A definitive expired-access rejection may use the existing
+safe refresh rotation; an ambiguous rotation requires reauthentication. Offline
+verification remains retryable without presenting old context as authority.
+Caller cancellation does not cancel the shared flight. Epoch checks reject
+late verification after logout or context replacement.
+
+The access projection retains current user, Tenant, Workspace, Membership and
+permissions separately from display labels. Changes to any authority component
+invalidate scoped state even when company and Workspace names remain identical.
+Capability routes require a currently verified context and their own permission
+hint. Losing capability removes deep entries, searches and confirmed SKU state;
+regaining permission requires new identification. Unknown permission does not
+open a protected route.

@@ -14,6 +14,7 @@ import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 
@@ -25,7 +26,9 @@ class ProtectedRequest(
     val path: String,
     val payload: String? = null,
     val idempotencyKey: String? = null,
-    val ifMatch: String? = null
+    val ifMatch: String? = null,
+    val binaryResponse: Boolean = false,
+    val requestBody: RequestBody? = null
 ) {
     init {
         require(path.startsWith("/api/v1/") && "//" !in path && "://" !in path)
@@ -34,6 +37,14 @@ class ProtectedRequest(
         )
         require(ifMatch == null || ifMatch.isNotBlank())
         require(method != ProtectedMethod.GET || payload == null)
+        require(
+            !binaryResponse || (
+                method == ProtectedMethod.GET &&
+                    Regex("/api/v1/business-documents/[0-9a-fA-F-]{36}/downloads").matches(path)
+                )
+        )
+        require(payload == null || requestBody == null)
+        require(requestBody == null || method != ProtectedMethod.GET)
     }
 
     val isMutation: Boolean get() = method != ProtectedMethod.GET
@@ -52,7 +63,10 @@ sealed interface ProtectedResult {
         val status: Int,
         val body: String?,
         val etag: String?,
-        val serverCorrelationId: String?
+        val serverCorrelationId: String?,
+        val bytes: ByteArray? = null,
+        val contentType: String? = null,
+        val checksumSha256: String? = null
     ) : ProtectedResult {
         override fun toString(): String = "Success(status=$status, body=REDACTED, etag=REDACTED)"
     }
@@ -107,7 +121,10 @@ class ProtectedCallExecutor(
                 response.status,
                 response.body,
                 response.etag,
-                response.correlationId
+                response.correlationId,
+                response.bytes,
+                response.contentType,
+                response.checksumSha256
             )
         } else {
             ProtectedResult.Failure(
@@ -138,7 +155,9 @@ class ProtectedCallExecutor(
         access: AccessTokenLease,
         url: String
     ): Exchange {
-        val body = if (command.isMutation) {
+        val body = if (command.isMutation && command.requestBody != null) {
+            command.requestBody
+        } else if (command.isMutation) {
             (command.payload ?: "").toRequestBody("application/json".toMediaType())
         } else {
             null
@@ -152,7 +171,7 @@ class ProtectedCallExecutor(
             .method(command.method.name, body)
             .build()
         return try {
-            client.newCall(request).await()
+            client.newCall(request).await(command.binaryResponse)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: IOException) {
@@ -160,39 +179,55 @@ class ProtectedCallExecutor(
         }
     }
 
-    private suspend fun Call.await(): Exchange = suspendCancellableCoroutine { continuation ->
-        continuation.invokeOnCancellation { cancel() }
-        enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                if (continuation.isActive) continuation.resumeWithException(e)
-            }
+    private suspend fun Call.await(binary: Boolean): Exchange =
+        suspendCancellableCoroutine { continuation ->
+            continuation.invokeOnCancellation { cancel() }
+            enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    if (continuation.isActive) continuation.resumeWithException(e)
+                }
 
-            override fun onResponse(call: Call, response: Response) {
-                if (!continuation.isActive) {
-                    response.close()
-                    return
-                }
-                val exchange = try {
-                    response.use {
-                        Exchange.Http(
-                            status = it.code,
-                            headers = it.headers,
-                            body = it.body?.string(),
-                            contentType = it.body?.contentType()?.toString(),
-                            etag = it.header("ETag"),
-                            correlationId = it.header("X-Correlation-ID")
-                        )
+                override fun onResponse(call: Call, response: Response) {
+                    if (!continuation.isActive) {
+                        response.close()
+                        return
                     }
-                } catch (failure: Throwable) {
-                    if (continuation.isActive) {
-                        continuation.resumeWithException(failure)
+                    val exchange = try {
+                        response.use {
+                            val binaryBody = if (binary && it.isSuccessful) {
+                                val source =
+                                    it.body?.source()
+                                        ?: throw IOException("Missing document content")
+                                if (it.body!!.contentLength() > 8 * 1024 * 1024 ||
+                                    source.request(8L * 1024 * 1024 + 1)
+                                ) {
+                                    throw IOException("Document exceeds protected download limit")
+                                }
+                                source.readByteArray()
+                            } else {
+                                null
+                            }
+                            Exchange.Http(
+                                status = it.code,
+                                headers = it.headers,
+                                body = if (binaryBody == null) it.body?.string() else null,
+                                bytes = binaryBody,
+                                checksumSha256 = it.header("X-Content-SHA256"),
+                                contentType = it.body?.contentType()?.toString(),
+                                etag = it.header("ETag"),
+                                correlationId = it.header("X-Correlation-ID")
+                            )
+                        }
+                    } catch (failure: Throwable) {
+                        if (continuation.isActive) {
+                            continuation.resumeWithException(failure)
+                        }
+                        return
                     }
-                    return
+                    if (continuation.isActive) continuation.resume(exchange)
                 }
-                if (continuation.isActive) continuation.resume(exchange)
-            }
-        })
-    }
+            })
+        }
 
     private sealed interface Exchange {
         data class Http(
@@ -201,7 +236,9 @@ class ProtectedCallExecutor(
             val body: String?,
             val contentType: String?,
             val etag: String?,
-            val correlationId: String?
+            val correlationId: String?,
+            val bytes: ByteArray?,
+            val checksumSha256: String?
         ) : Exchange
 
         data class NetworkFailure(val cause: IOException) : Exchange

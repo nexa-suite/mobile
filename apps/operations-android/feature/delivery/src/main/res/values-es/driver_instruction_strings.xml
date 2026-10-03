@@ -1,0 +1,36 @@
+<resources>
+    <string name="driver_delivery_instructions_open">Instrucciones de entrega</string>
+    <string name="driver_delivery_instructions_required">Revisar instrucciones críticas obligatorias</string>
+    <string name="driver_instruction_title">Instrucciones actuales de entrega</string>
+    <string name="driver_instruction_authority_note">Nexa muestra instrucciones vigentes solo mientras esta entrega siga asignada y operativa. Las instrucciones normales no requieren confirmación.</string>
+    <string name="driver_instruction_loading">Consultando la asignación y las instrucciones actuales…</string>
+    <string name="driver_instruction_not_found">Esta entrega ya no está disponible en tu asignación actual.</string>
+    <string name="driver_instruction_network">No se pudo conectar con Nexa. Actualiza antes de usar estas instrucciones.</string>
+    <string name="driver_instruction_service">Nexa no pudo confirmar las instrucciones actuales de la entrega.</string>
+    <string name="driver_instruction_permission">Tu acceso actual no permite esta acción.</string>
+    <string name="driver_instruction_refresh">Actualizar instrucciones actuales</string>
+    <string name="driver_instruction_versions">Versión de entrega %1$d · conjunto de instrucciones %2$d</string>
+    <string name="driver_instruction_empty">Nexa no tiene instrucciones actuales para esta entrega.</string>
+    <string name="driver_instruction_kind_normal">Instrucción normal</string>
+    <string name="driver_instruction_kind_cold_chain">Manejo de cadena de frío</string>
+    <string name="driver_instruction_kind_access">Restricción de acceso</string>
+    <string name="driver_instruction_kind_unloading">Descarga especial</string>
+    <string name="driver_instruction_kind_safety">Seguridad del cliente</string>
+    <string name="driver_instruction_kind_goods">Manejo de mercancía</string>
+    <string name="driver_instruction_revision">Revisión de instrucción %1$d</string>
+    <string name="driver_instruction_read_confirmation">Leí esta instrucción crítica</string>
+    <string name="driver_instruction_acknowledged_fact">Confirmada por miembro %1$s a las %2$s</string>
+    <string name="driver_instruction_acknowledge_selected">Confirmar instrucciones seleccionadas</string>
+    <string name="driver_instruction_persisting">Guardando tu identidad, hora y versiones exactas antes de enviar…</string>
+    <string name="driver_instruction_pending">Enviando la confirmación a Nexa…</string>
+    <string name="driver_instruction_unknown">Nexa no pudo confirmar si la lectura se registró. No se muestra como completada.</string>
+    <string name="driver_instruction_retry_same">Reintentar la misma confirmación</string>
+    <string name="driver_instruction_storage_unavailable">Los datos de recuperación cifrados no están disponibles. No se enviará una confirmación nueva.</string>
+    <string name="driver_instruction_acknowledged">Nexa confirmó la lectura de estas versiones de instrucción.</string>
+    <string name="driver_instruction_replayed">Nexa confirmó la solicitud guardada.</string>
+    <string name="driver_instruction_rejected">Nexa rechazó la confirmación. Actualiza antes de volver a decidir.</string>
+    <string name="driver_instruction_rejected_code">Nexa rechazó la confirmación (%1$s).</string>
+    <string name="driver_instruction_stale">Las instrucciones cambiaron. No se reutilizó la confirmación anterior.</string>
+    <string name="driver_instruction_fresh_decision">Revisa las revisiones actuales y realiza una nueva selección explícita.</string>
+    <string name="driver_instruction_other_pending">Hay una confirmación sin resolver en otra entrega. Abre esa entrega para reintentar la misma solicitud guardada.</string>
+</resources>
