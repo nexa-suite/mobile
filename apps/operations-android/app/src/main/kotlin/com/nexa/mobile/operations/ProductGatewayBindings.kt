@@ -162,7 +162,8 @@ internal class OperationsAccessGateway @Inject constructor(
                         brandOrVariant = listOfNotNull(it.brandName, it.productVariantName)
                             .distinct().joinToString(" · ").takeIf(String::isNotBlank),
                         presentation = it.presentation,
-                        sku = it.skuCode
+                        sku = it.skuCode,
+                        imageFileName = it.imageFileName
                     )
                 },
                 result.value.nextPageKey
@@ -296,7 +297,8 @@ internal fun mapConfirmedCatalogDetail(
             packaging = detail.packagingType,
             coldChain = detail.coldChainRequirement,
             context = context,
-            authorityEpoch = authorityEpoch
+            authorityEpoch = authorityEpoch,
+            imageFileName = detail.imageFileName
         )
     )
 }

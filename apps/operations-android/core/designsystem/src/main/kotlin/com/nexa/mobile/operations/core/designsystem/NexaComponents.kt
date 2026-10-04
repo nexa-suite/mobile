@@ -2,6 +2,7 @@ package com.nexa.mobile.operations.core.designsystem
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -35,12 +36,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -659,17 +662,18 @@ fun NexaSearchField(
 fun NexaProductCandidateRow(
     name: String,
     variant: String?,
-    presentation: String,
+    presentation: String?,
     sku: String,
     modifier: Modifier = Modifier,
     pending: Boolean = false,
     enabled: Boolean = true,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    imageFileName: String? = null
 ) {
     val candidateDetails = listOfNotNull(
         name,
         variant?.takeIf { it.isNotBlank() },
-        presentation,
+        presentation?.takeIf { it.isNotBlank() },
         stringResource(R.string.nexa_candidate_sku, sku)
     ).joinToString()
     val rowDescription = stringResource(
@@ -706,6 +710,10 @@ fun NexaProductCandidateRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(NexaSpacing.inline)
         ) {
+            NexaCatalogImage(
+                fileName = imageFileName,
+                modifier = Modifier.size(NexaSizes.catalogImage)
+            )
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(NexaSpacing.textCompact)
@@ -722,11 +730,13 @@ fun NexaProductCandidateRow(
                         color = NexaColors.TextSecondary
                     )
                 }
-                Text(
-                    presentation,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = NexaColors.TextSecondary
-                )
+                if (!presentation.isNullOrBlank()) {
+                    Text(
+                        presentation,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = NexaColors.TextSecondary
+                    )
+                }
                 Text(
                     stringResource(R.string.nexa_candidate_sku, sku),
                     style = NexaTypography.identifier,
@@ -748,6 +758,18 @@ fun NexaProductCandidateRow(
             }
         }
     }
+}
+
+/** Displays a bundled canonical catalog image; unknown server keys render no image. */
+@Composable
+fun NexaCatalogImage(fileName: String?, modifier: Modifier = Modifier) {
+    val imageResId = CatalogImageRegistry.resolve(fileName) ?: return
+    Image(
+        painter = painterResource(imageResId),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = modifier.clip(NexaShapes.control)
+    )
 }
 
 @Composable
@@ -915,7 +937,8 @@ fun NexaConfirmedSkuSummary(
     coldChain: String?,
     activeContext: String,
     modifier: Modifier = Modifier,
-    coldChainTone: NexaColdChainTone = NexaColdChainTone.Neutral
+    coldChainTone: NexaColdChainTone = NexaColdChainTone.Neutral,
+    imageFileName: String? = null
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -927,6 +950,10 @@ fun NexaConfirmedSkuSummary(
             modifier = Modifier.padding(NexaSpacing.summaryInset),
             verticalArrangement = Arrangement.spacedBy(NexaSpacing.inline)
         ) {
+            NexaCatalogImage(
+                fileName = imageFileName,
+                modifier = Modifier.size(NexaSizes.catalogDetailImage)
+            )
             Text(
                 productName,
                 style = MaterialTheme.typography.titleLarge,

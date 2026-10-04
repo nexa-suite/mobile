@@ -19,7 +19,8 @@ class CommercialCatalogViewModelTest {
     @Test fun missingPriceAndAvailabilityStayUnknown() = runTest {
         val facts =
             CommercialProductFacts(
-                "CAT-1", "p", "Product", "s", "SKU", "KG", null, null, null, null, null, null
+                "CAT-1", "p", "Product", "s", "SKU", "KG", null, null, null, null, null, null,
+                "agriform-queso-grana-padano-dop-150g.png"
             )
         val model = CommercialCatalogViewModel(object : CommercialCatalogGateway {
             override suspend fun search(
@@ -46,6 +47,10 @@ class CommercialCatalogViewModelTest {
         runCurrent()
         assertNull(model.state.value.product?.price)
         assertNull(model.state.value.product?.sellableAvailability)
+        assertEquals(
+            "agriform-queso-grana-padano-dop-150g.png",
+            model.state.value.product?.imageFileName
+        )
         model.customerIdChanged("another")
         assertNull(model.state.value.product)
         assertTrue(model.state.value.choices.isEmpty())

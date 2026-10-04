@@ -30,6 +30,7 @@ class ManualCatalogConfirmationMappingTest {
         assertEquals("kg", confirmed.unit)
         assertEquals("bag", confirmed.packaging)
         assertEquals("chilled", confirmed.coldChain)
+        assertEquals("cavour-salame-milano-100g.jpeg", confirmed.imageFileName)
         assertEquals(context, confirmed.context)
         assertEquals(context.authorityEpoch, confirmed.authorityEpoch)
     }
@@ -101,7 +102,8 @@ class ManualCatalogConfirmationMappingTest {
         productFamilyName = "Current family",
         unitOfMeasure = "kg",
         packagingType = "bag",
-        coldChainRequirement = "chilled"
+        coldChainRequirement = "chilled",
+        imageFileName = "cavour-salame-milano-100g.jpeg"
     )
 
     private companion object {

@@ -347,7 +347,8 @@ class ProductScreensUiTest {
             productDisplayName = "Queso Gouda Demo",
             brandOrVariant = "Lácteo",
             presentation = "Bloque · 500 g",
-            sku = "SKU-DEMO-001"
+            sku = "SKU-DEMO-001",
+            imageFileName = "agriform-queso-grana-padano-dop-150g.png"
         )
         val confirmedSku = ConfirmedSkuUiState(
             candidateKey = candidate.key,
@@ -360,7 +361,8 @@ class ProductScreensUiTest {
             packaging = "Caja de 12",
             coldChain = "Refrigerado",
             context = warehouseContext,
-            authorityEpoch = warehouseContext.authorityEpoch
+            authorityEpoch = warehouseContext.authorityEpoch,
+            imageFileName = "agriform-queso-grana-padano-dop-150g.png"
         )
     }
 }

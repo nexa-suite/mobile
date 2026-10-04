@@ -22,7 +22,8 @@ data class CatalogCandidateProjection(
     val skuCode: String,
     val brandName: String?,
     val productVariantName: String?,
-    val productFamilyName: String?
+    val productFamilyName: String?,
+    val imageFileName: String? = null
 ) {
     override fun toString(): String =
         "CatalogCandidateProjection(itemName=$itemName, catalogItemId=REDACTED, skuCode=REDACTED)"
@@ -48,7 +49,8 @@ data class CatalogDetailProjection(
     val productFamilyName: String?,
     val unitOfMeasure: String?,
     val packagingType: String?,
-    val coldChainRequirement: String?
+    val coldChainRequirement: String?,
+    val imageFileName: String? = null
 ) {
     override fun toString(): String =
         "CatalogDetailProjection(itemName=$itemName, catalogItemId=REDACTED, skuCode=REDACTED)"
@@ -155,7 +157,8 @@ class NexaCatalogGateway(private val protectedCalls: ProtectedCallExecutor) {
             skuCode = safeSkuCode,
             brandName = brandName.optionalText(),
             productVariantName = productVariantName.optionalText(),
-            productFamilyName = productFamilyName.optionalText()
+            productFamilyName = productFamilyName.optionalText(),
+            imageFileName = image?.fileName.optionalText()
         )
     }
 
@@ -175,7 +178,8 @@ class NexaCatalogGateway(private val protectedCalls: ProtectedCallExecutor) {
             productFamilyName = productFamilyName.optionalText(),
             unitOfMeasure = unitOfMeasure.optionalText(),
             packagingType = packagingType.optionalText(),
-            coldChainRequirement = coldChainRequirement.optionalText()
+            coldChainRequirement = coldChainRequirement.optionalText(),
+            imageFileName = image?.fileName.optionalText()
         )
     }
 
@@ -229,6 +233,10 @@ class NexaCatalogGateway(private val protectedCalls: ProtectedCallExecutor) {
     }
 }
 
+/** Canonical media metadata returned by the server catalog contract. */
+@Serializable
+data class CatalogMediaWire(val url: String? = null, val fileName: String? = null)
+
 @Serializable
 private data class CatalogPageWire(
     val items: List<CatalogCandidateWire>? = null,
@@ -246,7 +254,8 @@ private data class CatalogCandidateWire(
     val skuCode: String? = null,
     val brandName: String? = null,
     val productVariantName: String? = null,
-    val productFamilyName: String? = null
+    val productFamilyName: String? = null,
+    val image: CatalogMediaWire? = null
 )
 
 @Serializable
@@ -260,5 +269,6 @@ private data class CatalogDetailWire(
     val productFamilyName: String? = null,
     val unitOfMeasure: String? = null,
     val packagingType: String? = null,
-    val coldChainRequirement: String? = null
+    val coldChainRequirement: String? = null,
+    val image: CatalogMediaWire? = null
 )
