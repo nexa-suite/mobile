@@ -109,6 +109,8 @@ object NexaSizes {
     val contextChoiceMinHeight = 72.dp
     val taskRowMinHeight = 80.dp
     val candidateRowMinHeight = 88.dp
+    val catalogImage = 72.dp
+    val catalogDetailImage = 96.dp
 }
 
 private val NexaLightColors = lightColorScheme(

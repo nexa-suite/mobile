@@ -6,7 +6,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-data class CommercialProductChoice(val id: String, val name: String, val skuCode: String)
+data class CommercialProductChoice(
+    val id: String,
+    val name: String,
+    val skuCode: String,
+    val imageFileName: String? = null
+)
 data class CommercialProductFacts(
     val catalogItemId: String,
     val productId: String,
@@ -19,7 +24,8 @@ data class CommercialProductFacts(
     val pricingAsOf: String?,
     val availabilityStatus: String?,
     val sellableAvailability: String?,
-    val availabilityAsOf: String?
+    val availabilityAsOf: String?,
+    val imageFileName: String? = null
 )
 enum class CommercialCatalogStatus { Idle, Pending, Current, Unavailable, PermissionDenied }
 data class CommercialCatalogState(

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -20,6 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.R
+import com.nexa.mobile.operations.core.designsystem.NexaCatalogImage
+import com.nexa.mobile.operations.core.designsystem.NexaProductCandidateRow
+import com.nexa.mobile.operations.core.designsystem.NexaSizes
 
 @Composable
 fun CommercialCatalogScreen(
@@ -74,6 +78,11 @@ fun CommercialCatalogScreen(
                             Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            NexaCatalogImage(
+                                fileName = product.imageFileName,
+                                modifier = Modifier.size(NexaSizes.catalogDetailImage),
+                                targetSize = NexaSizes.catalogDetailImage
+                            )
                             Text(product.name, style = MaterialTheme.typography.titleMedium)
                             Text(
                                 stringResource(
@@ -128,9 +137,14 @@ fun CommercialCatalogScreen(
                 item { Text(stringResource(R.string.commercial_catalog_empty)) }
             }
             items(state.choices, key = { it.id }) { choice ->
-                TextButton(onClick = {
-                    onSelectProduct(choice.id)
-                }) { Text("${choice.name} · ${choice.skuCode}") }
+                NexaProductCandidateRow(
+                    name = choice.name,
+                    variant = null,
+                    presentation = null,
+                    sku = choice.skuCode,
+                    imageFileName = choice.imageFileName,
+                    onClick = { onSelectProduct(choice.id) }
+                )
             }
             if (state.nextPage !=
                 null
