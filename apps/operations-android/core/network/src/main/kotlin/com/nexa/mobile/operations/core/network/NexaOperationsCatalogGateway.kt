@@ -1,6 +1,5 @@
 package com.nexa.mobile.operations.core.network
 
-import java.math.BigDecimal
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.Collections
@@ -31,9 +30,8 @@ data class OperationsCatalogCandidateProjection(
     val priceAmount: String?,
     val priceCurrency: String?
 ) {
-    override fun toString(): String =
-        "OperationsCatalogCandidateProjection(itemName=$itemName, " +
-            "catalogItemId=REDACTED, skuCode=REDACTED)"
+    override fun toString(): String = "OperationsCatalogCandidateProjection(itemName=$itemName, " +
+        "catalogItemId=REDACTED, skuCode=REDACTED)"
 }
 
 data class OperationsCatalogDetailProjection(
@@ -49,9 +47,8 @@ data class OperationsCatalogDetailProjection(
     val priceAmount: String?,
     val priceCurrency: String?
 ) {
-    override fun toString(): String =
-        "OperationsCatalogDetailProjection(itemName=$itemName, " +
-            "catalogItemId=REDACTED, skuCode=REDACTED)"
+    override fun toString(): String = "OperationsCatalogDetailProjection(itemName=$itemName, " +
+        "catalogItemId=REDACTED, skuCode=REDACTED)"
 }
 
 class OperationsCatalogSearchPage(
@@ -133,11 +130,15 @@ class NexaOperationsCatalogGateway(private val protectedCalls: ProtectedCallExec
         val responsePage = response.page ?: return OperationsCatalogSearchOutcome.ServiceUnavailable
         val responseSize = response.size ?: return OperationsCatalogSearchOutcome.ServiceUnavailable
         val total = response.total ?: return OperationsCatalogSearchOutcome.ServiceUnavailable
-        if (responsePage != requestedPage || responseSize != OPERATIONS_CATALOG_PAGE_SIZE || total < 0) {
+        if (
+            responsePage != requestedPage ||
+            responseSize != OPERATIONS_CATALOG_PAGE_SIZE ||
+            total < 0
+        ) {
             return OperationsCatalogSearchOutcome.ServiceUnavailable
         }
         val candidates = wireItems.map { item ->
-            item.toCandidateProjection() ?: return OperationsCatalogSearchOutcome.ServiceUnavailable
+            item.toCandidate() ?: return OperationsCatalogSearchOutcome.ServiceUnavailable
         }
         val nextPage = requestedPage.toLong() + 1
         val nextPageKey = nextPage.takeIf {
@@ -151,7 +152,7 @@ class NexaOperationsCatalogGateway(private val protectedCalls: ProtectedCallExec
     private fun parseDetail(body: String?, requestedId: String): OperationsCatalogDetailOutcome {
         val response = body.decode<OperationsCatalogProductWire>()
             ?: return OperationsCatalogDetailOutcome.ServiceUnavailable
-        val detail = response.toDetailProjection()
+        val detail = response.toDetail()
             ?: return OperationsCatalogDetailOutcome.ServiceUnavailable
         if (detail.productId != requestedId) {
             return OperationsCatalogDetailOutcome.ServiceUnavailable
@@ -159,8 +160,7 @@ class NexaOperationsCatalogGateway(private val protectedCalls: ProtectedCallExec
         return OperationsCatalogDetailOutcome.Found(detail)
     }
 
-    private fun OperationsCatalogProductWire.toCandidateProjection():
-        OperationsCatalogCandidateProjection? {
+    private fun OperationsCatalogProductWire.toCandidate(): OperationsCatalogCandidateProjection? {
         val safe = requiredIdentity() ?: return null
         return OperationsCatalogCandidateProjection(
             productId = safe.productId,
@@ -175,8 +175,7 @@ class NexaOperationsCatalogGateway(private val protectedCalls: ProtectedCallExec
         )
     }
 
-    private fun OperationsCatalogProductWire.toDetailProjection():
-        OperationsCatalogDetailProjection? {
+    private fun OperationsCatalogProductWire.toDetail(): OperationsCatalogDetailProjection? {
         val safe = requiredIdentity() ?: return null
         return OperationsCatalogDetailProjection(
             productId = safe.productId,
@@ -203,6 +202,7 @@ class NexaOperationsCatalogGateway(private val protectedCalls: ProtectedCallExec
         val safePresentation = presentation.requiredText() ?: return null
         val safeSku = productCode.requiredText()
             ?.takeIf { productCodePattern.matches(it) } ?: return null
+        if (!status.equals("ACTIVE", ignoreCase = true)) return null
         return SafeIdentity(
             productId = safeProductId,
             catalogItemId = safeCatalogItemId,
@@ -231,23 +231,33 @@ class NexaOperationsCatalogGateway(private val protectedCalls: ProtectedCallExec
 
     private fun ClientFailure.toSearchOutcome(): OperationsCatalogSearchOutcome = when {
         httpStatus == 400 -> OperationsCatalogSearchOutcome.InvalidQuery
+
         kind == FailureKind.AuthenticationRequired -> OperationsCatalogSearchOutcome.SessionExpired
+
         httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
             OperationsCatalogSearchOutcome.ContextInvalidated
+
         kind == FailureKind.AuthorizationFailure -> OperationsCatalogSearchOutcome.PermissionDenied
+
         kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
             OperationsCatalogSearchOutcome.NetworkUnavailable
+
         else -> OperationsCatalogSearchOutcome.ServiceUnavailable
     }
 
     private fun ClientFailure.toDetailOutcome(): OperationsCatalogDetailOutcome = when {
         httpStatus == 404 -> OperationsCatalogDetailOutcome.CandidateUnavailable
+
         kind == FailureKind.AuthenticationRequired -> OperationsCatalogDetailOutcome.SessionExpired
+
         httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
             OperationsCatalogDetailOutcome.ContextInvalidated
+
         kind == FailureKind.AuthorizationFailure -> OperationsCatalogDetailOutcome.PermissionDenied
+
         kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
             OperationsCatalogDetailOutcome.NetworkUnavailable
+
         else -> OperationsCatalogDetailOutcome.ServiceUnavailable
     }
 

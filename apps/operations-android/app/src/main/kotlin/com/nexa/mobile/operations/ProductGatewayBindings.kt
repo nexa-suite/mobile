@@ -8,13 +8,10 @@ import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
 import com.nexa.mobile.operations.core.network.AccessContextSelectionOutcome
 import com.nexa.mobile.operations.core.network.AccessContextsOutcome
-import com.nexa.mobile.operations.core.network.CatalogDetailOutcome
 import com.nexa.mobile.operations.core.network.CatalogDetailProjection
-import com.nexa.mobile.operations.core.network.CatalogSearchOutcome
 import com.nexa.mobile.operations.core.network.IdentitySignInOutcome
 import com.nexa.mobile.operations.core.network.NativeAccessContext
 import com.nexa.mobile.operations.core.network.NativeAuthenticationSession
-import com.nexa.mobile.operations.core.network.NexaCatalogGateway
 import com.nexa.mobile.operations.core.network.NexaIdentityAccessGateway
 import com.nexa.mobile.operations.core.network.NexaOperationsCatalogGateway
 import com.nexa.mobile.operations.core.network.OperationsCatalogDetailOutcome
@@ -44,7 +41,6 @@ import kotlinx.coroutines.flow.map
 internal class OperationsAccessGateway @Inject constructor(
     private val identity: NexaIdentityAccessGateway,
     private val sessions: SessionCoordinator,
-    private val catalog: NexaCatalogGateway,
     private val operationsCatalog: NexaOperationsCatalogGateway
 ) : AccessGateway,
     WarehouseGateway {
@@ -200,11 +196,8 @@ internal class OperationsAccessGateway @Inject constructor(
         val verified = sessions.verifiedSession.value
             ?: return CandidateConfirmationResult.ContextInvalidated
         val detailKey = candidate.detailKey
-        val result = if (detailKey != null) {
-            operationsCatalog.loadDetail(detailKey)
-        } else {
-            catalog.loadDetail(candidate.key).toOperationsConfirmationOutcome()
-        }
+        if (detailKey == null) return CandidateConfirmationResult.CandidateUnavailable
+        val result = operationsCatalog.loadDetail(detailKey)
         if (!sessions.isEpochCurrent(access.epoch)) {
             return CandidateConfirmationResult.SessionInvalidated
         }
@@ -284,37 +277,6 @@ internal class OperationsAccessGateway @Inject constructor(
         permissionHint = PermissionHint.Unknown
     )
 }
-
-private fun CatalogDetailOutcome.toOperationsConfirmationOutcome(): OperationsCatalogDetailOutcome =
-    when (this) {
-        is CatalogDetailOutcome.Found ->
-            OperationsCatalogDetailOutcome.Found(value.toOperationsDetailProjection())
-
-        CatalogDetailOutcome.CandidateUnavailable ->
-            OperationsCatalogDetailOutcome.CandidateUnavailable
-
-        CatalogDetailOutcome.NetworkUnavailable -> OperationsCatalogDetailOutcome.NetworkUnavailable
-        CatalogDetailOutcome.ServiceUnavailable -> OperationsCatalogDetailOutcome.ServiceUnavailable
-        CatalogDetailOutcome.PermissionDenied -> OperationsCatalogDetailOutcome.PermissionDenied
-        CatalogDetailOutcome.ContextInvalidated -> OperationsCatalogDetailOutcome.ContextInvalidated
-        CatalogDetailOutcome.SessionExpired -> OperationsCatalogDetailOutcome.SessionExpired
-    }
-
-private fun com.nexa.mobile.operations.core.network.CatalogDetailProjection
-    .toOperationsDetailProjection() =
-    com.nexa.mobile.operations.core.network.OperationsCatalogDetailProjection(
-        productId = "",
-        catalogItemId = catalogItemId,
-        itemName = itemName,
-        presentation = presentation,
-        skuCode = skuCode,
-        brandName = brandName,
-        unitOfMeasure = unitOfMeasure,
-        storageTemperature = null,
-        imageFileName = imageFileName,
-        priceAmount = null,
-        priceCurrency = null
-    )
 
 private fun com.nexa.mobile.operations.core.network.OperationsCatalogDetailProjection
     .toCatalogDetailProjection() =
