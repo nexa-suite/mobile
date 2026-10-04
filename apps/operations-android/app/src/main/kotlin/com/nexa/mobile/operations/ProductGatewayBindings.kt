@@ -15,6 +15,7 @@ import com.nexa.mobile.operations.core.network.NativeAuthenticationSession
 import com.nexa.mobile.operations.core.network.NexaIdentityAccessGateway
 import com.nexa.mobile.operations.core.network.NexaOperationsCatalogGateway
 import com.nexa.mobile.operations.core.network.OperationsCatalogDetailOutcome
+import com.nexa.mobile.operations.core.network.OperationsCatalogDetailProjection
 import com.nexa.mobile.operations.core.network.OperationsCatalogSearchOutcome
 import com.nexa.mobile.operations.feature.access.AccessGateway
 import com.nexa.mobile.operations.feature.access.AccessViewModel
@@ -171,9 +172,11 @@ internal class OperationsAccessGateway @Inject constructor(
 
             OperationsCatalogSearchOutcome.InvalidQuery -> ProductSearchResult.InvalidQuery
 
-            OperationsCatalogSearchOutcome.NetworkUnavailable -> ProductSearchResult.NetworkUnavailable
+            OperationsCatalogSearchOutcome.NetworkUnavailable ->
+                ProductSearchResult.NetworkUnavailable
 
-            OperationsCatalogSearchOutcome.ServiceUnavailable -> ProductSearchResult.ServiceUnavailable
+            OperationsCatalogSearchOutcome.ServiceUnavailable ->
+                ProductSearchResult.ServiceUnavailable
 
             OperationsCatalogSearchOutcome.PermissionDenied -> ProductSearchResult.PermissionDenied
 
@@ -232,14 +235,16 @@ internal class OperationsAccessGateway @Inject constructor(
             OperationsCatalogDetailOutcome.ServiceUnavailable ->
                 CandidateConfirmationResult.ServiceUnavailable
 
-            OperationsCatalogDetailOutcome.PermissionDenied -> CandidateConfirmationResult.PermissionDenied
+            OperationsCatalogDetailOutcome.PermissionDenied ->
+                CandidateConfirmationResult.PermissionDenied
 
             OperationsCatalogDetailOutcome.ContextInvalidated -> {
                 sessions.invalidateContext()
                 CandidateConfirmationResult.ContextInvalidated
             }
 
-            OperationsCatalogDetailOutcome.SessionExpired -> CandidateConfirmationResult.SessionInvalidated
+            OperationsCatalogDetailOutcome.SessionExpired ->
+                CandidateConfirmationResult.SessionInvalidated
         }
     }
 
@@ -278,8 +283,7 @@ internal class OperationsAccessGateway @Inject constructor(
     )
 }
 
-private fun com.nexa.mobile.operations.core.network.OperationsCatalogDetailProjection
-    .toCatalogDetailProjection() =
+private fun OperationsCatalogDetailProjection.toCatalogDetailProjection(): CatalogDetailProjection =
     CatalogDetailProjection(
         catalogItemId = catalogItemId,
         itemName = itemName,

@@ -74,8 +74,9 @@ object FoundationModule {
 
     @Provides
     @Singleton
-    fun operationsCatalogGateway(protectedCalls: ProtectedCallExecutor): NexaOperationsCatalogGateway =
-        NexaOperationsCatalogGateway(protectedCalls)
+    fun operationsCatalogGateway(
+        protectedCalls: ProtectedCallExecutor
+    ): NexaOperationsCatalogGateway = NexaOperationsCatalogGateway(protectedCalls)
 
     @Provides
     @Singleton
