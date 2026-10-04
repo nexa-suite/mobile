@@ -6,6 +6,7 @@ Operations Android academic candidate, versionCode 7.
 
 - Build the debug APK against the approved Render HTTPS origin for academic validation; no credentials or distribution signing material are included.
 - Re-run strict architecture, ktlint, debug lint and JVM contract checks for the candidate.
+- Render the canonical catalog product images through the shared design system with bounded image loading and focused UI/JVM coverage.
 - Add a manually triggered GitHub Actions workflow that uploads the debug APK as a short-lived academic artifact.
 - Keep Product Acceptance, System Acceptance, physical-device acceptance and production readiness as separate gates.
 
