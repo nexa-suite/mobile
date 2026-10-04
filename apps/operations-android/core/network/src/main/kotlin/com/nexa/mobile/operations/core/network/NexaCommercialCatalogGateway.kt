@@ -91,7 +91,8 @@ data class CommercialCatalogWire(
     val pricingAsOf: String? = null,
     val availabilityStatus: String? = null,
     val sellableAvailability: JsonPrimitive? = null,
-    val availabilityAsOf: String? = null
+    val availabilityAsOf: String? = null,
+    val image: CatalogMediaWire? = null
 ) {
     override fun toString(): String = "CommercialCatalogWire(REDACTED)"
 }

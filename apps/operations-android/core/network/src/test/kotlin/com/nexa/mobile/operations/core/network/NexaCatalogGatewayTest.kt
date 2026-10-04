@@ -24,7 +24,7 @@ class NexaCatalogGatewayTest {
             server.enqueue(
                 jsonResponse(
                     200,
-                    """{"items":[{"catalogItemId":"CAT-0001","itemName":"Grana Padano","presentation":"150G","skuCode":"PROD-0001","brandName":"Agriform","productVariantName":"Gold","productFamilyName":"Cheese"}],"page":0,"size":20,"totalItems":1,"totalPages":1}"""
+                    """{"items":[{"catalogItemId":"CAT-0001","itemName":"Grana Padano","presentation":"150G","skuCode":"PROD-0001","brandName":"Agriform","productVariantName":"Gold","productFamilyName":"Cheese","image":{"url":"/catalog-items/agriform-queso-grana-padano-dop-150g.png","fileName":"agriform-queso-grana-padano-dop-150g.png"}}],"page":0,"size":20,"totalItems":1,"totalPages":1}"""
                 )
             )
 
@@ -50,6 +50,7 @@ class NexaCatalogGatewayTest {
             assertEquals("Agriform", candidate.brandName)
             assertEquals("Gold", candidate.productVariantName)
             assertEquals("Cheese", candidate.productFamilyName)
+            assertEquals("agriform-queso-grana-padano-dop-150g.png", candidate.imageFileName)
             assertNull(page.nextPageKey)
             assertFalse(candidate.toString().contains("CAT-0001"))
             assertFalse(candidate.toString().contains("PROD-0001"))
@@ -136,7 +137,7 @@ class NexaCatalogGatewayTest {
             server.enqueue(
                 jsonResponse(
                     200,
-                    """{"catalogItemId":"CAT-0001","itemName":"Detail name","presentation":"Detail pack","skuCode":"DETAIL-SKU","brandName":"Brand","productVariantName":"Variant","productFamilyName":"Family","unitOfMeasure":"KG","packagingType":"Vacuum","coldChainRequirement":"REFRIGERATED"}"""
+                    """{"catalogItemId":"CAT-0001","itemName":"Detail name","presentation":"Detail pack","skuCode":"DETAIL-SKU","brandName":"Brand","productVariantName":"Variant","productFamilyName":"Family","unitOfMeasure":"KG","packagingType":"Vacuum","coldChainRequirement":"REFRIGERATED","image":{"url":"/catalog-items/cavour-salame-milano-100g.jpeg","fileName":"cavour-salame-milano-100g.jpeg"}}"""
                 )
             )
             val outcome = gateway(server).loadDetail("CAT-0001")
@@ -152,6 +153,7 @@ class NexaCatalogGatewayTest {
             assertEquals("KG", detail.unitOfMeasure)
             assertEquals("Vacuum", detail.packagingType)
             assertEquals("REFRIGERATED", detail.coldChainRequirement)
+            assertEquals("cavour-salame-milano-100g.jpeg", detail.imageFileName)
             assertEquals("/api/v1/catalog-items/CAT-0001", server.takeRequest().path)
         }
     }
@@ -179,6 +181,7 @@ class NexaCatalogGatewayTest {
             assertNull(outcome.value.unitOfMeasure)
             assertNull(outcome.value.packagingType)
             assertNull(outcome.value.coldChainRequirement)
+            assertNull(outcome.value.imageFileName)
             assertEquals(1, server.requestCount)
         }
     }

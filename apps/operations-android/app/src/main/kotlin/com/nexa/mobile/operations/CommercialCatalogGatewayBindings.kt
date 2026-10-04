@@ -36,7 +36,12 @@ internal class OperationsCommercialCatalogGateway @Inject constructor(
         when (val result = catalog.search(query, page)) {
             is CatalogSearchOutcome.Page -> CommercialCatalogResult.Choices(
                 result.value.candidates.map {
-                    CommercialProductChoice(it.catalogItemId, it.itemName, it.skuCode)
+                    CommercialProductChoice(
+                        id = it.catalogItemId,
+                        name = it.itemName,
+                        skuCode = it.skuCode,
+                        imageFileName = it.imageFileName
+                    )
                 },
                 result.value.nextPageKey
             )
@@ -87,7 +92,8 @@ internal class OperationsCommercialCatalogGateway @Inject constructor(
                         } else {
                             null
                         },
-                        availabilityTime
+                        availabilityTime,
+                        item.image?.fileName
                     )
                 )
             }

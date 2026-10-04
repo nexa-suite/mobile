@@ -700,6 +700,7 @@ private fun ProductCandidateResult(
         variant = candidate.brandOrVariant,
         presentation = candidate.presentation,
         sku = candidate.sku,
+        imageFileName = candidate.imageFileName,
         pending = pending,
         enabled = enabled,
         onClick = { onSelectCandidate(candidate.key) }
@@ -751,7 +752,8 @@ private fun ConfirmedSkuHierarchy(state: ConfirmedSkuUiState) {
             "FROZEN" -> NexaColdChainTone.Frozen
             else -> NexaColdChainTone.Neutral
         },
-        activeContext = "${state.context.companyName} · ${state.context.workspaceName}"
+        activeContext = "${state.context.companyName} · ${state.context.workspaceName}",
+        imageFileName = state.imageFileName
     )
     Text(
         stringResource(R.string.warehouse_inventory_disclaimer),

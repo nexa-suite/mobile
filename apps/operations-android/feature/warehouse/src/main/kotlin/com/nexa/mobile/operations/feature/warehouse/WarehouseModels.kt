@@ -77,7 +77,8 @@ data class ProductCandidate(
     val productDisplayName: String,
     val brandOrVariant: String?,
     val presentation: String,
-    val sku: String
+    val sku: String,
+    val imageFileName: String? = null
 ) {
     override fun toString(): String =
         "ProductCandidate(productDisplayName=$productDisplayName, sku=REDACTED, key=REDACTED)"
@@ -95,7 +96,8 @@ data class ConfirmedSkuUiState(
     val packaging: String?,
     val coldChain: String?,
     val context: ActiveOperationsContext,
-    val authorityEpoch: Long
+    val authorityEpoch: Long,
+    val imageFileName: String? = null
 ) {
     override fun toString(): String =
         "ConfirmedSkuUiState(productDisplayName=$productDisplayName, " +
