@@ -215,6 +215,10 @@ object CatalogImageRegistry {
     val canonicalFileNameCount: Int
         get() = imageResources.size
 
+    /** Presentation keys for the bundled canonical catalog assets. */
+    val canonicalFileNames: List<String>
+        get() = imageResources.keys.toList()
+
     /** Returns null for missing, non-canonical or path-bearing values. */
     @DrawableRes
     fun resolve(fileName: String?): Int? = fileName?.let(imageResources::get)

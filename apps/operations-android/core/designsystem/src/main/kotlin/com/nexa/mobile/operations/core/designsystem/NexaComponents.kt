@@ -1,8 +1,10 @@
 package com.nexa.mobile.operations.core.designsystem
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -32,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,8 +46,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -60,7 +67,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 enum class NexaFeedbackTone { Information, Success, Warning, Error }
 
@@ -762,14 +773,44 @@ fun NexaProductCandidateRow(
 
 /** Displays a bundled canonical catalog image; unknown server keys render no image. */
 @Composable
-fun NexaCatalogImage(fileName: String?, modifier: Modifier = Modifier) {
+fun NexaCatalogImage(
+    fileName: String?,
+    modifier: Modifier = Modifier,
+    targetSize: Dp = NexaSizes.catalogImage
+) {
     val imageResId = CatalogImageRegistry.resolve(fileName) ?: return
-    Image(
-        painter = painterResource(imageResId),
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
-        modifier = modifier.clip(NexaShapes.control)
-    )
+    val configuration = LocalConfiguration.current
+    val context = LocalContext.current
+    val resources = remember(context, configuration) {
+        context.createConfigurationContext(configuration).resources
+    }
+    val targetSizePx =
+        with(LocalDensity.current) { targetSize.toPx().roundToInt().coerceAtLeast(1) }
+    val bitmap by produceState<Bitmap?>(initialValue = null, imageResId, targetSizePx) {
+        value = withContext(Dispatchers.IO) {
+            CatalogImageBitmapLoader.load(
+                resources = resources,
+                resourceId = imageResId,
+                targetWidthPx = targetSizePx,
+                targetHeightPx = targetSizePx
+            )
+        }
+    }
+    Box(
+        modifier = modifier
+            .clip(NexaShapes.control)
+            .background(NexaColors.SurfaceInset),
+        contentAlignment = Alignment.Center
+    ) {
+        bitmap?.let {
+            Image(
+                bitmap = it.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
 }
 
 @Composable
@@ -952,7 +993,8 @@ fun NexaConfirmedSkuSummary(
         ) {
             NexaCatalogImage(
                 fileName = imageFileName,
-                modifier = Modifier.size(NexaSizes.catalogDetailImage)
+                modifier = Modifier.size(NexaSizes.catalogDetailImage),
+                targetSize = NexaSizes.catalogDetailImage
             )
             Text(
                 productName,

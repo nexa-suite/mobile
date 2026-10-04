@@ -80,7 +80,8 @@ fun CommercialCatalogScreen(
                         ) {
                             NexaCatalogImage(
                                 fileName = product.imageFileName,
-                                modifier = Modifier.size(NexaSizes.catalogDetailImage)
+                                modifier = Modifier.size(NexaSizes.catalogDetailImage),
+                                targetSize = NexaSizes.catalogDetailImage
                             )
                             Text(product.name, style = MaterialTheme.typography.titleMedium)
                             Text(
