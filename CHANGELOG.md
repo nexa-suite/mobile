@@ -1,8 +1,9 @@
 # Changelog
 
-## [0.6.0] - Unreleased candidate
+## [0.6.0] - 2026-10-04 (planned academic checkpoint)
 
-Operations Android academic candidate, versionCode 7.
+Planned academic checkpoint. The candidate remains unreleased until its signed
+tag and GitHub Release exist. Operations Android versionCode is 7.
 
 - Build the debug APK against the approved Render HTTPS origin for academic validation; no credentials or distribution signing material are included.
 - Re-run strict architecture, ktlint, debug lint and JVM contract checks for the candidate.
