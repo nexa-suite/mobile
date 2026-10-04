@@ -48,6 +48,9 @@ class RoleWireflowCaptureTest {
         val roleSlug = arguments.getString("nexaCaptureRole")
         val entry1 = arguments.getString("nexaCaptureEntry1")
         val entry2 = arguments.getString("nexaCaptureEntry2")?.takeIf(String::isNotBlank)
+        val captureEnabled = roleWireflowCaptureEnabled(
+            arguments.getString(CAPTURE_ARGUMENT)
+        )
 
         assumeTrue(
             "capture needs configured role credentials and first entry label",
@@ -62,19 +65,29 @@ class RoleWireflowCaptureTest {
         )
         signIn(identifier!!, password!!)
         waitForAuthorizedHome()
-        captureScreen("$roleSlug-home.png")
+        captureScreenWhenEnabled(captureEnabled, "$roleSlug-home.png")
 
         openEntryAndCapture(
             entry1!!,
             "$roleSlug-entry-1.png",
-            roleSlug == BOM_ROLE_SLUG
+            roleSlug == BOM_ROLE_SLUG,
+            captureEnabled
         )
         if (entry2 != null) {
             returnToAuthorizedHome(entry2)
-            openEntryAndCapture(entry2, "$roleSlug-entry-2.png")
+            openEntryAndCapture(entry2, "$roleSlug-entry-2.png", captureEnabled = captureEnabled)
         } else if (roleSlug == BOM_ROLE_SLUG) {
             returnViaBusinessExceptionsBack(entry1)
         }
+    }
+
+    @Test
+    fun captureFlagDefaultsToEnabledAndOnlyExplicitFalseDisables() {
+        assertTrue(roleWireflowCaptureEnabled(null))
+        assertTrue(roleWireflowCaptureEnabled(""))
+        assertTrue(roleWireflowCaptureEnabled("true"))
+        assertTrue(roleWireflowCaptureEnabled("TRUE"))
+        assertEquals(false, roleWireflowCaptureEnabled("false"))
     }
 
     private fun signIn(identifier: String, password: String) {
@@ -116,7 +129,8 @@ class RoleWireflowCaptureTest {
     private fun openEntryAndCapture(
         label: String,
         filename: String,
-        businessExceptionsRoute: Boolean = false
+        businessExceptionsRoute: Boolean = false,
+        captureEnabled: Boolean = true
     ) {
         val entry = entryAction(label)
         if (businessExceptionsRoute) {
@@ -140,7 +154,7 @@ class RoleWireflowCaptureTest {
         if (businessExceptionsRoute) {
             composeRule.onNodeWithText(businessExceptionsTitle()).assertIsDisplayed()
         }
-        captureScreen(filename)
+        captureScreenWhenEnabled(captureEnabled, filename)
     }
 
     private fun returnViaBusinessExceptionsBack(entry: String) {
@@ -236,7 +250,8 @@ class RoleWireflowCaptureTest {
         )
     }
 
-    private fun captureScreen(filename: String) {
+    private fun captureScreenWhenEnabled(enabled: Boolean, filename: String) {
+        if (!enabled) return
         composeRule.waitForIdle()
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
         val bitmap = composeRule.onRoot().captureToImage().asAndroidBitmap()
@@ -258,9 +273,12 @@ class RoleWireflowCaptureTest {
 
     private fun entryAction(label: String) = hasText(label, substring = false) and hasClickAction()
 
+    private fun roleWireflowCaptureEnabled(argument: String?): Boolean = argument != "false"
+
     private companion object {
         const val WAIT_MILLIS = 15_000L
         const val CAPTURE_DIRECTORY = "wireflow-captures"
+        const val CAPTURE_ARGUMENT = "nexaLiveCapture"
         const val BOM_READ_PERMISSION = "delivery.exception.read"
         const val BOM_ROLE_SLUG = "bom"
         val CURRENT_CONTEXT = hasContentDescription("Contexto actual:", substring = true)
