@@ -78,7 +78,9 @@ data class ProductCandidate(
     val brandOrVariant: String?,
     val presentation: String,
     val sku: String,
-    val imageFileName: String? = null
+    val imageFileName: String? = null,
+    /** Opaque server detail key used by an authorized catalog projection. */
+    val detailKey: String? = null
 ) {
     override fun toString(): String =
         "ProductCandidate(productDisplayName=$productDisplayName, sku=REDACTED, key=REDACTED)"

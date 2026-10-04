@@ -11,6 +11,7 @@ import com.nexa.mobile.operations.core.network.ApiHttpClient
 import com.nexa.mobile.operations.core.network.NexaAuthGateway
 import com.nexa.mobile.operations.core.network.NexaCatalogGateway
 import com.nexa.mobile.operations.core.network.NexaIdentityAccessGateway
+import com.nexa.mobile.operations.core.network.NexaOperationsCatalogGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import dagger.Module
 import dagger.Provides
@@ -70,6 +71,11 @@ object FoundationModule {
     @Singleton
     fun catalogGateway(protectedCalls: ProtectedCallExecutor): NexaCatalogGateway =
         NexaCatalogGateway(protectedCalls)
+
+    @Provides
+    @Singleton
+    fun operationsCatalogGateway(protectedCalls: ProtectedCallExecutor): NexaOperationsCatalogGateway =
+        NexaOperationsCatalogGateway(protectedCalls)
 
     @Provides
     @Singleton
