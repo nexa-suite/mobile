@@ -75,6 +75,21 @@ tasks.register("verifyAndroidArchitecture") {
                             }
                         ) { "Catalog identification adapter must use protected reads only" }
                         it.replace("\"/api/v1/catalog-items\"", "\"<catalog-read-route>\"")
+                    } else if (source.name == "NexaOperationsCatalogGateway.kt") {
+                        check(
+                            it.contains(
+                                "OPERATIONS_CATALOG_PATH = \"/api/v1/catalog/products\""
+                            )
+                        ) { "Operations catalog must use the authorized management projection" }
+                        check(
+                            listOf("POST", "PUT", "PATCH", "DELETE").none { method ->
+                                it.contains("ProtectedMethod.$method")
+                            }
+                        ) { "Operations catalog transport must remain read-only" }
+                        it.replace(
+                            "\"/api/v1/catalog/products\"",
+                            "\"<operations-catalog-read-route>\""
+                        )
                     } else if (source.name == "NexaCommercialCatalogGateway.kt") {
                         check(
                             it.contains("COMMERCIAL_CATALOG_PATH = \"/api/v1/client-accounts\"")

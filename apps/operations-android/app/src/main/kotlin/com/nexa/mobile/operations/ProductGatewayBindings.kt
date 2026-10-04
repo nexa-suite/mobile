@@ -8,14 +8,15 @@ import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
 import com.nexa.mobile.operations.core.network.AccessContextSelectionOutcome
 import com.nexa.mobile.operations.core.network.AccessContextsOutcome
-import com.nexa.mobile.operations.core.network.CatalogDetailOutcome
 import com.nexa.mobile.operations.core.network.CatalogDetailProjection
-import com.nexa.mobile.operations.core.network.CatalogSearchOutcome
 import com.nexa.mobile.operations.core.network.IdentitySignInOutcome
 import com.nexa.mobile.operations.core.network.NativeAccessContext
 import com.nexa.mobile.operations.core.network.NativeAuthenticationSession
-import com.nexa.mobile.operations.core.network.NexaCatalogGateway
 import com.nexa.mobile.operations.core.network.NexaIdentityAccessGateway
+import com.nexa.mobile.operations.core.network.NexaOperationsCatalogGateway
+import com.nexa.mobile.operations.core.network.OperationsCatalogDetailOutcome
+import com.nexa.mobile.operations.core.network.OperationsCatalogDetailProjection
+import com.nexa.mobile.operations.core.network.OperationsCatalogSearchOutcome
 import com.nexa.mobile.operations.feature.access.AccessGateway
 import com.nexa.mobile.operations.feature.access.AccessViewModel
 import com.nexa.mobile.operations.feature.access.ContextListResult
@@ -41,7 +42,7 @@ import kotlinx.coroutines.flow.map
 internal class OperationsAccessGateway @Inject constructor(
     private val identity: NexaIdentityAccessGateway,
     private val sessions: SessionCoordinator,
-    private val catalog: NexaCatalogGateway
+    private val operationsCatalog: NexaOperationsCatalogGateway
 ) : AccessGateway,
     WarehouseGateway {
     val currentContext = sessions.verifiedSession.map { it?.toWorkforceContext() }
@@ -143,7 +144,7 @@ internal class OperationsAccessGateway @Inject constructor(
         val access = sessions.currentAccess() ?: return ProductSearchResult.SessionInvalidated
         val context = sessions.verifiedSession.value
             ?: return ProductSearchResult.ContextInvalidated
-        val result = catalog.search(query, pageKey)
+        val result = operationsCatalog.search(query, pageKey)
         if (!sessions.isEpochCurrent(access.epoch)) return ProductSearchResult.SessionInvalidated
         val current = sessions.verifiedSession.value
             ?: return ProductSearchResult.ContextInvalidated
@@ -154,35 +155,37 @@ internal class OperationsAccessGateway @Inject constructor(
             return ProductSearchResult.PermissionDenied
         }
         return when (result) {
-            is CatalogSearchOutcome.Page -> ProductSearchResult.Page(
+            is OperationsCatalogSearchOutcome.Page -> ProductSearchResult.Page(
                 result.value.candidates.map {
                     ProductCandidate(
                         key = it.catalogItemId,
-                        productDisplayName = it.productFamilyName ?: it.itemName,
-                        brandOrVariant = listOfNotNull(it.brandName, it.productVariantName)
-                            .distinct().joinToString(" · ").takeIf(String::isNotBlank),
+                        productDisplayName = it.itemName,
+                        brandOrVariant = it.brandName,
                         presentation = it.presentation,
                         sku = it.skuCode,
-                        imageFileName = it.imageFileName
+                        imageFileName = it.imageFileName,
+                        detailKey = it.productId
                     )
                 },
                 result.value.nextPageKey
             )
 
-            CatalogSearchOutcome.InvalidQuery -> ProductSearchResult.InvalidQuery
+            OperationsCatalogSearchOutcome.InvalidQuery -> ProductSearchResult.InvalidQuery
 
-            CatalogSearchOutcome.NetworkUnavailable -> ProductSearchResult.NetworkUnavailable
+            OperationsCatalogSearchOutcome.NetworkUnavailable ->
+                ProductSearchResult.NetworkUnavailable
 
-            CatalogSearchOutcome.ServiceUnavailable -> ProductSearchResult.ServiceUnavailable
+            OperationsCatalogSearchOutcome.ServiceUnavailable ->
+                ProductSearchResult.ServiceUnavailable
 
-            CatalogSearchOutcome.PermissionDenied -> ProductSearchResult.PermissionDenied
+            OperationsCatalogSearchOutcome.PermissionDenied -> ProductSearchResult.PermissionDenied
 
-            CatalogSearchOutcome.ContextInvalidated -> {
+            OperationsCatalogSearchOutcome.ContextInvalidated -> {
                 sessions.invalidateContext()
                 ProductSearchResult.ContextInvalidated
             }
 
-            CatalogSearchOutcome.SessionExpired -> ProductSearchResult.SessionInvalidated
+            OperationsCatalogSearchOutcome.SessionExpired -> ProductSearchResult.SessionInvalidated
         }
     }
 
@@ -195,7 +198,9 @@ internal class OperationsAccessGateway @Inject constructor(
             ?: return CandidateConfirmationResult.SessionInvalidated
         val verified = sessions.verifiedSession.value
             ?: return CandidateConfirmationResult.ContextInvalidated
-        val result = catalog.loadDetail(candidate.key)
+        val detailKey = candidate.detailKey
+        if (detailKey == null) return CandidateConfirmationResult.CandidateUnavailable
+        val result = operationsCatalog.loadDetail(detailKey)
         if (!sessions.isEpochCurrent(access.epoch)) {
             return CandidateConfirmationResult.SessionInvalidated
         }
@@ -214,30 +219,32 @@ internal class OperationsAccessGateway @Inject constructor(
             return CandidateConfirmationResult.PermissionDenied
         }
         return when (result) {
-            is CatalogDetailOutcome.Found -> mapConfirmedCatalogDetail(
+            is OperationsCatalogDetailOutcome.Found -> mapConfirmedCatalogDetail(
                 candidate = candidate,
-                detail = result.value,
+                detail = result.value.toCatalogDetailProjection(),
                 context = context,
                 authorityEpoch = authorityEpoch
             )
 
-            CatalogDetailOutcome.CandidateUnavailable ->
+            OperationsCatalogDetailOutcome.CandidateUnavailable ->
                 CandidateConfirmationResult.CandidateUnavailable
 
-            CatalogDetailOutcome.NetworkUnavailable ->
+            OperationsCatalogDetailOutcome.NetworkUnavailable ->
                 CandidateConfirmationResult.NetworkUnavailable
 
-            CatalogDetailOutcome.ServiceUnavailable ->
+            OperationsCatalogDetailOutcome.ServiceUnavailable ->
                 CandidateConfirmationResult.ServiceUnavailable
 
-            CatalogDetailOutcome.PermissionDenied -> CandidateConfirmationResult.PermissionDenied
+            OperationsCatalogDetailOutcome.PermissionDenied ->
+                CandidateConfirmationResult.PermissionDenied
 
-            CatalogDetailOutcome.ContextInvalidated -> {
+            OperationsCatalogDetailOutcome.ContextInvalidated -> {
                 sessions.invalidateContext()
                 CandidateConfirmationResult.ContextInvalidated
             }
 
-            CatalogDetailOutcome.SessionExpired -> CandidateConfirmationResult.SessionInvalidated
+            OperationsCatalogDetailOutcome.SessionExpired ->
+                CandidateConfirmationResult.SessionInvalidated
         }
     }
 
@@ -275,6 +282,21 @@ internal class OperationsAccessGateway @Inject constructor(
         permissionHint = PermissionHint.Unknown
     )
 }
+
+private fun OperationsCatalogDetailProjection.toCatalogDetailProjection(): CatalogDetailProjection =
+    CatalogDetailProjection(
+        catalogItemId = catalogItemId,
+        itemName = itemName,
+        presentation = presentation,
+        skuCode = skuCode,
+        brandName = brandName,
+        productVariantName = null,
+        productFamilyName = null,
+        unitOfMeasure = unitOfMeasure,
+        packagingType = null,
+        coldChainRequirement = storageTemperature,
+        imageFileName = imageFileName
+    )
 
 internal fun mapConfirmedCatalogDetail(
     candidate: ProductCandidate,
