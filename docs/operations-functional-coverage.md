@@ -67,9 +67,9 @@ The current checkpoint and bounded runtime evidence are recorded below. The stor
 
 ## Current validation
 
-The current API verification record reports 675 tests with zero failures. The Android Studio validation record for the recorded implementation snapshot reports 456 JVM tests with zero failures, errors or skips. The Android checkpoint is version `0.5.0` (`versionCode 6`); a local strict run passed `verifyAndroidArchitecture` and `:app:assembleDebug`, while the version bump has not been revalidated on a device.
+The current API verification record reports 675 tests with zero failures. The Android v0.6.0 candidate (`versionCode 7`) passed 456 JVM tests with zero failures, errors or skips, together with `verifyAndroidArchitecture`, `ktlintCheck`, strict dependency verification, debug lint and debug assembly. The candidate debug APK was installed, opened and stopped on the available API 29 emulator; no crash was observed.
 
-The latest recorded Android validation passed 53 instrumentation tests on each API 29 and API 37 emulator. A Samsung API 36 smoke installed and launched the debug APK without sign-in, role traversal, permission grant or screenshot capture. This is bounded technical verification, not full story acceptance. Product Acceptance, System Acceptance, physical-device workflow validation and production readiness remain open.
+The ordinary instrumentation run executed 54 tests on the API 29 emulator. The opt-in live identity test was excluded by its documented filter; the role traversal test reached its credential precondition and recorded one assumption failure because no authorized role account was available. The result therefore does not establish live sign-in, role traversal or server-backed story acceptance. The Render readiness and liveness endpoints responded successfully during the candidate check, while the aggregate health endpoint remained affected by the unconfigured SMTP dependency. Product Acceptance, System Acceptance, physical-device workflow validation and production readiness remain open.
 
 ## Authorization boundary
 

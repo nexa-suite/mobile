@@ -46,7 +46,7 @@ Gradle dependency verification uses `apps/operations-android/gradle/verification
 
 The variable must contain an approved non-local HTTPS root origin; none is configured in this repository. A verification build can use a separate HTTPS origin to exercise R8 and resource shrinking; that artifact is not a production distribution. Do not publish or install it as a production client.
 
-The CI workflow in [android-verify.yml](.github/workflows/android-verify.yml) runs applicable Android checks and publishes the stable `verify` status. Feature verification includes API 37 instrumentation. Promotion verification also includes API 29 instrumentation and release shrinking.
+The CI workflow in [android-verify.yml](.github/workflows/android-verify.yml) runs applicable Android checks and publishes the stable `verify` status. Feature verification includes API 37 instrumentation. Promotion verification also includes API 29 instrumentation and release shrinking. The manually triggered [academic APK workflow](.github/workflows/android-academic-apk.yml) builds a debug artifact against the approved Render HTTPS origin and retains it for seven days.
 
 ## Current limits
 
@@ -54,6 +54,8 @@ Automatic IoT and advanced routing remain outside approved V1 scope. The app use
 
 ## Current checkpoint — 2026-10-03
 
-The current API verification record reports 675 tests with zero failures. The Android Studio validation record for the recorded implementation snapshot reports 456 JVM tests with zero failures, errors or skips. This Android checkpoint is version `0.5.0` (`versionCode 6`). A local strict run passed `verifyAndroidArchitecture` and `:app:assembleDebug`; the version bump has not been revalidated on a device. These results are technical evidence only and do not establish Product Acceptance.
+The current API verification record reports 675 tests with zero failures. The candidate run reports 456 JVM tests with zero failures, errors or skips, alongside successful architecture, ktlint and debug lint checks. This Android checkpoint is version `0.6.0` (`versionCode 7`). The academic debug build can be configured with `-PnexaDebugApiBaseUrl=https://nexa-api-69bj.onrender.com/`; it remains an evaluation artifact and does not establish Product Acceptance.
 
-The latest recorded Android validation passed 53 instrumentation tests on each API 29 and API 37 emulator. A Samsung API 36 smoke installed and launched the debug APK, but did not perform sign-in, role traversal, permission grant or screenshot capture. Product Acceptance, System Acceptance, physical-device workflow validation and production readiness remain open.
+This candidate was installed and opened on the available Android emulator, then stopped cleanly. No physical-device, sign-in, role traversal, permission grant or screenshot acceptance is claimed. Product Acceptance, System Acceptance, physical-device workflow validation and production readiness remain open.
+
+The ordinary instrumentation run executed 54 tests on the API 29 emulator. The existing live identity test was excluded by its documented opt-in filter; the role traversal test reached its credential precondition and reported one assumption failure because no authorized role account was configured. This is a validation blocker for live sign-in and role traversal, not evidence of a successful end-to-end flow.

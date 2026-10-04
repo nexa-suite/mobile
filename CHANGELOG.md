@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.0] - 2026-10-03
+
+Operations Android academic candidate, versionCode 7.
+
+- Build the debug APK against the approved Render HTTPS origin for academic validation; no credentials or distribution signing material are included.
+- Re-run strict architecture, ktlint, debug lint and JVM contract checks for the candidate.
+- Add a manually triggered GitHub Actions workflow that uploads the debug APK as a short-lived academic artifact.
+- Keep Product Acceptance, System Acceptance, physical-device acceptance and production readiness as separate gates.
+
 ## [0.5.0] - 2026-10-03
 
 Operations Android checkpoint, versionCode 6.
