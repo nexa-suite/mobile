@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.6.0] - 2026-10-03
+## [0.6.0] - Unreleased candidate
 
 Operations Android academic candidate, versionCode 7.
 
