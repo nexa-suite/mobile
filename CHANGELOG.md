@@ -1,12 +1,12 @@
 # Changelog
 
-## [0.6.0] - 2026-10-04 (planned academic checkpoint)
+## [0.6.0] - 2026-10-04 (published academic checkpoint)
 
-Planned academic checkpoint. The candidate remains unreleased until its signed
-tag and GitHub Release exist. Operations Android versionCode is 7.
+Published academic checkpoint. Operations Android versionCode is 7. The GitHub
+Release includes the debug APK built against the approved HTTPS API origin.
 
 - Build the debug APK against the approved Render HTTPS origin for academic validation; no credentials or distribution signing material are included.
-- Re-run strict architecture, ktlint, debug lint and JVM contract checks for the candidate.
+- Re-run strict architecture, ktlint, debug lint and JVM contract checks for this checkpoint.
 - Render the canonical catalog product images through the shared design system with bounded image loading and focused UI/JVM coverage.
 - Add a manually triggered GitHub Actions workflow that uploads the debug APK as a short-lived academic artifact.
 - Keep Product Acceptance, System Acceptance, physical-device acceptance and production readiness as separate gates.
