@@ -1,0 +1,44 @@
+name: Operations Android academic APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: apps/operations-android
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v4
+
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      - name: Install Android SDK 37
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
+
+      - name: Build academic debug APK
+        run: |
+          ./gradlew :app:assembleDebug \
+            -PnexaDebugApiBaseUrl=https://nexa-api-69bj.onrender.com/ \
+            --dependency-verification strict
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: operations-android-v0.6.0-academic-debug
+          path: apps/operations-android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
