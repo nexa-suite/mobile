@@ -54,7 +54,7 @@ Automatic IoT and advanced routing remain outside approved V1 scope. The app use
 
 ## Current checkpoint — 2026-10-04
 
-The current API verification record reports 689 tests with zero failures. The candidate run reports 456 JVM tests with zero failures, errors or skips, alongside successful architecture, ktlint and debug lint checks. This Android checkpoint is version `0.6.0` (`versionCode 7`). The candidate also renders canonical catalog product images through the shared design system. The academic debug build can be configured with `-PnexaDebugApiBaseUrl=https://nexa-api-69bj.onrender.com/`; it remains an evaluation artifact and does not establish Product Acceptance.
+The current API verification record reports 689 tests with zero failures. The retained candidate execution record reports 456 JVM tests with zero failures, errors or skips, alongside successful architecture, ktlint and debug lint checks; this count is historical evidence and was not rerun for this documentation update. This Android checkpoint is version `0.6.0` (`versionCode 7`). The candidate also renders canonical catalog product images through the shared design system. The academic debug build can be configured with `-PnexaDebugApiBaseUrl=https://nexa-api-69bj.onrender.com/`; it remains an evaluation artifact and does not establish Product Acceptance.
 
 This candidate was installed and opened on the available Android emulator, then stopped cleanly. No physical-device, sign-in, role traversal, permission grant or screenshot acceptance is claimed. Product Acceptance, System Acceptance, physical-device workflow validation and production readiness remain open.
 
