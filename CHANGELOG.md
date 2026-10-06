@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.0] - 2026-10-05
+
+Operations Android v1.0.0 source candidate, versionCode 8. A signed APK for
+controlled direct distribution is recorded in the
+[release notes](docs/releases/v1.0.0.md), along with its validation boundaries.
+
+- Set the Android app version to 1.0.0 while retaining the Operations client scope in this repository.
+- Keep Buyer Mobile outside this repository as a separate TARGET.
+- Pass strict architecture, ktlint, debug lint, dependency verification, debug assembly and 467 JVM tests with zero failures, errors or skips.
+- Reject all six documented unsafe release origins and pass verification-origin release assembly with R8 and resource shrinking.
+- Build and externally sign an R8 release APK against the approved Render validation origin for controlled direct distribution; its checksum and signing verification are recorded in the release notes.
+- Use API 37 CI evidence from the base source commit; connected instrumentation was not rerun for this version/documentation change, and API 29 instrumentation was not run for this candidate.
+- Keep the reported Warehouse/Picking visibility issue open pending a reproducible runtime case with account scope, order and server response.
+- Preserve the separation between technical verification, Product Acceptance, System Acceptance, physical-device validation and production readiness. No Play Store upload or deployment is recorded.
+
 ## [0.6.0] - 2026-10-04 (published academic checkpoint)
 
 Published academic checkpoint. Operations Android versionCode is 7. The GitHub
