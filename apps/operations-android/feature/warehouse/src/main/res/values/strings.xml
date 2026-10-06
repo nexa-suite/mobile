@@ -1,5 +1,6 @@
 <resources>
     <string name="warehouse_operations_title">Nexa Operations</string>
+    <string name="warehouse_logout">Cerrar sesión</string>
     <string name="warehouse_work_available">Trabajo disponible</string>
     <string name="warehouse_no_task_title">No hay tareas disponibles</string>
     <string name="warehouse_no_task_body">No hay una tarea de Operations permitida en este contexto.</string>
