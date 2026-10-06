@@ -4461,12 +4461,14 @@ private val CONNECTED_OPERATIONS = listOf(
     ConnectedOperationEntry(
         "driver.coordination-limits",
         "Privacidad y coordinación: límites actuales",
-        setOf("dispatch.read")
+        setOf("dispatch.read"),
+        visibleInHub = false
     ),
     ConnectedOperationEntry(
         "dispatch.coordination-limits",
         "Identidad, cargas y transportista: límites actuales",
-        setOf("dispatch.read")
+        setOf("dispatch.read"),
+        visibleInHub = false
     ),
     ConnectedOperationEntry(
         "warehouse.cycle-count",
@@ -4482,7 +4484,8 @@ private val CONNECTED_OPERATIONS = listOf(
     ConnectedOperationEntry(
         "warehouse.automation",
         "Observaciones y límite de automatización",
-        setOf("warehouse.read", "inventory.read", "warehouse:read")
+        setOf("warehouse.read", "inventory.read", "warehouse:read"),
+        visibleInHub = false
     ),
     ConnectedOperationEntry(
         "warehouse.batch",

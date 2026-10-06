@@ -80,24 +80,29 @@ class CameraXProductCodeScanner(context: Context) : ProductCodeScanner {
             return
         }
 
-        val scanner = BarcodeScanning.getClient(
-            BarcodeScannerOptions.Builder()
-                .setBarcodeFormats(
-                    Barcode.FORMAT_CODABAR,
-                    Barcode.FORMAT_CODE_128,
-                    Barcode.FORMAT_CODE_39,
-                    Barcode.FORMAT_CODE_93,
-                    Barcode.FORMAT_DATA_MATRIX,
-                    Barcode.FORMAT_EAN_8,
-                    Barcode.FORMAT_EAN_13,
-                    Barcode.FORMAT_ITF,
-                    Barcode.FORMAT_PDF417,
-                    Barcode.FORMAT_QR_CODE,
-                    Barcode.FORMAT_UPC_A,
-                    Barcode.FORMAT_UPC_E
-                )
-                .build()
-        )
+        val scanner = try {
+            BarcodeScanning.getClient(
+                BarcodeScannerOptions.Builder()
+                    .setBarcodeFormats(
+                        Barcode.FORMAT_CODABAR,
+                        Barcode.FORMAT_CODE_128,
+                        Barcode.FORMAT_CODE_39,
+                        Barcode.FORMAT_CODE_93,
+                        Barcode.FORMAT_DATA_MATRIX,
+                        Barcode.FORMAT_EAN_8,
+                        Barcode.FORMAT_EAN_13,
+                        Barcode.FORMAT_ITF,
+                        Barcode.FORMAT_PDF417,
+                        Barcode.FORMAT_QR_CODE,
+                        Barcode.FORMAT_UPC_A,
+                        Barcode.FORMAT_UPC_E
+                    )
+                    .build()
+            )
+        } catch (_: RuntimeException) {
+            onEvent(ProductCodeScannerEvent.Unavailable)
+            return
+        }
         val executor = Executors.newSingleThreadExecutor()
         val cameraController = LifecycleCameraController(appContext)
         val delivered = AtomicBoolean(false)
