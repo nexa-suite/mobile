@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,6 +57,7 @@ fun OperationsWorkEntryScreen(
     onReceiveStock: () -> Unit = {},
     onPickStock: () -> Unit = {},
     onViewStock: () -> Unit = {},
+    onLogout: (() -> Unit)? = null,
     capabilities: List<WorkEntryCapability> = listOf(WorkEntryCapability.CatalogIdentification),
     additionalWorkContent: @Composable () -> Unit = {}
 ) {
@@ -78,6 +80,14 @@ fun OperationsWorkEntryScreen(
                     enabled = true,
                     onClick = onChangeContext
                 )
+            }
+            onLogout?.let { logout ->
+                OutlinedButton(
+                    onClick = logout,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                ) {
+                    Text(stringResource(R.string.warehouse_logout))
+                }
             }
             if (state.activeContext != null &&
                 state.workEntryStatus == WorkEntryStatus.TaskAvailable

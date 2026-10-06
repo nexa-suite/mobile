@@ -48,6 +48,33 @@ class ScannerScreensUiTest {
         }
     }
 
+    @Test fun unavailableCameraKeepsRetryAndManualIdentificationAvailable() {
+        var retries = 0
+        var manualSelections = 0
+        composeRule.setContent {
+            OperationsTheme {
+                ProductScannerScreen(
+                    state = ProductScannerUiState.CameraUnavailable(7),
+                    activeContext = ActiveOperationsContext("Company", "Workspace", 7),
+                    cameraPreview = { error("Unavailable camera must release preview") },
+                    onBack = {},
+                    onChangeContext = {},
+                    onRequestPermission = {},
+                    onOpenSettings = {},
+                    onRetryScan = { retries++ },
+                    onManualSearch = { manualSelections++ }
+                )
+            }
+        }
+        composeRule.onNodeWithText("Cámara no disponible").assertIsDisplayed()
+        composeRule.onNodeWithText("Intentar de nuevo").performScrollTo().performClick()
+        composeRule.onNodeWithText("Buscar manualmente").performScrollTo().performClick()
+        composeRule.runOnIdle {
+            assertEquals(1, retries)
+            assertEquals(1, manualSelections)
+        }
+    }
+
     @Test fun resolvingAndAmbiguousCodeNeverDisplayConfirmedIdentity() {
         val state = mutableStateOf<ProductScannerUiState>(ProductScannerUiState.Resolving(7))
         composeRule.setContent {

@@ -1,9 +1,9 @@
 package com.nexa.mobile.operations
 
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import com.nexa.mobile.operations.core.auth.session.SessionState
+import com.nexa.mobile.operations.core.designsystem.NexaTaskRow
 import com.nexa.mobile.operations.feature.access.AccessStage
 import com.nexa.mobile.operations.feature.access.AccessUiState
 import com.nexa.mobile.operations.feature.access.VerifiedContextAuthority
@@ -115,6 +115,10 @@ internal fun ConnectedOperationsEntries(
     onOpen: (ConnectedOperationEntry) -> Unit
 ) {
     entries.forEach { entry ->
-        TextButton(onClick = { onOpen(entry) }) { Text(entry.label) }
+        NexaTaskRow(
+            title = entry.label,
+            description = stringResource(R.string.connected_operation_open_support),
+            onClick = { onOpen(entry) }
+        )
     }
 }

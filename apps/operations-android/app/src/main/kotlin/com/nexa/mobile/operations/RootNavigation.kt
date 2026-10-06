@@ -332,6 +332,7 @@ internal fun RootNavigation(
                                 } else {
                                     warehouseState.copy(activeContext = null)
                                 },
+                                onLogout = onLogout,
                                 additionalWorkContent = {
                                     ConnectedOperationsEntries(
                                         entries = ConnectedOperationsNavigation.visibleEntries(
@@ -492,7 +493,8 @@ internal fun RootNavigation(
                             OperationsWorkEntryScreen(
                                 state = warehouseState,
                                 onChangeContext = onChangeContext,
-                                onIdentifyProduct = onIdentifyProduct
+                                onIdentifyProduct = onIdentifyProduct,
+                                onLogout = onLogout
                             )
                         }
                     }
@@ -524,7 +526,8 @@ internal fun RootNavigation(
                                 state = warehouseState,
                                 onChangeContext = onChangeContext,
                                 onIdentifyProduct = onIdentifyProduct,
-                                onScanProductCode = onScanProductCode
+                                onScanProductCode = onScanProductCode,
+                                onLogout = onLogout
                             )
                         }
                     }

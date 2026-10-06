@@ -1,5 +1,6 @@
 <resources>
     <string name="app_name">Nexa Operations</string>
+    <string name="connected_operation_open_support">Abrir esta opción de trabajo en el contexto actual.</string>
 
     <string name="commercial_back">Volver</string>
     <string name="customer_title">Clientes y relación con comprador</string>
