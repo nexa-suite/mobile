@@ -93,7 +93,8 @@ instrumentation passed on API 37 and API 29.
 The reproducible commands and XML report locations are in the
 [verification guide](verification.md). The owner decision dated 2026-10-08 for
 MOB-US-009 (direct order) is recorded in the [alignment](client-ddd-alignment.md);
-no check in this record verifies that API or client implementation.
+the Direct Order client checks are recorded in the resumed and corrective
+sections. These checks do not establish end-to-end Product acceptance.
 
 ## Authority references
 
@@ -130,10 +131,12 @@ passed; signing secrets remain outside this repository.
 PR [#41](https://github.com/nexa-suite/mobile/pull/41) remains open to
 synchronize v1.1.0 into `develop` and contains follow-up changes after the
 published tag. Those changes are not part of v1.1.0. The latest reported PR
-checks passed static verification and API 37 while the API 29 promotion job was
-skipped. The corrective source at `b18337e63accdbd56906ad73b5294345b1727ac0`
-has now passed local static/JVM, API 29/API 37 and release-build gates;
-GitHub CI and approval of the updated PR head remain pending. The
+checkpoint `e091be0eb737a37ecfe28e44b7b776c96d5dca92` passed
+[PR #42 CI run 37852789349](https://github.com/nexa-suite/mobile/actions/runs/37852789349).
+The corrective source at `b18337e63accdbd56906ad73b5294345b1727ac0`
+passed local static/JVM, API 29/API 37 and release-build gates. The Android
+Studio follow-up below changes dependency trust metadata and documentation;
+its updated-head CI, review and integration remain pending. The
 release is controlled direct distribution against the validation API, not a
 production deployment. Blueprint PR #33 is merged and remains the accepted
 Direct Order scope source.
@@ -180,8 +183,9 @@ device acceptance is claimed for the current refactor. The v1.1.0 GitHub
 Release is published as controlled direct distribution against a validation
 API origin. Publication is not evidence of Product acceptance, System
 Acceptance, production readiness or deployment. The post-release changes in
-PR #41 remain outside the tag; local technical validation passed, while
-updated-head CI, review and integration remain pending.
+PR #41 and PR #42 remain outside the tag. Local technical validation and CI at
+`e091be0` passed; the subsequent Android Studio follow-up still requires
+updated-head CI, review and integration.
 
 ## Post-release corrective verification — 2026-10-08
 
@@ -220,4 +224,33 @@ Three earlier aggregate attempts failed on call sites and test fixtures that
 still passed BC-01 scope to Catalog, plus an invalid Compose assertion import.
 The affected composition calls and fixtures now explicitly map or construct
 Catalog-owned scope; the import was removed. The final aggregate above passed.
-Updated-head remote CI and required review remain pending at this checkpoint.
+Remote CI subsequently passed at `e091be0`; required review and integration
+remain separate gates.
+
+## Android Studio verification — 2026-10-08
+
+Android Studio Rabbit 1 (2026.2.1) opened the corrective Android project in a
+separate window at branch checkpoint `e091be0`, preserving the original
+checkout. The first two IDE syncs failed because strict dependency verification
+had no trusted hashes for six source/sample JARs requested by the IDE. The
+cached bytes were compared with official Google Maven artifacts and published
+SHA1 values before adding SHA256 entries. No dependency version changed and
+strict verification was not disabled.
+
+- Gradle Sync: finished successfully after the six source hashes were added.
+- IDE **Assemble 'app' Run Configuration**, executing `:app:assembleDebug`:
+  `BUILD SUCCESSFUL in 7s`.
+- IDE **Run 'app'**: `:app:assembleDebug` passed in 6s, installation succeeded,
+  and the embedded `Nexa_DDD_API29` emulator displayed the Nexa Operations
+  sign-in screen. No account credentials or protected business flows were
+  exercised in this manual startup check.
+- `python3 scripts/verify-context-architecture.py`: PASS, 11 roots.
+- `python3 scripts/test-context-architecture.py`: PASS, baseline and eight
+  negative probes.
+
+This IDE check verifies import, debug assembly, installation and startup. It
+does not establish architectural completion or Product acceptance. The
+[alignment's remaining refinement](client-ddd-alignment.md#remaining-architectural-refinement)
+records composition-root workflow ownership and Direct Order terminology
+issues found during the accompanying source review. Updated-head CI is
+required for this dependency-metadata/documentation follow-up.

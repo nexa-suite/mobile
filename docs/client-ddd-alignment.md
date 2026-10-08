@@ -112,9 +112,10 @@ under `contexts/inventoryavailability/infrastructure/src/main/.../storage/`;
 picking metadata is stored by BC-06 under
 `contexts/fulfillmentdelivery/infrastructure/src/main/.../storage/picking/`.
 The context-owned store and codec files were migrated while preserving their
-existing filenames and key aliases. The new BC-05/BC-06 unit and Android
-instrumentation tests have not yet passed on the migrated source; their current
-status is recorded below as pending.
+existing filenames and key aliases. The moved BC-05/BC-06 JVM tests passed in
+the aggregate gate; their Android instrumentation passed on API 29 and API 37.
+The [execution record](ddd-client-verification.md) distinguishes the published
+baseline from the post-release corrective verification.
 
 The commercial module from the former feature layout is now BC-03
 Catalog & Commercial Policy, BC-02 Customer & Buyer Relationships, or BC-04
@@ -161,7 +162,9 @@ wording in that story. The route to capture is `POST /api/v1/direct-orders`,
 including the `201` outcome and the `202` pending-prepaid outcome. It is a
 current Owner decision, not evidence that the API contract update, client
 implementation, technical verification or Product Acceptance is complete.
-Those implementation and contract changes remain with their owning agents.
+The subsequent implementation and technical checks are recorded in the
+[execution record](ddd-client-verification.md); they do not establish Product
+Acceptance.
 
 ## Preserved authority and security
 
@@ -180,12 +183,33 @@ scope fails closed.
 
 ## Verification and acceptance
 
-From `apps/operations-android`,
-`python3 scripts/verify-context-architecture.py` passed on the current
-uncommitted working tree. This is a structural check only. The Gradle
-architecture, ktlint, lint, JVM, assembly and emulator checks remain pending;
-see [the DDD execution record](ddd-client-verification.md) for current status
-and [the verification guide](verification.md) for commands.
+Corrective source `b18337e63accdbd56906ad73b5294345b1727ac0` passed the
+context-boundary checks, Gradle architecture, ktlint, lint, JVM, assembly and
+API 29/API 37 emulator gates. See [the DDD execution record](ddd-client-verification.md)
+for exact commands, results and the separate Android Studio verification, and
+[the verification guide](verification.md) for reproducible commands.
+
+## Remaining architectural refinement
+
+The context module graph is checked, but the composition root still needs
+refinement. `MainActivity.kt` currently has 4,683 lines and mixes route wiring,
+platform launchers and local workflow coordination. For example, the returned
+driver-proof callback constructs its scoped key and calls file preparation and
+protected intent staging directly. The `ReturnedDriverProofSelection.kt`
+helper also owns intent matching, the transition to evidence review and
+temporary-file cleanup in the app module.
+
+That sequence belongs behind a BC-06 application coordinator and platform/file
+ports; Android activity-result launchers belong in presentation. Extraction
+must preserve scope matching, cancellation, staging-before-review and cleanup.
+Moving the same code to another app file would not resolve this ownership
+problem. The existing structural guard does not detect it.
+
+BC-04 also retains legacy `FieldRequest` names in client types while the
+accepted operation is Direct Order. A terminology refinement must distinguish
+client names from compatibility-sensitive persisted keys and legacy payloads.
+Neither module count nor successful compilation establishes completion of
+these refinements.
 
 Implementation and technical verification do not establish Product/UX
 Acceptance, System Acceptance or production readiness. Blueprint's current
