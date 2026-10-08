@@ -4,7 +4,7 @@ The application starts in `Bootstrapping`, reads only the protected refresh reco
 
 ## Module boundary
 
-`app` composes Hilt singletons and the root ViewModel. `core:auth` defines credential and session ports without an HTTP dependency. `core:network` implements those ports with Retrofit and OkHttp, maps transport failures to safe client errors, and offers explicit protected calls. `core:designsystem` provides a minimal Compose theme. `verifyAndroidArchitecture` checks these boundaries in the current source tree.
+`app` composes Hilt singletons, ViewModel factories, Android entry points and the root ViewModel. `data:operations` implements client ports and maps protected transport/local records into framework-free feature contracts. Selective application coordinators live with those contracts; Compose screens and UI state live in feature presentation. See [client DDD alignment](client-ddd-alignment.md). `core:auth` defines credential and session ports without an HTTP dependency. `core:network` implements those ports with Retrofit and OkHttp, maps transport failures to safe client errors, and offers explicit protected calls. `core:designsystem` provides a minimal Compose theme. `verifyAndroidArchitecture` checks these boundaries in the current source tree.
 
 The manually declared native auth methods and protected Catalog adapter use the current API contract:
 
