@@ -1,13 +1,14 @@
 package com.nexa.mobile.operations.salescommitment.infrastructure.transport
 
-import com.nexa.mobile.operations.salescommitment.application.commercial.FieldRequestSubmission
-import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestIntent
-import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestReceipt
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.core.network.FailureKind
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.core.network.ProtectedMethod
 import com.nexa.mobile.operations.core.network.ProtectedRequest
 import com.nexa.mobile.operations.core.network.ProtectedResult
+import com.nexa.mobile.operations.salescommitment.application.commercial.FieldRequestSubmission
+import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestIntent
+import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestReceipt
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.Currency
@@ -23,7 +24,15 @@ private const val DIRECT_ORDER_PATH = "/api/v1/direct-orders"
 private val directOrderJson = Json { ignoreUnknownKeys = true }
 private val directOrderPriorities = setOf("NORMAL", "HIGH", "URGENT")
 private val directOrderPaymentOptions =
-    setOf("CREDIT_LINE", "BANK_TRANSFER", "CARD_STRIPE", "CASH", "CASH_ON_DELIVERY", "PREPAID", "IMMEDIATE")
+    setOf(
+        "CREDIT_LINE",
+        "BANK_TRANSFER",
+        "CARD_STRIPE",
+        "CASH",
+        "CASH_ON_DELIVERY",
+        "PREPAID",
+        "IMMEDIATE"
+    )
 
 /** Protected transport for the API's atomic Direct Order command. */
 class NexaDirectOrderGateway(private val calls: ProtectedCallExecutor) {
@@ -57,12 +66,18 @@ class NexaDirectOrderGateway(private val calls: ProtectedCallExecutor) {
             )
         ) {
             is ProtectedResult.Success -> result.toSubmission(authority, request)
-            is ProtectedResult.Failure -> when (result.error.httpStatus) {
-                401, 403 -> FieldRequestSubmission.PermissionDenied
-                404 -> FieldRequestSubmission.Unavailable
-                409, 412 -> FieldRequestSubmission.Conflict
-                400, 422 -> FieldRequestSubmission.Rejected
-                else -> FieldRequestSubmission.UnknownOutcome
+
+            is ProtectedResult.Failure -> when (result.error.kind) {
+                FailureKind.AuthenticationRequired,
+                FailureKind.AuthorizationFailure -> FieldRequestSubmission.PermissionDenied
+
+                else -> when (result.error.httpStatus) {
+                    401, 403 -> FieldRequestSubmission.PermissionDenied
+                    404 -> FieldRequestSubmission.Unavailable
+                    409, 412 -> FieldRequestSubmission.Conflict
+                    400, 422 -> FieldRequestSubmission.Rejected
+                    else -> FieldRequestSubmission.UnknownOutcome
+                }
             }
         }
     }
@@ -81,10 +96,12 @@ class NexaDirectOrderGateway(private val calls: ProtectedCallExecutor) {
         }
         val receipt = response.toReceipt() ?: return FieldRequestSubmission.UnknownOutcome
         return when {
-            status == 201 && response.status == "CONFIRMED" ->
+            status == 201 && response.status == "CONFIRMED" &&
+                response.paymentOption != "PREPAID" && response.version == 1L ->
                 FieldRequestSubmission.Confirmed(receipt)
 
-            status == 202 && response.status == "PENDING" && response.paymentOption == "PREPAID" ->
+            status == 202 && response.status == "PENDING" &&
+                response.paymentOption == "PREPAID" && response.version == 0L ->
                 FieldRequestSubmission.PrepaidPending(receipt)
 
             else -> FieldRequestSubmission.UnknownOutcome
@@ -95,7 +112,8 @@ class NexaDirectOrderGateway(private val calls: ProtectedCallExecutor) {
         authority: CommercialAuthority,
         request: FrozenDirectOrderRequest
     ): Boolean {
-        val amount = total?.content?.toBigDecimalOrNull() ?: return false
+        val amount = total?.takeUnless { it.isString }?.content?.toBigDecimalOrNull()
+            ?: return false
         if (amount.signum() < 0) return false
         val currencyCode = currency ?: return false
         if (!currencyCode.isIsoCurrency()) return false
@@ -121,8 +139,10 @@ class NexaDirectOrderGateway(private val calls: ProtectedCallExecutor) {
         }
         if (lines.size != request.lines.size) return false
         val unmatched = request.lines.toMutableList()
+        var lineTotal = BigDecimal.ZERO
         for (orderLine in lines) {
-            val orderQuantity = orderLine.quantity?.content?.toBigDecimalOrNull()
+            val orderQuantity = orderLine.quantity?.takeUnless { it.isString }
+                ?.content?.toBigDecimalOrNull()
                 ?: return false
             val requestedIndex = unmatched.indexOfFirst {
                 it.catalogItemId == orderLine.catalogItemId &&
@@ -131,15 +151,23 @@ class NexaDirectOrderGateway(private val calls: ProtectedCallExecutor) {
             }
             if (requestedIndex < 0) return false
             unmatched.removeAt(requestedIndex)
+            val unitPriceAmount = orderLine.unitPriceAmount?.takeUnless { it.isString }
+                ?.content?.toBigDecimalOrNull()
+                ?: return false
+            val lineSubtotal = orderLine.lineSubtotal?.takeUnless { it.isString }
+                ?.content?.toBigDecimalOrNull()
+                ?: return false
             if (orderLine.catalogItemId.isNullOrBlank() ||
-                orderLine.unitPriceAmount?.content?.toBigDecimalOrNull()?.signum()?.let { it >= 0 } != true ||
+                unitPriceAmount.signum() < 0 ||
                 orderLine.unitPriceCurrency != currencyCode ||
-                orderLine.lineSubtotal?.content?.toBigDecimalOrNull()?.signum()?.let { it >= 0 } != true
+                lineSubtotal.signum() < 0 ||
+                lineSubtotal.compareTo(orderQuantity.multiply(unitPriceAmount)) != 0
             ) {
                 return false
             }
+            lineTotal = lineTotal.add(lineSubtotal)
         }
-        return unmatched.isEmpty()
+        return unmatched.isEmpty() && amount.compareTo(lineTotal) == 0
     }
 
     private fun String.toFrozenRequest(): FrozenDirectOrderRequest? {
@@ -182,7 +210,8 @@ class NexaDirectOrderGateway(private val calls: ProtectedCallExecutor) {
                 ?: return null
             val quantity = (item["quantity"] as? JsonPrimitive)?.content?.toBigDecimalOrNull()
                 ?: return null
-            val unit = (item["unit"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
+            val unit =
+                (item["unit"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
             if (catalogItemId.isBlank() || catalogItemId.length > 64 ||
                 quantity.signum() <= 0 || unit.isBlank() || unit.length > 32
             ) {
@@ -202,13 +231,13 @@ class NexaDirectOrderGateway(private val calls: ProtectedCallExecutor) {
         )
     }
 
-    private fun String.isUuid(): Boolean =
-        runCatching { UUID.fromString(this).toString().equals(this, ignoreCase = true) }.getOrDefault(false)
+    private fun String.isUuid(): Boolean = runCatching {
+        UUID.fromString(this).toString().equals(this, ignoreCase = true)
+    }.getOrDefault(false)
 
-    private fun String?.sameUuid(other: String): Boolean =
-        this?.let { value ->
-            runCatching { UUID.fromString(value) == UUID.fromString(other) }.getOrDefault(false)
-        } == true
+    private fun String?.sameUuid(other: String): Boolean = this?.let { value ->
+        runCatching { UUID.fromString(value) == UUID.fromString(other) }.getOrDefault(false)
+    } == true
 
     private fun String.isIsoCurrency(): Boolean = runCatching {
         Currency.getInstance(this).currencyCode == this
@@ -222,7 +251,15 @@ class NexaDirectOrderGateway(private val calls: ProtectedCallExecutor) {
         val currency = currency ?: return null
         val total = total ?: return null
         val version = version ?: return null
-        return FieldRequestReceipt(id, number, status, paymentOption, currency, total.content, version)
+        return FieldRequestReceipt(
+            id,
+            number,
+            status,
+            paymentOption,
+            currency,
+            total.content,
+            version
+        )
     }
 }
 

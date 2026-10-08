@@ -1,7 +1,7 @@
 package com.nexa.mobile.operations.salescommitment.application.commercial
 
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestRecord
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import kotlinx.coroutines.CancellationException
 
 sealed interface FieldRequestExecution {

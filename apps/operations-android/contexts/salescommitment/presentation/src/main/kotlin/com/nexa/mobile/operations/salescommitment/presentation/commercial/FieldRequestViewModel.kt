@@ -11,8 +11,8 @@ import com.nexa.mobile.operations.salescommitment.application.commercial.FieldRe
 import com.nexa.mobile.operations.salescommitment.application.commercial.isValidForSubmission
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestIntent
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestRecord
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestDraft
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -298,7 +298,8 @@ class FieldRequestViewModel(
         viewModelScope.launch {
             mutex.withLock {
                 val record = if (state.value.status ==
-                    FieldRequestStatus.Confirmed || state.value.status == FieldRequestStatus.PrepaidPending
+                    FieldRequestStatus.Confirmed ||
+                    state.value.status == FieldRequestStatus.PrepaidPending
                 ) {
                     FieldRequestRecord()
                 } else {

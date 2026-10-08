@@ -1,10 +1,10 @@
 package com.nexa.mobile.operations.salescommitment.application.commercial
 
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
-import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestDraft
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestIntent
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestReceipt
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestRecord
+import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestDraft
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -26,7 +26,17 @@ class FieldRequestSubmissionCoordinatorTest {
         val gateway = RecordingGateway(events) { intent ->
             assertEquals(record, store.records.single())
             assertEquals(record.intent, intent)
-            FieldRequestSubmission.Confirmed(FieldRequestReceipt("request-42", "SO-42", "CONFIRMED", "CASH_ON_DELIVERY", "PEN", "25.00", 1))
+            FieldRequestSubmission.Confirmed(
+                FieldRequestReceipt(
+                    "request-42",
+                    "SO-42",
+                    "CONFIRMED",
+                    "CASH_ON_DELIVERY",
+                    "PEN",
+                    "25.00",
+                    1
+                )
+            )
         }
 
         val execution = FieldRequestSubmissionCoordinator(gateway, store).execute(
@@ -38,7 +48,19 @@ class FieldRequestSubmissionCoordinatorTest {
         assertEquals(
             FieldRequestExecution.Resolved(
                 record.copy(
-                    intent = record.intent!!.copy(outcome = "Confirmed", receiptId = "request-42", receipt = FieldRequestReceipt("request-42", "SO-42", "CONFIRMED", "CASH_ON_DELIVERY", "PEN", "25.00", 1))
+                    intent = record.intent!!.copy(
+                        outcome = "Confirmed",
+                        receiptId = "request-42",
+                        receipt = FieldRequestReceipt(
+                            "request-42",
+                            "SO-42",
+                            "CONFIRMED",
+                            "CASH_ON_DELIVERY",
+                            "PEN",
+                            "25.00",
+                            1
+                        )
+                    )
                 ),
                 persisted = true
             ),
@@ -46,6 +68,40 @@ class FieldRequestSubmissionCoordinatorTest {
         )
         assertEquals("frozen-request-body", gateway.submitted.single().exactBody)
         assertEquals("Confirmed", store.records.last().intent?.outcome)
+    }
+
+    @Test
+    fun prepaidPendingPersistsItsReceiptWithoutBecomingConfirmed() = runTest {
+        val receipt = FieldRequestReceipt(
+            "order-44",
+            "SO-44",
+            "PENDING",
+            "PREPAID",
+            "PEN",
+            "25.00",
+            0
+        )
+        val store = RecordingStore()
+        val gateway = RecordingGateway {
+            FieldRequestSubmission.PrepaidPending(receipt)
+        }
+
+        val execution = FieldRequestSubmissionCoordinator(gateway, store).execute(
+            authority,
+            record
+        ) { true }
+
+        val resolved = record.copy(
+            intent = record.intent!!.copy(
+                outcome = "PrepaidPending",
+                receiptId = receipt.id,
+                receipt = receipt
+            )
+        )
+        assertEquals(FieldRequestExecution.Resolved(resolved, persisted = true), execution)
+        assertEquals("PrepaidPending", store.records.last().intent?.outcome)
+        assertEquals(receipt, store.records.last().intent?.receipt)
+        assertEquals(receipt.id, store.records.last().intent?.receiptId)
     }
 
     @Test
@@ -87,7 +143,17 @@ class FieldRequestSubmissionCoordinatorTest {
         var contextChecks = 0
         val gateway = RecordingGateway {
             contextIsCurrent = false
-            FieldRequestSubmission.Confirmed(FieldRequestReceipt("request-43", "SO-42", "CONFIRMED", "CASH_ON_DELIVERY", "PEN", "25.00", 1))
+            FieldRequestSubmission.Confirmed(
+                FieldRequestReceipt(
+                    "request-43",
+                    "SO-42",
+                    "CONFIRMED",
+                    "CASH_ON_DELIVERY",
+                    "PEN",
+                    "25.00",
+                    1
+                )
+            )
         }
 
         val execution = FieldRequestSubmissionCoordinator(gateway, store).execute(
@@ -103,7 +169,19 @@ class FieldRequestSubmissionCoordinatorTest {
         assertEquals(
             FieldRequestExecution.Resolved(
                 record.copy(
-                    intent = record.intent!!.copy(outcome = "Confirmed", receiptId = "request-43", receipt = FieldRequestReceipt("request-43", "SO-42", "CONFIRMED", "CASH_ON_DELIVERY", "PEN", "25.00", 1))
+                    intent = record.intent!!.copy(
+                        outcome = "Confirmed",
+                        receiptId = "request-43",
+                        receipt = FieldRequestReceipt(
+                            "request-43",
+                            "SO-42",
+                            "CONFIRMED",
+                            "CASH_ON_DELIVERY",
+                            "PEN",
+                            "25.00",
+                            1
+                        )
+                    )
                 ),
                 persisted = true
             ),

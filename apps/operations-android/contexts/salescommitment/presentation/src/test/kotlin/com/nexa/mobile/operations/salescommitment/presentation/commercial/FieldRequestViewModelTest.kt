@@ -8,9 +8,9 @@ import com.nexa.mobile.operations.salescommitment.application.commercial.FieldRe
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestIntent
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestReceipt
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestRecord
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestDraft
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestLine
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
@@ -124,6 +124,83 @@ class FieldRequestViewModelTest {
         assertEquals(first.exactBody, gateway.sent.last().exactBody)
     }
 
+    @Test fun confirmedAndPrepaidPendingKeepDistinctOutcomesAndReceipts() = runTest {
+        suspend fun submit(result: FieldRequestSubmission): Pair<FieldRequestViewModel, Store> {
+            val store = Store(FieldRequestRecord(draft))
+            val gateway = object : Gateway() {
+                override suspend fun submit(
+                    authority: CommercialAuthority,
+                    intent: FieldRequestIntent
+                ): FieldRequestSubmission {
+                    sent += intent
+                    return result
+                }
+            }
+            val model = FieldRequestViewModel(gateway, store)
+            model.activate(authority)
+            runCurrent()
+            model.review()
+            runCurrent()
+            model.submit()
+            runCurrent()
+            return model to store
+        }
+
+        val confirmedReceipt =
+            FieldRequestReceipt(
+                "order-confirmed",
+                "SO-45",
+                "CONFIRMED",
+                "CASH_ON_DELIVERY",
+                "PEN",
+                "25.00",
+                1
+            )
+        val (confirmed, confirmedStore) = submit(FieldRequestSubmission.Confirmed(confirmedReceipt))
+        assertEquals(FieldRequestStatus.Confirmed, confirmed.state.value.status)
+        assertEquals("Confirmed", confirmedStore.record.intent?.outcome)
+        assertEquals(confirmedReceipt, confirmedStore.record.intent?.receipt)
+
+        val pendingReceipt =
+            FieldRequestReceipt(
+                "order-pending",
+                "SO-46",
+                "PENDING",
+                "PREPAID",
+                "PEN",
+                "25.00",
+                0
+            )
+        val (pending, pendingStore) = submit(FieldRequestSubmission.PrepaidPending(pendingReceipt))
+        assertEquals(FieldRequestStatus.PrepaidPending, pending.state.value.status)
+        assertEquals("PrepaidPending", pendingStore.record.intent?.outcome)
+        assertEquals(pendingReceipt, pendingStore.record.intent?.receipt)
+        assertEquals("PENDING", pendingStore.record.intent?.receipt?.status)
+    }
+
+    @Test fun legacyPurchaseRequestIntentIsRetainedAndCannotBeRetriedAsDirectOrder() = runTest {
+        val legacyIntent = FieldRequestIntent(
+            key = "legacy-key",
+            exactBody = "legacy-purchase-request-body",
+            operation = FieldRequestIntent.LEGACY_FIELD_REQUEST_OPERATION
+        )
+        val store = Store(FieldRequestRecord(draft, legacyIntent))
+        val gateway = Gateway()
+        val model = FieldRequestViewModel(gateway, store)
+
+        model.activate(authority)
+        runCurrent()
+        model.submit()
+        model.retryUnknownOutcome()
+        model.startNewDecision()
+        model.customerChanged("different-customer")
+        runCurrent()
+
+        assertEquals(FieldRequestStatus.LegacyIntent, model.state.value.status)
+        assertEquals(legacyIntent.copy(outcome = "UnknownOutcome"), store.record.intent)
+        assertTrue(gateway.sent.isEmpty())
+    }
+
     @Test fun responseAfterRouteLossCannotRestoreConfirmationButPersistsResolution() = runTest {
         val pending = CompletableDeferred<FieldRequestSubmission>()
         val gateway = object : Gateway() {
@@ -145,7 +222,19 @@ class FieldRequestViewModelTest {
         runCurrent()
         assertEquals("Pending", store.record.intent?.outcome)
         model.deactivate()
-        pending.complete(FieldRequestSubmission.Confirmed(FieldRequestReceipt("request", "SO-42", "CONFIRMED", "CASH_ON_DELIVERY", "PEN", "25.00", 1)))
+        pending.complete(
+            FieldRequestSubmission.Confirmed(
+                FieldRequestReceipt(
+                    "request",
+                    "SO-42",
+                    "CONFIRMED",
+                    "CASH_ON_DELIVERY",
+                    "PEN",
+                    "25.00",
+                    1
+                )
+            )
+        )
         runCurrent()
         assertEquals(FieldRequestStatus.Loading, model.state.value.status)
         assertEquals("Confirmed", store.record.intent?.outcome)
