@@ -36,7 +36,7 @@ Run one booted emulator at a time and confirm its API level before each connecte
 adb devices -l
 adb shell getprop ro.build.version.sdk
 ./gradlew connectedDebugAndroidTest \
-  -Pandroid.testInstrumentationRunnerArguments.notClass=com.nexa.mobile.operations.LiveCandidateIdentityIntegrationTest \
+  -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.nexa.mobile.operations.RequiresPrivateFixture \
   --dependency-verification strict
 ```
 
@@ -46,6 +46,8 @@ Android module. Modules without instrumentation sources contribute no tests.
 Use an API 37.0 image for feature verification and an API 29 image for promotion verification. On Apple Silicon the local image ABI is `arm64-v8a`; the Linux CI job uses `x86_64`. Install the matching `google_apis` system image for the host architecture. Check the generated XML in each module's `build/outputs/androidTest-results/connected/debug` directory after each run. Gradle can replace results from an earlier emulator run, so retain the API level, command, timestamp, and test counts in the execution record.
 
 ## Opt-in local integration
+
+The ordinary run excludes tests marked `RequiresPrivateFixture`: the live identity and credential-dependent role-capture classes. The independent `RoleWireflowCaptureFlagTest` regression remains in the ordinary run. The pinned AndroidJUnitRunner 1.7.0 classpath-scanning path does not apply whole-class `notClass` exclusions; annotation filtering is used instead and verified by the resulting XML suite list. Execute the credential-dependent method explicitly only with private fixture configuration; absence of credentials is not evidence of a successful capture.
 
 `LiveCandidateIdentityIntegrationTest` uses the production native identity gateway and production screens against an actual local API. Supply `nexaLiveIdentifier`, `nexaLivePassword`, `nexaLiveQuery` and `nexaLiveSku` as instrumentation arguments from private local configuration. Keep credential values out of source, reports, command transcripts and screenshots. The fixture must establish one currently authorized context with Catalog read capability and a query returning the expected SKU.
 

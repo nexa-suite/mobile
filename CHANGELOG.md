@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.1.0] - Unreleased
+
+Operations Android source candidate, versionCode 10. Distribution and integration
+remain pending; see the [candidate notes](docs/releases/v1.1.0.md) and
+[execution record](docs/ddd-client-verification.md).
+
+- Organize client code by the eleven canonical bounded contexts, with explicit
+  JVM domain/application and Android infrastructure/presentation modules.
+- Move workflow metadata and payload encoding into their owning contexts and
+  remove legacy feature/data source roots.
+- Align field ordering to the accepted Direct Order scope, preserving confirmed
+  versus pending-prepaid server outcomes and exact explicit replay.
+- Separate Inventory and Fulfillment through public read contracts; keep joins
+  outside domain and server decisions authoritative.
+- Move protected PDF platform rendering into infrastructure and bound preview
+  memory and transient-file cleanup.
+- Map the original Sprint 1/2 Mobile backlog to source and verification evidence
+  without converting implementation into Product acceptance.
+
 ## [1.0.0] - 2026-10-05
 
 Operations Android v1.0.0 source candidate, versionCode 8. A signed APK for

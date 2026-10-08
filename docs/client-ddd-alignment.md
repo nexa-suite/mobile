@@ -8,11 +8,11 @@ business ownership remain in Nexa API and Blueprint.
 ## Authority and pinned sources
 
 The accepted architecture source is Blueprint commit
-`9034f4857b45224832f61af3e088f8a29143b187`:
-[ADR-0020: Mobile Client Layering](https://github.com/nexa-suite/blueprint/blob/9034f4857b45224832f61af3e088f8a29143b187/01-shared/architecture/decisions/adr/adr-0020-mobile-client-layering.md),
-[Mobile projection](https://github.com/nexa-suite/blueprint/blob/9034f4857b45224832f61af3e088f8a29143b187/01-shared/domain/strategic-ddd/mobile-projection.md),
-[application architecture](https://github.com/nexa-suite/blueprint/blob/9034f4857b45224832f61af3e088f8a29143b187/03-mobile/architecture/technical/application-architecture.md)
-and [accepted current decisions](https://github.com/nexa-suite/blueprint/blob/9034f4857b45224832f61af3e088f8a29143b187/01-shared/product/current-decisions.md).
+`3574accc8962346a824a043ef8ea5564600c08b0`:
+[ADR-0020: Mobile Client Layering](https://github.com/nexa-suite/blueprint/blob/3574accc8962346a824a043ef8ea5564600c08b0/01-shared/architecture/decisions/adr/adr-0020-mobile-client-layering.md),
+[Mobile projection](https://github.com/nexa-suite/blueprint/blob/3574accc8962346a824a043ef8ea5564600c08b0/01-shared/domain/strategic-ddd/mobile-projection.md),
+[application architecture](https://github.com/nexa-suite/blueprint/blob/3574accc8962346a824a043ef8ea5564600c08b0/03-mobile/architecture/technical/application-architecture.md)
+and [accepted current decisions](https://github.com/nexa-suite/blueprint/blob/3574accc8962346a824a043ef8ea5564600c08b0/01-shared/product/current-decisions.md).
 Blueprint is the canonical Product, Domain and C4 authority.
 
 The API implementation map and contract reference is pinned to
@@ -82,6 +82,25 @@ context needs an explicit client projection or port. Consumers do not import
 another context's infrastructure or presentation. `verify-context-architecture.py`
 checks the canonical roots, module shape, framework-free modules, import
 direction and removal of source from the former `feature` and `data` roots.
+
+BC-06 domain does not import BC-05 domain. The physical-allocation read
+projection is published by BC-05 `application.publicapi`; BC-06 application
+joins that projection with its own Fulfillment facts. Lot substitution uses
+BC-05-owned scope and authority values and consumes BC-06 through a narrow
+current-allocation query. These joins guide client selection only; the API
+still decides whether a picking or substitution command is valid.
+
+BC-09 PDF presentation consumes a JVM application renderer port. Android
+`PdfRenderer`, file descriptors and transient parser input belong to BC-09
+infrastructure; presentation receives a bounded pixel result. This is a local
+preview of already-authorized bytes, not a durable document cache or a new
+source of authorization.
+
+The shared BC-01 identity projections are the explicitly checked exception to
+domain isolation. Application evidence ports may carry a JDK file handle;
+filesystem checks and IO execute in infrastructure, not in the application
+model constructors. The architecture check also runs isolated negative probes
+for forbidden context dependencies, framework imports and file IO.
 
 The generic `:core:local` module now supplies scoped-storage mechanics only.
 Receiving, disposition and temperature metadata are stored by BC-05 adapters

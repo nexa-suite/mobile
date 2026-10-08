@@ -94,8 +94,10 @@ seven days.
 
 ## Current refactor status — 2026-10-08
 
-The 11-root architecture script passed on the current working tree. Gradle,
-unit-test, lint, assembly and emulator gates remain pending for this refactor.
+The current working tree passed the 11-root architecture check, six negative
+boundary probes, ktlint, debug lint, debug assembly and 524 JVM tests. Complete API 37 and API 29 instrumentation each passed 64 tests without
+failures, errors or skips; R8 release assembly also passed. Final signing,
+integration and publication remain pending.
 This is implementation and technical-verification status only; it is not
 Product/UX Acceptance, System Acceptance, a published release or production
 readiness. See the [DDD execution record](docs/ddd-client-verification.md).

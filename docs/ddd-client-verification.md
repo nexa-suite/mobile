@@ -9,9 +9,10 @@ Notifications and BC-11 Business Traceability have no runtime modules. The
 [DDD alignment](client-ddd-alignment.md) records the per-context layer map and
 authority boundaries.
 
-The refactor is paused at the Owner's request on 2026-10-08, on branch
-`feature/mobile-context-ddd-v1.1.0`. This checkpoint preserves work in progress;
-it is not the v1.1.0 release or a fully verified candidate.
+The refactor resumed on 2026-10-08 from signed checkpoint
+`af2558bb5b2f57c3b30e74ed80c5576332802e1b`, on branch
+`feature/mobile-context-ddd-v1.1.0`. The current verification below applies to
+the resumed working tree, not an immutable release or Product acceptance.
 
 | Command, from `apps/operations-android` | Observed result |
 | --- | --- |
@@ -21,28 +22,60 @@ it is not the v1.1.0 release or a fully verified candidate.
 | `./gradlew ktlintFormat :app:compileDebugKotlin testDebugUnitTest --dependency-verification strict --console=plain` | FAILED: ktlint requires `ScannerModels.kt` in BC-03 application to be named `ProductScannerResolution.kt`; formatting and subsequent checks did not complete |
 
 The Dart experiment's `dart analyze` and fixture runner passed (12 synthetic
-SKU resolver cases); the Kotlin counterpart is added but aggregate verification
-has not completed. These checks do not establish physical camera operation or
+SKU resolver cases); the Kotlin counterpart also passed in the resumed aggregate JVM gate. These checks do not establish physical camera operation or
 Product Acceptance. Earlier failed compilations and behavior checks remain
 negative evidence; subsequent source corrections require a full rerun.
+
+## Resumed execution
+
+The missing dependency artifacts were compared byte-for-byte against official
+Google Maven or Maven Central downloads and their published SHA1 checksums
+before SHA256 metadata was added. Strict verification remains enabled.
+Formatting corrections, context read-contract refinement, protected PDF
+rendering adapters and Spanish resource coverage resolved the observed blockers.
+
+| Command | Observed result on the resumed tree |
+| --- | --- |
+| `scripts/verify-connected-local.sh emulator-5554 -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.nexa.mobile.operations.RequiresPrivateFixture verifyAndroidArchitecture ktlintCheck lintDebug testDebugUnitTest :app:assembleDebug --console=plain --continue` | PASS on API 37, with strict dependencies enforced by the runner: 64 native tests and all requested static gates |
+| `scripts/verify-connected-local.sh emulator-5554 -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.nexa.mobile.operations.RequiresPrivateFixture --console=plain --continue` | PASS on API 29, strict dependencies: 64 native tests, no failures/errors/skips |
+| `python3 scripts/verify-context-architecture.py` | PASS: 11 context roots and checked client layers |
+| `python3 scripts/test-context-architecture.py` | PASS: baseline plus 6 isolated negative dependency/import/IO probes |
+| `./gradlew verifyAndroidArchitecture ktlintCheck lintDebug testDebugUnitTest :app:assembleDebug --dependency-verification strict --console=plain` | PASS: 524 JVM tests, 0 failures/errors/skips across 114 XML suites in configured modules |
+| Six `:app:validateReleaseEndpoint` cases from the CI workflow | PASS: missing, cleartext local, HTTPS local, example.com, example.org and example subdomain origins rejected for their expected validation reason |
+| `dart format --set-exit-if-changed`, `dart analyze`, and the shared-fixture experiment runner | PASS: no formatting change, no analysis issues, 12 synthetic SKU contract fixtures |
+| `python3 -m unittest discover -s experiments/mobile-autonomous-learning -p 'test_*.py' -v` and `python3 experiments/mobile-autonomous-learning/run_experiment.py` (repository root) | PASS: 6 experiment checks and 20 synthetic cases; no model output or human-learning measurement |
+
+BC-04 verification covers 201 confirmed versus 202 pending-prepaid outcomes,
+scope/request/receipt enclosure, unchanged explicit replay and legacy Purchase
+Request intent retention. BC-05 golden/tamper tests reject mismatched staged
+facts and orphaned body/key pairs. BC-06 exposes a narrow allocation query;
+its domain no longer imports BC-05. BC-09 platform rendering is behind a JVM
+application port, with bounded pixel results and process-scoped temporary-file
+cleanup. If OS deletion fails, a current-process artifact can remain in private cache until the next process cleanup; interruption before unlink has the same residual limit. New native PDF cases remain subject to the connected runs below. The first full API 37 run recorded 36 tests with 10 failures: nine locale-dependent UI assertions and one capture method without its private credentials. Locale assertions now use resource lookups and distinguish titles from actions. Ordinary-run configuration excludes the `RequiresPrivateFixture` annotation; the API 37 rerun app XML confirms 35 cases with no failures/errors/skips and no private-fixture classes. The independent capture-flag regression remains included. These failed runs are not successful full native verification. A later full run reached BC-04 presentation and found Espresso 3.5 incompatible with API 37 (`InputManager.getInstance`); that test module now uses the existing pinned Espresso 3.7 alias and the complete rerun passed.
+
+The [Sprint traceability](sprint-1-2-implementation-traceability.md) maps all 36
+original Mobile PBIs. This is coverage of the mapping, not 100% Sprint or
+Product acceptance. SPIKE-001 now has a bounded technical investigation with six Python checks and 20 synthetic cases; model execution and runtime adoption remain deferred. The separate Buyer runtime scope is recorded explicitly.
 
 The script verifies the 11 roots, module/layer shape, JVM framework boundaries,
 context import direction and removal of source from legacy `feature` and `data`
 roots. It is a structural check, not a build or behavior test.
 
-The following gates remain **PENDING** for the current tree:
+The following table separates completed local gates from remaining gates:
 
 | Gate | Status |
 | --- | --- |
-| Gradle `verifyAndroidArchitecture` | PENDING |
-| `ktlintCheck` | PENDING |
-| `lintDebug` | PENDING |
-| Aggregate `testDebugUnitTest` | PENDING |
-| `:app:assembleDebug` with strict dependency verification | PENDING |
-| API 37 connected instrumentation | PENDING |
-| API 29 promotion instrumentation | PENDING |
-| BC-05/BC-06 moved storage unit and Android instrumentation tests | PENDING |
-| Release-origin rejection and R8 verification | PENDING |
+| Gradle `verifyAndroidArchitecture` | PASS on resumed working tree |
+| `ktlintCheck` | PASS on resumed working tree |
+| `lintDebug` | PASS on resumed working tree |
+| Aggregate `testDebugUnitTest` | PASS on resumed working tree |
+| `:app:assembleDebug` with strict dependency verification | PASS on resumed working tree |
+| API 37 connected instrumentation | PASS: 64 tests, 0 failures/errors/skips across 13 XML suites; 35 app cases |
+| API 29 promotion instrumentation | PASS: 64 tests, 0 failures/errors/skips across 13 XML suites; 35 app cases |
+| BC-05/BC-06 moved storage JVM tests | PASS in the aggregate JVM gate |
+| BC-05/BC-06 moved storage Android instrumentation tests | PASS on API 37 and API 29 as part of each complete connected gate |
+| Release-origin rejection | PASS: six expected rejections |
+| `:app:assembleRelease -PnexaReleaseApiBaseUrl=https://nexa-api-69bj.onrender.com/ --dependency-verification strict` | PASS after final Direct Order response validation refinements |
 | CI result for an immutable candidate | PENDING |
 
 The storage tests now belong to the context infrastructure modules. BC-05 JVM
@@ -53,7 +86,8 @@ tests are `ReceivingMetadataStoreCoreTest`,
 `AndroidTemperatureEvidenceMetadataStoreTest`. BC-06 JVM and Android tests are
 `PickingMetadataStoreCoreTest` and `AndroidPickingMetadataStoreTest`. They
 reside under `contexts/{inventoryavailability,fulfillmentdelivery}/infrastructure/src/{test,androidTest}`.
-No current pass is recorded for these moved tests.
+The moved JVM storage tests passed in the resumed aggregate. Their Android
+instrumentation passed on API 37 and API 29.
 
 The reproducible commands and XML report locations are in the
 [verification guide](verification.md). The owner decision dated 2026-10-08 for
@@ -75,30 +109,27 @@ current implementation contracts. Mobile Report is academic evidence only.
 Implementation status does not become Product Acceptance, System Acceptance
 or production readiness.
 
-## Resume checklist
+## Completion and remaining integration
 
-1. Verify the missing collection metadata against official Google Maven bytes
-   and publisher checksum before adding its digest; keep strict verification.
-2. Correct the BC-03 application filename and run formatting across all modules.
-3. Complete Direct Order verification: current API response enclosure,
-   confirmed versus prepaid pending UI/receipt, explicit same-key recovery,
-   legacy Purchase Request intent reconciliation, coordinator and ViewModel tests.
-4. Review the extracted Inbound Discrepancy encoder and add golden/tamper tests;
-   validate restored bodies against their staged fields.
-5. Run full architecture, lint, JVM tests and debug assembly. Recheck moved
-   BC-05/BC-06 encrypted storage, API 37 instrumentation and API 29 promotion.
-6. Complete Sprint 1/2 PBI-to-acceptance-criterion traceability against Mobile
-   Report commit `55f959441fb4d5422519db31c380631e95ed72e3`; report gaps and
-   distinguish original scope from the expanded Jira projection.
-7. Run release-origin rejection and R8 checks, create the remaining coherent
-   signed commits, require GitHub CI, integrate the corrective branch and
-   publish v1.1.0 with the same official Android certificate. Close the task's
-   branches only after integration. Signing secrets stay outside this repository.
+The resumed execution verified publisher artifacts under strict dependency
+verification, corrected source filenames and formatting, tested Direct Order
+response enclosure and recovery, checked Inbound Discrepancy frozen payloads,
+and passed the static/JVM and full API 37/API 29 gates. The original Sprint
+scope is mapped separately from the expanded Jira projection. Release-origin
+rejections and R8 assembly also passed.
+
+The APK was signed with the existing official certificate and passed signature
+and 16 KB alignment checks; its checksum is recorded in the candidate notes.
+The corrective implementation and research commits are signed locally.
+Remaining work is to require GitHub CI for the immutable candidate,
+integrate the corrective branch and publish v1.1.0 with the same official
+Android certificate. Close the task's branches only after integration. Signing
+secrets remain outside this repository.
 
 The prior invalid Mobile PR #38 is closed. This corrective Mobile branch remains
 open for completion. Android version values target 1.1.0 (code 10), but no tag,
-release, final APK, completed Sprint acceptance or current production gate is
-claimed. Blueprint PR #33 is merged, its Diego-authored commit is GitHub
+release, completed Sprint acceptance or current production gate is claimed.
+The locally signed APK is recorded in the [candidate notes](releases/v1.1.0.md). Blueprint PR #33 is merged, its Diego-authored commit is GitHub
 Verified, and its branch has been removed.
 
 ## Historical baseline — not current validation
