@@ -2,7 +2,7 @@ package com.nexa.mobile.operations
 
 import android.content.Context
 import android.net.Uri
-import com.nexa.mobile.operations.feature.delivery.DriverProofFileCandidate
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofFileCandidate
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest

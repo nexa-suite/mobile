@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="connected_operation_open_support">Abrir esta opción de trabajo en el contexto actual.</string>
+    <string name="picking_manual_reference">Abrir por referencia</string>
+    <string name="local_network_permission_title">Acceso al API local</string>
+    <string name="local_network_permission_reason">Esta compilación local necesita acceso a dispositivos cercanos para conectar con tu API de desarrollo. Concédelo al iniciar sesión o habilítalo en los ajustes de la app. No se reintentará la conexión automáticamente.</string>
+    <string name="local_network_permission_back">Volver al acceso</string>
+    <string name="local_network_permission_settings">Ajustes de la app</string>
+</resources>

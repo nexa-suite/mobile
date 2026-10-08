@@ -24,26 +24,30 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R as CatalogR
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ConfirmedSkuScreen
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchScreen
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchStatus
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
-import com.nexa.mobile.operations.feature.access.AccessScreen
-import com.nexa.mobile.operations.feature.access.AccessUiState
-import com.nexa.mobile.operations.feature.access.ContextChooserMode
-import com.nexa.mobile.operations.feature.access.ContextChooserPhase
-import com.nexa.mobile.operations.feature.access.ContextChooserScreen
-import com.nexa.mobile.operations.feature.access.ContextChooserUiState
-import com.nexa.mobile.operations.feature.access.PermissionHint
-import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
-import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
-import com.nexa.mobile.operations.feature.warehouse.ConfirmedSkuScreen
-import com.nexa.mobile.operations.feature.warehouse.ConfirmedSkuUiState
-import com.nexa.mobile.operations.feature.warehouse.OperationsWorkEntryScreen
-import com.nexa.mobile.operations.feature.warehouse.ProductCandidate
-import com.nexa.mobile.operations.feature.warehouse.ProductSearchScreen
-import com.nexa.mobile.operations.feature.warehouse.ProductSearchStatus
-import com.nexa.mobile.operations.feature.warehouse.ProductSearchUiState
-import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
-import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
-import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
+import com.nexa.mobile.operations.core.designsystem.R as CoreR
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.R as AccessR
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessScreen
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserMode
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserPhase
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserScreen
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserUiState
+import com.nexa.mobile.operations.workentry.OperationsWorkEntryScreen
+import com.nexa.mobile.operations.workentry.TaskVisibilityHint
+import com.nexa.mobile.operations.workentry.WarehouseUiState
+import com.nexa.mobile.operations.workentry.WorkEntryStatus
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -52,6 +56,12 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class ProductScreensAccessibilityTest {
     @get:Rule val composeRule = createComposeRule()
+
+    private fun localizedString(resourceId: Int, vararg formatArgs: Any): String =
+        InstrumentationRegistry.getInstrumentation().targetContext.getString(
+            resourceId,
+            *formatArgs
+        )
 
     @Test
     fun identityScreenKeepsFieldsVisibilityControlAndSubmitReachableAtLargeFont() {
@@ -73,19 +83,29 @@ class ProductScreensAccessibilityTest {
             }
         }
 
-        composeRule.onNodeWithText("Inicia sesión").assertIsDisplayed()
-        composeRule.onNodeWithText("Usa tu identidad de trabajo para continuar.")
+        val signInTitle = localizedString(AccessR.string.access_sign_in_title)
+        val signInSubmit = localizedString(AccessR.string.access_submit)
+        composeRule.onNode(hasText(signInTitle).and(!hasClickAction())).assertIsDisplayed()
+        composeRule.onNodeWithText(localizedString(AccessR.string.access_sign_in_support))
             .performScrollTo()
             .assertIsDisplayed()
-        composeRule.onNodeWithText("Identificador").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("Contraseña").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Mostrar contraseña")
+        composeRule.onNodeWithText(localizedString(AccessR.string.access_identifier_label))
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(localizedString(AccessR.string.access_password_label))
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(
+            localizedString(AccessR.string.access_password_show)
+        )
             .performScrollTo()
             .assertIsDisplayed()
             .assert(hasClickAction())
             .performClick()
-        composeRule.onNodeWithContentDescription("Ocultar contraseña").assertIsDisplayed()
-        composeRule.onNodeWithText("Iniciar sesión")
+        composeRule.onNodeWithContentDescription(
+            localizedString(AccessR.string.access_password_hide)
+        ).assertIsDisplayed()
+        composeRule.onNode(hasText(signInSubmit).and(hasClickAction()))
             .performScrollTo()
             .assertIsDisplayed()
             .assert(hasClickAction())
@@ -127,10 +147,17 @@ class ProductScreensAccessibilityTest {
             }
         }
 
-        composeRule.onNodeWithText("Selecciona tu contexto de trabajo").assertIsDisplayed()
-        composeRule.onNodeWithText("Elige la empresa y el espacio donde vas a trabajar.")
+        composeRule.onNodeWithText(localizedString(AccessR.string.context_initial_title))
             .assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Nexa Demo Sur, Almacén Austral")
+        composeRule.onNodeWithText(localizedString(AccessR.string.context_initial_support))
+            .assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(
+            localizedString(
+                CoreR.string.nexa_context_choice_description,
+                choices.last().companyName,
+                choices.last().workspaceName
+            )
+        )
             .performScrollTo()
             .assertIsDisplayed()
             .assert(hasClickAction())
@@ -166,12 +193,22 @@ class ProductScreensAccessibilityTest {
         }
 
         val contextAction = composeRule.onNodeWithContentDescription(
-            "Contexto actual: Nexa Demo Distribución, Almacén Principal"
+            localizedString(
+                CoreR.string.nexa_current_context_description,
+                activeContext.companyName,
+                activeContext.workspaceName
+            )
         )
         contextAction.performScrollTo().assertIsDisplayed().assert(hasClickAction()).performClick()
-        composeRule.onNodeWithText("Trabajo disponible").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(localizedString(R.string.warehouse_work_available))
+            .performScrollTo()
+            .assertIsDisplayed()
         composeRule.onNodeWithContentDescription(
-            "Identificar producto. Buscar por nombre, SKU o presentación. Abrir tarea."
+            localizedString(
+                CoreR.string.nexa_task_row_action_description,
+                localizedString(R.string.warehouse_identify_product),
+                localizedString(R.string.warehouse_identify_product_support)
+            )
         ).performScrollTo().assertIsDisplayed().assert(hasClickAction()).performClick()
         composeRule.runOnIdle {
             assertEquals(1, contextChanges)
@@ -223,22 +260,43 @@ class ProductScreensAccessibilityTest {
         }
 
         composeRule.onNodeWithContentDescription(
-            "Contexto actual: Nexa Demo Distribución, Almacén Principal"
+            localizedString(
+                CoreR.string.nexa_current_context_description,
+                activeContext.companyName,
+                activeContext.workspaceName
+            )
         ).performScrollTo().assertIsDisplayed().assert(hasClickAction()).performClick()
-        val searchLabels = composeRule.onAllNodesWithText("Buscar producto")
-        searchLabels.assertCountEquals(2)
-        searchLabels[0].performScrollTo().assertIsDisplayed()
-        searchLabels[1].performScrollTo().assertIsDisplayed()
+        val searchTitle = localizedString(CatalogR.string.warehouse_search_title)
+        val searchFieldLabel = localizedString(CoreR.string.nexa_search_label)
+        if (searchTitle == searchFieldLabel) {
+            val searchLabels = composeRule.onAllNodesWithText(searchTitle)
+            searchLabels.assertCountEquals(2)
+            searchLabels[0].performScrollTo().assertIsDisplayed()
+            searchLabels[1].performScrollTo().assertIsDisplayed()
+        } else {
+            val titleNodes = composeRule.onAllNodesWithText(searchTitle)
+            titleNodes.assertCountEquals(1)
+            titleNodes[0].performScrollTo().assertIsDisplayed()
+            val fieldLabelNodes = composeRule.onAllNodesWithText(searchFieldLabel)
+            fieldLabelNodes.assertCountEquals(1)
+            fieldLabelNodes[0].performScrollTo().assertIsDisplayed()
+        }
         composeRule.onNode(hasSetTextAction()).performScrollTo().assertIsDisplayed()
         composeRule.onNode(hasSetTextAction()).assert(hasText("queso"))
-        composeRule.onNodeWithText("Buscar", useUnmergedTree = true)
+        composeRule.onNodeWithText(
+            localizedString(CoreR.string.nexa_search_button),
+            useUnmergedTree = true
+        )
             .performScrollTo()
             .assertIsDisplayed()
             .performClick()
         composeRule.onNode(hasClickAction().and(hasText("Queso Gouda Demo", substring = true)))
             .performScrollTo()
             .assertIsDisplayed()
-        composeRule.onNodeWithText("SKU: SKU-DEMO-001", useUnmergedTree = true)
+        composeRule.onNodeWithText(
+            localizedString(CoreR.string.nexa_candidate_sku, candidate.sku),
+            useUnmergedTree = true
+        )
             .performScrollTo()
             .assertIsDisplayed()
         composeRule.runOnIdle {
@@ -260,7 +318,7 @@ class ProductScreensAccessibilityTest {
             OperationsTheme {
                 CompactViewport {
                     ConfirmedSkuScreen(
-                        state = ConfirmedSkuUiState(
+                        state = ConfirmedSkuProjection(
                             candidateKey = "candidate-key",
                             productDisplayName = "Queso Gouda Demo",
                             variant = "Lácteo",
@@ -280,14 +338,22 @@ class ProductScreensAccessibilityTest {
             }
         }
 
-        composeRule.onNodeWithText("Identificación confirmada")
+        composeRule.onNodeWithText(
+            localizedString(CatalogR.string.warehouse_confirmation_title)
+        )
             .performScrollTo()
             .assertIsDisplayed()
         composeRule.onNodeWithContentDescription(
-            "Contexto actual: Nexa Demo Distribución, Almacén Principal"
+            localizedString(
+                CoreR.string.nexa_current_context_description,
+                context.companyName,
+                context.workspaceName
+            )
         ).performScrollTo().assertIsDisplayed().assert(hasClickAction()).performClick()
         composeRule.onNodeWithText("SKU-DEMO-001").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("No se realizó ninguna operación de inventario.")
+        composeRule.onNodeWithText(
+            localizedString(CatalogR.string.warehouse_inventory_disclaimer)
+        )
             .performScrollTo()
             .assertIsDisplayed()
         composeRule.onNodeWithText("Recibir", substring = true).assertDoesNotExist()
@@ -334,12 +400,14 @@ class ProductScreensAccessibilityTest {
         composeRule.onNodeWithText(candidate.productDisplayName, useUnmergedTree = true)
             .performScrollTo()
             .assertIsDisplayed()
-        composeRule.onNodeWithText("SKU: SKU-DEMO-LONG-001", useUnmergedTree = true)
+        composeRule.onNodeWithText(
+            localizedString(CoreR.string.nexa_candidate_sku, candidate.sku),
+            useUnmergedTree = true
+        )
             .performScrollTo()
             .assertIsDisplayed()
         composeRule.onNodeWithContentDescription(
-            "${candidate.productDisplayName}, ${candidate.brandOrVariant}, " +
-                "${candidate.presentation}, SKU: ${candidate.sku}. Seleccionar producto."
+            candidateRowDescription(candidate)
         ).assertIsNotEnabled()
     }
 
@@ -351,7 +419,7 @@ class ProductScreensAccessibilityTest {
             OperationsTheme {
                 CompactViewport {
                     ConfirmedSkuScreen(
-                        state = ConfirmedSkuUiState(
+                        state = ConfirmedSkuProjection(
                             candidateKey = "candidate-long",
                             productDisplayName = productName,
                             variant = null,
@@ -379,11 +447,28 @@ class ProductScreensAccessibilityTest {
         composeRule.onNodeWithText("SKU-DEMO-LONG-001")
             .performScrollTo()
             .assertIsDisplayed()
-        composeRule.onNodeWithText("Congelado").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("No se realizó ninguna operación de inventario.")
+        composeRule.onNodeWithText(
+            localizedString(CatalogR.string.warehouse_value_cold_chain_frozen)
+        ).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(
+            localizedString(CatalogR.string.warehouse_inventory_disclaimer)
+        )
             .performScrollTo()
             .assertIsDisplayed()
     }
+}
+
+private fun localizedString(resourceId: Int, vararg formatArgs: Any): String =
+    InstrumentationRegistry.getInstrumentation().targetContext.getString(resourceId, *formatArgs)
+
+private fun candidateRowDescription(candidate: ProductCandidate): String {
+    val candidateDetails = listOfNotNull(
+        candidate.productDisplayName,
+        candidate.brandOrVariant?.takeIf { it.isNotBlank() },
+        candidate.presentation?.takeIf { it.isNotBlank() },
+        localizedString(CoreR.string.nexa_candidate_sku, candidate.sku)
+    ).joinToString()
+    return localizedString(CoreR.string.nexa_candidate_row_action_description, candidateDetails)
 }
 
 @Composable

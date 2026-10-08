@@ -1,0 +1,216 @@
+{
+  "contract": {
+    "method": "GET",
+    "path": "/api/v1/skus/resolve"
+  },
+  "cases": [
+    {
+      "name": "resolved sku code",
+      "requestIdentifier": "  SKU-42  ",
+      "transport": "http",
+      "status": 200,
+      "problemCode": null,
+      "body": {
+        "outcome": "RESOLVED",
+        "identifierType": "SKU_CODE",
+        "normalizedIdentifier": "SKU-42",
+        "candidateCount": 1,
+        "skuId": "c2e78931-f127-433d-b84d-f98b381d2378",
+        "skuCode": "SKU-42",
+        "gtin": "0123456789012",
+        "presentation": "Case of 12",
+        "unitOfMeasure": "EA",
+        "status": "ACTIVE"
+      },
+      "expected": {
+        "kind": "Resolved",
+        "sku": {
+          "skuId": "c2e78931-f127-433d-b84d-f98b381d2378",
+          "skuCode": "SKU-42",
+          "gtin": "0123456789012",
+          "presentation": "Case of 12",
+          "unitOfMeasure": "EA",
+          "status": "ACTIVE",
+          "identifierType": "SKU_CODE"
+        }
+      }
+    },
+    {
+      "name": "resolved sku with optional fields absent",
+      "requestIdentifier": "SKU-EMPTY-OPTIONALS",
+      "transport": "http",
+      "status": 200,
+      "problemCode": null,
+      "body": {
+        "outcome": "RESOLVED",
+        "identifierType": "SKU_CODE",
+        "normalizedIdentifier": "SKU-EMPTY-OPTIONALS",
+        "candidateCount": 1,
+        "skuId": "23e4567e-e89b-42d3-a456-426614174000",
+        "skuCode": "SKU-EMPTY-OPTIONALS",
+        "gtin": null,
+        "presentation": "Each",
+        "unitOfMeasure": null,
+        "status": "ACTIVE"
+      },
+      "expected": {
+        "kind": "Resolved",
+        "sku": {
+          "skuId": "23e4567e-e89b-42d3-a456-426614174000",
+          "skuCode": "SKU-EMPTY-OPTIONALS",
+          "gtin": null,
+          "presentation": "Each",
+          "unitOfMeasure": null,
+          "status": "ACTIVE",
+          "identifierType": "SKU_CODE"
+        }
+      }
+    },
+    {
+      "name": "not found without candidate projection",
+      "requestIdentifier": "MISSING-42",
+      "transport": "http",
+      "status": 200,
+      "problemCode": null,
+      "body": {
+        "outcome": "NOT_FOUND",
+        "identifierType": "SKU_CODE",
+        "normalizedIdentifier": "MISSING-42",
+        "candidateCount": 0,
+        "skuId": null,
+        "skuCode": null,
+        "gtin": null,
+        "presentation": null,
+        "unitOfMeasure": null,
+        "status": null
+      },
+      "expected": {
+        "kind": "NotFound",
+        "identifierType": "SKU_CODE"
+      }
+    },
+    {
+      "name": "ambiguous without candidate projection",
+      "requestIdentifier": "0123456789012",
+      "transport": "http",
+      "status": 200,
+      "problemCode": null,
+      "body": {
+        "outcome": "AMBIGUOUS",
+        "identifierType": "GTIN",
+        "normalizedIdentifier": "0123456789012",
+        "candidateCount": 2,
+        "skuId": null,
+        "skuCode": null,
+        "gtin": null,
+        "presentation": null,
+        "unitOfMeasure": null,
+        "status": null
+      },
+      "expected": {
+        "kind": "Ambiguous",
+        "candidateCount": 2,
+        "identifierType": "GTIN"
+      }
+    },
+    {
+      "name": "blank identifier rejected before transport",
+      "requestIdentifier": "   ",
+      "transport": "none",
+      "status": null,
+      "problemCode": null,
+      "body": null,
+      "expected": {
+        "kind": "InvalidIdentifier"
+      }
+    },
+    {
+      "name": "400 maps to invalid identifier",
+      "requestIdentifier": "SKU-42",
+      "transport": "http",
+      "status": 400,
+      "problemCode": null,
+      "body": null,
+      "expected": {
+        "kind": "InvalidIdentifier"
+      }
+    },
+    {
+      "name": "network failure",
+      "requestIdentifier": "SKU-42",
+      "transport": "network-failure",
+      "status": null,
+      "problemCode": null,
+      "body": null,
+      "expected": {
+        "kind": "NetworkUnavailable"
+      }
+    },
+    {
+      "name": "401 maps to expired session",
+      "requestIdentifier": "SKU-42",
+      "transport": "http",
+      "status": 401,
+      "problemCode": "ACCESS_TOKEN_INVALID",
+      "body": null,
+      "expected": {
+        "kind": "SessionExpired"
+      }
+    },
+    {
+      "name": "403 access context invalidation stays distinct",
+      "requestIdentifier": "SKU-42",
+      "transport": "http",
+      "status": 403,
+      "problemCode": "ACCESS_CONTEXT_INVALID",
+      "body": null,
+      "expected": {
+        "kind": "ContextInvalidated"
+      }
+    },
+    {
+      "name": "403 authorization denial maps to permission denied",
+      "requestIdentifier": "SKU-42",
+      "transport": "http",
+      "status": 403,
+      "problemCode": "ACCESS_DENIED",
+      "body": null,
+      "expected": {
+        "kind": "PermissionDenied"
+      }
+    },
+    {
+      "name": "409 follows current service unavailable fallback",
+      "requestIdentifier": "SKU-42",
+      "transport": "http",
+      "status": 409,
+      "problemCode": null,
+      "body": null,
+      "expected": {
+        "kind": "ServiceUnavailable"
+      }
+    },
+    {
+      "name": "mismatched normalized identifier fails closed",
+      "requestIdentifier": "SKU-42",
+      "transport": "http",
+      "status": 200,
+      "problemCode": null,
+      "body": {
+        "outcome": "RESOLVED",
+        "identifierType": "SKU_CODE",
+        "normalizedIdentifier": "SKU-OTHER",
+        "candidateCount": 1,
+        "skuId": "c2e78931-f127-433d-b84d-f98b381d2378",
+        "skuCode": "SKU-42",
+        "gtin": "0123456789012",
+        "presentation": "Case of 12",
+        "unitOfMeasure": "EA",
+        "status": "ACTIVE"
+      },
+      "expected": {
+        "kind": "ServiceUnavailable"
+      }
+    }
+  ]
+}

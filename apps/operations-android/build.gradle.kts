@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false
     alias(libs.plugins.kotlin.compose) apply false
+    alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.hilt) apply false
@@ -10,20 +11,25 @@ plugins {
 
 ktlint { version.set("1.8.0") }
 
-val configuredAndroidModules = subprojects.filter { it.buildFile.isFile }
+val configuredModules = subprojects.filter { it.buildFile.isFile }
+val configuredAndroidModules = configuredModules.filter {
+    !it.path.endsWith(":domain") && !it.path.endsWith(":application")
+}
+val configuredContractModules = configuredModules - configuredAndroidModules.toSet()
 
 tasks.named("ktlintCheck") {
-    dependsOn(configuredAndroidModules.map { "${it.path}:ktlintCheck" })
+    dependsOn(configuredModules.map { "${it.path}:ktlintCheck" })
 }
 
 tasks.register("testDebugUnitTest") {
     group = "verification"
     description = "Runs JVM unit tests for every configured Operations Android module."
     dependsOn(configuredAndroidModules.map { "${it.path}:testDebugUnitTest" })
+    dependsOn(configuredContractModules.map { "${it.path}:test" })
 }
 
 tasks.named("ktlintFormat") {
-    dependsOn(configuredAndroidModules.map { "${it.path}:ktlintFormat" })
+    dependsOn(configuredModules.map { "${it.path}:ktlintFormat" })
 }
 
 tasks.register("lintDebug") {
@@ -61,7 +67,12 @@ tasks.register("verifyAndroidArchitecture") {
                     body.contains("com.nexa.mobile.operations.core.network")
             }
         ) { "Root presentation imports transport implementation" }
-        val networkSources = file("core/network/src/main").walkTopDown().filter {
+        val networkSources = (
+            listOf(file("core/network/src/main")) +
+                file("contexts").listFiles().orEmpty().map {
+                    it.resolve("infrastructure/src/main")
+                }
+            ).flatMap { it.walkTopDown().toList() }.filter {
             it.extension ==
                 "kt"
         }.toList()
@@ -356,161 +367,15 @@ tasks.register("verifyAndroidArchitecture") {
             }
         ) { "core:network contains Product routes or client authorization decisions" }
 
-        val settings = file("settings.gradle.kts").readText()
-        val includedModules = Regex("\"(:[^\"\\n]+)\"")
-            .findAll(settings.substringAfter("include("))
-            .map { it.groupValues[1] }
-            .toSet()
-        val foundationModules = setOf(
-            ":app",
-            ":core:auth",
-            ":core:local",
-            ":core:network",
-            ":core:designsystem",
-            ":core:device"
-        )
-        val requiredFeatureModules = setOf(":feature:access", ":feature:warehouse")
-        val allowedFeatureModules = setOf(
-            ":feature:access",
-            ":feature:warehouse",
-            ":feature:dispatch",
-            ":feature:delivery"
-        )
-        check(
-            includedModules.containsAll(foundationModules + requiredFeatureModules) &&
-                includedModules.all { it in foundationModules || it in allowedFeatureModules }
-        ) {
-            "Operations Android modules must use the foundations and Blueprint feature areas"
-        }
-
-        val localBuild = file("core/local/build.gradle.kts").readText()
-        val localSources = file("core/local/src/main").walkTopDown().filter {
-            it.extension == "kt"
-        }.toList()
-        check(
-            listOf(
-                "project(\":core:auth\")",
-                "project(\":core:network\")",
-                "project(\":feature:",
-                "room",
-                "datastore",
-                "work-runtime",
-                "retrofit",
-                "okhttp"
-            ).none { localBuild.contains(it, ignoreCase = true) }
-        ) {
-            ":core:local must remain a scoped metadata foundation without transport or sync dependencies"
-        }
-        check(
-            localSources.none { source ->
-                val body = source.readText()
-                listOf(
-                    "com.nexa.mobile.operations.core.auth",
-                    "com.nexa.mobile.operations.core.network",
-                    "com.nexa.mobile.operations.feature.",
-                    "ConfirmedReceivingProduct",
-                    "ReceivedLotFacts",
-                    "androidx.work.",
-                    "androidx.room."
-                ).any(body::contains)
-            }
-        ) { ":core:local must store plain scoped metadata, not authority or server facts" }
-
-        val featureModules = includedModules
-            .filter { it.startsWith(":feature:") }
-            .map { it.removePrefix(":").replace(':', '/') }
-        featureModules.forEach { module ->
-            val buildFile = file("$module/build.gradle.kts")
-            val sources = file("$module/src/main").walkTopDown().filter {
-                it.extension == "kt"
-            }.toList()
-            val buildText = buildFile.readText()
-            check(
-                !buildText.contains("project(\":core:auth\")") &&
-                    !buildText.contains("project(\":core:local\")") &&
-                    !buildText.contains("project(\":core:network\")") &&
-                    !buildText.contains("project(\":feature:")
-            ) { "$module must remain independent of auth, transport, and other Product features" }
-            check(
-                listOf("room", "datastore", "work-runtime", "camera", "retrofit", "okhttp")
-                    .none { buildText.contains(it, ignoreCase = true) }
-            ) {
-                "$module added a forbidden persistence, background, device, or transport dependency"
-            }
-            check(
-                sources.none { source ->
-                    val body = source.readText()
-                    listOf(
-                        "import retrofit2.",
-                        "import okhttp3.",
-                        "com.nexa.mobile.operations.core.network",
-                        "com.nexa.mobile.operations.core.auth",
-                        "workspaceSlug",
-                        "NativeSignIn"
-                    ).any(body::contains)
-                }
-            ) { "$module source crosses a transport/security boundary or adds slug identity UX" }
-        }
-
-        val appBuild = file("app/build.gradle.kts").readText()
-        check(
-            appBuild.contains("project(\":feature:access\")") &&
-                appBuild.contains("project(\":feature:warehouse\")") &&
-                appBuild.contains("project(\":core:local\")")
-        ) { ":app must compose access, warehouse, and scoped local metadata foundations" }
-
-        val designBuild = file("core/designsystem/build.gradle.kts").readText()
-        val designSources = file("core/designsystem/src/main").walkTopDown().filter {
-            it.extension == "kt"
-        }.toList()
-        check(!designBuild.contains("project(\":feature:")) {
-            ":core:designsystem must not depend on Product workflow modules"
-        }
-        check(
-            designSources.none { source ->
-                source.readText().contains("com.nexa.mobile.operations.feature.")
-            }
-        ) { ":core:designsystem contains Product workflow state" }
-
-        val deviceBuild = file("core/device/build.gradle.kts").readText()
-        val deviceSources = file("core/device/src/main").walkTopDown().filter {
-            it.extension == "kt"
-        }.toList()
-        check(
-            listOf("project(\":core:auth\")", "project(\":core:network\")", "project(\":feature:")
-                .none(deviceBuild::contains)
-        ) { ":core:device must remain independent of session, transport, and Product features" }
-        check(
-            deviceSources.none { source ->
-                source.readText().contains("com.nexa.mobile.operations.core.network") ||
-                    source.readText().contains("com.nexa.mobile.operations.feature.")
-            }
-        ) { ":core:device contains transport or Product feature state" }
-
-        val warehouseBuild = file("feature/warehouse/build.gradle.kts").readText()
-        check(warehouseBuild.contains("project(\":core:device\")")) {
-            ":feature:warehouse must consume the typed scanner boundary"
-        }
-
-        val appSources = file("app/src/main").walkTopDown().filter { it.extension == "kt" }.toList()
-        check(
-            appSources.none { source ->
-                val body = source.readText()
-                body.contains("DebugReviewActivity") || body.contains("ReviewScenarioProvider")
-            }
-        ) { "Debug review tooling leaked into release sources" }
-        check(
-            !file("app/src/main/AndroidManifest.xml").readText().contains("DebugReviewActivity")
-        ) {
-            "Debug review Activity must not appear in the release manifest"
-        }
-        listOf("app/src/main/AndroidManifest.xml", "app/src/release/AndroidManifest.xml")
-            .map { file(it) }
-            .filter { it.exists() }
-            .forEach { manifest ->
-                check(!manifest.readText().contains("ACCESS_LOCAL_NETWORK")) {
-                    "Local fixture network permission must remain debug-only"
-                }
-            }
+        val result = providers.exec {
+            workingDir(rootDir)
+            commandLine("python3", "scripts/verify-context-architecture.py")
+        }.result.get()
+        check(result.exitValue == 0) { "Context architecture verification failed" }
+        val fitnessResult = providers.exec {
+            workingDir(rootDir)
+            commandLine("python3", "scripts/test-context-architecture.py")
+        }.result.get()
+        check(fitnessResult.exitValue == 0) { "Context fitness probes failed" }
     }
 }

@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="nexa_tab_routes">Rutas</string>
+    <string name="nexa_tab_dispatch">Despacho</string>
+    <string name="nexa_tab_picking">Picking</string>
+    <string name="nexa_tab_checklist">Checklist</string>
+    <string name="nexa_tab_buyer">Catálogo B2B</string>
+    <string name="nexa_driver_status_en_route">En Ruta</string>
+    <string name="nexa_order_label">Orden</string>
+    <string name="nexa_confirm_pod">Confirmar Entrega en Sitio (POD)</string>
+    <string name="nexa_register_pod">Registrar Evidencia POD</string>
+    <string name="nexa_scan_barcode">Escanear Código / Etiqueta</string>
+    <string name="nexa_confirm_fefo">Confirmar Picking FEFO</string>
+    <string name="nexa_report_discrepancy">Reportar Discrepancia</string>
+    <string name="nexa_assign_driver">Asignar Conductor</string>
+    <string name="nexa_confirm_dispatch">Confirmar Despacho en Muelle</string>
+    <string name="nexa_approve_inspection">Aprobar Inspección Diaria</string>
+    <string name="nexa_add_to_order">Agregar al Pedido B2B</string>
+    <string name="nexa_verify_handoff">Verificar Handoff</string>
+    <string name="nexa_buyer_receipt">Confirmar Recepción</string>
+    <string name="nexa_sync_queue">Cola de Sincronización</string>
+    <string name="nexa_sync_all">Sincronizar Cola Ahora</string>
+    <string name="nexa_report_incident">Reportar Incidente</string>
+    <string name="nexa_submit_incident">Registrar Incidente con Evidencia</string>
+    <string name="nexa_cycle_count">Conteo Cíclico de Inventario</string>
+    <string name="nexa_confirm_count">Confirmar Conteo Físico</string>
+    <string name="nexa_collect_payment">Cobrar Contra Entrega (COD)</string>
+    <string name="nexa_confirm_rma">Procesar Retorno RMA</string>
+    <string name="nexa_workspace_login">Iniciar Turno Operativo</string>
+</resources>

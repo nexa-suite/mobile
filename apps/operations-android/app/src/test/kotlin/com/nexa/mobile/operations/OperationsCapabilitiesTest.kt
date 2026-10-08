@@ -1,21 +1,21 @@
 package com.nexa.mobile.operations
 
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductScannerUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
 import com.nexa.mobile.operations.core.auth.session.SessionState
-import com.nexa.mobile.operations.feature.access.AccessStage
-import com.nexa.mobile.operations.feature.access.AccessUiState
-import com.nexa.mobile.operations.feature.access.PermissionHint
-import com.nexa.mobile.operations.feature.access.VerifiedContextAuthority
-import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
-import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
-import com.nexa.mobile.operations.feature.warehouse.ConfirmedSkuUiState
-import com.nexa.mobile.operations.feature.warehouse.ProductScannerUiState
-import com.nexa.mobile.operations.feature.warehouse.ProductSearchUiState
-import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
-import com.nexa.mobile.operations.feature.warehouse.VerifiedOperationsIdentity
-import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute
-import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
-import com.nexa.mobile.operations.feature.warehouse.WorkEntryCapability
-import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.VerifiedContextAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.VerifiedOperationsIdentity
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
+import com.nexa.mobile.operations.workentry.TaskVisibilityHint
+import com.nexa.mobile.operations.workentry.WarehouseRoute
+import com.nexa.mobile.operations.workentry.WarehouseUiState
+import com.nexa.mobile.operations.workentry.WorkEntryCapability
+import com.nexa.mobile.operations.workentry.WorkEntryStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -431,7 +431,7 @@ class OperationsCapabilitiesTest {
     }
 
     @Test fun confirmedSkuRequiresCurrentConfirmedDetailAndSearch() {
-        val confirmed = ConfirmedSkuUiState(
+        val confirmed = ConfirmedSkuProjection(
             candidateKey = "candidate",
             productDisplayName = "Product",
             variant = null,

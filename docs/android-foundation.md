@@ -4,7 +4,29 @@ The application starts in `Bootstrapping`, reads only the protected refresh reco
 
 ## Module boundary
 
-`app` composes Hilt singletons and the root ViewModel. `core:auth` defines credential and session ports without an HTTP dependency. `core:network` implements those ports with Retrofit and OkHttp, maps transport failures to safe client errors, and offers explicit protected calls. `core:designsystem` provides a minimal Compose theme. `verifyAndroidArchitecture` checks these boundaries in the current source tree.
+`:app` composes Hilt bindings, ViewModel factories, Navigation 3, Android entry
+points and the root ViewModel. Business-facing code is organized under the 11
+canonical roots in `contexts/<root>/{domain,application,infrastructure,presentation}`;
+the 31 runtime modules cover only layers where code exists. Client `domain`
+modules hold non-authoritative projections and local value constraints.
+`application` modules own narrow ports and selective workflow coordination.
+Context `infrastructure` modules adapt protected HTTP, serialization,
+context-owned scoped metadata and platform APIs. `presentation` modules own
+Compose UI state and screens. BC-08 Payments, BC-10 Notifications and BC-11
+Business Traceability currently have ownership documentation but no runtime
+modules. See [client DDD alignment](client-ddd-alignment.md) for the canonical
+map and its boundaries.
+
+`:app` is the composition root, not a context; `:core:*` modules are technical
+foundations. `:core:local` provides generic scoped-storage mechanics. The
+encrypted receiving, disposition and temperature stores are owned by BC-05
+infrastructure; the picking store is owned by BC-06 infrastructure.
+`:core:auth` defines credential and session ports without an HTTP dependency.
+`:core:network` implements those ports with Retrofit and OkHttp, maps transport
+failures to safe client errors, and offers explicit protected calls.
+`:core:designsystem` provides the shared Compose theme. The Python architecture
+script checks the eleven context roots and source boundaries;
+`verifyAndroidArchitecture` remains a separate Gradle gate.
 
 The manually declared native auth methods and protected Catalog adapter use the current API contract:
 

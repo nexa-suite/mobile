@@ -8,24 +8,24 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.CandidateConfirmationResult
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductSearchResult
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.warehouse.WarehouseGateway
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
-import com.nexa.mobile.operations.feature.access.AccessStage
-import com.nexa.mobile.operations.feature.access.AccessUiState
-import com.nexa.mobile.operations.feature.access.PermissionHint
-import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
-import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
-import com.nexa.mobile.operations.feature.warehouse.CandidateConfirmationResult
-import com.nexa.mobile.operations.feature.warehouse.ConfirmedSkuUiState
-import com.nexa.mobile.operations.feature.warehouse.ProductCandidate
-import com.nexa.mobile.operations.feature.warehouse.ProductSearchResult
-import com.nexa.mobile.operations.feature.warehouse.ProductSearchUiState
-import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
-import com.nexa.mobile.operations.feature.warehouse.WarehouseGateway
-import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute
-import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
-import com.nexa.mobile.operations.feature.warehouse.WarehouseViewModel
-import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
+import com.nexa.mobile.operations.workentry.TaskVisibilityHint
+import com.nexa.mobile.operations.workentry.WarehouseRoute
+import com.nexa.mobile.operations.workentry.WarehouseUiState
+import com.nexa.mobile.operations.workentry.WarehouseViewModel
+import com.nexa.mobile.operations.workentry.WorkEntryStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -62,7 +62,7 @@ class RootCapabilityInvalidationTest {
                 activeContext = context,
                 authorityEpoch = 4,
                 search = ProductSearchUiState(query = "old selection", authorityEpoch = 4),
-                confirmedSku = ConfirmedSkuUiState(
+                confirmedSku = ConfirmedSkuProjection(
                     candidateKey = "test-candidate",
                     productDisplayName = "Test Product",
                     variant = null,

@@ -23,8 +23,8 @@ android {
         applicationId = "com.nexa.mobile.operations"
         minSdk = 29
         targetSdk = 37
-        versionCode = 9
-        versionName = "1.0.1"
+        versionCode = 10
+        versionName = "1.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -91,15 +91,43 @@ val validateReleaseEndpoint = tasks.register("validateReleaseEndpoint") {
 tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn(validateReleaseEndpoint) }
 
 dependencies {
+    implementation(project(":contexts:tenantaccessgovernance:domain"))
+    implementation(project(":contexts:tenantaccessgovernance:application"))
+    implementation(project(":contexts:tenantaccessgovernance:infrastructure"))
+    implementation(project(":contexts:tenantaccessgovernance:presentation"))
+    implementation(project(":contexts:customerbuyerrelationships:domain"))
+    implementation(project(":contexts:customerbuyerrelationships:application"))
+    implementation(project(":contexts:customerbuyerrelationships:infrastructure"))
+    implementation(project(":contexts:customerbuyerrelationships:presentation"))
+    implementation(project(":contexts:catalogcommercialpolicy:domain"))
+    implementation(project(":contexts:catalogcommercialpolicy:application"))
+    implementation(project(":contexts:catalogcommercialpolicy:infrastructure"))
+    implementation(project(":contexts:catalogcommercialpolicy:presentation"))
+    implementation(project(":contexts:salescommitment:domain"))
+    implementation(project(":contexts:salescommitment:application"))
+    implementation(project(":contexts:salescommitment:infrastructure"))
+    implementation(project(":contexts:salescommitment:presentation"))
+    implementation(project(":contexts:inventoryavailability:domain"))
+    implementation(project(":contexts:inventoryavailability:application"))
+    implementation(project(":contexts:inventoryavailability:infrastructure"))
+    implementation(project(":contexts:inventoryavailability:presentation"))
+    implementation(project(":contexts:fulfillmentdelivery:domain"))
+    implementation(project(":contexts:fulfillmentdelivery:application"))
+    implementation(project(":contexts:fulfillmentdelivery:infrastructure"))
+    implementation(project(":contexts:fulfillmentdelivery:presentation"))
+    implementation(project(":contexts:creditreceivables:domain"))
+    implementation(project(":contexts:creditreceivables:application"))
+    implementation(project(":contexts:creditreceivables:infrastructure"))
+    implementation(project(":contexts:businessdocuments:domain"))
+    implementation(project(":contexts:businessdocuments:application"))
+    implementation(project(":contexts:businessdocuments:infrastructure"))
+    implementation(project(":contexts:businessdocuments:presentation"))
+
     implementation(project(":core:auth"))
     implementation(project(":core:local"))
     implementation(project(":core:network"))
     implementation(project(":core:device"))
     implementation(project(":core:designsystem"))
-    implementation(project(":feature:access"))
-    implementation(project(":feature:warehouse"))
-    implementation(project(":feature:dispatch"))
-    implementation(project(":feature:delivery"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
