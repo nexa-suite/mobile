@@ -1,5 +1,9 @@
 # Android foundation verification
 
+The [DDD client execution record](ddd-client-verification.md) contains the
+2026-10-08 refactor results. Earlier observations below retain their original
+candidate scope and do not describe the current refactor.
+
 Run Gradle commands from `apps/operations-android` with JDK 17. Install Android SDK packages `platforms;android-37.0`, `build-tools;36.0.0`, and `platform-tools`. Keep the Gradle wrapper and dependency verification metadata in the repository; review the bytes and source of a new dependency artifact before accepting its checksum. The wrapper pins the official SHA-256 for the Gradle 9.7.1 binary distribution.
 
 ## Local static and JVM gates
@@ -12,7 +16,7 @@ cd apps/operations-android
 ```
 
 The JVM task covers every configured Android module, including new device/local
-foundations and feature modules. The JUnit XML files are in each module's `build/test-results/testDebugUnitTest`. Lint reports are under each module's `build/reports/lint-results-debug.html`. A zero exit status is necessary, but inspect the XML test and failure counts before recording a result.
+foundations, data adapters and feature presentation. It also depends on every Kotlin/JVM contract module's `test` task. Android JVM XML files are in each module's `build/test-results/testDebugUnitTest`; contract XML files are in `feature/*/contract/build/test-results/test`. Lint reports are under each module's `build/reports/lint-results-debug.html`. A zero exit status is necessary, but inspect the XML test and failure counts before recording a result.
 
 ## Emulator gates
 
