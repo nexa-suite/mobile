@@ -6,9 +6,10 @@ import com.nexa.mobile.operations.R
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.CandidateConfirmationResult
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductSearchResult
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.warehouse.WarehouseGateway
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.CatalogOperationsContextAdapter
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchStatus
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -208,6 +209,7 @@ class WarehouseViewModel(
         }
         val candidate = search.candidates.firstOrNull { it.key == candidateKey } ?: return
         val context = current.activeContext ?: return
+        val catalogContext = CatalogOperationsContextAdapter.from(context)
         val generation = ++requestGeneration
         val epoch = current.authorityEpoch
         mutableState.value = current.copy(
@@ -218,7 +220,7 @@ class WarehouseViewModel(
             )
         )
         viewModelScope.launch {
-            val result = runCatching { gateway.confirm(candidate, epoch, context) }
+            val result = runCatching { gateway.confirm(candidate, epoch, catalogContext) }
                 .getOrElse {
                     if (it is CancellationException) throw it
                     CandidateConfirmationResult.ServiceUnavailable
@@ -250,7 +252,7 @@ class WarehouseViewModel(
                                     pendingCandidateKey = null
                                 )
                             },
-                            confirmedSku = confirmed.copy(context = context)
+                            confirmedSku = confirmed.copy(context = catalogContext)
                         )
                     }
                 }

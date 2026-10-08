@@ -12,7 +12,7 @@ import com.nexa.mobile.operations.salescommitment.application.commercial.isValid
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestIntent
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestRecord
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestDraft
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -281,18 +281,7 @@ class FieldRequestViewModel(
         )
     }
     fun startNewDecision() {
-        if (state.value.status !in
-            setOf(
-                FieldRequestStatus.Confirmed,
-                FieldRequestStatus.Conflict,
-                FieldRequestStatus.PermissionDenied,
-                FieldRequestStatus.Rejected,
-                FieldRequestStatus.Unavailable,
-                FieldRequestStatus.PrepaidPending
-            )
-        ) {
-            return
-        }
+        if (!state.value.status.permitsNewDecision) return
         val captured = authority ?: return
         val epoch = generation
         viewModelScope.launch {

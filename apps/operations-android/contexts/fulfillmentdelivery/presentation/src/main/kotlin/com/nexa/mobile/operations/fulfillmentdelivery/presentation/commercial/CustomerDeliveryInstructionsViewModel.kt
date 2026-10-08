@@ -9,7 +9,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.commercial.Cus
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.commercial.CustomerInstructionCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.commercial.CustomerInstructionRow
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.commercial.CustomerInstructionSnapshot
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow

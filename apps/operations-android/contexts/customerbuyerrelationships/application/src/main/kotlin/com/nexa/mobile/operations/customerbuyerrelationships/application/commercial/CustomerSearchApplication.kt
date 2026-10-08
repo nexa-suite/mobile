@@ -1,7 +1,7 @@
 package com.nexa.mobile.operations.customerbuyerrelationships.application.commercial
 
 import com.nexa.mobile.operations.customerbuyerrelationships.domain.model.commercial.CustomerRelationship
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 
 sealed interface CustomerResult {
     data class Page(val items: List<CustomerRelationship>, val page: Int, val total: Long) :

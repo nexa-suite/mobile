@@ -28,7 +28,7 @@ dependencies {
     api(project(":contexts:creditreceivables:domain"))
     api(project(":contexts:salescommitment:application"))
     api(project(":contexts:salescommitment:domain"))
-    api(project(":contexts:tenantaccessgovernance:domain"))
+    api(project(":contexts:tenantaccessgovernance:application"))
     implementation(project(":core:designsystem"))
     implementation(libs.coroutines.core)
     implementation(platform(libs.compose.bom))

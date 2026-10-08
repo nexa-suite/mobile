@@ -6,7 +6,7 @@ import com.nexa.mobile.operations.businessdocuments.application.commercial.Busin
 import com.nexa.mobile.operations.businessdocuments.application.commercial.BusinessDocumentsResult
 import com.nexa.mobile.operations.businessdocuments.domain.model.commercial.BusinessDocumentContent
 import com.nexa.mobile.operations.businessdocuments.domain.model.commercial.BusinessDocumentIdentity
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

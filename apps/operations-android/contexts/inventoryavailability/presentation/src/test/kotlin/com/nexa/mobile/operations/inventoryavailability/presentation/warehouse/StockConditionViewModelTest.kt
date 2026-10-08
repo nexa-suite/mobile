@@ -4,8 +4,8 @@ import com.nexa.mobile.operations.inventoryavailability.application.model.wareho
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockConditionGateway
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockConditionAvailability
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockConditionLot
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.VerifiedOperationsIdentity
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.VerifiedOperationsIdentity
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate

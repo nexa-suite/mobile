@@ -173,14 +173,7 @@ fun FieldRequestScreen(
                 Text(stringResource(SharedR.string.field_request_retry))
             }
         }
-        if (state.status in
-            setOf(
-                FieldRequestStatus.Confirmed,
-                FieldRequestStatus.PrepaidPending,
-                FieldRequestStatus.Conflict,
-                FieldRequestStatus.Rejected
-            )
-        ) {
+        if (state.status.permitsNewDecision) {
             Button(onClick = viewModel::startNewDecision) {
                 Text(stringResource(R.string.field_request_new_decision))
             }

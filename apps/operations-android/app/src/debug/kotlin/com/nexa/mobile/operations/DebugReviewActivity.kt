@@ -28,6 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.CatalogOperationsContextAdapter
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ConfirmedSkuScreen
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchScreen
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchStatus
@@ -37,9 +38,9 @@ import com.nexa.mobile.operations.core.designsystem.NexaFeedbackBanner
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackTone
 import com.nexa.mobile.operations.core.designsystem.NexaPrimaryButton
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.R as AccessR
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessNotice
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessScreen
@@ -216,7 +217,9 @@ private fun DebugReviewExperience(initialScenario: ReviewScenario, cleanCapture:
                         ReviewNotice(current.notice)
                         ProductSearchScreen(
                             state = search,
-                            activeContext = warehouseState.activeContext,
+                            activeContext = warehouseState.activeContext?.let(
+                                CatalogOperationsContextAdapter::from
+                            ),
                             onChangeContext = { scenario = ReviewScenario.ChangeContexts },
                             onBack = { scenario = ReviewScenario.WorkAvailable },
                             onQueryChanged = { query ->
@@ -523,7 +526,7 @@ private class ReviewScenarioProvider(private val context: Context) {
                     .takeUnless { missingOptionalFields },
                 coldChain = context.getString(R.string.review_demo_cold_chain)
                     .takeUnless { missingOptionalFields },
-                context = activePrimary,
+                context = CatalogOperationsContextAdapter.from(activePrimary),
                 authorityEpoch = 1
             ),
             authorityEpoch = 1

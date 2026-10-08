@@ -17,7 +17,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.commercial.Cu
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.commercial.CustomerInstructionSnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.CustomerDeliveryInstructionsNetworkResult
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaCustomerDeliveryInstructionsGateway
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton

@@ -7,6 +7,12 @@ import tempfile
 
 SOURCE = Path(__file__).resolve().parents[1]
 PROBES = (
+    ('contexts/catalogcommercialpolicy/domain/build.gradle.kts',
+     '\ndependencies { api(project(":contexts:tenantaccessgovernance:domain")) }\n',
+     'foreign domain dependency'),
+    ('contexts/catalogcommercialpolicy/domain/src/main/kotlin/com/nexa/mobile/operations/catalogcommercialpolicy/domain/model/warehouse/ScannerModels.kt',
+     '\nimport com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary\n',
+     'foreign domain model'),
     ('contexts/salescommitment/presentation/build.gradle.kts',
      '\ndependencies { implementation(project(":contexts:inventoryavailability:infrastructure")) }\n',
      'foreign implementation dependency'),

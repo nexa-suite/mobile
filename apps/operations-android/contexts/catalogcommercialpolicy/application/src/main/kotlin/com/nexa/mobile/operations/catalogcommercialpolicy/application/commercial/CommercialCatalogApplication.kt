@@ -2,7 +2,7 @@ package com.nexa.mobile.operations.catalogcommercialpolicy.application.commercia
 
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.commercial.CommercialProductChoice
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.commercial.CommercialProductFacts
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 
 sealed interface CommercialCatalogResult {
     data class Choices(val items: List<CommercialProductChoice>, val nextPage: String?) :

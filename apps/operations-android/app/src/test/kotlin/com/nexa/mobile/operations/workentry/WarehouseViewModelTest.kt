@@ -3,11 +3,12 @@ package com.nexa.mobile.operations.workentry
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.CandidateConfirmationResult
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductSearchResult
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.warehouse.WarehouseGateway
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.CatalogOperationsContext
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchStatus
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -435,7 +436,7 @@ class WarehouseViewModelTest {
         override suspend fun confirm(
             candidate: ProductCandidate,
             authorityEpoch: Long,
-            context: ActiveOperationsContext
+            context: CatalogOperationsContext
         ): CandidateConfirmationResult {
             confirmationCalls++
             selectedCandidate = candidate
@@ -468,7 +469,11 @@ class WarehouseViewModelTest {
             unit = "unidad",
             packaging = "Caja de 12",
             coldChain = "Refrigerado",
-            context = ActiveOperationsContext("Nexa Demo Distribución", "Almacén Principal", epoch),
+            context = CatalogOperationsContext(
+                "Nexa Demo Distribución",
+                "Almacén Principal",
+                epoch
+            ),
             authorityEpoch = epoch
         )
     }

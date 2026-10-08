@@ -6,7 +6,8 @@ import com.nexa.mobile.operations.customerbuyerrelationships.application.commerc
 import com.nexa.mobile.operations.customerbuyerrelationships.application.commercial.CustomerResult
 import com.nexa.mobile.operations.customerbuyerrelationships.domain.model.commercial.CustomerRelationship
 import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.CustomerSearchStatus
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.canReadCustomers
 import java.time.Instant
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,7 +34,7 @@ class CustomerSearchViewModel(private val gateway: CustomerGateway) : ViewModel(
 
     fun activate(value: CommercialAuthority) {
         deactivate()
-        if (!value.canReadCustomers) {
+        if (!value.canReadCustomers()) {
             mutableState.value = CustomerSearchState(status = CustomerSearchStatus.PermissionDenied)
             return
         }

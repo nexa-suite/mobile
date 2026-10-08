@@ -15,7 +15,8 @@ import com.nexa.mobile.operations.salescommitment.application.model.commercial.F
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestDraft
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestLine
 import com.nexa.mobile.operations.salescommitment.infrastructure.transport.NexaDirectOrderGateway
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.canReadCustomers
 import java.time.Instant
 import javax.inject.Inject
 import kotlinx.serialization.json.Json
@@ -38,7 +39,7 @@ class OperationsFieldRequestGateway @Inject constructor(
 
     private fun current(a: CommercialAuthority): Boolean {
         val verified = sessions.verifiedSession.value ?: return false
-        return sessions.sessionState.value == SessionState.Active && a.canReadCustomers &&
+        return sessions.sessionState.value == SessionState.Active && a.canReadCustomers() &&
             a.permissions.any { it in setOf("catalog.read", "catalog:read") } &&
             verified.hasAuthorizedContext &&
             verified.userId == a.userId && verified.tenantId == a.tenantId &&

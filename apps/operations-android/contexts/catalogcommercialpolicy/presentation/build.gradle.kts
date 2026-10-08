@@ -27,7 +27,7 @@ ktlint { version.set("1.8.0") }
 dependencies {
     api(project(":contexts:catalogcommercialpolicy:application"))
     api(project(":contexts:catalogcommercialpolicy:domain"))
-    api(project(":contexts:tenantaccessgovernance:domain"))
+    api(project(":contexts:tenantaccessgovernance:application"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:device"))
     implementation(libs.coroutines.core)

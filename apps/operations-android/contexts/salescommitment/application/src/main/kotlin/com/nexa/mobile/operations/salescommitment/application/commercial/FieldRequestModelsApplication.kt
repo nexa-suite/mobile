@@ -5,7 +5,7 @@ import com.nexa.mobile.operations.salescommitment.application.model.commercial.F
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestRecord
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestDraft
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestLine
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 
 sealed interface FieldRequestRead {
     data class Available(val record: FieldRequestRecord) : FieldRequestRead

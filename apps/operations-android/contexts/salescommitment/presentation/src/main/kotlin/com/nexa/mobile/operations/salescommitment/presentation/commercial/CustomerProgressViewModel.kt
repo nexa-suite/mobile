@@ -7,7 +7,7 @@ import com.nexa.mobile.operations.salescommitment.application.commercial.Custome
 import com.nexa.mobile.operations.salescommitment.application.commercial.CustomerProgressResult
 import com.nexa.mobile.operations.salescommitment.application.commercial.ProgressStatus
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.CustomerCommitment
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 import java.time.Instant
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

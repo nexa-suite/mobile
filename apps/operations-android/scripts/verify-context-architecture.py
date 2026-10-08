@@ -39,7 +39,7 @@ for context in CONTEXTS:
                     require(target in ('domain', 'application'),
                             f'{context}/{layer}: foreign implementation dependency {dep}')
                     if layer == 'domain':
-                        require(owner == 'tenantaccessgovernance' and target == 'domain',
+                        require(False,
                                 f'{context}/domain: foreign domain dependency {dep}')
                 if layer == 'infrastructure':
                     require(target in ('domain', 'application'),
@@ -79,9 +79,7 @@ for context in CONTEXTS:
                         if layer == 'domain':
                             require(parts[1] == 'domain', f'{source.name}: domain imports application')
                             if parts[0] != context:
-                                shared_identity = f'{PREFIX}tenantaccessgovernance.domain.model.operations.'
-                                require(imported in (shared_identity + 'ActiveOperationsContext',
-                                                     shared_identity + 'VerifiedOperationsIdentity'),
+                                require(False,
                                         f'{source.name}: foreign domain model {imported}')
                 if layer == 'presentation':
                     require(not imported.startswith(('kotlinx.serialization.', 'org.json.', 'retrofit2.', 'okhttp3.')),

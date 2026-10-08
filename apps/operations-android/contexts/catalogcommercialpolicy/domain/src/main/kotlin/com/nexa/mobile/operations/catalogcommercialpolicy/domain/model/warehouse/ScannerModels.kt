@@ -1,6 +1,5 @@
 package com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse
 
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
 import java.util.UUID
 
 enum class ScannerIdentifierType { SkuCode, Gtin, SkuCodeAndGtin }
@@ -13,7 +12,7 @@ data class ConfirmedScannedSku(
     val unitOfMeasure: String?,
     val status: String,
     val identifierType: ScannerIdentifierType,
-    val context: ActiveOperationsContext,
+    val context: CatalogOperationsContext,
     val authorityEpoch: Long
 ) {
     override fun toString(): String =

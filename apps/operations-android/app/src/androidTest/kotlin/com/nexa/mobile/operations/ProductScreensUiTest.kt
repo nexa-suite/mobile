@@ -24,6 +24,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.CatalogOperationsContextAdapter
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R as CatalogR
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ConfirmedSkuScreen
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchScreen
@@ -31,9 +32,9 @@ import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
 import com.nexa.mobile.operations.core.designsystem.R as CoreR
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.R as AccessR
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessScreen
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
@@ -260,7 +261,7 @@ class ProductScreensUiTest {
                         },
                         authorityEpoch = 4
                     ),
-                    activeContext = warehouseContext,
+                    activeContext = CatalogOperationsContextAdapter.from(warehouseContext),
                     onChangeContext = {},
                     onBack = {},
                     onQueryChanged = { query = it },
@@ -294,7 +295,7 @@ class ProductScreensUiTest {
                         status = ProductSearchStatus.Empty,
                         authorityEpoch = 4
                     ),
-                    activeContext = warehouseContext,
+                    activeContext = CatalogOperationsContextAdapter.from(warehouseContext),
                     onChangeContext = {},
                     onBack = {},
                     onQueryChanged = {},
@@ -376,7 +377,7 @@ class ProductScreensUiTest {
                         candidates = listOf(candidate),
                         authorityEpoch = 4
                     ),
-                    activeContext = warehouseContext,
+                    activeContext = CatalogOperationsContextAdapter.from(warehouseContext),
                     onChangeContext = {},
                     onBack = {},
                     onQueryChanged = {},
@@ -439,7 +440,7 @@ class ProductScreensUiTest {
             unit = "unidad",
             packaging = "Caja de 12",
             coldChain = "Refrigerado",
-            context = warehouseContext,
+            context = CatalogOperationsContextAdapter.from(warehouseContext),
             authorityEpoch = warehouseContext.authorityEpoch,
             imageFileName = "agriform-queso-grana-padano-dop-150g.png"
         )

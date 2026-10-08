@@ -11,14 +11,16 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.CandidateConfirmationResult
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductSearchResult
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.warehouse.WarehouseGateway
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.CatalogOperationsContext
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.CatalogOperationsContextAdapter
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
 import com.nexa.mobile.operations.workentry.TaskVisibilityHint
@@ -72,7 +74,7 @@ class RootCapabilityInvalidationTest {
                     unit = null,
                     packaging = null,
                     coldChain = null,
-                    context = context,
+                    context = CatalogOperationsContextAdapter.from(context),
                     authorityEpoch = 4
                 )
             )
@@ -122,7 +124,7 @@ class RootCapabilityInvalidationTest {
         override suspend fun confirm(
             candidate: ProductCandidate,
             authorityEpoch: Long,
-            context: ActiveOperationsContext
+            context: CatalogOperationsContext
         ): CandidateConfirmationResult = error("Navigation must not confirm a candidate")
     }
 }

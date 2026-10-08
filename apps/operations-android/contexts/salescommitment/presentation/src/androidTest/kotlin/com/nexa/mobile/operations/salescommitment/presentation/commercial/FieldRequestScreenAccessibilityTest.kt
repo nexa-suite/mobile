@@ -25,7 +25,7 @@ import com.nexa.mobile.operations.salescommitment.application.model.commercial.F
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestDraft
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestLine
 import com.nexa.mobile.operations.salescommitment.presentation.R
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

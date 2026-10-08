@@ -12,7 +12,7 @@ import com.nexa.mobile.operations.salescommitment.application.model.commercial.F
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestRecord
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestDraft
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestLine
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton

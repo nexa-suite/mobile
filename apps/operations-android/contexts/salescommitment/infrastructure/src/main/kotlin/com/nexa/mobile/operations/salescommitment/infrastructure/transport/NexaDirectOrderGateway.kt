@@ -8,7 +8,7 @@ import com.nexa.mobile.operations.core.network.ProtectedResult
 import com.nexa.mobile.operations.salescommitment.application.commercial.FieldRequestSubmission
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestIntent
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestReceipt
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.Currency

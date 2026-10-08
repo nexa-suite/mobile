@@ -10,12 +10,13 @@ import com.nexa.mobile.operations.salescommitment.application.model.commercial.F
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestRecord
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestDraft
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestLine
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -122,6 +123,64 @@ class FieldRequestViewModelTest {
         runCurrent()
         assertEquals(first.key, gateway.sent.last().key)
         assertEquals(first.exactBody, gateway.sent.last().exactBody)
+    }
+
+    @Test fun recoveredTerminalIntentsAllowNewDecisionButUnknownOutcomeStaysProtected() = runTest {
+        listOf(
+            "PermissionDenied" to FieldRequestStatus.PermissionDenied,
+            "Unavailable" to FieldRequestStatus.Unavailable
+        ).forEach { (outcome, expectedStatus) ->
+            val priorIntent = FieldRequestIntent(
+                key = "terminal-$outcome",
+                exactBody = "terminal-body",
+                outcome = outcome
+            )
+            val store = Store(FieldRequestRecord(draft, priorIntent))
+            val model = FieldRequestViewModel(Gateway(), store)
+
+            model.activate(authority)
+            runCurrent()
+
+            assertEquals(expectedStatus, model.state.value.status)
+            assertTrue(model.state.value.status.permitsNewDecision)
+
+            model.startNewDecision()
+            runCurrent()
+
+            assertEquals(FieldRequestStatus.Draft, model.state.value.status)
+            assertEquals(draft, model.state.value.record.draft)
+            assertEquals(null, model.state.value.record.intent)
+            assertEquals(null, store.record.intent)
+        }
+
+        val unknownIntent = FieldRequestIntent(
+            key = "unknown-key",
+            exactBody = "unknown-original-body",
+            outcome = "UnknownOutcome"
+        )
+        val unknownStore = Store(FieldRequestRecord(draft, unknownIntent))
+        val unknownGateway = Gateway()
+        val unknownModel = FieldRequestViewModel(unknownGateway, unknownStore)
+
+        unknownModel.activate(authority)
+        runCurrent()
+        assertEquals(FieldRequestStatus.UnknownOutcome, unknownModel.state.value.status)
+        assertFalse(unknownModel.state.value.status.permitsNewDecision)
+
+        unknownModel.startNewDecision()
+        unknownModel.customerChanged("different-customer")
+        unknownModel.submit()
+        runCurrent()
+
+        assertEquals(FieldRequestStatus.UnknownOutcome, unknownModel.state.value.status)
+        assertEquals(unknownIntent, unknownStore.record.intent)
+        assertTrue(unknownGateway.sent.isEmpty())
+
+        unknownModel.retryUnknownOutcome()
+        runCurrent()
+
+        assertEquals(unknownIntent.key, unknownGateway.sent.single().key)
+        assertEquals(unknownIntent.exactBody, unknownGateway.sent.single().exactBody)
     }
 
     @Test fun confirmedAndPrepaidPendingKeepDistinctOutcomesAndReceipts() = runTest {

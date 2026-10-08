@@ -20,6 +20,18 @@ enum class FieldRequestStatus {
     MetadataUnavailable
 }
 
+internal val FieldRequestStatus.permitsNewDecision: Boolean
+    get() = when (this) {
+        FieldRequestStatus.Confirmed,
+        FieldRequestStatus.Conflict,
+        FieldRequestStatus.PermissionDenied,
+        FieldRequestStatus.Rejected,
+        FieldRequestStatus.Unavailable,
+        FieldRequestStatus.PrepaidPending -> true
+
+        else -> false
+    }
+
 data class FieldRequestState(
     val record: FieldRequestRecord = FieldRequestRecord(),
     val status: FieldRequestStatus = FieldRequestStatus.Loading,

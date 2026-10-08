@@ -9,7 +9,8 @@ import com.nexa.mobile.operations.customerbuyerrelationships.domain.model.commer
 import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.transport.CustomerNetworkResult
 import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.transport.CustomerWire
 import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.transport.NexaCustomerGateway
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.canReadCustomers
 import javax.inject.Inject
 
 class OperationsCustomerGateway @Inject constructor(
@@ -56,7 +57,7 @@ class OperationsCustomerGateway @Inject constructor(
     }
     private fun current(authority: CommercialAuthority): Boolean {
         val verified = sessions.verifiedSession.value ?: return false
-        return sessions.sessionState.value == SessionState.Active && authority.canReadCustomers &&
+        return sessions.sessionState.value == SessionState.Active && authority.canReadCustomers() &&
             verified.hasAuthorizedContext && verified.userId == authority.userId &&
             verified.tenantId == authority.tenantId &&
             verified.workspaceId == authority.workspaceId &&

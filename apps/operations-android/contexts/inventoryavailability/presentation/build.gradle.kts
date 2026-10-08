@@ -27,7 +27,7 @@ ktlint { version.set("1.8.0") }
 dependencies {
     api(project(":contexts:inventoryavailability:application"))
     api(project(":contexts:inventoryavailability:domain"))
-    api(project(":contexts:tenantaccessgovernance:domain"))
+    api(project(":contexts:tenantaccessgovernance:application"))
     implementation(project(":core:designsystem"))
     testImplementation(project(":contexts:inventoryavailability:infrastructure"))
     implementation(libs.coroutines.core)

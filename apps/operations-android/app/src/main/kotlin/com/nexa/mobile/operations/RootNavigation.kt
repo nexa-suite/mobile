@@ -9,6 +9,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.ui.NavDisplay
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.CatalogOperationsContextAdapter
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ConfirmedSkuScreen
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductScannerScreen
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductScannerUiState
@@ -414,7 +415,9 @@ internal fun RootNavigation(
                             WarehouseContentNotice(accessState.notice) {
                                 ProductSearchScreen(
                                     state = search,
-                                    activeContext = warehouseState.activeContext,
+                                    activeContext = warehouseState.activeContext?.let(
+                                        CatalogOperationsContextAdapter::from
+                                    ),
                                     onChangeContext = onChangeContext,
                                     onBack = onWarehouseBack,
                                     onQueryChanged = { query ->
@@ -508,7 +511,9 @@ internal fun RootNavigation(
                         if (scannerAllowed) {
                             ProductScannerScreen(
                                 state = scannerState,
-                                activeContext = warehouseState.activeContext,
+                                activeContext = warehouseState.activeContext?.let(
+                                    CatalogOperationsContextAdapter::from
+                                ),
                                 cameraPreview = scannerCameraPreview,
                                 onBack = onWarehouseBack,
                                 onChangeContext = onChangeContext,

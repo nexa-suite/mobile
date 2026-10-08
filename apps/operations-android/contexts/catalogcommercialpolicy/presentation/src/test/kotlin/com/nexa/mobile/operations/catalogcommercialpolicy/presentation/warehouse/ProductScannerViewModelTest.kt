@@ -2,11 +2,11 @@ package com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehous
 
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductScannerResolution
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.warehouse.ProductScannerGateway
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.CatalogOperationsContext
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedScannedSku
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ScannerIdentifierType
 import com.nexa.mobile.operations.core.device.scanner.ProductCodeCandidate
 import com.nexa.mobile.operations.core.device.scanner.ProductCodeScannerEvent
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
 import java.util.UUID
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -129,7 +129,7 @@ class ProductScannerViewModelTest {
         override suspend fun resolve(
             candidate: String,
             authorityEpoch: Long,
-            context: ActiveOperationsContext
+            context: CatalogOperationsContext
         ): ProductScannerResolution {
             calls++
             candidates += candidate
@@ -137,13 +137,13 @@ class ProductScannerViewModelTest {
         }
     }
 
-    private fun context(epoch: Long) = ActiveOperationsContext(
+    private fun context(epoch: Long) = CatalogOperationsContext(
         companyName = "Company",
         workspaceName = "Warehouse",
         authorityEpoch = epoch
     )
 
-    private fun confirmedSku(context: ActiveOperationsContext) = ConfirmedScannedSku(
+    private fun confirmedSku(context: CatalogOperationsContext) = ConfirmedScannedSku(
         skuId = UUID.fromString("c2e78931-f127-433d-b84d-f98b381d2378"),
         skuCode = "SKU-42",
         gtin = "12345678",

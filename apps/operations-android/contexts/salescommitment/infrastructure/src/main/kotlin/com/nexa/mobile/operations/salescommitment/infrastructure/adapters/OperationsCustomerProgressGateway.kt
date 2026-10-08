@@ -13,7 +13,7 @@ import com.nexa.mobile.operations.salescommitment.application.commercial.Progres
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.CustomerCommitment
 import com.nexa.mobile.operations.salescommitment.infrastructure.transport.CustomerProgressNetworkResult
 import com.nexa.mobile.operations.salescommitment.infrastructure.transport.NexaCustomerProgressGateway
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 import javax.inject.Inject
 
 class OperationsCustomerProgressGateway @Inject constructor(

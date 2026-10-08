@@ -28,7 +28,7 @@ ktlint { version.set("1.8.0") }
 dependencies {
     api(project(":contexts:customerbuyerrelationships:application"))
     api(project(":contexts:customerbuyerrelationships:domain"))
-    api(project(":contexts:tenantaccessgovernance:domain"))
+    api(project(":contexts:tenantaccessgovernance:application"))
     implementation(project(":core:auth"))
     implementation(project(":core:local"))
     implementation(project(":core:network"))

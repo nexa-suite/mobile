@@ -30,6 +30,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.nexa.mobile.operations.businessdocuments.presentation.commercial.BusinessDocumentsScreen
 import com.nexa.mobile.operations.businessdocuments.presentation.commercial.BusinessDocumentsViewModel
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.CatalogOperationsContextAdapter
 import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.OperationsCatalogIdentificationGateway
 import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.ScannerOperationsGateway
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.commercial.CommercialCatalogScreen
@@ -164,11 +165,11 @@ import com.nexa.mobile.operations.salescommitment.presentation.commercial.Custom
 import com.nexa.mobile.operations.salescommitment.presentation.commercial.CustomerProgressViewModel
 import com.nexa.mobile.operations.salescommitment.presentation.commercial.FieldRequestScreen
 import com.nexa.mobile.operations.salescommitment.presentation.commercial.FieldRequestViewModel
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.VerifiedOperationsIdentity
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.VerifiedOperationsIdentity
 import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.adapters.OperationsAccessGateway
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessNotice
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
@@ -1645,7 +1646,9 @@ class MainActivity : ComponentActivity() {
                                     PermissionHint.Unknown -> TaskVisibilityHint.Unknown
                                 }
                             )
-                            scannerViewModel.enterOperations(context)
+                            scannerViewModel.enterOperations(
+                                CatalogOperationsContextAdapter.from(context)
+                            )
                             scannerViewModel.scannerRouteOpened(
                                 permissionGranted = decision.permissionGranted,
                                 permanentlyDenied = decision.permanentlyDenied
@@ -4252,7 +4255,9 @@ class MainActivity : ComponentActivity() {
                             val context = active.toActiveOperationsContext(
                                 accessState.authorityEpoch
                             )
-                            scannerViewModel.enterOperations(context)
+                            scannerViewModel.enterOperations(
+                                CatalogOperationsContextAdapter.from(context)
+                            )
                             scannerViewModel.scannerRouteOpened(cameraPermissionGranted())
                             warehouseViewModel.openScanner()
                         }

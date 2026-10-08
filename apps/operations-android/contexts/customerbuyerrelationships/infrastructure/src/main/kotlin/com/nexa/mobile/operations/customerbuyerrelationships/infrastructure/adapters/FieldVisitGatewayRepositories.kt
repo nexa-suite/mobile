@@ -19,7 +19,8 @@ import com.nexa.mobile.operations.customerbuyerrelationships.domain.model.commer
 import com.nexa.mobile.operations.customerbuyerrelationships.domain.model.commercial.FieldVisitRecord
 import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.transport.CustomerNetworkResult
 import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.transport.NexaCustomerGateway
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.canReadCustomers
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Instant
 import java.util.UUID
@@ -45,7 +46,7 @@ class OperationsFieldVisitGateway @Inject constructor(
     private val customers = NexaCustomerGateway(calls)
     private fun current(a: CommercialAuthority): Boolean {
         val v = sessions.verifiedSession.value ?: return false
-        return sessions.sessionState.value == SessionState.Active && a.canReadCustomers &&
+        return sessions.sessionState.value == SessionState.Active && a.canReadCustomers() &&
             v.hasAuthorizedContext &&
             v.userId == a.userId && v.tenantId == a.tenantId && v.workspaceId == a.workspaceId &&
             v.membershipId == a.membershipId && v.permissions == a.permissions
