@@ -96,8 +96,12 @@ infrastructure; presentation receives a bounded pixel result. This is a local
 preview of already-authorized bytes, not a durable document cache or a new
 source of authorization.
 
-The shared BC-01 identity projections are the explicitly checked exception to
-domain isolation. Application evidence ports may carry a JDK file handle;
+Domain modules do not depend on another context. BC-03 owns its catalog scope
+projection; its adapter translates BC-01 identity evidence from the narrow
+application public API at the boundary. BC-01 application publishes verified
+scope projections and client permission hints; domain projections do not
+interpret API permission strings. The API remains authoritative for access.
+Application evidence ports may carry a JDK file handle;
 filesystem checks and IO execute in infrastructure, not in the application
 model constructors. The architecture check also runs isolated negative probes
 for forbidden context dependencies, framework imports and file IO.
