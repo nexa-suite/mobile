@@ -36,6 +36,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+@RequiresPrivateFixture
 @RunWith(AndroidJUnit4::class)
 class RoleWireflowCaptureTest {
     @get:Rule val composeRule = createAndroidComposeRule<MainActivity>()
@@ -79,15 +80,6 @@ class RoleWireflowCaptureTest {
         } else if (roleSlug == BOM_ROLE_SLUG) {
             returnViaBusinessExceptionsBack(entry1)
         }
-    }
-
-    @Test
-    fun captureFlagDefaultsToEnabledAndOnlyExplicitFalseDisables() {
-        assertTrue(roleWireflowCaptureEnabled(null))
-        assertTrue(roleWireflowCaptureEnabled(""))
-        assertTrue(roleWireflowCaptureEnabled("true"))
-        assertTrue(roleWireflowCaptureEnabled("TRUE"))
-        assertEquals(false, roleWireflowCaptureEnabled("false"))
     }
 
     private fun signIn(identifier: String, password: String) {
@@ -272,8 +264,6 @@ class RoleWireflowCaptureTest {
     }
 
     private fun entryAction(label: String) = hasText(label, substring = false) and hasClickAction()
-
-    private fun roleWireflowCaptureEnabled(argument: String?): Boolean = argument != "false"
 
     private companion object {
         const val WAIT_MILLIS = 15_000L

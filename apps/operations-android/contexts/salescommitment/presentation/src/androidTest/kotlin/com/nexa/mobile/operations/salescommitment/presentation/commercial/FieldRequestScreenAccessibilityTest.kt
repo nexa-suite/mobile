@@ -5,17 +5,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.fetchSemanticsNode
-import androidx.compose.ui.test.fetchSemanticsNodes
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodes
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nexa.mobile.operations.salescommitment.application.commercial.FieldRequestGateway
@@ -25,9 +22,10 @@ import com.nexa.mobile.operations.salescommitment.application.commercial.FieldRe
 import com.nexa.mobile.operations.salescommitment.application.commercial.FieldRequestSubmission
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestIntent
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestRecord
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestDraft
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestLine
+import com.nexa.mobile.operations.salescommitment.presentation.R
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -43,6 +41,14 @@ class FieldRequestScreenAccessibilityTest {
         val viewModel = FieldRequestViewModel(Gateway(), Store())
         val state = FieldRequestState(status = FieldRequestStatus.Unavailable)
         val baseContext = InstrumentationRegistry.getInstrumentation().targetContext
+        val spanishConfiguration = Configuration(baseContext.resources.configuration).apply {
+            setLocale(Locale.forLanguageTag("es"))
+        }
+        val spanishContext = baseContext.createConfigurationContext(spanishConfiguration)
+        val englishConfiguration = Configuration(baseContext.resources.configuration).apply {
+            setLocale(Locale.ENGLISH)
+        }
+        val englishContext = baseContext.createConfigurationContext(englishConfiguration)
 
         compose.setContent {
             val configuration = Configuration(baseContext.resources.configuration).apply {
@@ -59,7 +65,8 @@ class FieldRequestScreenAccessibilityTest {
 
         val spanishStatus =
             "Información vigente no disponible. El borrador sigue sin confirmar."
-        compose.onNodeWithText("Solicitud del cliente").assertIsDisplayed()
+        compose.onNodeWithText(spanishContext.getString(R.string.field_request_title))
+            .assertIsDisplayed()
         compose.onNodeWithText(spanishStatus).assertIsDisplayed()
         compose.onNodeWithText("Referencia del cliente").assertIsDisplayed()
         assertTrue(compose.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().isNotEmpty())
@@ -77,7 +84,8 @@ class FieldRequestScreenAccessibilityTest {
 
         compose.runOnIdle { locale = Locale.ENGLISH }
 
-        compose.onNodeWithText("Customer request").assertIsDisplayed()
+        compose.onNodeWithText(englishContext.getString(R.string.field_request_title))
+            .assertIsDisplayed()
         compose.onNodeWithText(
             "Current information is unavailable. The draft remains unconfirmed."
         )

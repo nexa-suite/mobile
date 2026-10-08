@@ -18,15 +18,18 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R as CatalogR
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchStatus
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
+import com.nexa.mobile.operations.core.designsystem.R as DesignSystemR
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.VerifiedContextAuthority
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.VerifiedOperationsIdentity
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.R as AccessR
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
 import com.nexa.mobile.operations.workentry.TaskVisibilityHint
@@ -96,19 +99,34 @@ class RootNavigationStateTest {
         // Check the password field's displayed/semantics length without exposing its value.
         assertEquals(accessState.value.password.length, editableText[1].length)
 
-        composeRule.onNodeWithText("Iniciar sesión")
+        composeRule.onNode(
+            hasClickAction() and hasText(
+                composeRule.activity.getString(AccessR.string.access_submit)
+            )
+        )
             .performScrollTo()
             .assertIsDisplayed()
             .performClick()
 
-        composeRule.onNodeWithText("Iniciando sesión").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("Estamos comprobando tu identidad.")
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(AccessR.string.access_sign_in_loading_title)
+        ).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(AccessR.string.access_sign_in_loading_body)
+        )
             .performScrollTo()
             .assertIsDisplayed()
-        composeRule.onNodeWithText("Identificador").assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(AccessR.string.access_identifier_label)
+        ).assertIsDisplayed()
         composeRule.onAllNodes(hasSetTextAction(), useUnmergedTree = true)
             .assertCountEquals(0)
-        composeRule.onNodeWithText("Iniciar sesión").assertIsNotEnabled()
+        composeRule.onNode(
+            hasClickAction() and hasText(
+                composeRule.activity.getString(AccessR.string.access_submit)
+            )
+        )
+            .assertIsNotEnabled()
         composeRule.runOnIdle {
             assertEquals(1, signInCalls)
             assertEquals(AccessStage.Authenticating, accessState.value.stage)
@@ -205,7 +223,11 @@ class RootNavigationStateTest {
         }
 
         dismissKeyboard()
-        composeRule.onNode(hasClickAction() and hasText("Buscar"))
+        composeRule.onNode(
+            hasClickAction() and hasText(
+                composeRule.activity.getString(DesignSystemR.string.nexa_search_button)
+            )
+        )
             .performScrollTo()
             .assertIsDisplayed()
             .performClick()
@@ -224,10 +246,18 @@ class RootNavigationStateTest {
         composeRule.onNodeWithText("Queso Gouda Demo")
             .performScrollTo()
             .assertIsDisplayed()
-        composeRule.onNodeWithText("SKU: SKU-DEMO-001", useUnmergedTree = true)
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(
+                CatalogR.string.commercial_catalog_sku,
+                "SKU-DEMO-001"
+            ),
+            useUnmergedTree = true
+        )
             .performScrollTo()
             .assertIsDisplayed()
-        composeRule.onNodeWithText("Identificación confirmada").assertDoesNotExist()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(CatalogR.string.warehouse_confirmation_title)
+        ).assertDoesNotExist()
 
         composeRule.runOnIdle {
             assertEquals(1, searchCalls)
@@ -327,14 +357,18 @@ class RootNavigationStateTest {
             .performClick()
         composeRule.onNodeWithText("Connected route: commercial.catalog").assertIsDisplayed()
         dispatchNavigationBack()
-        composeRule.onNodeWithText("Identificar producto").assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.warehouse_identify_product)
+        ).assertIsDisplayed()
 
         composeRule.onNodeWithText("Preparar solicitud")
             .performScrollTo()
             .performClick()
         composeRule.onNodeWithText("Connected route: commercial.request").assertIsDisplayed()
         dispatchNavigationBack()
-        composeRule.onNodeWithText("Identificar producto").assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.warehouse_identify_product)
+        ).assertIsDisplayed()
     }
 
     private fun dismissKeyboard() {
