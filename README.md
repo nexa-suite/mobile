@@ -15,7 +15,9 @@ Install JDK 17, Android SDK package `platforms;android-37.0`, and `build-tools;3
 
 | Module | Responsibility |
 | --- | --- |
-| `:app` | Hilt composition, session-driven Navigation 3 root, authority-gated destinations, debug review entry |
+| `:app` | Hilt composition, ViewModel factories, session-driven Navigation 3 root and Android entry points |
+| `:data:operations` | Verified-session correlation, remote projection mapping and protected local metadata adapters |
+| `:feature:*:contract` | Framework-free client projections, typed ports, frozen intents and selective application coordinators |
 | `:core:auth` | Protected refresh credential store and session coordinator |
 | `:core:network` | Native auth transport, origin guard, problem mapping, protected calls |
 | `:core:designsystem` | Nexa Compose theme and the reusable primitives used by Operations |
@@ -23,8 +25,9 @@ Install JDK 17, Android SDK package `platforms;android-37.0`, and `build-tools;3
 | `:feature:warehouse` | Operations work entry, manual search, and confirmed SKU UI state and screens |
 | `:feature:dispatch` | Dispatch assignment, readiness, handover, and outbound operational screens |
 | `:feature:delivery` | Current Driver delivery, attempt, arrival, outcome, proof, incident, and handoff UI |
+| `:feature:commercial` | Existing customer, catalog offer, field request, visit, progress and document UI extracted from app |
 
-The API owns authentication, Tenant and Workspace authorization, and business outcomes. Client state and permission hints never grant server authority. Every issued session is checked through `GET /api/v1/session` before the client enters `Active`. Production gateways also consume protected Catalog list/detail reads. Manual identification requires explicit search and candidate selection; only a current successful detail response creates a display-only confirmed SKU. The debug-only review activity uses visibly synthetic fixtures. Bounded validation evidence and release limits are recorded in the [technical verification](docs/technical-verification.md) record; they do not establish Product Acceptance. See [product boundaries](docs/operations-product-boundaries.md), [design adoption seams](docs/mobile-design-adoption.md), [foundation architecture](docs/android-foundation.md) and [native session security](docs/native-session.md).
+The [DDD-aligned client boundaries](docs/client-ddd-alignment.md) separate framework-free contracts and application coordination from presentation and data adapters. Feature modules remain client construction boundaries. The API owns authentication, Tenant and Workspace authorization, and business outcomes. Client state and permission hints never grant server authority. Every issued session is checked through `GET /api/v1/session` before the client enters `Active`. Production gateways also consume protected Catalog list/detail reads. Manual identification requires explicit search and candidate selection; only a current successful detail response creates a display-only confirmed SKU. The debug-only review activity uses visibly synthetic fixtures. Bounded validation evidence and release limits are recorded in the [technical verification](docs/technical-verification.md) record; they do not establish Product Acceptance. See [product boundaries](docs/operations-product-boundaries.md), [design adoption seams](docs/mobile-design-adoption.md), [foundation architecture](docs/android-foundation.md) and [native session security](docs/native-session.md).
 
 ## Build and verify
 
@@ -52,7 +55,16 @@ The CI workflow in [android-verify.yml](.github/workflows/android-verify.yml) ru
 
 Automatic IoT and advanced routing remain outside approved V1 scope. The app uses existing API contracts and does not contain live account credentials, a production API endpoint, or distribution signing configuration. No physical-device acceptance is claimed. Local sign-out clears protected state even when server revocation cannot be confirmed. Product Acceptance, System Acceptance and production readiness remain separate gates.
 
-## Current checkpoint — 2026-10-05
+## DDD client refactor checkpoint — 2026-10-08
+
+Client projections and ports now compile in five Kotlin/JVM contract modules.
+Presentation uses its own contracts; remote and local adapters are composed
+from `:data:operations`. Receiving and field requests use selective durable
+command coordinators. The [DDD alignment](docs/client-ddd-alignment.md) explains
+the accepted boundaries; the [execution record](docs/ddd-client-verification.md)
+records current technical checks and their limits.
+
+## Release checkpoint — 2026-10-05
 
 The `release/v1.0.0` source candidate sets the Operations Android app to version `1.0.0` (`versionCode 8`). This repository covers the Operations Android client across access and context selection, warehouse work, dispatch and current Driver delivery workflows. Buyer Mobile is outside this repository and remains a separate TARGET.
 
