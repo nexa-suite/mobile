@@ -12,8 +12,10 @@ plugins {
 ktlint { version.set("1.8.0") }
 
 val configuredModules = subprojects.filter { it.buildFile.isFile }
-val configuredAndroidModules = configuredModules.filter { !it.path.endsWith(":contract") }
-val configuredContractModules = configuredModules.filter { it.path.endsWith(":contract") }
+val configuredAndroidModules = configuredModules.filter {
+    !it.path.endsWith(":domain") && !it.path.endsWith(":application")
+}
+val configuredContractModules = configuredModules - configuredAndroidModules.toSet()
 
 tasks.named("ktlintCheck") {
     dependsOn(configuredModules.map { "${it.path}:ktlintCheck" })
@@ -65,7 +67,12 @@ tasks.register("verifyAndroidArchitecture") {
                     body.contains("com.nexa.mobile.operations.core.network")
             }
         ) { "Root presentation imports transport implementation" }
-        val networkSources = file("core/network/src/main").walkTopDown().filter {
+        val networkSources = (
+            listOf(file("core/network/src/main")) +
+                file("contexts").listFiles().orEmpty().map {
+                    it.resolve("infrastructure/src/main")
+                }
+            ).flatMap { it.walkTopDown().toList() }.filter {
             it.extension ==
                 "kt"
         }.toList()
@@ -360,242 +367,10 @@ tasks.register("verifyAndroidArchitecture") {
             }
         ) { "core:network contains Product routes or client authorization decisions" }
 
-        val settings = file("settings.gradle.kts").readText()
-        val includedModules = Regex("\"(:[^\"\\n]+)\"")
-            .findAll(settings.substringAfter("include("))
-            .map { it.groupValues[1] }
-            .toSet()
-        val foundationModules = setOf(
-            ":app",
-            ":core:auth",
-            ":core:local",
-            ":core:network",
-            ":core:designsystem",
-            ":core:device"
-        )
-        val requiredFeatureModules = setOf(":feature:access", ":feature:warehouse")
-        val allowedFeatureModules = setOf(
-            ":feature:access",
-            ":feature:warehouse",
-            ":feature:dispatch",
-            ":feature:delivery",
-            ":feature:commercial"
-        )
-        val allowedContractModules = allowedFeatureModules.map { "$it:contract" }.toSet()
-        val dataModules = setOf(":data:operations")
-        check(
-            includedModules.containsAll(
-                foundationModules + requiredFeatureModules + allowedContractModules + dataModules
-            ) &&
-                includedModules.all {
-                    it in foundationModules || it in allowedFeatureModules ||
-                        it in allowedContractModules || it in dataModules
-                }
-        ) {
-            "Operations Android modules must use the foundations and Blueprint feature areas"
-        }
-
-        val localBuild = file("core/local/build.gradle.kts").readText()
-        val localSources = file("core/local/src/main").walkTopDown().filter {
-            it.extension == "kt"
-        }.toList()
-        check(
-            listOf(
-                "project(\":core:auth\")",
-                "project(\":core:network\")",
-                "project(\":feature:",
-                "room",
-                "datastore",
-                "work-runtime",
-                "retrofit",
-                "okhttp"
-            ).none { localBuild.contains(it, ignoreCase = true) }
-        ) {
-            ":core:local must remain a scoped metadata foundation without transport or sync dependencies"
-        }
-        check(
-            localSources.none { source ->
-                val body = source.readText()
-                listOf(
-                    "com.nexa.mobile.operations.core.auth",
-                    "com.nexa.mobile.operations.core.network",
-                    "com.nexa.mobile.operations.feature.",
-                    "ConfirmedReceivingProduct",
-                    "ReceivedLotFacts",
-                    "androidx.work.",
-                    "androidx.room."
-                ).any(body::contains)
-            }
-        ) { ":core:local must store plain scoped metadata, not authority or server facts" }
-
-        val featureModules = includedModules
-            .filter { it in allowedFeatureModules }
-            .map { it.removePrefix(":").replace(':', '/') }
-        featureModules.forEach { module ->
-            val buildFile = file("$module/build.gradle.kts")
-            val sources = file("$module/src/main").walkTopDown().filter {
-                it.extension == "kt"
-            }.toList()
-            val buildText = buildFile.readText()
-            check(
-                !buildText.contains("project(\":core:auth\")") &&
-                    !buildText.contains("project(\":core:local\")") &&
-                    !buildText.contains("project(\":core:network\")") &&
-                    !buildText.contains("project(\":data:") &&
-                    Regex("project\\(\"(:feature:[^\"]+)\"\\)")
-                        .findAll(buildText).all {
-                            it.groupValues[1] == ":${module.replace('/', ':')}:contract"
-                        }
-            ) { "$module must remain independent of auth, transport, and other Product features" }
-            check(
-                listOf("room", "datastore", "work-runtime", "camera", "retrofit", "okhttp")
-                    .none { buildText.contains(it, ignoreCase = true) }
-            ) {
-                "$module added a forbidden persistence, background, device, or transport dependency"
-            }
-            check(
-                sources.none { source ->
-                    val body = source.readText()
-                    listOf(
-                        "import retrofit2.",
-                        "import okhttp3.",
-                        "com.nexa.mobile.operations.core.network",
-                        "com.nexa.mobile.operations.core.auth",
-                        "com.nexa.mobile.operations.core.local",
-                        "com.nexa.mobile.operations.data.",
-                        "workspaceSlug",
-                        "NativeSignIn"
-                    ).any(body::contains)
-                }
-            ) { "$module source crosses a transport/security boundary or adds slug identity UX" }
-            sources.forEach { source ->
-                Regex("(?m)^import com\\.nexa\\.mobile\\.operations\\.feature\\.([^\\s]+)")
-                    .findAll(source.readText()).forEach { dependency ->
-                        val area = module.substringAfterLast('/')
-                        check(dependency.groupValues[1].startsWith("$area.")) {
-                            "$module imports another feature area in ${source.name}"
-                        }
-                    }
-            }
-        }
-
-        allowedContractModules.forEach { module ->
-            val path = module.removePrefix(":").replace(':', '/')
-            val contractBuild = file("$path/build.gradle.kts").readText()
-            check(contractBuild.contains("libs.plugins.kotlin.jvm")) {
-                "$module must compile as a framework-free Kotlin/JVM client contract"
-            }
-            check(
-                !contractBuild.contains("libs.plugins.android") &&
-                    !contractBuild.contains("libs.plugins.kotlin.compose")
-            ) {
-                "$module must compile without Android or Compose"
-            }
-            Regex("project\\(\"(:[^\"]+)\"\\)").findAll(contractBuild).forEach {
-                check(it.groupValues[1] in allowedContractModules) {
-                    "$module depends on an implementation instead of a client contract"
-                }
-            }
-            file("$path/src/main").walkTopDown().filter { it.extension == "kt" }
-                .forEach { source ->
-                    val body = source.readText()
-                    check(
-                        Regex(
-                            "(?m)^import (android\\.|androidx\\.|dagger\\.|" +
-                                "retrofit2\\.|okhttp3\\.|" +
-                                "com\\.nexa\\.mobile\\.operations\\.(core|data)\\.)"
-                        ).find(body) == null
-                    ) { "$module imports framework or implementation in ${source.name}" }
-                    Regex("(?m)^import com\\.nexa\\.mobile\\.operations\\.feature\\.([^\\s]+)")
-                        .findAll(body).forEach { dependency ->
-                            val target = dependency.groupValues[1]
-                            check(target.contains(".model.") || target.contains(".application.")) {
-                                "$module imports a presentation type: $target"
-                            }
-                        }
-                }
-        }
-        val dataBuild = file("data/operations/build.gradle.kts").readText()
-        val dataFeatureDependencies = Regex("project\\(\"(:feature:[^\"]+)\"\\)")
-            .findAll(dataBuild).map { it.groupValues[1] }.toSet()
-        check(dataFeatureDependencies == allowedContractModules) {
-            "Data must depend on client contracts, never feature presentation"
-        }
-        file("data/operations/src/main").walkTopDown().filter { it.extension == "kt" }
-            .forEach { source ->
-                val body = source.readText()
-                check(
-                    Regex("(?m)^import (androidx\\.lifecycle\\.|androidx\\.compose\\.)")
-                        .find(body) == null
-                ) { "Data imports presentation in ${source.name}" }
-                Regex("(?m)^import com\\.nexa\\.mobile\\.operations\\.feature\\.([^\\s]+)")
-                    .findAll(body).forEach { dependency ->
-                        val target = dependency.groupValues[1]
-                        check(target.contains(".model.") || target.contains(".application.")) {
-                            "Data imports a feature presentation type: $target"
-                        }
-                    }
-            }
-
-        val appBuild = file("app/build.gradle.kts").readText()
-        check(
-            appBuild.contains("project(\":feature:access\")") &&
-                appBuild.contains("project(\":feature:warehouse\")") &&
-                appBuild.contains("project(\":core:local\")")
-        ) { ":app must compose access, warehouse, and scoped local metadata foundations" }
-
-        val designBuild = file("core/designsystem/build.gradle.kts").readText()
-        val designSources = file("core/designsystem/src/main").walkTopDown().filter {
-            it.extension == "kt"
-        }.toList()
-        check(!designBuild.contains("project(\":feature:")) {
-            ":core:designsystem must not depend on Product workflow modules"
-        }
-        check(
-            designSources.none { source ->
-                source.readText().contains("com.nexa.mobile.operations.feature.")
-            }
-        ) { ":core:designsystem contains Product workflow state" }
-
-        val deviceBuild = file("core/device/build.gradle.kts").readText()
-        val deviceSources = file("core/device/src/main").walkTopDown().filter {
-            it.extension == "kt"
-        }.toList()
-        check(
-            listOf("project(\":core:auth\")", "project(\":core:network\")", "project(\":feature:")
-                .none(deviceBuild::contains)
-        ) { ":core:device must remain independent of session, transport, and Product features" }
-        check(
-            deviceSources.none { source ->
-                source.readText().contains("com.nexa.mobile.operations.core.network") ||
-                    source.readText().contains("com.nexa.mobile.operations.feature.")
-            }
-        ) { ":core:device contains transport or Product feature state" }
-
-        val warehouseBuild = file("feature/warehouse/build.gradle.kts").readText()
-        check(warehouseBuild.contains("project(\":core:device\")")) {
-            ":feature:warehouse must consume the typed scanner boundary"
-        }
-
-        val appSources = file("app/src/main").walkTopDown().filter { it.extension == "kt" }.toList()
-        check(
-            appSources.none { source ->
-                val body = source.readText()
-                body.contains("DebugReviewActivity") || body.contains("ReviewScenarioProvider")
-            }
-        ) { "Debug review tooling leaked into release sources" }
-        check(
-            !file("app/src/main/AndroidManifest.xml").readText().contains("DebugReviewActivity")
-        ) {
-            "Debug review Activity must not appear in the release manifest"
-        }
-        listOf("app/src/main/AndroidManifest.xml", "app/src/release/AndroidManifest.xml")
-            .map { file(it) }
-            .filter { it.exists() }
-            .forEach { manifest ->
-                check(!manifest.readText().contains("ACCESS_LOCAL_NETWORK")) {
-                    "Local fixture network permission must remain debug-only"
-                }
-            }
+        val result = providers.exec {
+            workingDir(rootDir)
+            commandLine("python3", "scripts/verify-context-architecture.py")
+        }.result.get()
+        check(result.exitValue == 0) { "Context architecture verification failed" }
     }
 }

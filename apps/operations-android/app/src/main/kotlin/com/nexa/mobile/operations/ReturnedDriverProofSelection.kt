@@ -1,13 +1,13 @@
 package com.nexa.mobile.operations
 
-import com.nexa.mobile.operations.feature.delivery.application.DriverProofMetadataStore
-import com.nexa.mobile.operations.feature.delivery.model.DriverProofEvidenceKind
-import com.nexa.mobile.operations.feature.delivery.model.DriverProofFileCandidate
-import com.nexa.mobile.operations.feature.delivery.model.DriverProofIntentStage
-import com.nexa.mobile.operations.feature.delivery.model.DriverProofIntentStatus
-import com.nexa.mobile.operations.feature.delivery.model.DriverProofMetadataRead
-import com.nexa.mobile.operations.feature.delivery.model.DriverProofMetadataWrite
-import com.nexa.mobile.operations.feature.delivery.model.DriverProofSelectionContext as ProofSelectionContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofFileCandidate
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofIntentStage
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofIntentStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofMetadataWrite
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofSelectionContext as ProofSelectionContext
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverProofEvidenceKind
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 

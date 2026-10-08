@@ -2,10 +2,10 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptViewModel
-import com.nexa.mobile.operations.feature.warehouse.application.StockTransferReceiptGateway
-import com.nexa.mobile.operations.feature.warehouse.application.StockTransferReceiptMetadataStore
-import com.nexa.mobile.operations.feature.warehouse.application.StockTransferReceiptObservationMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferReceiptGateway
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferReceiptMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferReceiptObservationMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.StockTransferReceiptViewModel
 
 internal object StockTransferReceiptViewModelBindings {
     fun viewModelFactory(

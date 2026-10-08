@@ -2,9 +2,9 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.data.AppFieldVisitStore
-import com.nexa.mobile.operations.data.OperationsFieldVisitGateway
-import com.nexa.mobile.operations.feature.commercial.FieldVisitViewModel
+import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.adapters.AppFieldVisitStore
+import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.adapters.OperationsFieldVisitGateway
+import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.FieldVisitViewModel
 import javax.inject.Inject
 internal class FieldVisitViewModelFactory @Inject constructor(
     private val gateway: OperationsFieldVisitGateway,

@@ -2,8 +2,8 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.data.OperationsCustomerGateway
-import com.nexa.mobile.operations.feature.commercial.CustomerSearchViewModel
+import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.adapters.OperationsCustomerGateway
+import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.CustomerSearchViewModel
 import javax.inject.Inject
 
 internal class CustomerSearchViewModelFactory @Inject constructor(

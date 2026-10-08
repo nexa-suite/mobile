@@ -2,10 +2,10 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.feature.access.AccessViewModel
-import com.nexa.mobile.operations.feature.access.application.AccessGateway
-import com.nexa.mobile.operations.feature.warehouse.WarehouseViewModel
-import com.nexa.mobile.operations.feature.warehouse.application.WarehouseGateway
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.warehouse.WarehouseGateway
+import com.nexa.mobile.operations.tenantaccessgovernance.application.access.AccessGateway
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessViewModel
+import com.nexa.mobile.operations.workentry.WarehouseViewModel
 
 internal class AccessViewModelFactory(private val gateway: AccessGateway) :
     ViewModelProvider.Factory {

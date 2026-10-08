@@ -2,9 +2,10 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.data.OperationsDeliveryLoadGateway
-import com.nexa.mobile.operations.feature.dispatch.DeliveryLoadViewModel
-import com.nexa.mobile.operations.feature.dispatch.application.DeliveryLoadCommandMetadataStore as LoadCommandMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommandMetadataStore as LoadCommandMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.OperationsDeliveryLoadGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.JsonDispatchRequestBodyCodec
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DeliveryLoadViewModel
 import javax.inject.Inject
 
 internal class DeliveryLoadViewModelFactory @Inject constructor(
@@ -14,7 +15,11 @@ internal class DeliveryLoadViewModelFactory @Inject constructor(
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         require(modelClass.isAssignableFrom(DeliveryLoadViewModel::class.java))
-        return DeliveryLoadViewModel(gateway, metadata) as T
+        return DeliveryLoadViewModel(
+            gateway,
+            metadata,
+            requestBodyCodec = JsonDispatchRequestBodyCodec()
+        ) as T
     }
 }
 

@@ -9,22 +9,22 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.ui.NavDisplay
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ConfirmedSkuScreen
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductScannerScreen
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductScannerUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchScreen
 import com.nexa.mobile.operations.core.auth.session.SessionState
-import com.nexa.mobile.operations.feature.access.AccessNotice
-import com.nexa.mobile.operations.feature.access.AccessScreen
-import com.nexa.mobile.operations.feature.access.AccessStage
-import com.nexa.mobile.operations.feature.access.AccessUiState
-import com.nexa.mobile.operations.feature.access.ContextChooserMode
-import com.nexa.mobile.operations.feature.access.ContextChooserPhase
-import com.nexa.mobile.operations.feature.access.ContextChooserScreen
-import com.nexa.mobile.operations.feature.access.ContextChooserUiState
-import com.nexa.mobile.operations.feature.warehouse.ConfirmedSkuScreen
-import com.nexa.mobile.operations.feature.warehouse.OperationsWorkEntryScreen
-import com.nexa.mobile.operations.feature.warehouse.ProductScannerScreen
-import com.nexa.mobile.operations.feature.warehouse.ProductScannerUiState
-import com.nexa.mobile.operations.feature.warehouse.ProductSearchScreen
-import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute
-import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessNotice
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessScreen
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserMode
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserPhase
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserScreen
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserUiState
+import com.nexa.mobile.operations.workentry.OperationsWorkEntryScreen
+import com.nexa.mobile.operations.workentry.WarehouseRoute
+import com.nexa.mobile.operations.workentry.WarehouseUiState
 
 internal enum class RootDestination {
     Bootstrapping,

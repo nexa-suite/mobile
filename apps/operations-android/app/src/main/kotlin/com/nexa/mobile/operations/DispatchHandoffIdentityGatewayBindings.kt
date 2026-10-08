@@ -2,9 +2,10 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.data.OperationsDispatchHandoffIdentityGateway
-import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIdentityViewModel as HandoffIdentityViewModel
-import com.nexa.mobile.operations.feature.dispatch.application.DispatchHandoffIdentityMetadataStore as HandoffIdentityMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoffIdentityMetadataStore as HandoffIdentityMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.OperationsDispatchHandoffIdentityGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.JsonDispatchRequestBodyCodec
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchHandoffIdentityViewModel as HandoffIdentityViewModel
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -17,7 +18,11 @@ internal class DispatchHandoffIdentityGatewayBindings @Inject constructor(
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass.isAssignableFrom(HandoffIdentityViewModel::class.java))
-            return HandoffIdentityViewModel(gateway, metadataStore) as T
+            return HandoffIdentityViewModel(
+                gateway,
+                metadataStore,
+                requestBodyCodec = JsonDispatchRequestBodyCodec()
+            ) as T
         }
     }
 }

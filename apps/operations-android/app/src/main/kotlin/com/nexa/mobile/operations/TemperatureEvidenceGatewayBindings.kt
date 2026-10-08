@@ -2,9 +2,9 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.data.OperationsTemperatureEvidenceGateway
-import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidenceViewModel
-import com.nexa.mobile.operations.feature.warehouse.application.TemperatureEvidenceMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.TemperatureEvidenceMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.OperationsTemperatureEvidenceGateway
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.TemperatureEvidenceViewModel
 import javax.inject.Inject
 
 internal class TemperatureEvidenceGatewayBindings @Inject constructor(

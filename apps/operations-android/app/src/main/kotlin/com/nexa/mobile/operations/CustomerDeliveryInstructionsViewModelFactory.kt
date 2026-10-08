@@ -2,9 +2,9 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.data.AppCustomerInstructionStore
-import com.nexa.mobile.operations.data.OperationsCustomerInstructionGateway
-import com.nexa.mobile.operations.feature.commercial.CustomerDeliveryInstructionsViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.AppCustomerInstructionStore
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.OperationsCustomerInstructionGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.commercial.CustomerDeliveryInstructionsViewModel
 import javax.inject.Inject
 internal class CustomerDeliveryInstructionsViewModelFactory @Inject constructor(
     private val gateway: OperationsCustomerInstructionGateway,

@@ -2,8 +2,8 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.feature.warehouse.ProductScannerViewModel
-import com.nexa.mobile.operations.feature.warehouse.application.ProductScannerGateway
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.warehouse.ProductScannerGateway
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductScannerViewModel
 
 internal class ProductScannerViewModelFactory(private val gateway: ProductScannerGateway) :
     ViewModelProvider.Factory {

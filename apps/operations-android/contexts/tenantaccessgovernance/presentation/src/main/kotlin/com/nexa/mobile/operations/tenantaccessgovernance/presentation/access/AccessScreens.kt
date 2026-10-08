@@ -1,0 +1,534 @@
+package com.nexa.mobile.operations.tenantaccessgovernance.presentation.access
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.core.designsystem.NexaActiveContextBar
+import com.nexa.mobile.operations.core.designsystem.NexaAuthCanopy
+import com.nexa.mobile.operations.core.designsystem.NexaColors
+import com.nexa.mobile.operations.core.designsystem.NexaContextChoiceRow
+import com.nexa.mobile.operations.core.designsystem.NexaFeedbackBanner
+import com.nexa.mobile.operations.core.designsystem.NexaFeedbackTone
+import com.nexa.mobile.operations.core.designsystem.NexaPasswordField
+import com.nexa.mobile.operations.core.designsystem.NexaPrimaryButton
+import com.nexa.mobile.operations.core.designsystem.NexaStatePanel
+import com.nexa.mobile.operations.core.designsystem.NexaTextField
+import com.nexa.mobile.operations.core.designsystem.NexaTopAppBar
+import com.nexa.mobile.operations.core.designsystem.R as DesignR
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.R
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
+
+@Composable
+fun AccessScreen(
+    state: AccessUiState,
+    onIdentifierChanged: (String) -> Unit,
+    onPasswordChanged: (String) -> Unit,
+    onPasswordVisibilityChanged: () -> Unit,
+    onSignIn: () -> Unit,
+    modifier: Modifier = Modifier,
+    onRetry: () -> Unit = {},
+    onClearLocalSession: () -> Unit = {},
+    showRetry: Boolean = false
+) {
+    BoxWithConstraints(
+        modifier = modifier.fillMaxSize().background(NexaColors.Surface)
+    ) {
+        val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val canopyHeight = if (LocalDensity.current.fontScale >= 1.8f) {
+            176.dp
+        } else {
+            (maxHeight * 0.33f).coerceIn(208.dp, 274.dp)
+        }
+        Column(
+            modifier = Modifier.fillMaxSize().semantics { isTraversalGroup = true }
+                .imePadding().verticalScroll(rememberScrollState())
+        ) {
+            NexaAuthCanopy(Modifier.fillMaxWidth().height(canopyHeight)) {
+                AccessBrandHeader(statusTop)
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                AccessStageContent(
+                    state = state,
+                    onIdentifierChanged = onIdentifierChanged,
+                    onPasswordChanged = onPasswordChanged,
+                    onPasswordVisibilityChanged = onPasswordVisibilityChanged,
+                    onSignIn = onSignIn,
+                    onRetry = onRetry,
+                    onClearLocalSession = onClearLocalSession,
+                    showRetry = showRetry
+                )
+                state.notice?.let { notice -> AccessNoticeBanner(notice) }
+                Spacer(Modifier.height(24.dp).windowInsetsPadding(WindowInsets.navigationBars))
+            }
+        }
+    }
+}
+
+@Composable
+fun ContextChooserScreen(
+    state: ContextChooserUiState,
+    modifier: Modifier = Modifier,
+    onSelect: (String) -> Unit,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+    notice: AccessNotice? = null,
+    onClearLocalSession: (() -> Unit)? = null
+) {
+    val changeMode = state.mode == ContextChooserMode.Change
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .semantics { isTraversalGroup = true }
+            .background(NexaColors.Canvas)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .verticalScroll(rememberScrollState())
+    ) {
+        NexaTopAppBar(
+            title = stringResource(R.string.access_product_label),
+            onBack = if (changeMode && state.phase != ContextChooserPhase.SelectionPending) {
+                onBack
+            } else {
+                null
+            }
+        )
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            ContextChooserHeader(changeMode = changeMode)
+            if (notice != null) {
+                AccessNoticeBanner(notice)
+            }
+            ContextChooserPhaseContent(
+                state = state,
+                changeMode = changeMode,
+                onSelect = onSelect,
+                onRetry = onRetry,
+                onBack = onBack,
+                onClearLocalSession = onClearLocalSession
+            )
+            if (notice == AccessNotice.ContextSelectionRejected) {
+                NexaPrimaryButton(label = stringResource(R.string.context_retry), onClick = onRetry)
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun AccessBrandHeader(statusTop: androidx.compose.ui.unit.Dp) {
+    Column(
+        modifier = Modifier.padding(start = 24.dp, top = statusTop + 22.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Image(
+            painter = painterResource(DesignR.drawable.nexa_wordmark_white),
+            contentDescription = stringResource(R.string.access_brand_description),
+            modifier = Modifier.width(112.dp).height(35.dp),
+            contentScale = ContentScale.Fit
+        )
+        Text(
+            stringResource(R.string.access_product_label),
+            style = MaterialTheme.typography.labelMedium,
+            color = NexaColors.BrandCeleste
+        )
+    }
+}
+
+@Composable
+private fun AccessStageContent(
+    state: AccessUiState,
+    onIdentifierChanged: (String) -> Unit,
+    onPasswordChanged: (String) -> Unit,
+    onPasswordVisibilityChanged: () -> Unit,
+    onSignIn: () -> Unit,
+    onRetry: () -> Unit,
+    onClearLocalSession: () -> Unit,
+    showRetry: Boolean
+) {
+    when (state.stage) {
+        AccessStage.RestoringSession -> {
+            NexaStatePanel(
+                title = stringResource(R.string.access_session_restoring_title),
+                description = stringResource(R.string.access_session_restoring_body)
+            )
+            CenteredProgress(stringResource(R.string.access_session_restoring_title))
+            if (showRetry) {
+                NexaPrimaryButton(
+                    label = stringResource(R.string.access_context_retry),
+                    onClick = onRetry
+                )
+            }
+        }
+
+        AccessStage.Authenticating -> {
+            AccessCredentialsForm(
+                state = state,
+                onIdentifierChanged = onIdentifierChanged,
+                onPasswordChanged = onPasswordChanged,
+                onPasswordVisibilityChanged = onPasswordVisibilityChanged,
+                onSignIn = onSignIn,
+                loading = true
+            )
+        }
+
+        AccessStage.ResolvingContexts -> {
+            NexaStatePanel(
+                title = stringResource(R.string.access_context_loading_title),
+                description = stringResource(R.string.access_context_loading_body)
+            )
+            CenteredProgress(stringResource(R.string.access_context_loading_title))
+        }
+
+        AccessStage.NoContexts -> NexaStatePanel(
+            title = stringResource(R.string.access_no_context_title),
+            description = stringResource(R.string.access_no_context_body),
+            actionLabel = stringResource(R.string.access_local_logout),
+            onAction = onClearLocalSession
+        )
+
+        AccessStage.LocalProtectionError -> NexaStatePanel(
+            title = stringResource(R.string.access_local_error_title),
+            description = stringResource(R.string.access_local_error_body),
+            actionLabel = stringResource(R.string.access_local_logout),
+            onAction = onClearLocalSession
+        )
+
+        AccessStage.IdentityRequired, AccessStage.SessionExpired, AccessStage.ContextChooser,
+        AccessStage.WorkAuthorized
+        -> AccessCredentialsForm(
+            state = state,
+            onIdentifierChanged = onIdentifierChanged,
+            onPasswordChanged = onPasswordChanged,
+            onPasswordVisibilityChanged = onPasswordVisibilityChanged,
+            onSignIn = onSignIn
+        )
+    }
+}
+
+@Composable
+private fun AccessCredentialsForm(
+    state: AccessUiState,
+    onIdentifierChanged: (String) -> Unit,
+    onPasswordChanged: (String) -> Unit,
+    onPasswordVisibilityChanged: () -> Unit,
+    onSignIn: () -> Unit,
+    loading: Boolean = false
+) {
+    val focusManager = LocalFocusManager.current
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                stringResource(R.string.access_sign_in_title),
+                style = MaterialTheme.typography.headlineSmall,
+                color = NexaColors.TextPrimary
+            )
+            Spacer(
+                Modifier.width(44.dp).height(4.dp)
+                    .background(NexaColors.Primary, RoundedCornerShape(2.dp))
+            )
+            Text(
+                stringResource(R.string.access_sign_in_support),
+                style = MaterialTheme.typography.bodyMedium,
+                color = NexaColors.TextSecondary
+            )
+        }
+        NexaTextField(
+            value = state.identifier,
+            onValueChange = onIdentifierChanged,
+            label = stringResource(R.string.access_identifier_label),
+            enabled = !loading,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(
+                onNext = { focusManager.moveFocus(FocusDirection.Down) }
+            ),
+            errorText = if (state.identifierError) {
+                stringResource(R.string.access_identifier_error)
+            } else {
+                null
+            }
+        )
+        NexaPasswordField(
+            value = state.password,
+            onValueChange = onPasswordChanged,
+            visible = state.passwordVisible,
+            onVisibilityChange = onPasswordVisibilityChanged,
+            label = stringResource(R.string.access_password_label),
+            showLabel = stringResource(R.string.access_password_show),
+            hideLabel = stringResource(R.string.access_password_hide),
+            enabled = !loading,
+            errorText = if (state.passwordError) {
+                stringResource(R.string.access_password_error)
+            } else {
+                null
+            }
+        )
+        NexaPrimaryButton(
+            label = stringResource(R.string.access_submit),
+            onClick = onSignIn,
+            loading = loading
+        )
+        if (loading) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    stringResource(R.string.access_sign_in_loading_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = NexaColors.PrimaryStrong,
+                    modifier = Modifier.semantics {
+                        liveRegion = LiveRegionMode.Polite
+                    }
+                )
+                Text(
+                    stringResource(R.string.access_sign_in_loading_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = NexaColors.TextSecondary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContextChooserHeader(changeMode: Boolean) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            stringResource(
+                if (changeMode) R.string.context_change_title else R.string.context_initial_title
+            ),
+            style = MaterialTheme.typography.headlineSmall,
+            color = NexaColors.TextPrimary
+        )
+        Text(
+            stringResource(
+                if (changeMode) {
+                    R.string.context_change_support
+                } else {
+                    R.string.context_initial_support
+                }
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            color = NexaColors.TextSecondary
+        )
+    }
+}
+
+@Composable
+private fun ContextChooserPhaseContent(
+    state: ContextChooserUiState,
+    changeMode: Boolean,
+    onSelect: (String) -> Unit,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+    onClearLocalSession: (() -> Unit)?
+) {
+    when (state.phase) {
+        ContextChooserPhase.Loading -> {
+            NexaStatePanel(
+                title = stringResource(R.string.context_loading_title),
+                description = stringResource(R.string.context_loading_body)
+            )
+            CenteredProgress(stringResource(R.string.context_loading_title))
+        }
+
+        ContextChooserPhase.ListUnavailable -> {
+            val currentValid =
+                state.unavailableReason == ContextUnavailableReason.CurrentContextRemainsValid
+            NexaStatePanel(
+                title = stringResource(
+                    if (currentValid) {
+                        R.string.context_current_valid_title
+                    } else {
+                        R.string.context_no_active_title
+                    }
+                ),
+                description = stringResource(
+                    if (currentValid) {
+                        R.string.context_current_valid_body
+                    } else {
+                        R.string.context_no_active_body
+                    }
+                ),
+                actionLabel = stringResource(
+                    if (currentValid) R.string.context_back_to_work else R.string.context_retry
+                ),
+                onAction = if (currentValid) onBack else onRetry
+            )
+            if (currentValid) {
+                state.current?.let { context -> CurrentContextRow(context) }
+                NexaPrimaryButton(
+                    label = stringResource(R.string.context_retry),
+                    onClick = onRetry
+                )
+            }
+            if (!currentValid && onClearLocalSession != null) {
+                NexaPrimaryButton(
+                    label = stringResource(R.string.access_local_logout),
+                    onClick = onClearLocalSession
+                )
+            }
+        }
+
+        ContextChooserPhase.OnlyCurrent -> {
+            state.current?.let { context -> CurrentContextRow(context) }
+            NexaStatePanel(
+                title = stringResource(R.string.context_only_current_title),
+                description = stringResource(R.string.context_only_current_body),
+                actionLabel = if (changeMode) {
+                    stringResource(R.string.context_back_to_work)
+                } else {
+                    null
+                },
+                onAction = if (changeMode) onBack else null
+            )
+        }
+
+        ContextChooserPhase.SelectionPending -> {
+            state.choices.forEach { context ->
+                NexaContextChoiceRow(
+                    companyName = context.companyName,
+                    workspaceName = context.workspaceName,
+                    current = context.isCurrent,
+                    pending = state.pendingKey == context.key,
+                    enabled = false,
+                    onClick = {}
+                )
+            }
+            NexaStatePanel(
+                title = stringResource(R.string.context_loading_title),
+                description = stringResource(R.string.context_selection_pending)
+            )
+            CenteredProgress(stringResource(R.string.context_loading_title))
+        }
+
+        ContextChooserPhase.SelectionRejected -> {
+            NexaStatePanel(
+                title = stringResource(R.string.context_selection_rejected),
+                description = stringResource(R.string.context_initial_support)
+            )
+            state.choices.filterNot { it.isCurrent }.forEach { context ->
+                NexaContextChoiceRow(
+                    companyName = context.companyName,
+                    workspaceName = context.workspaceName,
+                    onClick = { onSelect(context.key) }
+                )
+            }
+        }
+
+        ContextChooserPhase.Choices -> {
+            state.current?.takeIf { current -> state.choices.none { it.key == current.key } }
+                ?.let { CurrentContextRow(it) }
+            state.choices.forEach { context ->
+                NexaContextChoiceRow(
+                    companyName = context.companyName,
+                    workspaceName = context.workspaceName,
+                    current = context.isCurrent,
+                    pending = state.pendingKey == context.key,
+                    enabled = state.phase == ContextChooserPhase.Choices,
+                    onClick = { onSelect(context.key) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccessNoticeBanner(notice: AccessNotice) {
+    NexaFeedbackBanner(
+        message = stringResource(notice.messageResource()),
+        tone = notice.tone()
+    )
+}
+
+@Composable
+private fun CurrentContextRow(context: WorkforceContextSummary) {
+    NexaActiveContextBar(
+        companyName = context.companyName,
+        workspaceName = context.workspaceName,
+        enabled = false,
+        onClick = {}
+    )
+}
+
+@Composable
+private fun CenteredProgress(label: String) {
+    androidx.compose.foundation.layout.Box(
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator(
+            Modifier.semantics { contentDescription = label }
+        )
+    }
+}
+
+@Composable
+private fun AccessNotice.messageResource(): Int = when (this) {
+    AccessNotice.AuthenticationRejected -> R.string.access_notice_auth_rejected
+    AccessNotice.NetworkUnavailable -> R.string.access_notice_network
+    AccessNotice.ServiceUnavailable -> R.string.access_notice_service
+    AccessNotice.IntegrationUnavailable -> R.string.access_notice_integration
+    AccessNotice.SessionExpired -> R.string.access_notice_expired
+    AccessNotice.ContextListUnavailable -> R.string.access_notice_context_list
+    AccessNotice.ContextSelectionRejected -> R.string.access_notice_context_rejected
+    AccessNotice.ContextSelectionUnavailable -> R.string.access_notice_context_unavailable
+    AccessNotice.UnknownContextOutcome -> R.string.access_notice_context_unknown
+    AccessNotice.NoContexts -> R.string.access_notice_no_context
+}
+
+private fun AccessNotice.tone(): NexaFeedbackTone = when (this) {
+    AccessNotice.AuthenticationRejected,
+    AccessNotice.NetworkUnavailable,
+    AccessNotice.ServiceUnavailable,
+    AccessNotice.ContextListUnavailable,
+    AccessNotice.ContextSelectionRejected,
+    AccessNotice.ContextSelectionUnavailable,
+    AccessNotice.UnknownContextOutcome
+    -> NexaFeedbackTone.Warning
+
+    AccessNotice.IntegrationUnavailable,
+    AccessNotice.SessionExpired,
+    AccessNotice.NoContexts
+    -> NexaFeedbackTone.Information
+}

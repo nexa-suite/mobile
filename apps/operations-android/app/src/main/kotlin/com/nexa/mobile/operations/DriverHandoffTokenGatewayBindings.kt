@@ -2,9 +2,10 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.data.OperationsDriverHandoffTokenGateway
-import com.nexa.mobile.operations.feature.delivery.DriverHandoffTokenViewModel as HandoffTokenViewModel
-import com.nexa.mobile.operations.feature.delivery.application.DriverHandoffTokenMetadataStore as HandoffTokenMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffTokenMetadataStore as HandoffTokenMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.OperationsDriverHandoffTokenGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.JsonDeliveryRequestBodyCodec
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverHandoffTokenViewModel as HandoffTokenViewModel
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -18,7 +19,11 @@ internal class DriverHandoffTokenGatewayBindings @Inject constructor(
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass.isAssignableFrom(HandoffTokenViewModel::class.java))
-            return HandoffTokenViewModel(gateway, metadataStore) as T
+            return HandoffTokenViewModel(
+                gateway,
+                metadataStore,
+                requestBodyCodec = JsonDeliveryRequestBodyCodec()
+            ) as T
         }
     }
 }

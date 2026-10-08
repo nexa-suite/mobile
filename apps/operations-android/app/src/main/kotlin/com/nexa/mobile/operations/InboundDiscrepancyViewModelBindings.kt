@@ -2,10 +2,11 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyViewModel
-import com.nexa.mobile.operations.feature.warehouse.application.InboundDiscrepancyDraftStore
-import com.nexa.mobile.operations.feature.warehouse.application.InboundDiscrepancyEvidenceArtifactStore
-import com.nexa.mobile.operations.feature.warehouse.application.InboundDiscrepancyGateway
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyDraftStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyEvidenceArtifactStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyGateway
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.serialization.warehouse.CanonicalInboundDiscrepancyPayloadCodec
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.InboundDiscrepancyViewModel
 
 internal object InboundDiscrepancyViewModelBindings {
     fun viewModelFactory(
@@ -16,7 +17,12 @@ internal object InboundDiscrepancyViewModelBindings {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass.isAssignableFrom(InboundDiscrepancyViewModel::class.java))
-            return InboundDiscrepancyViewModel(gateway, drafts, artifacts) as T
+            return InboundDiscrepancyViewModel(
+                gateway,
+                drafts,
+                artifacts,
+                CanonicalInboundDiscrepancyPayloadCodec()
+            ) as T
         }
     }
 }

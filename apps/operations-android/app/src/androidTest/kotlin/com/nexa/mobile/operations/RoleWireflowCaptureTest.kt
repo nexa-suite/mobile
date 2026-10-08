@@ -24,9 +24,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nexa.mobile.operations.core.auth.session.SessionState
-import com.nexa.mobile.operations.feature.access.AccessStage
-import com.nexa.mobile.operations.feature.access.AccessViewModel
-import com.nexa.mobile.operations.feature.dispatch.R as DispatchR
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R as FulfillmentR
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessViewModel
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
@@ -195,10 +195,10 @@ class RoleWireflowCaptureTest {
             .fetchSemanticsNodes().isNotEmpty()
 
     private fun businessExceptionsTitle(): String =
-        composeRule.activity.getString(DispatchR.string.bom_exceptions_title)
+        composeRule.activity.getString(FulfillmentR.string.bom_exceptions_title)
 
     private fun businessExceptionsBackLabel(): String =
-        composeRule.activity.getString(DispatchR.string.bom_exceptions_back)
+        composeRule.activity.getString(FulfillmentR.string.bom_exceptions_back)
 
     private fun hasConnectedBackAction(): Boolean {
         val backIcon = composeRule.onAllNodes(

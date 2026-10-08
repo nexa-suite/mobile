@@ -2,11 +2,11 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.data.OperationsDispatchAssignmentGateway
-import com.nexa.mobile.operations.data.OperationsDispatchReadinessGateway
-import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentViewModel as AssignmentViewModel
-import com.nexa.mobile.operations.feature.dispatch.DispatchReadinessViewModel
-import com.nexa.mobile.operations.feature.dispatch.application.DispatchAssignmentMetadataStore as AssignmentMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAssignmentMetadataStore as AssignmentMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.OperationsDispatchAssignmentGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.OperationsDispatchReadinessGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchAssignmentViewModel as AssignmentViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchReadinessViewModel
 import javax.inject.Inject
 
 internal class DispatchReadinessViewModelFactory @Inject constructor(

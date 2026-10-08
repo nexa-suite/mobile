@@ -8,12 +8,13 @@ import android.net.Uri
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.data.OperationsDriverDeliveryGateway
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryViewModel
-import com.nexa.mobile.operations.feature.delivery.application.DriverArrivalMetadataStore
-import com.nexa.mobile.operations.feature.delivery.application.DriverAttemptMetadataStore
-import com.nexa.mobile.operations.feature.delivery.application.DriverOutcomeMetadataStore
-import com.nexa.mobile.operations.feature.delivery.application.DriverProofMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.OperationsDriverDeliveryGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.JsonDeliveryRequestBodyCodec
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryViewModel
 import javax.inject.Inject
 
 /** Hands the server-authorized destination snapshot to an external navigation app. */
@@ -49,7 +50,8 @@ internal class DriverDeliveryGatewayBindings @Inject constructor(
                 metadataStore,
                 outcomeMetadataStore = outcomeMetadataStore,
                 arrivalMetadataStore = arrivalMetadataStore,
-                proofMetadataStore = proofMetadataStore
+                proofMetadataStore = proofMetadataStore,
+                requestBodyCodec = JsonDeliveryRequestBodyCodec()
             ) as T
         }
     }

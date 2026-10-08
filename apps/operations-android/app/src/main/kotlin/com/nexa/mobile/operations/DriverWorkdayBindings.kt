@@ -4,11 +4,11 @@ import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.data.OperationsDriverWorkdayCommandStore
-import com.nexa.mobile.operations.data.OperationsDriverWorkdayGateway
-import com.nexa.mobile.operations.feature.delivery.DriverWorkdayViewModel
-import com.nexa.mobile.operations.feature.delivery.application.DriverWorkdayLocationCapture as WorkdayLocationCapture
-import com.nexa.mobile.operations.feature.delivery.model.DriverWorkdayLocationEvent
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayLocationCapture as WorkdayLocationCapture
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkdayLocationEvent
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.OperationsDriverWorkdayCommandStore
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.OperationsDriverWorkdayGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverWorkdayViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton

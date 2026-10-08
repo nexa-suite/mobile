@@ -1,48 +1,117 @@
 # DDD client refactor verification — 2026-10-08
 
-## Source and scope
+## Current state
 
-Implementation baseline: mobile `f3b425867184ca0463e3dbb105ba48e0642ab824`
-(v1.0.1). Accepted architecture: Blueprint
-`9034f4857b45224832f61af3e088f8a29143b187`, including ADR-0020. See
-[DDD alignment](client-ddd-alignment.md) for responsibility and authority mapping.
-Mobile Report was consulted as an academic projection; no report content or
-Product semantics were changed.
+The current refactor organizes Operations Android under 11 canonical context
+roots and 31 runtime modules, with `domain`, `application`, `infrastructure`
+and `presentation` modules only where code exists. BC-08 Payments, BC-10
+Notifications and BC-11 Business Traceability have no runtime modules. The
+[DDD alignment](client-ddd-alignment.md) records the per-context layer map and
+authority boundaries.
 
-The tested Android source/configuration bytes match mobile commit
-`0856efd11956f9b7b4c044e185a9ab1f8016b88e`. Their SHA-256 fingerprint is
-`1b37163a547549242eadf3de7ee218c2e4aabc8c3db1d66e6242352c8107b413`
-over 705 files. Fingerprinting uses sorted existing repository-relative paths
-under `apps/operations-android`, a NUL, file bytes and a NUL for each file;
-ignored builds, caches and machine configuration are excluded.
+The refactor is paused at the Owner's request on 2026-10-08, on branch
+`feature/mobile-context-ddd-v1.1.0`. This checkpoint preserves work in progress;
+it is not the v1.1.0 release or a fully verified candidate.
 
-The refactor preserves existing client workflows and moves their projections,
-ports, presentation and adapters into enforced layers. Eight additional contract
-tests cover the selective receiving and field-request coordinators. Dependency
-verification remains strict. Added JVM plugin/scripting and newly resolved
-adapter transitive artifact checksums were compared with publisher checksums
-from Maven Central and Google Maven; production library versions were retained.
+| Command, from `apps/operations-android` | Observed result |
+| --- | --- |
+| `python3 scripts/verify-context-architecture.py` | PASS: 11 canonical context roots and layer boundaries |
+| `./gradlew :core:device:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.nexa.mobile.operations.core.device.scanner.BarcodeDecodingPoCTest --dependency-verification strict --console=plain` | PASS on API 37: 2 tests, 0 failures, 0 skipped; static synthetic QR/EAN-13 decoding only |
+| `./gradlew :app:compileDebugKotlin testDebugUnitTest --dependency-verification strict --console=plain` | FAILED: strict verification rejected missing metadata for `androidx.collection:collection:1.4.2`, `collection-1.4.2.module`; aggregate execution did not complete |
+| `./gradlew ktlintFormat :app:compileDebugKotlin testDebugUnitTest --dependency-verification strict --console=plain` | FAILED: ktlint requires `ScannerModels.kt` in BC-03 application to be named `ProductScannerResolution.kt`; formatting and subsequent checks did not complete |
 
-## Executed local gates
+The Dart experiment's `dart analyze` and fixture runner passed (12 synthetic
+SKU resolver cases); the Kotlin counterpart is added but aggregate verification
+has not completed. These checks do not establish physical camera operation or
+Product Acceptance. Earlier failed compilations and behavior checks remain
+negative evidence; subsequent source corrections require a full rerun.
 
-Commands below ran from `apps/operations-android` with JDK 17 and SDK 37.0.
+The script verifies the 11 roots, module/layer shape, JVM framework boundaries,
+context import direction and removal of source from legacy `feature` and `data`
+roots. It is a structural check, not a build or behavior test.
 
-```sh
-./gradlew verifyAndroidArchitecture ktlintCheck lintDebug testDebugUnitTest \
-  :app:assembleDebug --dependency-verification strict --continue --console=plain
+The following gates remain **PENDING** for the current tree:
 
-scripts/verify-connected-local.sh emulator-5554 --console=plain \
-  -Pandroid.testInstrumentationRunnerArguments.notClass=com.nexa.mobile.operations.LiveCandidateIdentityIntegrationTest
+| Gate | Status |
+| --- | --- |
+| Gradle `verifyAndroidArchitecture` | PENDING |
+| `ktlintCheck` | PENDING |
+| `lintDebug` | PENDING |
+| Aggregate `testDebugUnitTest` | PENDING |
+| `:app:assembleDebug` with strict dependency verification | PENDING |
+| API 37 connected instrumentation | PENDING |
+| API 29 promotion instrumentation | PENDING |
+| BC-05/BC-06 moved storage unit and Android instrumentation tests | PENDING |
+| Release-origin rejection and R8 verification | PENDING |
+| CI result for an immutable candidate | PENDING |
 
-./gradlew :app:assembleRelease -PnexaReleaseApiBaseUrl=https://github.com/ \
-  --dependency-verification strict --console=plain
-```
+The storage tests now belong to the context infrastructure modules. BC-05 JVM
+tests are `ReceivingMetadataStoreCoreTest`,
+`DispositionMetadataStoreCoreTest` and
+`TemperatureEvidenceMetadataStoreCoreTest`; its Android tests are
+`AndroidReceivingMetadataStoreTest`, `AndroidDispositionMetadataStoreTest` and
+`AndroidTemperatureEvidenceMetadataStoreTest`. BC-06 JVM and Android tests are
+`PickingMetadataStoreCoreTest` and `AndroidPickingMetadataStoreTest`. They
+reside under `contexts/{inventoryavailability,fulfillmentdelivery}/infrastructure/src/{test,androidTest}`.
+No current pass is recorded for these moved tests.
 
-All three commands exited 0. Release assembly exercised R8 and resource
-shrinking with a verification-only origin; its APK is not a production or
-distribution artifact.
+The reproducible commands and XML report locations are in the
+[verification guide](verification.md). The owner decision dated 2026-10-08 for
+MOB-US-009 (direct order) is recorded in the [alignment](client-ddd-alignment.md);
+no check in this record verifies that API or client implementation.
 
-| JVM module | Tests | Failures / errors / skips |
+## Authority references
+
+- Blueprint accepted architecture and decisions: commit
+  `3574accc8962346a824a043ef8ea5564600c08b0` (includes the accepted
+  Direct Order scope correction in [PR #33](https://github.com/nexa-suite/blueprint/pull/33)).
+- API implementation map: `origin/main` commit
+  `78a3060cb56796520fcf8e9be36c63f88b4f9f51`.
+- Mobile Report academic DDD projection: commit
+  `55f959441fb4d5422519db31c380631e95ed72e3`.
+
+The Blueprint is canonical Product/Domain/C4 authority. API documentation maps
+current implementation contracts. Mobile Report is academic evidence only.
+Implementation status does not become Product Acceptance, System Acceptance
+or production readiness.
+
+## Resume checklist
+
+1. Verify the missing collection metadata against official Google Maven bytes
+   and publisher checksum before adding its digest; keep strict verification.
+2. Correct the BC-03 application filename and run formatting across all modules.
+3. Complete Direct Order verification: current API response enclosure,
+   confirmed versus prepaid pending UI/receipt, explicit same-key recovery,
+   legacy Purchase Request intent reconciliation, coordinator and ViewModel tests.
+4. Review the extracted Inbound Discrepancy encoder and add golden/tamper tests;
+   validate restored bodies against their staged fields.
+5. Run full architecture, lint, JVM tests and debug assembly. Recheck moved
+   BC-05/BC-06 encrypted storage, API 37 instrumentation and API 29 promotion.
+6. Complete Sprint 1/2 PBI-to-acceptance-criterion traceability against Mobile
+   Report commit `55f959441fb4d5422519db31c380631e95ed72e3`; report gaps and
+   distinguish original scope from the expanded Jira projection.
+7. Run release-origin rejection and R8 checks, create the remaining coherent
+   signed commits, require GitHub CI, integrate the corrective branch and
+   publish v1.1.0 with the same official Android certificate. Close the task's
+   branches only after integration. Signing secrets stay outside this repository.
+
+The prior invalid Mobile PR #38 is closed. This corrective Mobile branch remains
+open for completion. Android version values target 1.1.0 (code 10), but no tag,
+release, final APK, completed Sprint acceptance or current production gate is
+claimed. Blueprint PR #33 is merged, its Diego-authored commit is GitHub
+Verified, and its branch has been removed.
+
+## Historical baseline — not current validation
+
+The following results belong to the earlier feature/data contract extraction
+and do not validate this 11-context refactor. The prior record used mobile
+baseline `f3b425867184ca0463e3dbb105ba48e0642ab824`; tested Android source bytes
+matched `0856efd11956f9b7b4c044e185a9ab1f8016b88e` and had fingerprint
+`1b37163a547549242eadf3de7ee218c2e4aabc8c3db1d66e6242352c8107b413` over 705
+files. Its 475 JVM tests and module names below describe that earlier layout
+only.
+
+| Earlier module | Tests | Failures / errors / skips |
 | --- | ---: | --- |
 | app | 34 | 0 / 0 / 0 |
 | core/auth | 21 | 0 / 0 / 0 |
@@ -58,45 +127,19 @@ distribution artifact.
 | feature/commercial | 18 | 0 / 0 / 0 |
 | warehouse/contract | 4 | 0 / 0 / 0 |
 | commercial/contract | 4 | 0 / 0 / 0 |
-| **Total** | **475** | **0 / 0 / 0** |
+| **Earlier total** | **475** | **0 / 0 / 0** |
 
-Access, dispatch and delivery contracts have no independent test sources; their
-existing behavior suites remain in presentation and adapters.
+That earlier execution also reported 57 completed connected cases across auth,
+local and app XML, plus one credential-dependent role capture that raised an
+`AssumptionViolatedException` and did not execute; the opt-in live identity
+class was excluded. Four temporary negative dependency probes passed on that
+earlier source. These facts remain historical and must not be used as current
+emulator, integration, DDD-boundary or acceptance evidence.
 
-Connected execution used the `Nexa_DDD_API37` arm64 AVD. Boot completion and
-`ro.build.version.sdk=37` were checked. XML recorded:
+## Acceptance and release limits
 
-| Instrumented module | XML tests | XML failures / errors / skips |
-| --- | ---: | --- |
-| core/auth | 6 | 0 / 0 / 0 |
-| core/local | 16 | 0 / 0 / 0 |
-| app | 36 | 1 / 0 / 0 |
-
-The single app XML failure is `AssumptionViolatedException` from
-`RoleWireflowCaptureTest.captureConfiguredRoleHomeAndEntries`: role credentials
-and the first entry label were not configured. Gradle treats this as an
-assumption and exits 0. Thus 57 cases completed without a reported failure and
-one credential-dependent capture did not execute; the raw XML classification
-is retained here. The opt-in live identity class was explicitly excluded.
-
-Four temporary negative probes each ran `verifyAndroidArchitecture` with
-`--dependency-verification strict --console=plain`. They injected, respectively,
-an Android import into a contract, a lifecycle import into data, a data import
-into warehouse presentation and a delivery import into warehouse presentation.
-Each exited nonzero with the expected boundary message. Probe files were
-removed in cleanup; the restored source passed the same command. No probe or
-failed-run report is part of the shipped source.
-
-Earlier extraction compile and lint failures were repaired before these final
-commands: module imports/visibility, nullable public-property snapshots, Hilt
-composition providers, test annotation placement and duplicated commercial
-resource ownership. No test assertion or security gate was disabled.
-
-## Limits and integration gates
-
-Local results do not substitute for CI on the pushed candidate. GitHub signature
-verification and workflow results must be checked on that exact head separately.
-API 29 promotion instrumentation was not run locally. Live API credentials,
-role captures, physical devices, Product/UX Acceptance, System Acceptance and
-Production Readiness are outside this execution evidence. Existing historical
-release and live-fixture records retain their original scope.
+No Product/UX Acceptance, System Acceptance, production readiness, physical
+device acceptance or release result is claimed for the current refactor. The
+Owner has authorized the v1.1.0 refactor release scope; that authorization is
+not evidence that an artifact was built, published, accepted or deployed. This
+record does not mark the release complete.

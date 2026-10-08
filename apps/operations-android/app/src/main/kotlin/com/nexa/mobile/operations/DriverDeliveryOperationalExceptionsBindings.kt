@@ -2,9 +2,10 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsViewModel as ExceptionsViewModel
-import com.nexa.mobile.operations.feature.delivery.application.DriverDeliveryOperationalExceptionMetadataStore as ExceptionMetadataStore
-import com.nexa.mobile.operations.feature.delivery.application.DriverDeliveryOperationalExceptionsGateway as ExceptionsGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryOperationalExceptionMetadataStore as ExceptionMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryOperationalExceptionsGateway as ExceptionsGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.JsonDeliveryRequestBodyCodec
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryOperationalExceptionsViewModel as ExceptionsViewModel
 import javax.inject.Inject
 
 internal class DriverDeliveryOperationalExceptionsBindings @Inject constructor(
@@ -19,7 +20,11 @@ internal class DriverDeliveryOperationalExceptionsBindings @Inject constructor(
                     ExceptionsViewModel::class.java
                 )
             )
-            return ExceptionsViewModel(gateway, metadataStore) as T
+            return ExceptionsViewModel(
+                gateway,
+                metadataStore,
+                requestBodyCodec = JsonDeliveryRequestBodyCodec()
+            ) as T
         }
     }
 }

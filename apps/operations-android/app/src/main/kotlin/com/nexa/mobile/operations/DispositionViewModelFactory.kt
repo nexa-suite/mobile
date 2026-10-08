@@ -2,9 +2,9 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.data.OperationsDispositionGateway
-import com.nexa.mobile.operations.feature.warehouse.DispositionViewModel
-import com.nexa.mobile.operations.feature.warehouse.application.DispositionMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.DispositionMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.OperationsDispositionGateway
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.DispositionViewModel
 import javax.inject.Inject
 
 internal class DispositionViewModelFactory @Inject constructor(

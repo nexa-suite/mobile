@@ -1,8 +1,10 @@
 # Android foundation verification
 
 The [DDD client execution record](ddd-client-verification.md) contains the
-2026-10-08 refactor results. Earlier observations below retain their original
-candidate scope and do not describe the current refactor.
+current refactor status. As of 2026-10-08, only the Python check for 11 context
+roots has passed; all Gradle and device gates for the current refactor remain
+pending. Earlier observations below retain their original candidate scope and
+do not describe the current refactor.
 
 Run Gradle commands from `apps/operations-android` with JDK 17. Install Android SDK packages `platforms;android-37.0`, `build-tools;36.0.0`, and `platform-tools`. Keep the Gradle wrapper and dependency verification metadata in the repository; review the bytes and source of a new dependency artifact before accepting its checksum. The wrapper pins the official SHA-256 for the Gradle 9.7.1 binary distribution.
 
@@ -10,13 +12,21 @@ Run Gradle commands from `apps/operations-android` with JDK 17. Install Android 
 
 ```sh
 cd apps/operations-android
+python3 scripts/verify-context-architecture.py
 ./gradlew verifyAndroidArchitecture ktlintCheck lintDebug \
-  testDebugUnitTest \
-  :app:assembleDebug --dependency-verification strict
+  testDebugUnitTest :app:assembleDebug \
+  --dependency-verification strict --console=plain
 ```
 
-The JVM task covers every configured Android module, including new device/local
-foundations, data adapters and feature presentation. It also depends on every Kotlin/JVM contract module's `test` task. Android JVM XML files are in each module's `build/test-results/testDebugUnitTest`; contract XML files are in `feature/*/contract/build/test-results/test`. Lint reports are under each module's `build/reports/lint-results-debug.html`. A zero exit status is necessary, but inspect the XML test and failure counts before recording a result.
+The Python script checks the canonical roots and context-layer source
+boundaries. Gradle `testDebugUnitTest` aggregates tests from every configured
+Android module and the Kotlin/JVM `domain` and `application` modules. Android
+JVM XML files are in each Android module's
+`build/test-results/testDebugUnitTest`; Kotlin/JVM XML files are in
+`contexts/<root>/{domain,application}/build/test-results/test`. Lint reports
+are under each Android module's `build/reports/lint-results-debug.html`. A zero
+exit status is necessary, but inspect XML test and failure counts before
+recording a result.
 
 ## Emulator gates
 

@@ -2,8 +2,8 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.data.OperationsPickingWorkListGateway
-import com.nexa.mobile.operations.feature.warehouse.PickingWorkListViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.OperationsPickingWorkListGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse.PickingWorkListViewModel
 import javax.inject.Inject
 
 /** ViewModel factory consumed by the root entry point without leaking app types into the feature. */

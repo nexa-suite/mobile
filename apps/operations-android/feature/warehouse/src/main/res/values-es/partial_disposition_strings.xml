@@ -1,7 +1,0 @@
-<resources>
-    <string name="disposition_partial_title">Disposición parcial por temperatura</string>
-    <string name="disposition_partial_description">Este comando envía la cantidad afectada y la evaluación de temperatura. El estado, las cantidades y la versión del lote mostrados provienen de la lectura más reciente del lote.</string>
-    <string name="disposition_partial_affected_quantity">Cantidad afectada</string>
-    <string name="disposition_partial_evaluation_id">Evaluación de temperatura</string>
-    <string name="disposition_error_partial_evaluation">La evaluación de temperatura o la cantidad afectada no es válida. Abre de nuevo el resultado de temperatura e inténtalo otra vez.</string>
-</resources>

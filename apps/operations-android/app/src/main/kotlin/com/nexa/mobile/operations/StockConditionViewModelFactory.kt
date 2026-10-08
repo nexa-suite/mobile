@@ -2,8 +2,8 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.data.OperationsStockConditionGateway
-import com.nexa.mobile.operations.feature.warehouse.StockConditionViewModel
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.OperationsStockConditionGateway
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.StockConditionViewModel
 import javax.inject.Inject
 
 internal class StockConditionViewModelFactory @Inject constructor(

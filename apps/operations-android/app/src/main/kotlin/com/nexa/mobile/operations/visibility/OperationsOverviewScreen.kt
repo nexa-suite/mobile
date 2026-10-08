@@ -14,8 +14,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.nexa.mobile.operations.feature.dispatch.DispatchReadinessStatus
-import com.nexa.mobile.operations.feature.dispatch.DispatchReadinessUiState
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchReadinessStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchReadinessUiState
 
 /** Shows only the authoritative prepared-work projection; it never constructs enterprise totals or severity. */
 @Composable

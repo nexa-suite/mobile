@@ -2,12 +2,13 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.data.OperationsDriverIncidentGateway
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryIncidentViewModel as IncidentViewModel
-import com.nexa.mobile.operations.feature.delivery.application.DriverIncidentMetadataStore as IncidentMetadataStore
-import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentMetadataWrite as IncidentMetadataWrite
-import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentSelectionContext as IncidentSelectionContext
-import com.nexa.mobile.operations.feature.delivery.model.DriverProofFileCandidate
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentMetadataStore as IncidentMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentMetadataWrite as IncidentMetadataWrite
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentSelectionContext as IncidentSelectionContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofFileCandidate
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.OperationsDriverIncidentGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.JsonDeliveryRequestBodyCodec
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryIncidentViewModel as IncidentViewModel
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -26,7 +27,11 @@ internal class DriverDeliveryIncidentGatewayBindings @Inject constructor(
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass.isAssignableFrom(IncidentViewModel::class.java))
-            return IncidentViewModel(gateway, metadataStore) as T
+            return IncidentViewModel(
+                gateway,
+                metadataStore,
+                requestBodyCodec = JsonDeliveryRequestBodyCodec()
+            ) as T
         }
     }
 }

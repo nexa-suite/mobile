@@ -6,14 +6,19 @@ The accepted slice consumes MOB-US-001, MOB-US-002, MOB-US-003 and MOB-US-012. I
 
 | Client boundary | Responsibility and server authority |
 | --- | --- |
-| `:feature:access` | Identity, safe session recovery and current workforce-context presentation; consumes BC-01 |
-| `:feature:warehouse` | Warehouse Operator task and Product/SKU presentation; consumes BC-01 authority and BC-03 Catalog reads |
+| `:contexts:tenantaccessgovernance:presentation` | Identity, safe session recovery and current workforce-context presentation; consumes BC-01 |
+| `:contexts:catalogcommercialpolicy:presentation` | Product/SKU search and display-only confirmation based on BC-03 Catalog reads |
 | `:core:auth` | Memory-only access token, protected refresh credential, rotation and native session epoch |
 | `:core:network` | HTTP wire representation, safe client projections and existing bounded protected-call replay |
 | `:core:designsystem` | Android-native reusable components and Nexa visual tokens |
-| `:app` | Hilt composition, projection mapping and authority-sensitive Navigation 3 root |
+| `:app` | Hilt composition, ViewModel factories and authority-sensitive Navigation 3 root |
 
-A client feature module is not a Bounded Context. `:feature:warehouse` does not become BC-05 because a Warehouse Operator performs this task. Android does not implement server aggregates, pricing or stock authority.
+Client modules map code to the eleven canonical Bounded Contexts; they do not
+create those contexts or decide their ownership. A Warehouse Operator role and
+screen do not make this identification workflow part of BC-05: Catalog
+identification is a BC-03 projection, while receiving and physical stock
+workflows belong to BC-05. Android does not implement server aggregates,
+pricing or stock authority.
 
 ## Authority and candidate state
 

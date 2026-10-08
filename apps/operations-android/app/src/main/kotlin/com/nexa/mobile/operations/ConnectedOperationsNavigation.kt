@@ -4,10 +4,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.designsystem.NexaTaskRow
-import com.nexa.mobile.operations.feature.access.AccessStage
-import com.nexa.mobile.operations.feature.access.AccessUiState
-import com.nexa.mobile.operations.feature.access.model.VerifiedContextAuthority
-import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.VerifiedContextAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
+import com.nexa.mobile.operations.workentry.WarehouseUiState
 
 /** Reachable capability entries, including explicit unavailable states, use current authority. */
 internal data class ConnectedOperationEntry(

@@ -25,16 +25,14 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.nexa.mobile.operations.feature.access.AccessViewModel
-import com.nexa.mobile.operations.feature.access.R as AccessResources
-import com.nexa.mobile.operations.feature.warehouse.R as WarehouseResources
-import com.nexa.mobile.operations.feature.warehouse.ReceivingCommandStatus
-import com.nexa.mobile.operations.feature.warehouse.ReceivingViewModel
-import com.nexa.mobile.operations.feature.warehouse.StockConditionAvailabilityStatus
-import com.nexa.mobile.operations.feature.warehouse.StockConditionDetailStatus
-import com.nexa.mobile.operations.feature.warehouse.StockConditionStatus
-import com.nexa.mobile.operations.feature.warehouse.StockConditionViewModel
-import com.nexa.mobile.operations.feature.warehouse.WarehouseViewModel
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.ReceivingCommandStatus
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.ReceivingViewModel
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.StockConditionAvailabilityStatus
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.StockConditionDetailStatus
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.StockConditionStatus
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.StockConditionViewModel
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessViewModel
+import com.nexa.mobile.operations.workentry.WarehouseViewModel
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue

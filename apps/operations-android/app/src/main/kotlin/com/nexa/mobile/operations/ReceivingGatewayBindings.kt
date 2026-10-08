@@ -2,9 +2,9 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.data.OperationsReceivingGateway
-import com.nexa.mobile.operations.feature.warehouse.ReceivingViewModel
-import com.nexa.mobile.operations.feature.warehouse.application.ReceivingMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.OperationsReceivingGateway
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.ReceivingViewModel
 import javax.inject.Inject
 
 /** Factory entry for routing without coupling the feature to auth/network/Hilt. */

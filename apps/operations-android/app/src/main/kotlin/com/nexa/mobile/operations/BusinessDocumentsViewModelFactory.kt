@@ -2,8 +2,8 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.nexa.mobile.operations.data.OperationsBusinessDocumentsGateway
-import com.nexa.mobile.operations.feature.commercial.BusinessDocumentsViewModel
+import com.nexa.mobile.operations.businessdocuments.infrastructure.adapters.OperationsBusinessDocumentsGateway
+import com.nexa.mobile.operations.businessdocuments.presentation.commercial.BusinessDocumentsViewModel
 import javax.inject.Inject
 internal class BusinessDocumentsViewModelFactory @Inject constructor(
     private val gateway: OperationsBusinessDocumentsGateway
