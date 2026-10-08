@@ -48,8 +48,6 @@ fun deliveryLoadCreationBody(
     }.toString()
 }
 
-
-
 fun dispatchWindowPlanBody(windowStart: String, windowEnd: String, reason: String): String {
     val start = Instant.parse(windowStart.trim())
     val end = Instant.parse(windowEnd.trim())
@@ -62,14 +60,10 @@ fun dispatchWindowPlanBody(windowStart: String, windowEnd: String, reason: Strin
     }.toString()
 }
 
-
-
 fun deliveryLoadAssignBody(driverMembershipId: String): String {
     require(isValidOpaqueIdentifier(driverMembershipId))
     return buildJsonObject { put("driverMembershipId", driverMembershipId) }.toString()
 }
-
-
 
 fun deliveryLoadReorderBody(stopOrder: List<String>, reason: String): String {
     val normalizedReason = reason.trim()

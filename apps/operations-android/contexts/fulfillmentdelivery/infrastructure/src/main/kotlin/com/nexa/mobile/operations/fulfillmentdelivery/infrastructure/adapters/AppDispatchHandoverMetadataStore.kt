@@ -6,10 +6,10 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverMetadataStore as HandoverMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverMetadataRead as HandoverMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverMetadataStore as HandoverMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverMetadataWrite as HandoverMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsIntentStatus as OutgoingGoodsIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsScopeIdentity as OutgoingGoodsScopeIdentity
@@ -37,8 +37,7 @@ import kotlinx.serialization.json.longOrNull
 class AppDispatchHandoverMetadataStore(
     private val local: ScopedMetadataStore,
     private val requestBodyCodec: JsonDispatchRequestBodyCodec
-) :
-    HandoverMetadataStore {
+) : HandoverMetadataStore {
     override suspend fun loadIntent(
         scope: OutgoingGoodsScopeIdentity,
         fulfillmentId: String
@@ -292,9 +291,8 @@ object AppDispatchHandoverMetadataBindings {
     fun dispatchHandoverMetadataStore(
         @ApplicationContext context: Context,
         requestBodyCodec: JsonDispatchRequestBodyCodec
-    ): HandoverMetadataStore =
-        AppDispatchHandoverMetadataStore(
-            AndroidScopedMetadataStore(context, ScopedMetadataPurpose.FulfillmentDispatch),
-            requestBodyCodec
-        )
+    ): HandoverMetadataStore = AppDispatchHandoverMetadataStore(
+        AndroidScopedMetadataStore(context, ScopedMetadataPurpose.FulfillmentDispatch),
+        requestBodyCodec
+    )
 }

@@ -1,26 +1,25 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDispatchRequestBodyCodec
-
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperatureEvidence
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureIntentStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperatureLot
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperaturePhotoCandidate
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperaturePhotoEvidence
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperaturePhotoGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperaturePhotoUploadIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperaturePhotoUploadMetadataRead
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperatureReadiness
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperatureEvidence
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperatureLot
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperaturePhotoEvidence
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperatureReadiness
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDispatchRequestBodyCodec
 import java.io.File
 import java.math.BigDecimal
 import java.security.MessageDigest
@@ -46,7 +45,10 @@ class DispatchTemperatureViewModelTest {
     fun outsideRangeReadingRequiresAvailablePhotoBeforeTemperaturePost() = runTest {
         val metadata = FakeMetadataStore()
         val gateway = FakeGateway(metadata)
-        val viewModel = DispatchTemperatureViewModel(gateway, metadata, now = { OBSERVED_AT }, requestBodyCodec = TestDispatchRequestBodyCodec())
+        val viewModel =
+            DispatchTemperatureViewModel(gateway, metadata, now = {
+                OBSERVED_AT
+            }, requestBodyCodec = TestDispatchRequestBodyCodec())
         viewModel.activate(FULFILLMENT_ID, context())
         runCurrent()
         viewModel.updateValue(LOT_ID, "9.5")
@@ -126,7 +128,10 @@ class DispatchTemperatureViewModelTest {
     fun photoSelectionIsRejectedWhenFreshReadChangesWarehouse() = runTest {
         val metadata = FakeMetadataStore()
         val gateway = FakeGateway(metadata)
-        val viewModel = DispatchTemperatureViewModel(gateway, metadata, now = { OBSERVED_AT }, requestBodyCodec = TestDispatchRequestBodyCodec())
+        val viewModel =
+            DispatchTemperatureViewModel(gateway, metadata, now = {
+                OBSERVED_AT
+            }, requestBodyCodec = TestDispatchRequestBodyCodec())
         viewModel.activate(FULFILLMENT_ID, context())
         runCurrent()
         val selection = requireNotNull(viewModel.excursionEvidenceSelectionContext(LOT_ID))

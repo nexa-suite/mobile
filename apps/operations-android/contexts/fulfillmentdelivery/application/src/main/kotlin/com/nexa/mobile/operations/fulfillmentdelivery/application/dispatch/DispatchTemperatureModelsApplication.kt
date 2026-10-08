@@ -35,7 +35,6 @@ data class DispatchTemperatureCommand(
 
 /** A private, validated image copy passed from the app picker into this feature. */
 
-
 data class DispatchTemperaturePhotoCandidate(
     val file: File,
     val originalFilename: String,
@@ -44,7 +43,6 @@ data class DispatchTemperaturePhotoCandidate(
     val checksumSha256: String
 ) {
     init {
-        require(file.isFile && file.length() == byteSize)
         require(originalFilename.isNotBlank() && originalFilename.length <= 255)
         require(declaredContentType in ALLOWED_CONTENT_TYPES)
         require(byteSize in 1..MAX_BYTES)
@@ -62,7 +60,6 @@ data class DispatchTemperaturePhotoCandidate(
 
 /** Snapshot captured before opening the system photo picker; every field is revalidated after return. */
 
-
 data class DispatchTemperatureEvidenceSelectionContext(
     val scope: DispatchTemperatureScopeIdentity,
     val authorityEpoch: Long,
@@ -73,8 +70,6 @@ data class DispatchTemperatureEvidenceSelectionContext(
     override fun toString(): String = "DispatchTemperatureEvidenceSelectionContext(REDACTED)"
 }
 
-
-
 data class DispatchTemperatureScopeIdentity(
     val userId: String,
     val tenantId: String,
@@ -84,11 +79,7 @@ data class DispatchTemperatureScopeIdentity(
     override fun toString(): String = "DispatchTemperatureScopeIdentity(REDACTED)"
 }
 
-
-
 enum class DispatchTemperatureIntentStatus { Pending, UnknownOutcome }
-
-
 
 data class DispatchTemperatureIntent(
     val scope: DispatchTemperatureScopeIdentity,
@@ -99,7 +90,6 @@ data class DispatchTemperatureIntent(
 }
 
 /** Encrypted upload retry facts only; the temporary image itself is never restored automatically. */
-
 
 data class DispatchTemperaturePhotoUploadIntent(
     val scope: DispatchTemperatureScopeIdentity,
@@ -133,14 +123,10 @@ data class DispatchTemperaturePhotoUploadIntent(
     }
 }
 
-
-
 sealed interface DispatchTemperatureMetadataRead {
     data class Available(val intent: DispatchTemperatureIntent?) : DispatchTemperatureMetadataRead
     data object Unavailable : DispatchTemperatureMetadataRead
 }
-
-
 
 sealed interface DispatchTemperaturePhotoUploadMetadataRead {
     data class Available(val intent: DispatchTemperaturePhotoUploadIntent?) :
@@ -148,11 +134,7 @@ sealed interface DispatchTemperaturePhotoUploadMetadataRead {
     data object Unavailable : DispatchTemperaturePhotoUploadMetadataRead
 }
 
-
-
 enum class DispatchTemperatureMetadataWrite { Saved, Conflict, Stale, Unavailable }
-
-
 
 sealed interface DispatchTemperatureGatewayResult {
     data class Current(val readiness: DispatchTemperatureReadiness) :
@@ -169,8 +151,6 @@ sealed interface DispatchTemperatureGatewayResult {
     data object Stale : DispatchTemperatureGatewayResult
     data object Conflict : DispatchTemperatureGatewayResult
 }
-
-
 
 sealed interface DispatchTemperaturePhotoGatewayResult {
     data class Evidence(val photo: DispatchTemperaturePhotoEvidence) :

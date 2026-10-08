@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Nexa Operations</string>
+    <string name="app_name" translatable="false">Nexa Operations</string>
     <string name="connected_operation_open_support">Abrir esta opción de trabajo en el contexto actual.</string>
 
 

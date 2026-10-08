@@ -12,8 +12,6 @@ data class DispatchOutgoingGoodsObservation(
     val observedQuantity: BigDecimal
 )
 
-
-
 data class DispatchOutgoingGoodsCommand(
     val fulfillmentId: String,
     val expectedFulfillmentVersion: Long,
@@ -31,8 +29,6 @@ data class DispatchOutgoingGoodsCommand(
         "versions=$expectedFulfillmentVersion/$physicalAllocationVersion)"
 }
 
-
-
 data class DispatchOutgoingGoodsScopeIdentity(
     val userId: String,
     val tenantId: String,
@@ -42,12 +38,9 @@ data class DispatchOutgoingGoodsScopeIdentity(
     override fun toString(): String = "DispatchOutgoingGoodsScopeIdentity(REDACTED)"
 }
 
-
-
 enum class DispatchOutgoingGoodsIntentStatus { Pending, UnknownOutcome }
 
 /** Frozen request intent is encrypted and scoped before a mutating request can leave the device. */
-
 
 data class DispatchOutgoingGoodsIntent(
     val scope: DispatchOutgoingGoodsScopeIdentity,
@@ -57,19 +50,13 @@ data class DispatchOutgoingGoodsIntent(
     override fun toString(): String = "DispatchOutgoingGoodsIntent(REDACTED, status=$status)"
 }
 
-
-
 sealed interface DispatchOutgoingGoodsMetadataRead {
     data class Available(val intent: DispatchOutgoingGoodsIntent?) :
         DispatchOutgoingGoodsMetadataRead
     data object Unavailable : DispatchOutgoingGoodsMetadataRead
 }
 
-
-
 enum class DispatchOutgoingGoodsMetadataWrite { Saved, Conflict, Stale, Unavailable }
-
-
 
 sealed interface DispatchOutgoingGoodsGatewayResult {
     data class Snapshot(val value: DispatchOutgoingGoodsSnapshot) :

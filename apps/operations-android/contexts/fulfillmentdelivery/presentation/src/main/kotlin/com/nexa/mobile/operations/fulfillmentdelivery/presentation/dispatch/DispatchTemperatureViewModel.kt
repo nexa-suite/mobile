@@ -2,25 +2,25 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchRequestBodyCodec
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchRequestBodyCodec
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperatureEvidence
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureEvidenceSelectionContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperaturePhotoCandidate
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperaturePhotoEvidence
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperaturePhotoGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperaturePhotoUploadIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperaturePhotoUploadMetadataRead
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperatureReadiness
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperatureEvidence
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperaturePhotoEvidence
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperatureReadiness
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -68,7 +68,9 @@ class DispatchTemperatureViewModel(
             when (val stored = safe { metadata.loadIntent(scope, fulfillmentId) }) {
                 is DispatchTemperatureMetadataRead.Available -> {
                     val intent = stored.intent
-                    if (intent != null && (intent.scope != scope || !requestBodyCodec.isValid(intent.command))) {
+                    if (intent != null &&
+                        (intent.scope != scope || !requestBodyCodec.isValid(intent.command))
+                    ) {
                         if (request ==
                             generation
                         ) {
@@ -566,7 +568,9 @@ class DispatchTemperatureViewModel(
             evidenceObjectId = evidenceObjectId,
             expectedLotVersion = expectedLotVersion
         )
-        val command = partial.copy(exactRequestBody = requestBodyCodec.dispatchTemperatureRequestBody(partial))
+        val command = partial.copy(
+            exactRequestBody = requestBodyCodec.dispatchTemperatureRequestBody(partial)
+        )
         if (!requestBodyCodec.isValid(command)) return
         val intent = DispatchTemperatureIntent(scope, command)
         val request = ++generation

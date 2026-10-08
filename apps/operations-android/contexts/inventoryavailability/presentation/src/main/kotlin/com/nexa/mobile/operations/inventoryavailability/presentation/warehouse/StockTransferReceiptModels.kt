@@ -1,8 +1,8 @@
 package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferReceiptIntent
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockTransferReceiptObservation as TransferReceiptObservation
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferReceiptObservationIntent
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockTransferReceiptObservation as TransferReceiptObservation
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockTransferReceiptTransfer
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TransferWarehouseChoice
 

@@ -1,34 +1,36 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch
 
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.BusinessOperationalExceptionCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.BusinessOperationalExceptionAction
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionIntent
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoffIdentityCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchRequestBodyCodec
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.BusinessOperationalExceptionCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommandAction
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionIntent
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoffIdentityCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsObservation
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeIntent
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchRequestBodyCodec
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DELIVERY_LOAD_STATUSES
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoad
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoadCompatibilityAttestation
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDeliveryInstructionKind
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCommandType
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DELIVERY_LOAD_STATUSES
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.MAX_LOAD_STOPS
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.PreparedFulfillmentDriverAssignment
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.isValidOpaqueIdentifier
-import java.time.Instant
-import kotlinx.serialization.json.Json
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.businessOperationalExceptionRequestBody as encodeBusinessExceptionBody
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.dispatchDeliveryInstructionRequestBody as encodeInstructionBody
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.deliveryLoadCreationBody as encodeLoadCreationBody
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.dispatchWindowPlanBody as encodeWindowPlanBody
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.deliveryLoadAssignBody as encodeLoadAssignBody
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.deliveryLoadCreationBody as encodeLoadCreationBody
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.deliveryLoadReorderBody as encodeLoadReorderBody
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.dispatchDeliveryInstructionRequestBody as encodeInstructionBody
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.dispatchHandoffIssueBody as encodeHandoffIssueBody
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.dispatchWindowPlanBody as encodeWindowPlanBody
+import java.time.Instant
+import javax.inject.Inject
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -38,7 +40,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
-import javax.inject.Inject
 
 class JsonDispatchRequestBodyCodec @Inject constructor() : DispatchRequestBodyCodec {
     override fun businessOperationalExceptionRequestBody(
@@ -67,12 +68,12 @@ class JsonDispatchRequestBodyCodec @Inject constructor() : DispatchRequestBodyCo
     override fun isValid(intent: DispatchDeliveryInstructionIntent): Boolean =
         intent.expectedDeliveryVersion >= 0 && intent.idempotencyKey.isNotBlank() &&
             intent.idempotencyKey.length <= 160 && runCatching {
-            intent.exactRequestBody == dispatchDeliveryInstructionRequestBody(
-                intent.instructionId,
-                intent.kind,
-                intent.content
-            )
-        }.getOrDefault(false)
+                intent.exactRequestBody == dispatchDeliveryInstructionRequestBody(
+                    intent.instructionId,
+                    intent.kind,
+                    intent.content
+                )
+            }.getOrDefault(false)
 
     override fun deliveryLoadCreationBody(
         readiness: List<DispatchReadiness>,
@@ -107,70 +108,81 @@ class JsonDispatchRequestBodyCodec @Inject constructor() : DispatchRequestBodyCo
         }.getOrNull() ?: return false
         return try {
             when (command.action) {
-            DeliveryLoadCommandAction.CREATE -> {
-                val expectedKeys = setOf(
-                    "fulfillmentIds",
-                    "stopOrder",
-                    "expectedFulfillmentVersions",
-                    "reason",
-                    "compatibilityAttestation"
-                )
-                val fulfillmentIds = body["fulfillmentIds"]?.jsonArray?.map {
-                    (it as? JsonPrimitive)?.contentOrNull ?: return false
-                } ?: return false
-                val stopOrder = body["stopOrder"]?.jsonArray?.map {
-                    (it as? JsonPrimitive)?.contentOrNull ?: return false
-                } ?: return false
-                val versions = body["expectedFulfillmentVersions"]?.jsonObject ?: return false
-                val reason = body["reason"]?.jsonPrimitive?.contentOrNull ?: return false
-                val attestation = body["compatibilityAttestation"]?.jsonObject ?: return false
-                val versionValues = versions.values.map {
-                    (it as? JsonPrimitive)?.longOrNull ?: return false
+                DeliveryLoadCommandAction.CREATE -> {
+                    val expectedKeys = setOf(
+                        "fulfillmentIds",
+                        "stopOrder",
+                        "expectedFulfillmentVersions",
+                        "reason",
+                        "compatibilityAttestation"
+                    )
+                    val fulfillmentIds = body["fulfillmentIds"]?.jsonArray?.map {
+                        (it as? JsonPrimitive)?.contentOrNull ?: return false
+                    } ?: return false
+                    val stopOrder = body["stopOrder"]?.jsonArray?.map {
+                        (it as? JsonPrimitive)?.contentOrNull ?: return false
+                    } ?: return false
+                    val versions = body["expectedFulfillmentVersions"]?.jsonObject ?: return false
+                    val reason = body["reason"]?.jsonPrimitive?.contentOrNull ?: return false
+                    val attestation = body["compatibilityAttestation"]?.jsonObject ?: return false
+                    val versionValues = versions.values.map {
+                        (it as? JsonPrimitive)?.longOrNull ?: return false
+                    }
+                    val booleanKeys = setOf(
+                        "capacitySufficient",
+                        "handlingCompatible",
+                        "zoneReasonable",
+                        "noExclusiveTransportRestriction"
+                    )
+                    val validAttestationKeys = booleanKeys + "observation"
+                    body.keys == expectedKeys && fulfillmentIds.size in 2..MAX_LOAD_STOPS &&
+                        fulfillmentIds.all(
+                            ::isValidOpaqueIdentifier
+                        ) && stopOrder == fulfillmentIds &&
+                        stopOrder.distinct().size == stopOrder.size &&
+                        versions.keys == fulfillmentIds.toSet() &&
+                        versionValues.all { it >= 0 } &&
+                        reason.trim().isNotEmpty() && reason.trim().length <= 500 &&
+                        attestation.keys.all { it in validAttestationKeys } &&
+                        booleanKeys.all { attestation[it]?.jsonPrimitive?.booleanOrNull != null } &&
+                        (
+                            attestation["observation"] == null ||
+                                attestation["observation"]?.jsonPrimitive?.contentOrNull
+                                    ?.let { it.isNotBlank() && it.trim().length <= 1000 } == true
+                            )
                 }
-                val booleanKeys = setOf(
-                    "capacitySufficient",
-                    "handlingCompatible",
-                    "zoneReasonable",
-                    "noExclusiveTransportRestriction"
-                )
-                val validAttestationKeys = booleanKeys + "observation"
-                body.keys == expectedKeys && fulfillmentIds.size in 2..MAX_LOAD_STOPS &&
-                    fulfillmentIds.all(::isValidOpaqueIdentifier) && stopOrder == fulfillmentIds &&
-                    stopOrder.distinct().size == stopOrder.size && versions.keys == fulfillmentIds.toSet() &&
-                    versionValues.all { it >= 0 } &&
-                    reason.trim().isNotEmpty() && reason.trim().length <= 500 &&
-                    attestation.keys.all { it in validAttestationKeys } &&
-                    booleanKeys.all { attestation[it]?.jsonPrimitive?.booleanOrNull != null } &&
-                    (attestation["observation"] == null ||
-                        attestation["observation"]?.jsonPrimitive?.contentOrNull
-                            ?.let { it.isNotBlank() && it.trim().length <= 1000 } == true)
-            }
 
-            DeliveryLoadCommandAction.REORDER -> {
-                val stopOrder = body["stopOrder"]?.jsonArray?.map {
-                    (it as? JsonPrimitive)?.contentOrNull ?: return false
-                } ?: return false
-                val reason = body["reason"]?.jsonPrimitive?.contentOrNull ?: return false
-                body.keys == setOf("stopOrder", "reason") && stopOrder.size in 2..MAX_LOAD_STOPS &&
-                    stopOrder.all(::isValidOpaqueIdentifier) && stopOrder.distinct().size == stopOrder.size &&
-                    reason.trim().isNotEmpty() && reason.trim().length <= 500
-            }
+                DeliveryLoadCommandAction.REORDER -> {
+                    val stopOrder = body["stopOrder"]?.jsonArray?.map {
+                        (it as? JsonPrimitive)?.contentOrNull ?: return false
+                    } ?: return false
+                    val reason = body["reason"]?.jsonPrimitive?.contentOrNull ?: return false
+                    body.keys == setOf(
+                        "stopOrder",
+                        "reason"
+                    ) && stopOrder.size in 2..MAX_LOAD_STOPS &&
+                        stopOrder.all(::isValidOpaqueIdentifier) &&
+                        stopOrder.distinct().size == stopOrder.size &&
+                        reason.trim().isNotEmpty() && reason.trim().length <= 500
+                }
 
-            DeliveryLoadCommandAction.ASSIGN -> {
-                val membershipId = body["driverMembershipId"]?.jsonPrimitive?.contentOrNull
-                body.keys == setOf("driverMembershipId") &&
-                    membershipId != null && isValidOpaqueIdentifier(membershipId)
-            }
+                DeliveryLoadCommandAction.ASSIGN -> {
+                    val membershipId = body["driverMembershipId"]?.jsonPrimitive?.contentOrNull
+                    body.keys == setOf("driverMembershipId") &&
+                        membershipId != null && isValidOpaqueIdentifier(membershipId)
+                }
 
-            DeliveryLoadCommandAction.PLAN_WINDOW -> {
-                val start = body["windowStart"]?.jsonPrimitive?.contentOrNull
-                val end = body["windowEnd"]?.jsonPrimitive?.contentOrNull
-                val reason = body["reason"]?.jsonPrimitive?.contentOrNull
-                body.keys == setOf("windowStart", "windowEnd", "reason") &&
-                    start != null && end != null &&
-                    runCatching { Instant.parse(start).isBefore(Instant.parse(end)) }.getOrDefault(false) &&
-                    !reason.isNullOrBlank() && reason.trim().length <= 2_000
-            }
+                DeliveryLoadCommandAction.PLAN_WINDOW -> {
+                    val start = body["windowStart"]?.jsonPrimitive?.contentOrNull
+                    val end = body["windowEnd"]?.jsonPrimitive?.contentOrNull
+                    val reason = body["reason"]?.jsonPrimitive?.contentOrNull
+                    body.keys == setOf("windowStart", "windowEnd", "reason") &&
+                        start != null && end != null &&
+                        runCatching {
+                            Instant.parse(start).isBefore(Instant.parse(end))
+                        }.getOrDefault(false) &&
+                        !reason.isNullOrBlank() && reason.trim().length <= 2_000
+                }
 
                 DeliveryLoadCommandAction.OFFER,
                 DeliveryLoadCommandAction.CONFIRM_HANDOFF,
@@ -181,8 +193,16 @@ class JsonDispatchRequestBodyCodec @Inject constructor() : DispatchRequestBodyCo
         }
     }
 
-    override fun matches(load: DeliveryLoad, command: DeliveryLoadCommand, membershipId: String?): Boolean {
-        if (command.action == DeliveryLoadCommandAction.CREATE && command.loadId != null) return false
+    override fun matches(
+        load: DeliveryLoad,
+        command: DeliveryLoadCommand,
+        membershipId: String?
+    ): Boolean {
+        if (command.action == DeliveryLoadCommandAction.CREATE &&
+            command.loadId != null
+        ) {
+            return false
+        }
         if (command.loadId != null && load.id != command.loadId) return false
         val expectedVersion = command.expectedVersion
         if (expectedVersion != null && load.version < expectedVersion) return false
@@ -236,8 +256,9 @@ class JsonDispatchRequestBodyCodec @Inject constructor() : DispatchRequestBodyCo
                 "RESPONSIBILITY_TRANSFERRED"
             )
 
-            DeliveryLoadCommandAction.ACCEPT -> load.assignedDriverMembershipId == membershipId &&
-                load.status in setOf("DRIVER_ACCEPTED", "RESPONSIBILITY_TRANSFERRED")
+            DeliveryLoadCommandAction.ACCEPT ->
+                load.assignedDriverMembershipId == membershipId &&
+                    load.status in setOf("DRIVER_ACCEPTED", "RESPONSIBILITY_TRANSFERRED")
 
             DeliveryLoadCommandAction.PLAN_WINDOW -> false
         }
@@ -246,18 +267,22 @@ class JsonDispatchRequestBodyCodec @Inject constructor() : DispatchRequestBodyCo
     override fun dispatchHandoffIssueBody(assignmentId: String): String =
         encodeHandoffIssueBody(assignmentId)
 
-    override fun isValid(command: DispatchHandoffIdentityCommand): Boolean =
-        runCatching {
-            command.frozenBody == dispatchHandoffIssueBody(command.assignmentId)
-        }.getOrDefault(false)
+    override fun isValid(command: DispatchHandoffIdentityCommand): Boolean = runCatching {
+        command.frozenBody == dispatchHandoffIssueBody(command.assignmentId)
+    }.getOrDefault(false)
 
-    override fun dispatchHandoverRequestBody(command: DispatchHandoverCommand): String = buildString {
-        append("{\"physicalAllocationId\":\"").append(command.physicalAllocationId)
-            .append("\",\"physicalAllocationVersion\":").append(command.physicalAllocationVersion)
-            .append(",\"driverAssignmentId\":\"").append(command.driverAssignmentId)
-            .append("\",\"driverAssignmentVersion\":").append(command.driverAssignmentVersion)
-            .append(",\"outgoingGoodsCheckId\":\"").append(command.outgoingGoodsCheckId).append("\"}")
-    }
+    override fun dispatchHandoverRequestBody(command: DispatchHandoverCommand): String =
+        buildString {
+            append("{\"physicalAllocationId\":\"").append(command.physicalAllocationId)
+                .append(
+                    "\",\"physicalAllocationVersion\":"
+                ).append(command.physicalAllocationVersion)
+                .append(",\"driverAssignmentId\":\"").append(command.driverAssignmentId)
+                .append("\",\"driverAssignmentVersion\":").append(command.driverAssignmentVersion)
+                .append(
+                    ",\"outgoingGoodsCheckId\":\""
+                ).append(command.outgoingGoodsCheckId).append("\"}")
+        }
 
     override fun isValid(command: DispatchHandoverCommand): Boolean =
         command.isValid() && command.exactRequestBody == dispatchHandoverRequestBody(command)
@@ -270,7 +295,10 @@ class JsonDispatchRequestBodyCodec @Inject constructor() : DispatchRequestBodyCo
                 "\"matchingCheckId\":\"${command.matchingCheckId.orEmpty()}\"," +
                 "\"reason\":\"${command.reason.orEmpty().jsonEscape()}\"}"
         } else {
-            command.observations.toRequestBody(command.physicalAllocationId, command.physicalAllocationVersion)
+            command.observations.toRequestBody(
+                command.physicalAllocationId,
+                command.physicalAllocationVersion
+            )
         }
 
     override fun isValid(command: DispatchOutgoingGoodsCommand): Boolean =
@@ -279,7 +307,7 @@ class JsonDispatchRequestBodyCodec @Inject constructor() : DispatchRequestBodyCo
     override fun dispatchOutgoingGoodsObservationsRequestBody(
         allocationId: String,
         allocationVersion: Long,
-        observations: List<com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsObservation>
+        observations: List<DispatchOutgoingGoodsObservation>
     ): String = observations.toRequestBody(allocationId, allocationVersion)
 
     override fun dispatchPlanChangeRequestBody(
@@ -299,7 +327,8 @@ class JsonDispatchRequestBodyCodec @Inject constructor() : DispatchRequestBodyCo
     override fun isValid(intent: DispatchPlanChangeIntent): Boolean =
         intent.expectedFulfillmentVersion >= 0 && intent.expectedAssignmentVersion >= 0 &&
             intent.physicalAllocationVersion >= 0 && intent.idempotencyKey.isNotBlank() &&
-            intent.idempotencyKey.length <= 160 && intent.requestBody == dispatchPlanChangeRequestBody(
+            intent.idempotencyKey.length <= 160 &&
+            intent.requestBody == dispatchPlanChangeRequestBody(
                 intent.expectedAssignmentId,
                 intent.expectedAssignmentVersion,
                 intent.physicalAllocationId,
@@ -330,7 +359,8 @@ class JsonDispatchRequestBodyCodec @Inject constructor() : DispatchRequestBodyCo
 
     override fun dispatchTemperatureRequestBody(command: DispatchTemperatureCommand): String {
         val common = "{\"lotId\":\"${command.lotId}\",\"value\":" +
-            "${command.valueCelsius.stripTrailingZeros().toPlainString()},\"unit\":\"CELSIUS\",\"occurredAt\":\"${command.occurredAt}\""
+            "${command.valueCelsius.stripTrailingZeros().toPlainString()}," +
+            "\"unit\":\"CELSIUS\",\"occurredAt\":\"${command.occurredAt}\""
         val lotVersion = command.expectedLotVersion ?: return "$common}"
         val evidence = command.evidenceObjectId?.let { "\"$it\"" } ?: "null"
         return "$common,\"expectedLotVersion\":$lotVersion,\"evidenceObjectId\":$evidence}"
@@ -339,7 +369,7 @@ class JsonDispatchRequestBodyCodec @Inject constructor() : DispatchRequestBodyCo
     override fun isValid(command: DispatchTemperatureCommand): Boolean =
         command.isValid() && command.exactRequestBody == dispatchTemperatureRequestBody(command)
 
-    private fun List<com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsObservation>.toRequestBody(
+    private fun List<DispatchOutgoingGoodsObservation>.toRequestBody(
         allocationId: String,
         allocationVersion: Long
     ): String {
@@ -350,11 +380,15 @@ class JsonDispatchRequestBodyCodec @Inject constructor() : DispatchRequestBodyCo
                 .append(",\"observations\":[")
             observations.forEachIndexed { index, observation ->
                 if (index > 0) append(',')
-                append("{\"physicalAllocationLineId\":\"").append(observation.physicalAllocationLineId)
+                append(
+                    "{\"physicalAllocationLineId\":\""
+                ).append(observation.physicalAllocationLineId)
                     .append("\",\"observedLotId\":")
                 val lotId = observation.observedLotId
                 if (lotId == null) append("null") else append('"').append(lotId).append('"')
-                append(",\"observedQuantity\":").append(observation.observedQuantity.toPlainString()).append('}')
+                append(
+                    ",\"observedQuantity\":"
+                ).append(observation.observedQuantity.toPlainString()).append('}')
             }
             append("]}")
         }
@@ -377,5 +411,4 @@ class JsonDispatchRequestBodyCodec @Inject constructor() : DispatchRequestBodyCo
         }
         append('"')
     }
-
 }

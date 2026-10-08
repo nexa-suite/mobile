@@ -1,5 +1,13 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters
 
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingConfirmationCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingIntentCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingIntentMetadata
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingIntentMetadataStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingMetadataWrite
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.storage.picking.AndroidPickingMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.storage.picking.PickingCommandRecord
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.storage.picking.PickingIntentMetadataRecord
@@ -8,14 +16,6 @@ import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.storage.pic
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.storage.picking.PickingMetadataScope
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.storage.picking.PickingMetadataStore as LocalPickingStore
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.storage.picking.PickingMetadataWrite as LocalPickingWrite
-import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingConfirmationCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingIntentCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingIntentMetadata
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingIntentMetadataStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingMetadataRead
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingMetadataWrite
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingScopeIdentity
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

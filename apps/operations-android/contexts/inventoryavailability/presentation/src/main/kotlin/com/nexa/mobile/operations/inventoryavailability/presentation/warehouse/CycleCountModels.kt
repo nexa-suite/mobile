@@ -1,8 +1,8 @@
 package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.CycleCountCorrection
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountCorrectionIntent
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountIntent
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.CycleCountCorrection
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.CycleCountLot
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.CycleCountRecord
 

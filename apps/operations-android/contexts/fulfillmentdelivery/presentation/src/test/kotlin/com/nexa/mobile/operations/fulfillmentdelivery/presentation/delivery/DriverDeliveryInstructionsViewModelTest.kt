@@ -1,23 +1,22 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDeliveryRequestBodyCodec
-
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionsGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryInstruction
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionAcknowledgementCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryInstructionAcknowledgementFact
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionAcknowledgementResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryInstructionAcknowledgementSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionIntentMetadata
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionIntentStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryInstructionKind
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionMetadataWrite
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionsGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionsLoadResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryInstruction
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryInstructionAcknowledgementFact
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryInstructionAcknowledgementSummary
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryInstructionKind
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryInstructionsSnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDeliveryRequestBodyCodec
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -385,7 +384,9 @@ class DriverDeliveryInstructionsViewModelTest {
                 7,
                 mapOf(CRITICAL_ID to 5),
                 "original-key",
-                TestDeliveryRequestBodyCodec().driverDeliveryInstructionAcknowledgementBody(listOf(CRITICAL_ID))
+                TestDeliveryRequestBodyCodec().driverDeliveryInstructionAcknowledgementBody(
+                    listOf(CRITICAL_ID)
+                )
             ),
             initiatedByMembershipId = MEMBERSHIP_ID,
             initiatedAt = "2026-10-01T16:59:00Z",

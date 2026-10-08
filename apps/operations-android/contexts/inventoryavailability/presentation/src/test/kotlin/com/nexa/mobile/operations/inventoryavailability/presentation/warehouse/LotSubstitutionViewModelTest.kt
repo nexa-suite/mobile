@@ -2,21 +2,21 @@
 
 package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.LotSubstitutionGateway
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.LotSubstitutionMetadataStore
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionAlternative
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionCurrentFacts
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionAuthority
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionCurrentResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionIntent
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionIntentStatus
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionLookupResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionMetadataRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionMetadataWrite
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionRequest
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionResult
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionScopeIdentity
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.LotSubstitutionGateway
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.LotSubstitutionMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionAlternative
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionCurrentFacts
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionRequest
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionWork
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingAuthority
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingScopeIdentity
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -36,7 +36,8 @@ class LotSubstitutionViewModelTest {
             outcomes += LotSubstitutionResult.UnknownOutcome
             outcomes += LotSubstitutionResult.Requested(request())
         }
-        val viewModel = LotSubstitutionViewModel(gateway, metadata, TestWarehouseFrozenPayloadCodec) { KEY }
+        val viewModel =
+            LotSubstitutionViewModel(gateway, metadata, TestWarehouseFrozenPayloadCodec) { KEY }
         val work = work()
         viewModel.activate(authority(), work)
         advanceUntilIdle()
@@ -99,7 +100,8 @@ class LotSubstitutionViewModelTest {
         val gateway = FakeGateway(events).apply {
             outcomes += LotSubstitutionResult.Stale(currentAllocationVersion = 9)
         }
-        val viewModel = LotSubstitutionViewModel(gateway, metadata, TestWarehouseFrozenPayloadCodec) { KEY }
+        val viewModel =
+            LotSubstitutionViewModel(gateway, metadata, TestWarehouseFrozenPayloadCodec) { KEY }
         val original = work()
         viewModel.activate(authority(), original)
         advanceUntilIdle()
@@ -120,7 +122,8 @@ class LotSubstitutionViewModelTest {
         val events = mutableListOf<String>()
         val metadata = MemoryMetadataStore(events)
         val gateway = FakeGateway(events)
-        val viewModel = LotSubstitutionViewModel(gateway, metadata, TestWarehouseFrozenPayloadCodec) { KEY }
+        val viewModel =
+            LotSubstitutionViewModel(gateway, metadata, TestWarehouseFrozenPayloadCodec) { KEY }
         viewModel.activate(authority(permissions = setOf("warehouse:read")), work())
         advanceUntilIdle()
         viewModel.selectAlternative(ALTERNATIVE_LOT_ID)
@@ -145,12 +148,13 @@ class LotSubstitutionViewModelTest {
         LotSubstitutionMetadataStore {
         var intent: LotSubstitutionIntent? = null
 
-        override suspend fun load(scope: PickingScopeIdentity): LotSubstitutionMetadataRead =
-            if (intent != null && intent?.scope != scope) {
-                LotSubstitutionMetadataRead.Unavailable
-            } else {
-                LotSubstitutionMetadataRead.Available(intent)
-            }
+        override suspend fun load(
+            scope: LotSubstitutionScopeIdentity
+        ): LotSubstitutionMetadataRead = if (intent != null && intent?.scope != scope) {
+            LotSubstitutionMetadataRead.Unavailable
+        } else {
+            LotSubstitutionMetadataRead.Available(intent)
+        }
 
         override suspend fun freeze(intent: LotSubstitutionIntent): LotSubstitutionMetadataWrite {
             events += "freeze"
@@ -162,7 +166,7 @@ class LotSubstitutionViewModelTest {
         }
 
         override suspend fun markUnknown(
-            scope: PickingScopeIdentity,
+            scope: LotSubstitutionScopeIdentity,
             idempotencyKey: String
         ): LotSubstitutionMetadataWrite {
             events += "mark-unknown"
@@ -177,7 +181,7 @@ class LotSubstitutionViewModelTest {
         }
 
         override suspend fun clear(
-            scope: PickingScopeIdentity,
+            scope: LotSubstitutionScopeIdentity,
             idempotencyKey: String
         ): LotSubstitutionMetadataWrite {
             events += "clear"
@@ -198,7 +202,7 @@ class LotSubstitutionViewModelTest {
 
         override suspend fun alternatives(
             work: LotSubstitutionWork,
-            authority: PickingAuthority
+            authority: LotSubstitutionAuthority
         ): LotSubstitutionLookupResult = LotSubstitutionLookupResult.Alternatives(
             listOf(
                 alternative(ALTERNATIVE_LOT_ID),
@@ -208,7 +212,7 @@ class LotSubstitutionViewModelTest {
 
         override suspend fun request(
             intent: LotSubstitutionIntent,
-            authority: PickingAuthority
+            authority: LotSubstitutionAuthority
         ): LotSubstitutionResult {
             events += "post"
             submitted += intent
@@ -217,14 +221,14 @@ class LotSubstitutionViewModelTest {
 
         override suspend fun currentAllocation(
             work: LotSubstitutionWork,
-            authority: PickingAuthority
+            authority: LotSubstitutionAuthority
         ): LotSubstitutionCurrentResult = LotSubstitutionCurrentResult.Current(
             LotSubstitutionCurrentFacts(ALLOCATION_ID, 8, EXPECTED_LOT_ID, "4", "EA")
         )
     }
 
     private fun authority(permissions: Set<String> = setOf("warehouse:read", "inventory.adjust")) =
-        PickingAuthority(
+        LotSubstitutionAuthority(
             USER_ID,
             TENANT_ID,
             WORKSPACE_ID,
@@ -243,7 +247,7 @@ class LotSubstitutionViewModelTest {
         "CAT-0042", "BATCH-2", "2027-03-31", "8.000", "EA", "AVAILABLE", 11
     )
 
-    private fun intent(scope: PickingScopeIdentity) = LotSubstitutionIntent(
+    private fun intent(scope: LotSubstitutionScopeIdentity) = LotSubstitutionIntent(
         scope,
         KEY,
         work(),

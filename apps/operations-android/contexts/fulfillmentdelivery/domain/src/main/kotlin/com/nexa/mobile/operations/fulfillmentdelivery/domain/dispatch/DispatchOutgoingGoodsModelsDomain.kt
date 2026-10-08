@@ -20,8 +20,6 @@ data class DispatchOutgoingGoodsLine(
         "DispatchOutgoingGoodsLine(REDACTED, quantity=$remainingQuantity)"
 }
 
-
-
 data class DispatchOutgoingGoodsAllocation(
     val id: String,
     val status: String,
@@ -29,8 +27,6 @@ data class DispatchOutgoingGoodsAllocation(
     val asOf: Instant,
     val lines: List<DispatchOutgoingGoodsLine>
 )
-
-
 
 data class DispatchOutgoingGoodsCheckLine(
     val physicalAllocationLineId: String,
@@ -42,8 +38,6 @@ data class DispatchOutgoingGoodsCheckLine(
     val matches: Boolean
 )
 
-
-
 data class DispatchOutgoingGoodsDiscrepancy(
     val id: String,
     val fulfillmentVersion: Long,
@@ -53,8 +47,6 @@ data class DispatchOutgoingGoodsDiscrepancy(
     val checkedAt: Instant,
     val lines: List<DispatchOutgoingGoodsCheckLine>
 )
-
-
 
 data class DispatchOutgoingGoodsCheck(
     val id: String,
@@ -74,8 +66,6 @@ data class DispatchOutgoingGoodsCheck(
         "DispatchOutgoingGoodsCheck(REDACTED, matches=$matches, current=$current)"
 }
 
-
-
 data class DispatchOutgoingGoodsResolution(
     val id: String,
     val fulfillmentId: String,
@@ -91,11 +81,7 @@ data class DispatchOutgoingGoodsResolution(
     val replayed: Boolean
 )
 
-
-
 enum class DispatchOutgoingGoodsCommandType { RecordCheck, ResolveDiscrepancy }
-
-
 
 data class DispatchOutgoingGoodsSnapshot(
     val allocation: DispatchOutgoingGoodsAllocation,

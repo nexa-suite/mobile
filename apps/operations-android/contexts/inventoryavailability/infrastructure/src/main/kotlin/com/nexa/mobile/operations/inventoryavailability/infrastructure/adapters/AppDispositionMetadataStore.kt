@@ -1,6 +1,16 @@
 package com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters
 
 import android.content.Context
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.DispositionDraftMetadata
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.DispositionIntentMetadata
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.DispositionIntentMetadataStatus
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.DispositionMetadataRead
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.DispositionMetadataWrite
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.DispositionScopeIdentity
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.DispositionMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotDispositionAction
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotDispositionCommand
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.PartialDispositionEvaluation
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.disposition.AndroidDispositionMetadataStore
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.disposition.DispositionCommandPayload as LocalCommandPayload
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.disposition.DispositionDraftRecord as LocalDraft
@@ -11,16 +21,6 @@ import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.d
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.disposition.DispositionMetadataStore as LocalStore
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.disposition.DispositionMetadataWrite as LocalWrite
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.disposition.StoredLotDisposition as LocalDisposition
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.DispositionMetadataStore
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.DispositionDraftMetadata
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.DispositionIntentMetadata
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.DispositionIntentMetadataStatus
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.DispositionMetadataRead
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.DispositionMetadataWrite
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.DispositionScopeIdentity
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotDispositionAction
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotDispositionCommand
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.PartialDispositionEvaluation
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

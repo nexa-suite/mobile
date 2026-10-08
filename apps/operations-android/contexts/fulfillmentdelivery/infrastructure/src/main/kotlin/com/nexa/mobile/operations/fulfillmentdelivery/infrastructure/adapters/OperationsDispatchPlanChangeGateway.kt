@@ -4,6 +4,16 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeGatewayResult as PlanChangeGatewayResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeIntent
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeScopeIdentity as PlanChangeScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDriverCandidate
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchPlanChangeSnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.PreparedFulfillmentDriverAssignment
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchAssignmentNetworkOutcome as AssignmentOutcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchDriverAssignmentProjection as DriverAssignmentProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchPlanChangeNetworkOutcome as PlanChangeOutcome
@@ -12,16 +22,6 @@ import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.D
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchReadinessProjection as ReadinessProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDispatchAssignmentGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDispatchReadinessGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDriverCandidate
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeGatewayResult as PlanChangeGatewayResult
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeIntent
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeScopeIdentity as PlanChangeScopeIdentity
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchPlanChangeSnapshot
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.PreparedFulfillmentDriverAssignment
 import javax.inject.Inject
 import javax.inject.Singleton
 

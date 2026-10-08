@@ -1,7 +1,7 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverHandoffCurrentDelivery
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffIssueCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverHandoffCurrentDelivery
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverHandoffTokenReceipt
 
 enum class DriverHandoffUiStatus {

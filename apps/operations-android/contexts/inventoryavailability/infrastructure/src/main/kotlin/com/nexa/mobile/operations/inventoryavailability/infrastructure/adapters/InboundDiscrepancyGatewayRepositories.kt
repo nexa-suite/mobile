@@ -4,20 +4,20 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.InboundDiscrepancyCaseProjection
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.InboundDiscrepancyEvidenceProjection
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.InboundDiscrepancyNetworkOutcome as InboundDiscrepancyOutcome
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.NexaInboundDiscrepancyGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyGateway
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyAuthority
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.InboundDiscrepancyCase
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyCreateCommand
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.InboundDiscrepancyEvidence
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyEvidenceStatusResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyMutationResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancySubmitCommand
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyUploadCommand
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyGateway
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.InboundDiscrepancyCase
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.InboundDiscrepancyEvidence
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.InboundDiscrepancyCaseProjection
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.InboundDiscrepancyEvidenceProjection
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.InboundDiscrepancyNetworkOutcome as InboundDiscrepancyOutcome
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.NexaInboundDiscrepancyGateway
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

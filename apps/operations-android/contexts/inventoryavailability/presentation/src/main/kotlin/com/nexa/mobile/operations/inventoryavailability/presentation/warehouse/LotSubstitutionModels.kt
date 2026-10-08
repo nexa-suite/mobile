@@ -1,9 +1,9 @@
 package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
 import androidx.compose.runtime.Immutable
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionIntent
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionAlternative
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionCurrentFacts
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionIntent
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionRequest
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionWork
 

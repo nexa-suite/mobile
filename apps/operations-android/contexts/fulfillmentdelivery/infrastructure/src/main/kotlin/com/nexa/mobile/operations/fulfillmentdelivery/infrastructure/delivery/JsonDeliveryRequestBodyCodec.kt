@@ -10,30 +10,30 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.Drive
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofAttachCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofCreateCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofIntentMetadata
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureDisposition
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentType
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeKind
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeLineDecision
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverProofEvidenceKind
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentType
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureDisposition
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.driverDeliveryInstructionAcknowledgementBody as encodeInstructionAcknowledgementBody
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.driverDeliveryOperationalExceptionEmptyBody as encodeOperationalExceptionEmptyBody
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.driverDeliveryOperationalExceptionResolutionBody as encodeOperationalExceptionBody
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.driverDeliveryOperationalExceptionResolutionFromBody as decodeOperationalExceptionBody
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.driverExecutionTemperatureDispositionBody as encodeTemperatureDispositionBody
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.driverExecutionTemperatureReadingBody as encodeTemperatureReadingBody
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.driverHandoffIssueBody as encodeHandoffIssueBody
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.driverIncidentBody as encodeTypedIncidentBody
 import java.math.BigDecimal
 import java.time.Instant
+import javax.inject.Inject
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.driverDeliveryInstructionAcknowledgementBody as encodeInstructionAcknowledgementBody
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.driverDeliveryOperationalExceptionResolutionBody as encodeOperationalExceptionBody
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.driverDeliveryOperationalExceptionResolutionFromBody as decodeOperationalExceptionBody
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.driverDeliveryOperationalExceptionEmptyBody as encodeOperationalExceptionEmptyBody
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.driverHandoffIssueBody as encodeHandoffIssueBody
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.driverExecutionTemperatureReadingBody as encodeTemperatureReadingBody
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.driverExecutionTemperatureDispositionBody as encodeTemperatureDispositionBody
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.driverIncidentBody as encodeTypedIncidentBody
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import javax.inject.Inject
 
 class JsonDeliveryRequestBodyCodec @Inject constructor() : DeliveryRequestBodyCodec {
     override fun driverIncidentBody(
@@ -41,17 +41,15 @@ class JsonDeliveryRequestBodyCodec @Inject constructor() : DeliveryRequestBodyCo
         reason: String,
         description: String,
         place: String
-    ): String =
-        if (type == null) {
-            driverIncidentLegacyBody(reason, description, place)
-        } else {
-            encodeTypedIncidentBody(type, reason, description, place)
-        }
+    ): String = if (type == null) {
+        driverIncidentLegacyBody(reason, description, place)
+    } else {
+        encodeTypedIncidentBody(type, reason, description, place)
+    }
 
-    override fun driverIncidentEvidenceAttachBody(evidenceId: String): String =
-        JsonObject(
-            mapOf("evidenceObjectIds" to JsonArray(listOf(JsonPrimitive(evidenceId))))
-        ).toString()
+    override fun driverIncidentEvidenceAttachBody(evidenceId: String): String = JsonObject(
+        mapOf("evidenceObjectIds" to JsonArray(listOf(JsonPrimitive(evidenceId))))
+    ).toString()
 
     override fun isValid(command: DriverIncidentCommand): Boolean =
         command.frozenBody == driverIncidentBody(
@@ -66,7 +64,8 @@ class JsonDeliveryRequestBodyCodec @Inject constructor() : DeliveryRequestBodyCo
     ): String = encodeInstructionAcknowledgementBody(instructionIds)
 
     override fun isValid(command: DriverDeliveryInstructionAcknowledgementCommand): Boolean =
-        command.frozenBody == driverDeliveryInstructionAcknowledgementBody(command.instructionVersions.keys)
+        command.frozenBody ==
+            driverDeliveryInstructionAcknowledgementBody(command.instructionVersions.keys)
 
     override fun driverDeliveryOperationalExceptionResolutionBody(value: String): String =
         encodeOperationalExceptionBody(value)
@@ -89,21 +88,22 @@ class JsonDeliveryRequestBodyCodec @Inject constructor() : DeliveryRequestBodyCo
             DriverDeliveryOperationalExceptionAction.CloseWarning -> command.frozenBody.isEmpty()
         }
 
-    override fun driverExecutionTemperatureBody(command: DriverExecutionTemperatureCommand): String =
-        when (command) {
-            is DriverExecutionTemperatureCommand.Reading -> driverExecutionTemperatureReadingBody(
-                command.fulfillmentLineId,
-                command.skuId,
-                command.affectedQuantity,
-                command.valueCelsius,
-                command.occurredAt,
-                command.sourceIncidentId,
-                command.evidenceObjectId
-            )
+    override fun driverExecutionTemperatureBody(
+        command: DriverExecutionTemperatureCommand
+    ): String = when (command) {
+        is DriverExecutionTemperatureCommand.Reading -> driverExecutionTemperatureReadingBody(
+            command.fulfillmentLineId,
+            command.skuId,
+            command.affectedQuantity,
+            command.valueCelsius,
+            command.occurredAt,
+            command.sourceIncidentId,
+            command.evidenceObjectId
+        )
 
-            is DriverExecutionTemperatureCommand.Disposition ->
-                driverExecutionTemperatureDispositionBody(command.disposition, command.reason)
-        }
+        is DriverExecutionTemperatureCommand.Disposition ->
+            driverExecutionTemperatureDispositionBody(command.disposition, command.reason)
+    }
 
     override fun driverExecutionTemperatureReadingBody(
         fulfillmentLineId: String,
@@ -131,7 +131,8 @@ class JsonDeliveryRequestBodyCodec @Inject constructor() : DeliveryRequestBodyCo
     override fun isValid(command: DriverExecutionTemperatureCommand): Boolean =
         command.isValid() && command.frozenBody == driverExecutionTemperatureBody(command)
 
-    override fun driverHandoffIssueBody(attemptId: String): String = encodeHandoffIssueBody(attemptId)
+    override fun driverHandoffIssueBody(attemptId: String): String =
+        encodeHandoffIssueBody(attemptId)
 
     override fun isValid(command: DriverHandoffIssueCommand): Boolean =
         command.frozenBody == driverHandoffIssueBody(command.attemptId)
@@ -144,7 +145,10 @@ class JsonDeliveryRequestBodyCodec @Inject constructor() : DeliveryRequestBodyCo
                 body.keys == setOf("receiverName", "capturedAt", "notes") &&
                     body["receiverName"]?.jsonPrimitive?.contentOrNull == command.receiverName &&
                     body["capturedAt"]?.jsonPrimitive?.contentOrNull == command.capturedAt &&
-                    (body["notes"] == JsonNull || body["notes"]?.jsonPrimitive?.contentOrNull != null)
+                    (
+                        body["notes"] == JsonNull ||
+                            body["notes"]?.jsonPrimitive?.contentOrNull != null
+                        )
             }.getOrDefault(false)
 
     override fun isValid(command: DriverProofAttachCommand): Boolean =
@@ -163,10 +167,14 @@ class JsonDeliveryRequestBodyCodec @Inject constructor() : DeliveryRequestBodyCo
                 intent.receiverName,
                 intent.capturedAt,
                 intent.notes
-            ) && (intent.attachBody == null ||
-            (intent.attachExpectedVersion != null && intent.attachKey != null &&
-                evidenceKind != null && evidenceId != null &&
-                intent.attachBody == driverProofAttachBody(evidenceKind, evidenceId)))
+            ) && (
+                intent.attachBody == null ||
+                    (
+                        intent.attachExpectedVersion != null && intent.attachKey != null &&
+                            evidenceKind != null && evidenceId != null &&
+                            intent.attachBody == driverProofAttachBody(evidenceKind, evidenceId)
+                        )
+                )
     }
 
     override fun driverOutcomeBody(
@@ -196,12 +204,15 @@ class JsonDeliveryRequestBodyCodec @Inject constructor() : DeliveryRequestBodyCo
             "}"
     }
 
-    override fun driverProofCreateBody(receiverName: String, capturedAt: String, notes: String?): String =
-        "{" +
-            "\"receiverName\":${quoteJson(receiverName)}," +
-            "\"capturedAt\":${quoteJson(capturedAt)}," +
-            "\"notes\":${notes?.let(::quoteJson) ?: "null"}" +
-            "}"
+    override fun driverProofCreateBody(
+        receiverName: String,
+        capturedAt: String,
+        notes: String?
+    ): String = "{" +
+        "\"receiverName\":${quoteJson(receiverName)}," +
+        "\"capturedAt\":${quoteJson(capturedAt)}," +
+        "\"notes\":${notes?.let(::quoteJson) ?: "null"}" +
+        "}"
 
     override fun driverProofAttachBody(kind: DriverProofEvidenceKind, evidenceId: String): String =
         "{" +
@@ -211,29 +222,40 @@ class JsonDeliveryRequestBodyCodec @Inject constructor() : DeliveryRequestBodyCo
 
     override fun driverArrivalBody(): String = "{}"
 
-    override fun isValid(command: com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalCommand): Boolean =
-        command.frozenBody == driverArrivalBody()
+    override fun isValid(
+        command:
+        com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalCommand
+    ): Boolean = command.frozenBody == driverArrivalBody()
 
-    override fun isValid(command: com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeCommand): Boolean =
-        command.frozenBody == driverOutcomeBody(
-            command.outcome,
-            command.failureReason,
-            command.notes,
-            command.attemptedAt,
-            command.lines
-        )
+    override fun isValid(
+        command:
+        com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeCommand
+    ): Boolean = command.frozenBody == driverOutcomeBody(
+        command.outcome,
+        command.failureReason,
+        command.notes,
+        command.attemptedAt,
+        command.lines
+    )
 
     private fun quoteJson(value: String): String = buildString {
         append('"')
         value.forEach { character ->
             when (character) {
                 '"' -> append("\\\"")
+
                 '\\' -> append("\\\\")
+
                 '\b' -> append("\\b")
+
                 '\u000C' -> append("\\f")
+
                 '\n' -> append("\\n")
+
                 '\r' -> append("\\r")
+
                 '\t' -> append("\\t")
+
                 else -> if (character.code < 0x20) {
                     append("\\u%04x".format(character.code))
                 } else {

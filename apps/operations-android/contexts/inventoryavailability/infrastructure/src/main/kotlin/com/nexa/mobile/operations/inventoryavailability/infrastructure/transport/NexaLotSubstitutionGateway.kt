@@ -6,7 +6,6 @@ import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.core.network.ProtectedMethod
 import com.nexa.mobile.operations.core.network.ProtectedRequest
 import com.nexa.mobile.operations.core.network.ProtectedResult
-
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.LotSubstitutionRequestNetworkProjection as RequestNetworkProjection
 import java.math.BigDecimal
 import kotlinx.serialization.Serializable

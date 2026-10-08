@@ -2,9 +2,9 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingWorkListGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingAuthority
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingWorkListResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingWorkListGateway
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

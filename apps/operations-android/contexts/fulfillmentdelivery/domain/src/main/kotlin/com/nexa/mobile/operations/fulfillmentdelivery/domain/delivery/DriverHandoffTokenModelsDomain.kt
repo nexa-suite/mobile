@@ -7,8 +7,6 @@ data class DriverHandoffCurrentDelivery(
     val activeAttemptId: String?
 )
 
-
-
 data class DriverHandoffTokenReceipt(
     val handoffId: String,
     val deliveryId: String,

@@ -2,21 +2,21 @@
 
 package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.CycleCountGateway
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.CycleCountMetadataStore
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountAuthority
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.CycleCountCorrection
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountCorrectionIntent
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountIntent
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountIntentStatus
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountLookupResult
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.CycleCountLot
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountMetadataRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountMetadataWrite
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.CycleCountRecord
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountScope
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountStoredWork
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.CycleCountGateway
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.CycleCountMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.CycleCountCorrection
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.CycleCountLot
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.CycleCountRecord
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -111,7 +111,12 @@ class CycleCountViewModelTest {
     @Test
     fun countAndCorrectionCommandsRequireTheirExactVerifiedPermissionSet() = runTest {
         val gateway = FakeGateway()
-        val viewModel = CycleCountViewModel(gateway, MemoryMetadataStore(mutableListOf()), TestWarehouseFrozenPayloadCodec)
+        val viewModel =
+            CycleCountViewModel(
+                gateway,
+                MemoryMetadataStore(mutableListOf()),
+                TestWarehouseFrozenPayloadCodec
+            )
         viewModel.activate(authority(permissions = setOf("warehouse:write")))
         advanceUntilIdle()
         viewModel.selectLot(LOT_ID)

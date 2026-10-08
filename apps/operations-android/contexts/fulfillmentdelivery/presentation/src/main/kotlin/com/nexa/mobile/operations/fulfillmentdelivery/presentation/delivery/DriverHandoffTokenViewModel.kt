@@ -3,16 +3,16 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DeliveryRequestBodyCodec
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffTokenGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffTokenMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverHandoffCurrentDelivery
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffCurrentDeliveryResult as CurrentDeliveryResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffIssueCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffIssueResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffMetadataRead
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffMetadataWrite
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffTokenGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffTokenMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverHandoffCurrentDelivery
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverHandoffTokenReceipt
 import java.time.Duration
 import java.time.Instant
@@ -68,7 +68,9 @@ class DriverHandoffTokenViewModel(
                 is DriverHandoffMetadataRead.Available -> {
                     val storedCommand = stored.command
                     if (storedCommand != null && !requestBodyCodec.isValid(storedCommand)) {
-                        mutableState.update { it.copy(status = DriverHandoffUiStatus.PersistenceUnavailable) }
+                        mutableState.update {
+                            it.copy(status = DriverHandoffUiStatus.PersistenceUnavailable)
+                        }
                         return@launch
                     }
                     command = storedCommand

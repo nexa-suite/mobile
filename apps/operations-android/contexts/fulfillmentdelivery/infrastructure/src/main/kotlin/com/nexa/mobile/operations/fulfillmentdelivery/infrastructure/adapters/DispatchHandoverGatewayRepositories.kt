@@ -4,6 +4,23 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
+import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverGatewayResult as HandoverGatewayResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverEvidence
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverReceipt
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverSnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsAllocation as OutgoingGoodsAllocation
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCheck
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCheckLine as OutgoingGoodsCheckLine
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsDiscrepancy as OutgoingGoodsDiscrepancy
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsLine
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.PreparedFulfillmentDriverAssignment
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.JsonDispatchRequestBodyCodec
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchAssignmentNetworkOutcome as AssignmentOutcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchDriverAssignmentProjection as DriverAssignmentProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchReadinessNetworkOutcome as ReadinessOutcome
@@ -18,23 +35,6 @@ import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.N
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.OutgoingGoodsCheckNetworkOutcome as OutgoingGoodsCheckOutcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.OutgoingGoodsCheckProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PhysicalAllocationProjection
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.JsonDispatchRequestBodyCodec
-import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverEvidence
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverGatewayResult as HandoverGatewayResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverReceipt
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverSnapshot
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsAllocation as OutgoingGoodsAllocation
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCheck
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCheckLine as OutgoingGoodsCheckLine
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsDiscrepancy as OutgoingGoodsDiscrepancy
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsLine
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.PreparedFulfillmentDriverAssignment
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

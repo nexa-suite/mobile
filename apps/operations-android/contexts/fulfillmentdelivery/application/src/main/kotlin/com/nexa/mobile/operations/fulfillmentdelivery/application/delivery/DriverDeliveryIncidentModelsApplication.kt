@@ -26,7 +26,6 @@ data class DriverIncidentSelectionContext(
 
 /** Driver-selected source classification. Severity is always assigned by the server. */
 
-
 enum class DriverIncidentEvidenceStage {
     Staged,
     UploadPending,
@@ -39,7 +38,6 @@ enum class DriverIncidentEvidenceStage {
 }
 
 /** Protected, single-item offline evidence draft. The bytes are encrypted by the app store. */
-
 
 data class DriverIncidentEvidenceDraft(
     val fileToken: String,
@@ -96,8 +94,6 @@ data class DriverIncidentEvidenceDraft(
         "DriverIncidentEvidenceDraft(stage=$stage, bytes=$byteSize, payload=REDACTED)"
 }
 
-
-
 data class DriverIncidentCommand(
     val deliveryId: String,
     val attemptId: String,
@@ -123,8 +119,6 @@ data class DriverIncidentCommand(
         "DriverIncidentCommand(version=$expectedVersion, key=REDACTED)"
 }
 
-
-
 enum class DriverIncidentRecordStatus {
     Draft,
     Pending,
@@ -134,7 +128,6 @@ enum class DriverIncidentRecordStatus {
 
 /** Encrypted local metadata only. It holds no credentials,
  permission snapshot, or server authority. */
-
 
 data class DriverIncidentMetadata(
     val scope: DriverAttemptScopeIdentity,
@@ -199,14 +192,10 @@ data class DriverIncidentMetadata(
     override fun toString(): String = "DriverIncidentMetadata(status=$status, payload=REDACTED)"
 }
 
-
-
 sealed interface DriverIncidentMetadataRead {
     data class Available(val metadata: DriverIncidentMetadata?) : DriverIncidentMetadataRead
     data object Unavailable : DriverIncidentMetadataRead
 }
-
-
 
 sealed interface DriverIncidentMetadataWrite {
     data object Saved : DriverIncidentMetadataWrite
@@ -214,8 +203,6 @@ sealed interface DriverIncidentMetadataWrite {
     data object Stale : DriverIncidentMetadataWrite
     data object Unavailable : DriverIncidentMetadataWrite
 }
-
-
 
 data class DriverIncidentEvidenceUploadCommand(
     val incidentId: String,
@@ -225,8 +212,6 @@ data class DriverIncidentEvidenceUploadCommand(
     override fun toString(): String =
         "DriverIncidentEvidenceUploadCommand(key=REDACTED, bytes=${candidate.byteSize})"
 }
-
-
 
 data class DriverIncidentEvidenceAttachCommand(
     val deliveryId: String,
@@ -240,8 +225,6 @@ data class DriverIncidentEvidenceAttachCommand(
     override fun toString(): String =
         "DriverIncidentEvidenceAttachCommand(version=$expectedVersion, key=REDACTED)"
 }
-
-
 
 sealed interface DriverIncidentEvidenceResult {
     data class Uploaded(val evidence: DriverIncidentEvidenceProjection) :
@@ -257,8 +240,6 @@ sealed interface DriverIncidentEvidenceResult {
     data object SessionInvalidated : DriverIncidentEvidenceResult
 }
 
-
-
 sealed interface DriverIncidentCurrentDeliveryResult {
     data class Loaded(val delivery: DriverIncidentCurrentDelivery) :
         DriverIncidentCurrentDeliveryResult
@@ -268,8 +249,6 @@ sealed interface DriverIncidentCurrentDeliveryResult {
     data object ContextInvalidated : DriverIncidentCurrentDeliveryResult
     data object SessionInvalidated : DriverIncidentCurrentDeliveryResult
 }
-
-
 
 sealed interface DriverIncidentResult {
     data class Recorded(val summary: DriverIncidentSummary) : DriverIncidentResult

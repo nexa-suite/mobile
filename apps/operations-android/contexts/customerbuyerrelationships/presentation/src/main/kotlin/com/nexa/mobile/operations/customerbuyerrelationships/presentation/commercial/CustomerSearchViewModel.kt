@@ -4,9 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexa.mobile.operations.customerbuyerrelationships.application.commercial.CustomerGateway
 import com.nexa.mobile.operations.customerbuyerrelationships.application.commercial.CustomerResult
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import com.nexa.mobile.operations.customerbuyerrelationships.domain.model.commercial.CustomerRelationship
 import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.CustomerSearchStatus
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import java.time.Instant
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

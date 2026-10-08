@@ -4,6 +4,16 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferAuthority
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferReceiptIntent
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferReceiptLookupResult
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferReceiptObservationIntent
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferReceiptObservationResult
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferReceiptResult
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferReceiptGateway
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockTransferReceiptObservation
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockTransferReceiptTransfer
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TransferWarehouseChoice
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.NexaReceivingGateway
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.NexaStockTransferGateway
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.ReceivingNetworkOutcome
@@ -11,16 +21,6 @@ import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.StockTransferNetworkOutcome as StockTransferOutcome
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.StockTransferProjection
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.StockTransferReceiptObservationNetworkOutcome as StockTransferReceiptObservationOutcome
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferReceiptGateway
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferAuthority
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferReceiptIntent
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferReceiptLookupResult
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockTransferReceiptObservation
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferReceiptObservationIntent
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferReceiptObservationResult
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferReceiptResult
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockTransferReceiptTransfer
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TransferWarehouseChoice
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

@@ -3,12 +3,12 @@ package com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.AppDispatchPlanChangeMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeIntentStatus as PlanChangeIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeMetadataRead as PlanChangeMetadataRead
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeMetadataWrite as PlanChangeMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeScopeIdentity as PlanChangeScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.AppDispatchPlanChangeMetadataStore
 import java.time.Instant
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals

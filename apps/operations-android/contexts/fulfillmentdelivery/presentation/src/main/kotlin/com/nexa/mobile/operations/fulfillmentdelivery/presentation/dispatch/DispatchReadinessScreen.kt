@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
-
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -35,6 +33,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 

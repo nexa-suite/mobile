@@ -1,12 +1,11 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport
 
 import com.nexa.mobile.operations.core.network.ClientFailure
+import com.nexa.mobile.operations.core.network.FailureKind
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.core.network.ProtectedMethod
 import com.nexa.mobile.operations.core.network.ProtectedRequest
 import com.nexa.mobile.operations.core.network.ProtectedResult
-
-import com.nexa.mobile.operations.core.network.FailureKind
 import java.io.File
 import java.math.BigDecimal
 import kotlinx.serialization.json.Json

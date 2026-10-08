@@ -8,15 +8,15 @@ import com.nexa.mobile.operations.core.local.scoped.AndroidScopedMetadataStore
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptScopeIdentity
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverProofEvidenceKind
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofFileCandidate
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofIntentMetadata
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofIntentStage
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofMetadataWrite
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverProofEvidenceKind
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

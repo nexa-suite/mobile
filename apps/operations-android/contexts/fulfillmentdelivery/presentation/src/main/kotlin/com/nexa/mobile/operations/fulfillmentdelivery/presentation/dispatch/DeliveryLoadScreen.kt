@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,6 +33,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
 
 @Composable
 fun DeliveryLoadScreen(

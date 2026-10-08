@@ -9,31 +9,31 @@ import com.nexa.mobile.operations.core.local.scoped.AndroidScopedMetadataStore
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
+import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommandAction
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommandIntentStatus as LoadCommandIntentStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommandMetadataRead as LoadCommandMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommandMetadataStore as LoadCommandMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommandMetadataWrite as LoadCommandMetadataWrite
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadGatewayResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGatewayResult as ReadinessGatewayResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoad
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoadCompatibilityAttestation as LoadCompatibilityAttestation
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoadDriverCandidate as LoadDriverCandidate
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoadHistoryEvent
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoadStop
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DeliveryLoadNetworkAction
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DeliveryLoadNetworkResult
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DeliveryLoadTransport
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchAssignmentNetworkOutcome as AssignmentOutcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDeliveryLoadGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDispatchAssignmentGateway
-import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommandMetadataStore as LoadCommandMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoad
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommandAction
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommandIntentStatus as LoadCommandIntentStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommandMetadataRead as LoadCommandMetadataRead
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommandMetadataWrite as LoadCommandMetadataWrite
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoadCompatibilityAttestation as LoadCompatibilityAttestation
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoadDriverCandidate as LoadDriverCandidate
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadGatewayResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoadHistoryEvent
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadScopeIdentity
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoadStop
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGatewayResult as ReadinessGatewayResult
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

@@ -31,6 +31,19 @@ for context in CONTEXTS:
         jvm = layer in ('domain', 'application')
         require(('libs.plugins.kotlin.jvm' in build) == jvm, f'{context}/{layer}: invalid toolchain')
         for dep in re.findall(r'(?:api|implementation)\(project\("(:[^\"]+)"\)\)', build):
+            if dep.startswith(':contexts:'):
+                _, _, owner, target = dep.split(':')
+                require(owner in CONTEXTS and target in LAYERS,
+                        f'{context}/{layer}: unknown context module {dep}')
+                if owner != context:
+                    require(target in ('domain', 'application'),
+                            f'{context}/{layer}: foreign implementation dependency {dep}')
+                    if layer == 'domain':
+                        require(owner == 'tenantaccessgovernance' and target == 'domain',
+                                f'{context}/domain: foreign domain dependency {dep}')
+                if layer == 'infrastructure':
+                    require(target in ('domain', 'application'),
+                            f'{context}/infrastructure: outward dependency {dep}')
             if jvm:
                 require(dep.startswith(':contexts:') and dep.split(':')[-1] in ('domain', 'application'),
                         f'{context}/{layer}: framework dependency {dep}')
@@ -47,10 +60,12 @@ for context in CONTEXTS:
             for imported in re.findall(r'^import (\S+)', body, re.M):
                 if jvm:
                     require(not imported.startswith(('android.', 'androidx.', 'dagger.', 'javax.inject.',
-                            'retrofit2.', 'okhttp3.', 'kotlinx.serialization.', 'java.sql.')),
+                            'retrofit2.', 'okhttp3.', 'kotlinx.serialization.', 'org.json.',
+                            'java.sql.', 'java.nio.file.')),
                             f'{source.name}: framework import in {layer}: {imported}')
-                if layer == 'domain':
-                    require(not imported.startswith('java.io.'), f'{source.name}: file boundary in domain')
+                    require(not imported.startswith('java.io.') or
+                            (layer == 'application' and imported == 'java.io.File'),
+                            f'{source.name}: file implementation in {layer}: {imported}')
                 if jvm or layer == 'presentation':
                     require(not imported.startswith(PREFIX + 'core.network'),
                             f'{source.name}: transport in {layer}')
@@ -63,10 +78,17 @@ for context in CONTEXTS:
                                 f'{source.name}: outward context import {imported}')
                         if layer == 'domain':
                             require(parts[1] == 'domain', f'{source.name}: domain imports application')
+                            if parts[0] != context:
+                                shared_identity = f'{PREFIX}tenantaccessgovernance.domain.model.operations.'
+                                require(imported in (shared_identity + 'ActiveOperationsContext',
+                                                     shared_identity + 'VerifiedOperationsIdentity'),
+                                        f'{source.name}: foreign domain model {imported}')
                 if layer == 'presentation':
                     require(not imported.startswith(('kotlinx.serialization.', 'org.json.', 'retrofit2.', 'okhttp3.')),
                             f'{source.name}: protocol encoding in presentation')
                 if layer == 'infrastructure':
+                    require(not imported.startswith(f'{PREFIX}{context}.presentation.'),
+                            f'{source.name}: presentation import in infrastructure')
                     parts = imported.removeprefix(PREFIX).split('.')
                     if imported.startswith(PREFIX) and parts[0] in CONTEXTS and parts[0] != context:
                         require(parts[1] not in ('infrastructure', 'presentation'),
@@ -74,10 +96,17 @@ for context in CONTEXTS:
                     require(not imported.startswith(('androidx.compose.', 'androidx.lifecycle.')),
                             f'{source.name}: UI import in infrastructure')
 
+            if jvm:
+                require(re.search(r'\bfile\.(?:isFile|length\(|readBytes\(|writeBytes\(|delete\()', body) is None,
+                        f'{source.name}: file IO in {layer}')
+
 require(not any(p.is_dir() and p.name != 'scoped' for p in (ROOT / 'core/local/src/main/kotlin/com/nexa/mobile/operations/core/local').iterdir()),
         'Workflow-specific persistence remains in generic core/local')
 
 for foundation in ('network', 'local', 'auth', 'device', 'designsystem'):
+    build = (ROOT / 'core' / foundation / 'build.gradle.kts').read_text()
+    require(re.search(r'(?:api|implementation)\(project\(":contexts:', build) is None,
+            f'core/{foundation}: runtime dependency on a context')
     for source in (ROOT / 'core' / foundation / 'src/main').rglob('*.kt'):
         body = source.read_text()
         require(not any(PREFIX + context + '.' in body for context in CONTEXTS),

@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
 
 @Composable
 fun DispatchHandoffIdentityScreen(

@@ -4,6 +4,16 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
+import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingAuthority
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingConfirmationCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingFulfillmentSnapshot as FeatureSnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingIntentCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingLoadResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingMutationResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.FulfillmentPickingLine
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.FulfillmentPickingSnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaPickingGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PickingAllocationLineProjection as NetworkAllocationLine
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PickingAllocationProjection as NetworkAllocation
@@ -11,18 +21,8 @@ import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.P
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PickingFulfillmentLineProjection as NetworkFulfillmentLine
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PickingFulfillmentProjection as NetworkFulfillment
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PickingNetworkOutcome
-import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.FulfillmentPickingLine
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.FulfillmentPickingSnapshot
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.PickingAllocationLine
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.PickingAllocationProjection
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingAuthority
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingConfirmationCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.PickingFulfillmentSnapshot as FeatureSnapshot
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingIntentCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingLoadResult
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingMutationResult
+import com.nexa.mobile.operations.inventoryavailability.application.publicapi.PhysicalAllocationLineProjection
+import com.nexa.mobile.operations.inventoryavailability.application.publicapi.PhysicalAllocationProjection
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -254,7 +254,7 @@ class OperationsPickingGateway @Inject constructor(
         unit = unit
     )
 
-    private fun NetworkAllocation.toFeature() = PickingAllocationProjection(
+    private fun NetworkAllocation.toFeature() = PhysicalAllocationProjection(
         allocationId = allocationId,
         status = status,
         version = version,
@@ -262,7 +262,7 @@ class OperationsPickingGateway @Inject constructor(
         lines = lines.map { it.toFeature() }
     )
 
-    private fun NetworkAllocationLine.toFeature() = PickingAllocationLine(
+    private fun NetworkAllocationLine.toFeature() = PhysicalAllocationLineProjection(
         physicalAllocationLineId = physicalAllocationLineId,
         skuId = skuId,
         catalogItemId = catalogItemId,

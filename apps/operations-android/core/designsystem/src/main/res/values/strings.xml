@@ -1,6 +1,6 @@
 <resources>
-    <string name="nexa_brand_name">NEXA</string>
-    <string name="nexa_operations_wordmark">NEXA OPERATIONS</string>
+    <string name="nexa_brand_name" translatable="false">NEXA</string>
+    <string name="nexa_operations_wordmark" translatable="false">NEXA OPERATIONS</string>
     <string name="nexa_current_context_description">Contexto actual: %1$s, %2$s</string>
     <string name="nexa_context_change_description">Cambiar contexto desde %1$s, %2$s</string>
     <string name="nexa_context_choice_description">%1$s, %2$s</string>

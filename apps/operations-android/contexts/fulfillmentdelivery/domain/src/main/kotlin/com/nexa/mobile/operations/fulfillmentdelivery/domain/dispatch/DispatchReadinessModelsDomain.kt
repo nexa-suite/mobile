@@ -16,8 +16,6 @@ data class DispatchReadinessLine(
     val evidenceComplete: Boolean
 )
 
-
-
 data class DispatchReadiness(
     val subjectKind: String,
     val fulfillmentId: String,

@@ -9,23 +9,23 @@ import com.nexa.mobile.operations.core.local.scoped.AndroidScopedMetadataStore
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverWorkdayLocationCommand as WorkdayLocationCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverWorkdayNetworkResult
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverWorkdayProjection
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDriverWorkdayGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayCommandStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkday
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayCommandAction
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayCommandIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayCommandIntentRead as WorkdayCommandIntentRead
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayCommandResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayCommandScope
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkdayLocationSample as WorkdayLocationSample
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayCommandStore
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayReadResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkday
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkdayLocationSample as WorkdayLocationSample
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkdayStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverWorkdayLocationCommand as WorkdayLocationCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverWorkdayNetworkResult
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverWorkdayProjection
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDriverWorkdayGateway
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton

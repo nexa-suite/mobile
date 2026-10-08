@@ -3,56 +3,56 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DeliveryRequestBodyCodec
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalIntentMetadata
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverArrivalSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptIntentMetadata
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptMetadataRead
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptMetadataStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptStartCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptStartResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryArrivalFact
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryLoadResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryOutcomeLine
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliverySnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeIntentMetadata
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeIntentStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeKind
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeLineDecision
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofAttachCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofAttachResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofCreateCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofCreateResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverProofEvidenceKind
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofEvidenceStatusResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverProofEvidenceSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofFileCandidate
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofIntentMetadata
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofIntentStage
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofSelectionContext
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverProofSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofUploadCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofUploadResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverArrivalSummary
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryArrivalFact
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryOutcomeLine
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliverySnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeKind
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeLineDecision
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeSummary
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverProofEvidenceKind
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverProofEvidenceSummary
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverProofSummary
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
@@ -679,7 +679,13 @@ class DriverDeliveryViewModel(
                 immutableNotes,
                 attemptedAt,
                 decisions,
-                requestBodyCodec.driverOutcomeBody(outcome, immutableReason, immutableNotes, attemptedAt, decisions)
+                requestBodyCodec.driverOutcomeBody(
+                    outcome,
+                    immutableReason,
+                    immutableNotes,
+                    attemptedAt,
+                    decisions
+                )
             )
             pendingOutcome = command
             pendingOutcomePersisted = false

@@ -2,13 +2,9 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.FulfillmentPickingSnapshot
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.PickingAllocationProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingAuthority
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingConfirmationCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.PickingFulfillmentSnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingFulfillmentSnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingIntentCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingIntentMetadata
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingIntentMetadataStatus
@@ -16,7 +12,11 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehous
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingMetadataRead
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingMutationResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.PickingOffer
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingOffer
+import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.FulfillmentPickingSnapshot
+import com.nexa.mobile.operations.inventoryavailability.application.publicapi.PhysicalAllocationProjection
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -74,7 +74,7 @@ data class PickingUiState(
     val fulfillmentId: String = "",
     val loadStatus: PickingLoadStatus = PickingLoadStatus.NotRequested,
     val fulfillment: FulfillmentPickingSnapshot? = null,
-    val allocation: PickingAllocationProjection? = null,
+    val allocation: PhysicalAllocationProjection? = null,
     val selectedAllocationLineId: String? = null,
     val lotIdentifierText: String = "",
     val quantityText: String = "",

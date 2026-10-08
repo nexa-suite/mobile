@@ -30,12 +30,9 @@ data class DriverDeliveryInstructionAcknowledgementCommand(
         "DriverDeliveryInstructionAcknowledgementCommand(setVersion=$instructionSetVersion, ids=${instructionVersions.size}, key=REDACTED)"
 }
 
-
-
 enum class DriverDeliveryInstructionIntentStatus { Pending, UnknownOutcome, StaleVersion }
 
 /** Encrypted local retry metadata; never an instruction, permission, or assignment authority. */
-
 
 data class DriverDeliveryInstructionIntentMetadata(
     val scope: DriverAttemptScopeIdentity,
@@ -54,8 +51,6 @@ data class DriverDeliveryInstructionIntentMetadata(
         "DriverDeliveryInstructionIntentMetadata(status=$status, command=REDACTED)"
 }
 
-
-
 sealed interface DriverDeliveryInstructionMetadataRead {
     data class Available(val intent: DriverDeliveryInstructionIntentMetadata?) :
         DriverDeliveryInstructionMetadataRead
@@ -63,16 +58,12 @@ sealed interface DriverDeliveryInstructionMetadataRead {
     data object Unavailable : DriverDeliveryInstructionMetadataRead
 }
 
-
-
 sealed interface DriverDeliveryInstructionMetadataWrite {
     data object Saved : DriverDeliveryInstructionMetadataWrite
     data object Conflict : DriverDeliveryInstructionMetadataWrite
     data object Stale : DriverDeliveryInstructionMetadataWrite
     data object Unavailable : DriverDeliveryInstructionMetadataWrite
 }
-
-
 
 sealed interface DriverDeliveryInstructionsLoadResult {
     data class Loaded(val snapshot: DriverDeliveryInstructionsSnapshot) :
@@ -84,8 +75,6 @@ sealed interface DriverDeliveryInstructionsLoadResult {
     data object ContextInvalidated : DriverDeliveryInstructionsLoadResult
     data object SessionInvalidated : DriverDeliveryInstructionsLoadResult
 }
-
-
 
 sealed interface DriverDeliveryInstructionAcknowledgementResult {
     data class Acknowledged(val summary: DriverDeliveryInstructionAcknowledgementSummary) :

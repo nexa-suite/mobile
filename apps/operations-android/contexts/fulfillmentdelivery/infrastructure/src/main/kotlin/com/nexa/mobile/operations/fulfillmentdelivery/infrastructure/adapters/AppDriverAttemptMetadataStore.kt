@@ -5,10 +5,10 @@ import com.nexa.mobile.operations.core.local.scoped.AndroidScopedMetadataStore
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptIntentMetadata as AttemptIntentMetadata
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptMetadataRead
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptMetadataStatus as AttemptMetadataStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptScopeIdentity
 import dagger.Module

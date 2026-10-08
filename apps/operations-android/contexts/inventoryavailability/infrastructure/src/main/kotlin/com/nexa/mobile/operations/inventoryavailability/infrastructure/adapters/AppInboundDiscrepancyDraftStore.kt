@@ -1,20 +1,19 @@
 package com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters
 
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.serialization.warehouse.CanonicalInboundDiscrepancyPayloadCodec
-
 import android.content.Context
 import com.nexa.mobile.operations.core.local.scoped.AndroidScopedMetadataStore
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyDraftStore
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyEvidenceArtifactStore
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyDraft
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyDraftRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyDraftWrite
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.InboundDiscrepancyKind
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyPendingAction
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyScope
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyDraftStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyEvidenceArtifactStore
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.InboundDiscrepancyKind
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.serialization.warehouse.CanonicalInboundDiscrepancyPayloadCodec
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -180,7 +179,7 @@ class AppInboundDiscrepancyDraftStore(
             submitIdempotencyKey = stored.submitIdempotencyKey,
             submitBody = stored.submitBody,
             pendingAction = stored.pendingAction?.let(InboundDiscrepancyPendingAction::valueOf)
-        )
+        ).takeIf { it.isValid() }
     } catch (_: SerializationException) {
         null
     } catch (_: IllegalArgumentException) {

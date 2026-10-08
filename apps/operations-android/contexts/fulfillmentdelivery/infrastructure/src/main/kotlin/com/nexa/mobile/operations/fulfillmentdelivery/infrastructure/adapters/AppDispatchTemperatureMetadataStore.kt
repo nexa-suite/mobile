@@ -6,11 +6,11 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureMetadataStore as TemperatureMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureIntentStatus as TemperatureIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureMetadataRead as TemperatureMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureMetadataStore as TemperatureMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureMetadataWrite as TemperatureMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperaturePhotoUploadIntent as TemperaturePhotoUploadIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperaturePhotoUploadMetadataRead as TemperaturePhotoUploadMetadataRead
@@ -41,8 +41,7 @@ import kotlinx.serialization.json.longOrNull
 class AppDispatchTemperatureMetadataStore(
     private val local: ScopedMetadataStore,
     private val requestBodyCodec: JsonDispatchRequestBodyCodec
-) :
-    TemperatureMetadataStore {
+) : TemperatureMetadataStore {
     override suspend fun loadIntent(
         scope: TemperatureScopeIdentity,
         fulfillmentId: String

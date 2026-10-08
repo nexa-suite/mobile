@@ -5,12 +5,12 @@ import com.nexa.mobile.operations.core.local.scoped.AndroidScopedMetadataStore
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferMetadataStore
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferIntent
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferScope
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TransferIntentStatus
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TransferMetadataRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TransferMetadataWrite
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferMetadataStore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

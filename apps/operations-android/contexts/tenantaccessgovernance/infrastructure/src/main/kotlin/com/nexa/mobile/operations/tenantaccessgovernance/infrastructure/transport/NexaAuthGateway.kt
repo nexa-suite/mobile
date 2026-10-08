@@ -1,13 +1,12 @@
 package com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport
 
-import com.nexa.mobile.operations.core.network.ApiEndpoint
-import com.nexa.mobile.operations.core.network.ApiHttpClient
-
 import com.nexa.mobile.operations.core.auth.session.AuthGatewayFailure
 import com.nexa.mobile.operations.core.auth.session.AuthRemoteGateway
 import com.nexa.mobile.operations.core.auth.session.IssuedNativeSession
 import com.nexa.mobile.operations.core.auth.session.NativeSignIn
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
+import com.nexa.mobile.operations.core.network.ApiEndpoint
+import com.nexa.mobile.operations.core.network.ApiHttpClient
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable

@@ -278,7 +278,8 @@ class NexaSkuIdentifierGatewayTest {
             directory = directory.parent
         }
         error(
-            "Could not find experiments/mobile-contract-parity/fixtures/sku-resolver-contract.json " +
+            "Could not find experiments/mobile-contract-parity/fixtures/" +
+                "sku-resolver-contract.json " +
                 "from the test working directory"
         )
     }

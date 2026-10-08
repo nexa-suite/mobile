@@ -2,10 +2,10 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGatewayResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow

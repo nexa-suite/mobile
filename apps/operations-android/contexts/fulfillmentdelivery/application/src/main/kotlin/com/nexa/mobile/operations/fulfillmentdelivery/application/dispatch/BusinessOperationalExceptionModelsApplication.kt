@@ -19,8 +19,6 @@ data class BusinessOperationalExceptionScopeIdentity(
     override fun toString(): String = "BusinessOperationalExceptionScopeIdentity(REDACTED)"
 }
 
-
-
 data class BusinessOperationalExceptionAuthority(
     val authorityEpoch: Long,
     val scope: BusinessOperationalExceptionScopeIdentity?,
@@ -39,16 +37,11 @@ data class BusinessOperationalExceptionAuthority(
     }
 }
 
-
-
 enum class BusinessOperationalExceptionAction { CLAIM, REASSIGN, FOLLOW_UP, RESOLVE, CLOSE }
-
-
 
 enum class BusinessOperationalExceptionIntentStatus { Pending, UnknownOutcome }
 
 /** Exact frozen request. The encrypted record supports recovery; it never supplies authority. */
-
 
 data class BusinessOperationalExceptionCommand(
     val scope: BusinessOperationalExceptionScopeIdentity,
@@ -70,13 +63,9 @@ data class BusinessOperationalExceptionCommand(
         "BusinessOperationalExceptionCommand(action=$action, version=$expectedDeliveryVersion, key=REDACTED, body=REDACTED)"
 }
 
-
-
 data class BusinessOperationalExceptionIntent(val command: BusinessOperationalExceptionCommand) {
     override fun toString(): String = "BusinessOperationalExceptionIntent(command=REDACTED)"
 }
-
-
 
 sealed interface BusinessOperationalExceptionMetadataRead {
     data class Available(val intent: BusinessOperationalExceptionIntent?) :
@@ -84,11 +73,7 @@ sealed interface BusinessOperationalExceptionMetadataRead {
     data object Unavailable : BusinessOperationalExceptionMetadataRead
 }
 
-
-
 enum class BusinessOperationalExceptionMetadataWrite { Saved, Conflict, Unavailable }
-
-
 
 sealed interface BusinessOperationalExceptionsGatewayResult {
     data class Current(val snapshot: BusinessOperationalExceptionsSnapshot) :
@@ -101,8 +86,6 @@ sealed interface BusinessOperationalExceptionsGatewayResult {
     data class Failed(val code: String?, val unknownOutcome: Boolean = false) :
         BusinessOperationalExceptionsGatewayResult
 }
-
-
 
 sealed interface BusinessOperationalExceptionAssigneesResult {
     data class Loaded(val values: List<BusinessOperationalExceptionActor>) :

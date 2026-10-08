@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial
 
-import com.nexa.mobile.operations.core.designsystem.R as SharedR
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -25,6 +23,7 @@ import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.core.designsystem.R as SharedR
 import com.nexa.mobile.operations.customerbuyerrelationships.presentation.R
 
 @Composable
@@ -44,7 +43,10 @@ fun FieldVisitScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         TextButton(onClick = onBack) { Text(stringResource(SharedR.string.commercial_back)) }
-        Text(stringResource(R.string.field_visit_title), style = MaterialTheme.typography.headlineSmall)
+        Text(
+            stringResource(R.string.field_visit_title),
+            style = MaterialTheme.typography.headlineSmall
+        )
         Text(stringResource(R.string.field_visit_description))
         Text(
             stringResource(R.string.field_visit_status_label, fieldVisitStatus(state.status)),
@@ -90,12 +92,18 @@ fun FieldVisitScreen(
                 stringResource(
                     R.string.field_visit_relation_details,
                     stringResource(
-                        if (customer.active) R.string.field_visit_active
-                        else R.string.field_visit_suspended
+                        if (customer.active) {
+                            R.string.field_visit_active
+                        } else {
+                            R.string.field_visit_suspended
+                        }
                     ),
                     stringResource(
-                        if (customer.buyerLinked) R.string.field_visit_yes
-                        else R.string.field_visit_no
+                        if (customer.buyerLinked) {
+                            R.string.field_visit_yes
+                        } else {
+                            R.string.field_visit_no
+                        }
                     )
                 )
             )

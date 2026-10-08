@@ -1,14 +1,14 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 
 import androidx.compose.runtime.Immutable
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureCommandStatus as TemperatureCommandStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureEvidenceStatus as TemperatureEvidenceStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureLoadStatus as TemperatureLoadStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureUiState as TemperatureUiState
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureMode
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureReading
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureSnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureCommandStatus as TemperatureCommandStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureEvidenceStatus as TemperatureEvidenceStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureLoadStatus as TemperatureLoadStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureUiState as TemperatureUiState
 
 enum class DriverExecutionTemperatureCommandStatus {
     Idle,

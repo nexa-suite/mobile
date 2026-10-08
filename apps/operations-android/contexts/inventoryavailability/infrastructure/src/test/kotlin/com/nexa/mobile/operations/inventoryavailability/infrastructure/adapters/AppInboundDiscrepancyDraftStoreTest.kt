@@ -1,13 +1,14 @@
 package com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters
 
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.AppInboundDiscrepancyDraftStore
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.InboundDiscrepancyScopedMetadataBackend
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.InboundDiscrepancyScopedRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyDraft
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyDraftRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyDraftWrite
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.InboundDiscrepancyKind
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyScope
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.InboundDiscrepancyKind
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.AppInboundDiscrepancyDraftStore
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.InboundDiscrepancyScopedMetadataBackend
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.InboundDiscrepancyScopedRead
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.serialization.warehouse.CanonicalInboundDiscrepancyPayloadCodec
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -62,6 +63,34 @@ class AppInboundDiscrepancyDraftStoreTest {
         assertEquals("{broken", backend.values[scopeA])
         assertFalse(store.discard(scopeA, "new") == InboundDiscrepancyDraftWrite.Discarded)
         assertTrue(backend.values.containsKey(scopeA))
+    }
+
+    @Test
+    fun restoredDraftWithFrozenBodyThatDiffersFromStagedFactsFailsClosed() = runTest {
+        val backend = MemoryBackend()
+        val store = AppInboundDiscrepancyDraftStore(backend)
+        val editable = draft("frozen-id")
+        val codec = CanonicalInboundDiscrepancyPayloadCodec()
+        val frozen = editable.copy(
+            createIdempotencyKey = "create-key",
+            createBody = codec.createBody(editable)
+        )
+        assertEquals(InboundDiscrepancyDraftWrite.Saved, store.save(scopeA, frozen))
+
+        val original = requireNotNull(backend.values[scopeA])
+        backend.values[scopeA] = original.replaceFirst(
+            "\"expectedQuantityText\":\"10.2500\"",
+            "\"expectedQuantityText\":\"10.5000\""
+        )
+
+        assertEquals(InboundDiscrepancyDraftRead.Unavailable, store.load(scopeA))
+        assertEquals(
+            InboundDiscrepancyDraftWrite.Unavailable,
+            store.save(scopeA, draft("replacement"))
+        )
+        assertTrue(
+            backend.values[scopeA].orEmpty().contains("\"expectedQuantityText\":\"10.5000\"")
+        )
     }
 
     private fun draft(id: String) = InboundDiscrepancyDraft(

@@ -8,16 +8,12 @@ enum class DriverExecutionTemperatureMode {
     HOLD_DISPOSITION
 }
 
-
-
 enum class DriverExecutionTemperatureDisposition {
     RELEASE,
     CONTINUE_HOLD,
     REJECT,
     WASTE
 }
-
-
 
 data class DriverExecutionTemperatureLine(
     val fulfillmentLineId: String,
@@ -47,8 +43,6 @@ data class DriverExecutionTemperatureLine(
         (minimumCelsius == null || value >= minimumCelsius) &&
             (maximumCelsius == null || value <= maximumCelsius)
 }
-
-
 
 data class DriverExecutionTemperatureHold(
     val id: String,
@@ -83,8 +77,6 @@ data class DriverExecutionTemperatureHold(
     }
 }
 
-
-
 data class DriverExecutionTemperatureSnapshot(
     val deliveryId: String,
     val deliveryVersion: Long,
@@ -105,8 +97,6 @@ data class DriverExecutionTemperatureSnapshot(
         require(holds.map { it.id.lowercase() }.distinct().size == holds.size)
     }
 }
-
-
 
 data class DriverExecutionTemperatureReading(
     val id: String,

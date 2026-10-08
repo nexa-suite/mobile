@@ -6,8 +6,6 @@ import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.isValidOpa
 
 enum class DriverDeliveryOperationalExceptionAction { Claim, Review, ResolveWarning, CloseWarning }
 
-
-
 data class DriverDeliveryOperationalExceptionCommand(
     val deliveryId: String,
     val exceptionId: String,
@@ -30,8 +28,6 @@ data class DriverDeliveryOperationalExceptionCommand(
         "DriverDeliveryOperationalExceptionCommand(action=$action, version=$expectedDeliveryVersion, key=REDACTED)"
 }
 
-
-
 data class DriverDeliveryOperationalExceptionMutation(
     val deliveryId: String,
     val deliveryVersion: Long,
@@ -44,12 +40,9 @@ data class DriverDeliveryOperationalExceptionMutation(
     }
 }
 
-
-
 enum class DriverDeliveryOperationalExceptionIntentStatus { Pending, UnknownOutcome, StaleVersion }
 
 /** Encrypted retry metadata; it grants neither process authority nor permission to resolve an exception. */
-
 
 data class DriverDeliveryOperationalExceptionIntent(
     val scope: DriverAttemptScopeIdentity,
@@ -68,8 +61,6 @@ data class DriverDeliveryOperationalExceptionIntent(
         "DriverDeliveryOperationalExceptionIntent(action=${command.action}, status=$status, command=REDACTED)"
 }
 
-
-
 sealed interface DriverDeliveryOperationalExceptionMetadataRead {
     data class Available(val intent: DriverDeliveryOperationalExceptionIntent?) :
         DriverDeliveryOperationalExceptionMetadataRead
@@ -77,16 +68,12 @@ sealed interface DriverDeliveryOperationalExceptionMetadataRead {
     data object Unavailable : DriverDeliveryOperationalExceptionMetadataRead
 }
 
-
-
 sealed interface DriverDeliveryOperationalExceptionMetadataWrite {
     data object Saved : DriverDeliveryOperationalExceptionMetadataWrite
     data object Conflict : DriverDeliveryOperationalExceptionMetadataWrite
     data object Stale : DriverDeliveryOperationalExceptionMetadataWrite
     data object Unavailable : DriverDeliveryOperationalExceptionMetadataWrite
 }
-
-
 
 sealed interface DriverDeliveryOperationalExceptionsLoadResult {
     data class Loaded(val snapshot: DriverDeliveryOperationalExceptionsSnapshot) :
@@ -99,8 +86,6 @@ sealed interface DriverDeliveryOperationalExceptionsLoadResult {
     data object ContextInvalidated : DriverDeliveryOperationalExceptionsLoadResult
     data object SessionInvalidated : DriverDeliveryOperationalExceptionsLoadResult
 }
-
-
 
 sealed interface DriverDeliveryOperationalExceptionMutationResult {
     data class Changed(val mutation: DriverDeliveryOperationalExceptionMutation) :

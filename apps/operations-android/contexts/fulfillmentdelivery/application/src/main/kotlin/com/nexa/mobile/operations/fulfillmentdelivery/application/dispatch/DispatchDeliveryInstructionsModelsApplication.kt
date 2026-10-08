@@ -14,15 +14,12 @@ data class DispatchDeliveryInstructionScopeIdentity(
     override fun toString(): String = "DispatchDeliveryInstructionScopeIdentity(REDACTED)"
 }
 
-
-
 enum class DispatchDeliveryInstructionIntentStatus {
     Pending,
     UnknownOutcome
 }
 
 /** Exact request, key and version frozen before first publication attempt. */
-
 
 data class DispatchDeliveryInstructionIntent(
     val scope: DispatchDeliveryInstructionScopeIdentity,
@@ -39,15 +36,11 @@ data class DispatchDeliveryInstructionIntent(
         "version=$expectedDeliveryVersion, status=$status)"
 }
 
-
-
 sealed interface DispatchDeliveryInstructionMetadataRead {
     data class Available(val intent: DispatchDeliveryInstructionIntent?) :
         DispatchDeliveryInstructionMetadataRead
     data object Unavailable : DispatchDeliveryInstructionMetadataRead
 }
-
-
 
 enum class DispatchDeliveryInstructionMetadataWrite {
     Saved,
@@ -55,8 +48,6 @@ enum class DispatchDeliveryInstructionMetadataWrite {
     Stale,
     Unavailable
 }
-
-
 
 sealed interface DispatchDeliveryInstructionsGatewayResult {
     data class Snapshot(val value: DispatchDeliveryInstructionsSnapshot) :

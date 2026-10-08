@@ -1,9 +1,6 @@
 package com.nexa.mobile.operations.businessdocuments.presentation.commercial
 
 import android.graphics.Bitmap
-import android.graphics.Color
-import android.graphics.pdf.PdfRenderer
-import android.os.ParcelFileDescriptor
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -31,12 +28,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.businessdocuments.application.commercial.BusinessDocumentPdfPageRenderer
+import com.nexa.mobile.operations.businessdocuments.application.commercial.RenderedBusinessDocumentPage
 import com.nexa.mobile.operations.businessdocuments.domain.model.commercial.BusinessDocumentContent
-import java.io.File
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
 
 @Composable
 fun BusinessDocumentsScreen(
@@ -46,7 +42,8 @@ fun BusinessDocumentsScreen(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onOpen: (String) -> Unit,
-    onCloseContent: () -> Unit
+    onCloseContent: () -> Unit,
+    pdfPageRenderer: BusinessDocumentPdfPageRenderer
 ) {
     Column(
         Modifier.fillMaxSize().windowInsetsPadding(
@@ -82,7 +79,7 @@ fun BusinessDocumentsScreen(
             if (content.identity.format ==
                 "PDF"
             ) {
-                ProtectedPdfContent(content)
+                ProtectedPdfContent(content, pdfPageRenderer)
             } else {
                 ProtectedTextContent(content)
             }
@@ -135,61 +132,53 @@ fun BusinessDocumentsScreen(
         }
     }
 }
-private data class PdfPageContent(val image: Bitmap, val totalPages: Int)
+
+private data class PdfPageContent(
+    val content: BusinessDocumentContent,
+    val page: Int,
+    val renderedPage: RenderedBusinessDocumentPage
+)
 
 @Composable
-private fun ProtectedPdfContent(content: BusinessDocumentContent) {
-    val context = LocalContext.current
+private fun ProtectedPdfContent(
+    content: BusinessDocumentContent,
+    renderer: BusinessDocumentPdfPageRenderer
+) {
     var page by remember(content) { mutableIntStateOf(0) }
-    val rendered by produceState<PdfPageContent?>(null, content, page) {
+    val rendered by produceState<PdfPageContent?>(null, content, page, renderer) {
         value = null
-        value = withContext(Dispatchers.IO) {
-            val file = File.createTempFile("protected-document-", ".pdf", context.noBackupFilesDir)
-            try {
-                file.writeBytes(content.bytes)
-                ParcelFileDescriptor.open(
-                    file,
-                    ParcelFileDescriptor.MODE_READ_ONLY
-                ).use { descriptor ->
-                    PdfRenderer(descriptor).use { renderer ->
-                        renderer.openPage(page).use { pdfPage ->
-                            val width = minOf(pdfPage.width * 2, 1600)
-                            val height = (width.toLong() * pdfPage.height / pdfPage.width).toInt()
-                            require(width > 0 && height in 1..10000)
-                            val image = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                            image.eraseColor(Color.WHITE)
-                            pdfPage.render(
-                                image,
-                                null,
-                                null,
-                                PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY
-                            )
-                            PdfPageContent(image, renderer.pageCount)
-                        }
-                    }
-                }
-            } catch (_: Exception) {
-                null
-            } finally {
-                file.delete()
-            }
+        val result = try {
+            renderer.renderPage(content.bytes, page)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
         }
+        if (result != null) value = PdfPageContent(content, page, result)
     }
-    val result = rendered
+    val result = rendered?.takeIf { it.content === content && it.page == page }
     if (result == null) {
         Text("Página no disponible o cargando.")
     } else {
+        val image = remember(result) {
+            Bitmap.createBitmap(
+                result.renderedPage.argbPixels,
+                result.renderedPage.width,
+                result.renderedPage.height,
+                Bitmap.Config.ARGB_8888
+            )
+        }
         Image(
-            result.image.asImageBitmap(),
+            image.asImageBitmap(),
             contentDescription = "Documento autorizado, página ${page + 1}",
             modifier = Modifier.fillMaxWidth()
         )
         Row {
             TextButton(onClick = { page-- }, enabled = page > 0) { Text("Página anterior") }
-            Text("${page + 1}/${result.totalPages}")
+            Text("${page + 1}/${result.renderedPage.totalPages}")
             TextButton(onClick = {
                 page++
-            }, enabled = page + 1 < result.totalPages) { Text("Página siguiente") }
+            }, enabled = page + 1 < result.renderedPage.totalPages) { Text("Página siguiente") }
         }
     }
 }

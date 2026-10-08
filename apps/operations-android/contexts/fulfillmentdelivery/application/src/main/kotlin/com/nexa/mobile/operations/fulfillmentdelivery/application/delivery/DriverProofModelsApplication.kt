@@ -12,8 +12,6 @@ data class DriverProofSelectionContext(
     val proofId: String
 )
 
-
-
 data class DriverProofCreateCommand(
     val deliveryId: String,
     val attemptId: String,
@@ -27,8 +25,6 @@ data class DriverProofCreateCommand(
         "DriverProofCreateCommand(version=$expectedVersion, key=REDACTED)"
 }
 
-
-
 data class DriverProofUploadCommand(
     val deliveryId: String,
     val attemptId: String,
@@ -39,8 +35,6 @@ data class DriverProofUploadCommand(
 ) {
     override fun toString(): String = "DriverProofUploadCommand(kind=$evidenceKind, key=REDACTED)"
 }
-
-
 
 data class DriverProofAttachCommand(
     val deliveryId: String,
@@ -56,8 +50,6 @@ data class DriverProofAttachCommand(
         "DriverProofAttachCommand(version=$expectedVersion, key=REDACTED)"
 }
 
-
-
 enum class DriverProofIntentStage {
     CreatingProof,
     ProofCreated,
@@ -68,12 +60,9 @@ enum class DriverProofIntentStage {
     Captured
 }
 
-
-
 enum class DriverProofIntentStatus { Pending, UnknownOutcome }
 
 /** Recoverable metadata only. It contains no credentials, authority snapshot, or server-truth cache. */
-
 
 data class DriverProofIntentMetadata(
     val scope: DriverAttemptScopeIdentity,
@@ -115,14 +104,10 @@ data class DriverProofIntentMetadata(
         "DriverProofIntentMetadata(stage=$stage, status=$status, payload=REDACTED)"
 }
 
-
-
 sealed interface DriverProofMetadataRead {
     data class Available(val intent: DriverProofIntentMetadata?) : DriverProofMetadataRead
     data object Unavailable : DriverProofMetadataRead
 }
-
-
 
 sealed interface DriverProofMetadataWrite {
     data object Saved : DriverProofMetadataWrite
@@ -130,8 +115,6 @@ sealed interface DriverProofMetadataWrite {
     data object Stale : DriverProofMetadataWrite
     data object Unavailable : DriverProofMetadataWrite
 }
-
-
 
 sealed interface DriverProofCreateResult {
     data class Created(val summary: DriverProofSummary) : DriverProofCreateResult
@@ -145,8 +128,6 @@ sealed interface DriverProofCreateResult {
     data object SessionInvalidated : DriverProofCreateResult
 }
 
-
-
 sealed interface DriverProofUploadResult {
     data class Uploaded(val summary: DriverProofEvidenceSummary) : DriverProofUploadResult
     data class Rejected(val code: String?) : DriverProofUploadResult
@@ -158,8 +139,6 @@ sealed interface DriverProofUploadResult {
     data object SessionInvalidated : DriverProofUploadResult
 }
 
-
-
 sealed interface DriverProofEvidenceStatusResult {
     data class Loaded(val summary: DriverProofEvidenceSummary) : DriverProofEvidenceStatusResult
     data object NotFound : DriverProofEvidenceStatusResult
@@ -168,8 +147,6 @@ sealed interface DriverProofEvidenceStatusResult {
     data object ContextInvalidated : DriverProofEvidenceStatusResult
     data object SessionInvalidated : DriverProofEvidenceStatusResult
 }
-
-
 
 sealed interface DriverProofAttachResult {
     data class Attached(val summary: DriverProofSummary) : DriverProofAttachResult

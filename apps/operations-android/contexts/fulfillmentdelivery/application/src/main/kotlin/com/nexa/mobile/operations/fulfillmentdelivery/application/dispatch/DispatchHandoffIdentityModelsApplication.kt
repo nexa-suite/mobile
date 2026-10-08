@@ -1,7 +1,7 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch
 
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.isValidOpaqueIdentifier
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoffIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.isValidOpaqueIdentifier
 
 data class DispatchHandoffIdentityCommand(
     val deliveryId: String,
@@ -18,8 +18,6 @@ data class DispatchHandoffIdentityCommand(
     override fun toString(): String =
         "DispatchHandoffIdentityCommand(delivery=REDACTED, assignment=REDACTED, key=REDACTED)"
 }
-
-
 
 sealed interface DispatchHandoffIssueResult {
     data class Issued(val identity: DispatchHandoffIdentity, val token: String) :
@@ -38,8 +36,6 @@ sealed interface DispatchHandoffIssueResult {
     data object SessionInvalidated : DispatchHandoffIssueResult
 }
 
-
-
 sealed interface DispatchHandoffValidationResult {
     data class Validated(val identity: DispatchHandoffIdentity) : DispatchHandoffValidationResult
     data class Rejected(val code: String?) : DispatchHandoffValidationResult
@@ -50,13 +46,9 @@ sealed interface DispatchHandoffValidationResult {
     data object SessionInvalidated : DispatchHandoffValidationResult
 }
 
-
-
 sealed interface DispatchHandoffMetadataRead {
     data class Available(val command: DispatchHandoffIdentityCommand?) : DispatchHandoffMetadataRead
     data object Unavailable : DispatchHandoffMetadataRead
 }
-
-
 
 enum class DispatchHandoffMetadataWrite { Saved, Conflict, Stale, Unavailable }

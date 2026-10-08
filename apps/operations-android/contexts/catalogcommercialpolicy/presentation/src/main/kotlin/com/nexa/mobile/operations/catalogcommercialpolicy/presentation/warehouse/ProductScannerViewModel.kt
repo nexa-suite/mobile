@@ -2,11 +2,11 @@ package com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehous
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductScannerResolution
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.warehouse.ProductScannerGateway
 import com.nexa.mobile.operations.core.device.scanner.ProductCodeCandidate
 import com.nexa.mobile.operations.core.device.scanner.ProductCodeScannerEvent
-import com.nexa.mobile.operations.catalogcommercialpolicy.application.warehouse.ProductScannerGateway
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
-import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductScannerResolution
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

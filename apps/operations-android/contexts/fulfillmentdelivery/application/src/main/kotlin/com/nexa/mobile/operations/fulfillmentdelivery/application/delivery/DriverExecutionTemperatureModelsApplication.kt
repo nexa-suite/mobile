@@ -14,16 +14,12 @@ enum class DriverExecutionTemperatureIntentStatus {
     StaleVersion
 }
 
-
-
 enum class DriverExecutionTemperatureMetadataWrite {
     Saved,
     Conflict,
     Stale,
     Unavailable
 }
-
-
 
 sealed interface DriverExecutionTemperatureCommand {
     val deliveryId: String
@@ -80,8 +76,6 @@ sealed interface DriverExecutionTemperatureCommand {
     }
 }
 
-
-
 data class DriverExecutionTemperatureIntent(
     val scope: DriverAttemptScopeIdentity,
     val command: DriverExecutionTemperatureCommand,
@@ -97,15 +91,11 @@ data class DriverExecutionTemperatureIntent(
         "DriverExecutionTemperatureIntent(status=$status, command=REDACTED)"
 }
 
-
-
 sealed interface DriverExecutionTemperatureMetadataRead {
     data class Available(val intent: DriverExecutionTemperatureIntent?) :
         DriverExecutionTemperatureMetadataRead
     data object Unavailable : DriverExecutionTemperatureMetadataRead
 }
-
-
 
 sealed interface DriverExecutionTemperatureLoadResult {
     data class Loaded(val snapshot: DriverExecutionTemperatureSnapshot) :
@@ -117,8 +107,6 @@ sealed interface DriverExecutionTemperatureLoadResult {
     data object ContextInvalidated : DriverExecutionTemperatureLoadResult
     data object SessionInvalidated : DriverExecutionTemperatureLoadResult
 }
-
-
 
 sealed interface DriverExecutionTemperatureMutationResult {
     data class ReadingRecorded(val reading: DriverExecutionTemperatureReading) :

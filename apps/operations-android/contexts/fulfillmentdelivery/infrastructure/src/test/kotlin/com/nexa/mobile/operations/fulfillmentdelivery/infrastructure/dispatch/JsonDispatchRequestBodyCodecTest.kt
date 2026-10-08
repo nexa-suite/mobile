@@ -29,8 +29,10 @@ class JsonDispatchRequestBodyCodecTest {
 
         assertEquals(
             "{\"physicalAllocationId\":\"22222222-2222-4222-8222-222222222222\"," +
-                "\"physicalAllocationVersion\":4,\"driverAssignmentId\":\"33333333-3333-4333-8333-333333333333\"," +
-                "\"driverAssignmentVersion\":7,\"outgoingGoodsCheckId\":\"44444444-4444-4444-8444-444444444444\"}",
+                "\"physicalAllocationVersion\":4," +
+                "\"driverAssignmentId\":\"33333333-3333-4333-8333-333333333333\"," +
+                "\"driverAssignmentVersion\":7," +
+                "\"outgoingGoodsCheckId\":\"44444444-4444-4444-8444-444444444444\"}",
             codec.dispatchHandoverRequestBody(command)
         )
     }
@@ -52,7 +54,8 @@ class JsonDispatchRequestBodyCodecTest {
         assertEquals(
             "{\"lotId\":\"22222222-2222-4222-8222-222222222222\",\"value\":5.5," +
                 "\"unit\":\"CELSIUS\",\"occurredAt\":\"2026-10-01T10:15:30Z\"," +
-                "\"expectedLotVersion\":3,\"evidenceObjectId\":\"33333333-3333-4333-8333-333333333333\"}",
+                "\"expectedLotVersion\":3," +
+                "\"evidenceObjectId\":\"33333333-3333-4333-8333-333333333333\"}",
             codec.dispatchTemperatureRequestBody(command)
         )
     }

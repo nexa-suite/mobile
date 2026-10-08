@@ -2,24 +2,24 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryOperationalExceptionCommandStatus as ExceptionCommandStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryOperationalExceptionsLoadStatus as ExceptionsLoadStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryOperationalExceptionsUiState as ExceptionsUiState
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DeliveryRequestBodyCodec
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryOperationalExceptionMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryOperationalExceptionsGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryOperationalException
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryOperationalExceptionAction as OperationalExceptionAction
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryOperationalExceptionCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryOperationalExceptionIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryOperationalExceptionIntentStatus as ExceptionIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryOperationalExceptionMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryOperationalExceptionMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryOperationalExceptionMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryOperationalExceptionMutationResult as ExceptionMutationResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryOperationalExceptionsGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryOperationalExceptionsLoadResult as ExceptionsLoadResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryOperationalException
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryOperationalExceptionsSnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryOperationalExceptionCommandStatus as ExceptionCommandStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryOperationalExceptionsLoadStatus as ExceptionsLoadStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryOperationalExceptionsUiState as ExceptionsUiState
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -282,10 +282,13 @@ class DriverDeliveryOperationalExceptionsViewModel(
 
         val frozenBody = when (action) {
             OperationalExceptionAction.Claim,
-            OperationalExceptionAction.Review -> requestBodyCodec.driverDeliveryOperationalExceptionEmptyBody()
+            OperationalExceptionAction.Review ->
+                requestBodyCodec.driverDeliveryOperationalExceptionEmptyBody()
 
             OperationalExceptionAction.ResolveWarning -> try {
-                requestBodyCodec.driverDeliveryOperationalExceptionResolutionBody(resolution.orEmpty())
+                requestBodyCodec.driverDeliveryOperationalExceptionResolutionBody(
+                    resolution.orEmpty()
+                )
             } catch (_: IllegalArgumentException) {
                 return
             }
@@ -470,6 +473,10 @@ class DriverDeliveryOperationalExceptionsViewModel(
             is ExceptionMutationResult.Changed -> {
                 if (!isCurrent(requestGeneration, currentAuthority)) return
                 val mutation = result.mutation
+                val expectedResolution =
+                    requestBodyCodec.driverDeliveryOperationalExceptionResolutionFromBody(
+                        command.frozenBody
+                    )
                 val valid = mutation.deliveryId == command.deliveryId &&
                     mutation.deliveryVersion >= command.expectedDeliveryVersion &&
                     mutation.exception.id.equals(command.exceptionId, ignoreCase = true) &&
@@ -508,9 +515,7 @@ class DriverDeliveryOperationalExceptionsViewModel(
                                 mutation.exception.responsibleMembershipId ==
                                 currentAuthority.membershipId &&
                                 mutation.exception.resolution ==
-                                requestBodyCodec.driverDeliveryOperationalExceptionResolutionFromBody(
-                                    command.frozenBody
-                                ) &&
+                                expectedResolution &&
                                 mutation.exception.outcome == WARNING_CONDITION_ADDRESSED &&
                                 (
                                     mutation.exception.status == "RESOLVED" ||

@@ -6,10 +6,10 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeMetadataStore as PlanChangeMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeIntentStatus as PlanChangeIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeMetadataRead as PlanChangeMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeMetadataStore as PlanChangeMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeMetadataWrite as PlanChangeMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeScopeIdentity as PlanChangeScopeIdentity
 import dagger.Module

@@ -372,5 +372,10 @@ tasks.register("verifyAndroidArchitecture") {
             commandLine("python3", "scripts/verify-context-architecture.py")
         }.result.get()
         check(result.exitValue == 0) { "Context architecture verification failed" }
+        val fitnessResult = providers.exec {
+            workingDir(rootDir)
+            commandLine("python3", "scripts/test-context-architecture.py")
+        }.result.get()
+        check(fitnessResult.exitValue == 0) { "Context fitness probes failed" }
     }
 }

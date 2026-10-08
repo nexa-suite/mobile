@@ -6,15 +6,15 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsMetadataStore as OutgoingGoodsMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsCommand as OutgoingGoodsCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCommandType as OutgoingGoodsCommandType
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsIntent as OutgoingGoodsIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsIntentStatus as OutgoingGoodsIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsMetadataRead as OutgoingGoodsMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsMetadataStore as OutgoingGoodsMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsMetadataWrite as OutgoingGoodsMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsObservation as OutgoingGoodsObservation
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsScopeIdentity as OutgoingGoodsScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCommandType as OutgoingGoodsCommandType
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.JsonDispatchRequestBodyCodec
 import dagger.Module
 import dagger.Provides
@@ -41,8 +41,7 @@ import kotlinx.serialization.json.longOrNull
 class AppDispatchOutgoingGoodsMetadataStore(
     private val local: ScopedMetadataStore,
     private val requestBodyCodec: JsonDispatchRequestBodyCodec
-) :
-    OutgoingGoodsMetadataStore {
+) : OutgoingGoodsMetadataStore {
     override suspend fun loadIntent(
         scope: OutgoingGoodsScopeIdentity,
         fulfillmentId: String

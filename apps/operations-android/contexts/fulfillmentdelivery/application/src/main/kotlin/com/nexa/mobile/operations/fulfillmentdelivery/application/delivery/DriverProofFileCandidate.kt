@@ -10,7 +10,6 @@ data class DriverProofFileCandidate(
     val checksumSha256: String
 ) {
     init {
-        require(file.isFile && file.length() == byteSize)
         require(originalFilename.isNotBlank() && originalFilename.length <= 255)
         require(declaredContentType in ALLOWED_CONTENT_TYPES)
         require(byteSize in 1..MAX_BYTES)

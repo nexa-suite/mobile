@@ -5,10 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.nexa.mobile.operations.customerbuyerrelationships.application.commercial.FieldVisitGateway
 import com.nexa.mobile.operations.customerbuyerrelationships.application.commercial.FieldVisitResult
 import com.nexa.mobile.operations.customerbuyerrelationships.application.commercial.FieldVisitStore
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import com.nexa.mobile.operations.customerbuyerrelationships.domain.model.commercial.CustomerRelationship
 import com.nexa.mobile.operations.customerbuyerrelationships.domain.model.commercial.FieldVisitIntent
 import com.nexa.mobile.operations.customerbuyerrelationships.domain.model.commercial.FieldVisitRecord
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException

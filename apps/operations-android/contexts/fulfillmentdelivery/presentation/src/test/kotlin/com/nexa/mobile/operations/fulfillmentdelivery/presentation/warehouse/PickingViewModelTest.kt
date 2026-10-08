@@ -1,14 +1,8 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse
 
-import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.FulfillmentPickingLine
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.FulfillmentPickingSnapshot
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.PickingAllocationLine
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.PickingAllocationProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingAuthority
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingConfirmationCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.PickingFulfillmentSnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingFulfillmentSnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingIntentCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingIntentMetadata
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingIntentMetadataStatus
@@ -17,6 +11,12 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehous
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingMutationResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.FulfillmentPickingLine
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.FulfillmentPickingSnapshot
+import com.nexa.mobile.operations.inventoryavailability.application.publicapi.PhysicalAllocationLineProjection
+import com.nexa.mobile.operations.inventoryavailability.application.publicapi.PhysicalAllocationProjection
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
@@ -275,13 +275,13 @@ class PickingViewModelTest {
                 )
             )
         ),
-        allocation = PickingAllocationProjection(
+        allocation = PhysicalAllocationProjection(
             allocationId = ALLOCATION_ID,
             status = allocationStatus,
             version = allocationVersion,
             asOf = Instant.parse("2026-09-30T15:00:00Z"),
             lines = listOf(
-                PickingAllocationLine(
+                PhysicalAllocationLineProjection(
                     PHYSICAL_LINE_ID,
                     SKU_ID,
                     "CAT-0017",

@@ -4,21 +4,21 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
+import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferAuthority
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TransferLookupResult
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TransferSubmitResult
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferGateway
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ConfirmedStockTransfer
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TransferSourceLotChoice
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TransferWarehouseChoice
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TransferZoneChoice
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.NexaReceivingGateway
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.NexaStockConditionGateway
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.NexaStockTransferGateway
-import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.ReceivingNetworkOutcome
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.StockConditionNetworkOutcome as StockConditionOutcome
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.StockTransferNetworkOutcome as StockTransferOutcome
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferGateway
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ConfirmedStockTransfer
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferAuthority
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TransferLookupResult
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TransferSourceLotChoice
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TransferSubmitResult
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TransferWarehouseChoice
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TransferZoneChoice
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

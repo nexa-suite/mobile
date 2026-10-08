@@ -78,9 +78,18 @@ class NexaCustomerCreditGatewayTest {
             server.enqueue(problemResponse(500, "INTERNAL_ERROR"))
             val query = gateway(server)
 
-            assertEquals(CustomerCreditExposureRead.PermissionDenied, query.credit(CUSTOMER_ID, "PEN"))
-            assertEquals(CustomerCreditExposureRead.PermissionDenied, query.credit(CUSTOMER_ID, "PEN"))
-            assertEquals(CustomerCreditExposureRead.PermissionDenied, query.credit(CUSTOMER_ID, "PEN"))
+            assertEquals(
+                CustomerCreditExposureRead.PermissionDenied,
+                query.credit(CUSTOMER_ID, "PEN")
+            )
+            assertEquals(
+                CustomerCreditExposureRead.PermissionDenied,
+                query.credit(CUSTOMER_ID, "PEN")
+            )
+            assertEquals(
+                CustomerCreditExposureRead.PermissionDenied,
+                query.credit(CUSTOMER_ID, "PEN")
+            )
             assertEquals(CustomerCreditExposureRead.Unavailable, query.credit(CUSTOMER_ID, "PEN"))
             assertEquals(4, server.requestCount)
         }
@@ -143,7 +152,9 @@ class NexaCustomerCreditGatewayTest {
         private val lease = AccessTokenLease("access-1", generation = 1, epoch = 1)
 
         override suspend fun currentAccess(): AccessTokenLease = lease
-        override suspend fun recoverAfterUnauthorized(observed: AccessTokenLease): AccessTokenLease? = null
+        override suspend fun recoverAfterUnauthorized(
+            observed: AccessTokenLease
+        ): AccessTokenLease? = null
         override suspend fun rejectCurrentAccess(observed: AccessTokenLease) = Unit
         override suspend fun isEpochCurrent(epoch: Long): Boolean = epoch == lease.epoch
     }

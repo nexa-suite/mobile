@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
-import com.nexa.mobile.operations.inventoryavailability.presentation.R
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.InboundDiscrepancyKind
+import com.nexa.mobile.operations.inventoryavailability.presentation.R
 import java.text.DateFormat
 import java.util.Date
 

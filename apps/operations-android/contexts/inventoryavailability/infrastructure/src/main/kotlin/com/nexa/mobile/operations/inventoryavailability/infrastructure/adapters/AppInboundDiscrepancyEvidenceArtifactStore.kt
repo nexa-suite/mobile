@@ -6,7 +6,6 @@ import com.nexa.mobile.operations.core.local.scoped.AndroidScopedMetadataStore
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyEvidenceArtifactStore
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyArtifactIdentity
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyArtifactRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyArtifactWrite
@@ -14,6 +13,7 @@ import com.nexa.mobile.operations.inventoryavailability.application.model.wareho
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyEvidenceCandidate
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyScope
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancySelectionContext
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyEvidenceArtifactStore
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.io.File

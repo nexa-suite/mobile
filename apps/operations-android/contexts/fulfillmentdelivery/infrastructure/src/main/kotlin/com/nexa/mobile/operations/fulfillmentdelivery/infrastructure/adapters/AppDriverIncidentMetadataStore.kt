@@ -8,18 +8,18 @@ import com.nexa.mobile.operations.core.local.scoped.AndroidScopedMetadataStore
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentMetadataStore as IncidentMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentEvidenceDraft as IncidentEvidenceDraft
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentEvidenceStage as IncidentEvidenceStage
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentMetadata
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentMetadataStore as IncidentMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentMetadataWrite as IncidentMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentRecordStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentSelectionContext as IncidentSelectionContext
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentType
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofFileCandidate
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentType
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

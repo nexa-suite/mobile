@@ -1,9 +1,8 @@
 package com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport
 
+import com.nexa.mobile.operations.core.auth.session.IssuedNativeSession
 import com.nexa.mobile.operations.core.network.ApiEndpoint
 import com.nexa.mobile.operations.core.network.ApiHttpClient
-
-import com.nexa.mobile.operations.core.auth.session.IssuedNativeSession
 import java.io.IOException
 import java.time.Clock
 import java.time.Instant

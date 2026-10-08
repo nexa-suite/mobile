@@ -14,7 +14,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 
-class NexaCustomerCreditGateway @Inject constructor(private val calls: ProtectedCallExecutor) : CustomerCreditExposureQuery {
+class NexaCustomerCreditGateway @Inject constructor(private val calls: ProtectedCallExecutor) :
+    CustomerCreditExposureQuery {
     override suspend fun credit(customerId: String, currency: String): CustomerCreditExposureRead {
         if (!progressId.matches(customerId) ||
             !Regex("[A-Z]{3}").matches(currency)
@@ -34,13 +35,23 @@ class NexaCustomerCreditGateway @Inject constructor(private val calls: Protected
             }
         }
     }
-    private suspend fun read(path: String, decode: (String) -> CustomerCreditExposureRead): CustomerCreditExposureRead =
+    private suspend fun read(
+        path: String,
+        decode: (String) -> CustomerCreditExposureRead
+    ): CustomerCreditExposureRead =
         when (val result = calls.execute(ProtectedRequest(ProtectedMethod.GET, path))) {
-            is ProtectedResult.Success -> runCatching { result.body?.let(decode) }.getOrNull() ?: CustomerCreditExposureRead.Unavailable
-            is ProtectedResult.Failure -> if (result.error.kind == FailureKind.AuthorizationFailure ||
-                result.error.kind == FailureKind.AuthenticationRequired || result.error.httpStatus == 404) {
+            is ProtectedResult.Success -> runCatching { result.body?.let(decode) }.getOrNull()
+                ?: CustomerCreditExposureRead.Unavailable
+
+            is ProtectedResult.Failure -> if (
+                result.error.kind == FailureKind.AuthorizationFailure ||
+                result.error.kind == FailureKind.AuthenticationRequired ||
+                result.error.httpStatus == 404
+            ) {
                 CustomerCreditExposureRead.PermissionDenied
-            } else CustomerCreditExposureRead.Unavailable
+            } else {
+                CustomerCreditExposureRead.Unavailable
+            }
         }
 }
 private val progressJson = Json { ignoreUnknownKeys = true }

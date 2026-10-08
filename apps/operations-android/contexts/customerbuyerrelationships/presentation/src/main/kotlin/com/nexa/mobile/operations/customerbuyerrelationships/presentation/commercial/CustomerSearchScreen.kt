@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial
 
-import com.nexa.mobile.operations.core.designsystem.R as SharedR
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,6 +24,7 @@ import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.core.designsystem.R as SharedR
 import com.nexa.mobile.operations.customerbuyerrelationships.presentation.R
 import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.CustomerSearchStatus
 
@@ -117,8 +116,12 @@ fun CustomerSearchScreen(
                             customer.contactPerson?.let {
                                 Text(stringResource(R.string.customer_contact_person, it))
                             }
-                            customer.email?.let { Text(stringResource(R.string.customer_email, it)) }
-                            customer.phone?.let { Text(stringResource(R.string.customer_phone, it)) }
+                            customer.email?.let {
+                                Text(stringResource(R.string.customer_email, it))
+                            }
+                            customer.phone?.let {
+                                Text(stringResource(R.string.customer_phone, it))
+                            }
                             if (customer.active && onPrepareRequest != null) {
                                 TextButton(onClick = { onPrepareRequest(customer.id) }) {
                                     Text(stringResource(SharedR.string.customer_prepare_request))

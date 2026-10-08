@@ -1,14 +1,14 @@
 package com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters
 
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.AppStockTransferReceiptMetadataStore
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.TransferReceiptScopedMetadataBackend
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.TransferReceiptScopedRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferReceiptIntent
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferReceiptIntentStatus
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferReceiptMetadataRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferReceiptMetadataWrite
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockTransferReceiptTransfer
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferScope
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockTransferReceiptTransfer
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.AppStockTransferReceiptMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.TransferReceiptScopedMetadataBackend
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.TransferReceiptScopedRead
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals

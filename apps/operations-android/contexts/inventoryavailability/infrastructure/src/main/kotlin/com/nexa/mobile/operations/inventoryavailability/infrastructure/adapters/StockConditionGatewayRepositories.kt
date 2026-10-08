@@ -4,16 +4,16 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.NexaStockConditionGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockConditionGatewayResult
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockConditionGateway
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockConditionAvailability
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockConditionLot
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.NexaStockConditionGateway
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.StockConditionLotProjection
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.StockConditionNetworkOutcome as StockConditionOutcome
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockConditionGateway
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockConditionAvailability
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockConditionGatewayResult
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockConditionLot
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.VerifiedOperationsIdentity
 import dagger.Module
 import dagger.Provides

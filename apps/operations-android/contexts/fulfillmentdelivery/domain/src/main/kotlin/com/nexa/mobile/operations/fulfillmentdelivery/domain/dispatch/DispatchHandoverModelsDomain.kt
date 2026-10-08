@@ -15,8 +15,6 @@ data class DispatchHandoverReceipt(
     override fun toString(): String = "DispatchHandoverReceipt(REDACTED, status=$fulfillmentStatus)"
 }
 
-
-
 data class DispatchHandoverEvidence(
     val evidenceId: String,
     val fulfillmentVersion: Long,
@@ -32,8 +30,6 @@ data class DispatchHandoverEvidence(
 ) {
     override fun toString(): String = "DispatchHandoverEvidence(REDACTED, current=$current)"
 }
-
-
 
 data class DispatchHandoverSnapshot(
     val readiness: DispatchReadiness,

@@ -4,10 +4,10 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionIntent
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionMetadataRead
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionScopeIdentity
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDeliveryInstructionKind
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.JsonDispatchRequestBodyCodec
 import kotlinx.coroutines.test.runTest
@@ -50,7 +50,11 @@ class AppDispatchDeliveryInstructionMetadataStoreTest {
             instructionId = INSTRUCTION,
             kind = kind,
             content = content,
-            exactRequestBody = codec.dispatchDeliveryInstructionRequestBody(INSTRUCTION, kind, content),
+            exactRequestBody = codec.dispatchDeliveryInstructionRequestBody(
+                INSTRUCTION,
+                kind,
+                content
+            ),
             idempotencyKey = "instruction-key"
         )
     }

@@ -1,18 +1,17 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDeliveryRequestBodyCodec
-
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffTokenGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffTokenMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverHandoffCurrentDelivery
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffCurrentDeliveryResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffIssueCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffIssueResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffMetadataRead
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffMetadataWrite
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffTokenGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffTokenMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverHandoffCurrentDelivery
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverHandoffTokenReceipt
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDeliveryRequestBodyCodec
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -38,7 +37,9 @@ class DriverHandoffTokenViewModelTest {
             issueResult = DriverHandoffIssueResult.TokenUnavailable(receipt())
         }
         val viewModel =
-            DriverHandoffTokenViewModel(gateway, store, keyFactory = { "must-not-be-used" }, requestBodyCodec = TestDeliveryRequestBodyCodec())
+            DriverHandoffTokenViewModel(gateway, store, keyFactory = {
+                "must-not-be-used"
+            }, requestBodyCodec = TestDeliveryRequestBodyCodec())
         viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
         advanceUntilIdle()
 
@@ -60,7 +61,10 @@ class DriverHandoffTokenViewModelTest {
         val gateway = FakeGateway(events).apply {
             issueResult = DriverHandoffIssueResult.Issued(receipt(), "123456")
         }
-        val viewModel = DriverHandoffTokenViewModel(gateway, store, keyFactory = { "stable-key" }, requestBodyCodec = TestDeliveryRequestBodyCodec())
+        val viewModel =
+            DriverHandoffTokenViewModel(gateway, store, keyFactory = {
+                "stable-key"
+            }, requestBodyCodec = TestDeliveryRequestBodyCodec())
         viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
         advanceUntilIdle()
         viewModel.issueOrRetrySame()
@@ -80,7 +84,12 @@ class DriverHandoffTokenViewModelTest {
     fun changedActiveAttemptCannotIssue() = runTest {
         val store = FakeMetadataStore()
         val gateway = FakeGateway().apply { activeAttemptId = OTHER_ATTEMPT_ID }
-        val viewModel = DriverHandoffTokenViewModel(gateway, store, requestBodyCodec = TestDeliveryRequestBodyCodec())
+        val viewModel =
+            DriverHandoffTokenViewModel(
+                gateway,
+                store,
+                requestBodyCodec = TestDeliveryRequestBodyCodec()
+            )
         viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
         advanceUntilIdle()
 
@@ -96,7 +105,10 @@ class DriverHandoffTokenViewModelTest {
         val store = FakeMetadataStore()
         val lateResponse = CompletableDeferred<DriverHandoffIssueResult>()
         val gateway = FakeGateway().apply { pendingIssue = lateResponse }
-        val viewModel = DriverHandoffTokenViewModel(gateway, store, keyFactory = { "stable-key" }, requestBodyCodec = TestDeliveryRequestBodyCodec())
+        val viewModel =
+            DriverHandoffTokenViewModel(gateway, store, keyFactory = {
+                "stable-key"
+            }, requestBodyCodec = TestDeliveryRequestBodyCodec())
         viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
         advanceUntilIdle()
 

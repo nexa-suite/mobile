@@ -2,18 +2,18 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchRequestBodyCodec
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverMetadataWrite
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverSnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchRequestBodyCodec
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverSnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
 import java.time.Instant
 import java.util.UUID
@@ -231,7 +231,9 @@ class DispatchHandoverViewModel(
             idempotencyKey = newCommandKey(),
             exactRequestBody = ""
         )
-        val command = partial.copy(exactRequestBody = requestBodyCodec.dispatchHandoverRequestBody(partial))
+        val command = partial.copy(
+            exactRequestBody = requestBodyCodec.dispatchHandoverRequestBody(partial)
+        )
         val intent = DispatchHandoverIntent(scope, command)
         val request = ++generation
         mutableState.value = mutableState.value.copy(

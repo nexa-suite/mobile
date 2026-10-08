@@ -2,10 +2,10 @@ package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockConditionGateway
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockConditionGatewayResult
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockConditionGateway
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockConditionLot
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow

@@ -47,7 +47,6 @@ data class DriverDeliveryAuthority(
 
 /** Full identity partition for harmless frozen attempt metadata, without permission state. */
 
-
 data class DriverAttemptScopeIdentity(
     val userId: String,
     val tenantId: String,
@@ -60,8 +59,6 @@ data class DriverAttemptScopeIdentity(
 
     override fun toString(): String = "DriverAttemptScopeIdentity(REDACTED)"
 }
-
-
 
 data class DriverOutcomeCommand(
     val deliveryId: String,
@@ -79,8 +76,6 @@ data class DriverOutcomeCommand(
         "DriverOutcomeCommand(outcome=$outcome, version=$expectedVersion, key=REDACTED)"
 }
 
-
-
 data class DriverArrivalCommand(
     val deliveryId: String,
     val attemptId: String,
@@ -97,11 +92,7 @@ data class DriverArrivalCommand(
     override fun toString(): String = "DriverArrivalCommand(version=$expectedVersion, key=REDACTED)"
 }
 
-
-
 enum class DriverArrivalIntentStatus { Pending, UnknownOutcome }
-
-
 
 data class DriverArrivalIntentMetadata(
     val scope: DriverAttemptScopeIdentity,
@@ -112,14 +103,10 @@ data class DriverArrivalIntentMetadata(
         "DriverArrivalIntentMetadata(status=$status, command=REDACTED)"
 }
 
-
-
 sealed interface DriverArrivalMetadataRead {
     data class Available(val intent: DriverArrivalIntentMetadata?) : DriverArrivalMetadataRead
     data object Unavailable : DriverArrivalMetadataRead
 }
-
-
 
 sealed interface DriverArrivalMetadataWrite {
     data object Saved : DriverArrivalMetadataWrite
@@ -128,11 +115,7 @@ sealed interface DriverArrivalMetadataWrite {
     data object Unavailable : DriverArrivalMetadataWrite
 }
 
-
-
 enum class DriverOutcomeIntentStatus { Pending, UnknownOutcome }
-
-
 
 data class DriverOutcomeIntentMetadata(
     val scope: DriverAttemptScopeIdentity,
@@ -143,14 +126,10 @@ data class DriverOutcomeIntentMetadata(
         "DriverOutcomeIntentMetadata(status=$status, command=REDACTED)"
 }
 
-
-
 sealed interface DriverOutcomeMetadataRead {
     data class Available(val intent: DriverOutcomeIntentMetadata?) : DriverOutcomeMetadataRead
     data object Unavailable : DriverOutcomeMetadataRead
 }
-
-
 
 sealed interface DriverOutcomeMetadataWrite {
     data object Saved : DriverOutcomeMetadataWrite
@@ -158,8 +137,6 @@ sealed interface DriverOutcomeMetadataWrite {
     data object Stale : DriverOutcomeMetadataWrite
     data object Unavailable : DriverOutcomeMetadataWrite
 }
-
-
 
 data class DriverAttemptStartCommand(
     val deliveryId: String,
@@ -169,8 +146,6 @@ data class DriverAttemptStartCommand(
     override fun toString(): String =
         "DriverAttemptStartCommand(version=$expectedVersion, key=REDACTED)"
 }
-
-
 
 sealed interface DriverDeliveryLoadResult {
     data class ListLoaded(val items: List<DriverDeliverySnapshot>) : DriverDeliveryLoadResult
@@ -182,8 +157,6 @@ sealed interface DriverDeliveryLoadResult {
     data object ContextInvalidated : DriverDeliveryLoadResult
     data object SessionInvalidated : DriverDeliveryLoadResult
 }
-
-
 
 sealed interface DriverAttemptStartResult {
     data class Started(val delivery: DriverDeliverySnapshot, val attempt: DriverDeliveryAttempt) :
@@ -199,12 +172,9 @@ sealed interface DriverAttemptStartResult {
     data object SessionInvalidated : DriverAttemptStartResult
 }
 
-
-
 enum class DriverAttemptMetadataStatus { Pending, UnknownOutcome }
 
 /** Persisted command identity only; it never represents an active server attempt. */
-
 
 data class DriverAttemptIntentMetadata(
     val scope: DriverAttemptScopeIdentity,
@@ -222,14 +192,10 @@ data class DriverAttemptIntentMetadata(
     override fun toString(): String = "DriverAttemptIntentMetadata(status=$status, key=REDACTED)"
 }
 
-
-
 sealed interface DriverAttemptMetadataRead {
     data class Available(val intent: DriverAttemptIntentMetadata?) : DriverAttemptMetadataRead
     data object Unavailable : DriverAttemptMetadataRead
 }
-
-
 
 sealed interface DriverAttemptMetadataWrite {
     data object Saved : DriverAttemptMetadataWrite
@@ -237,8 +203,6 @@ sealed interface DriverAttemptMetadataWrite {
     data object Stale : DriverAttemptMetadataWrite
     data object Unavailable : DriverAttemptMetadataWrite
 }
-
-
 
 sealed interface DriverArrivalResult {
     data class Recorded(val summary: DriverArrivalSummary) : DriverArrivalResult
@@ -252,8 +216,6 @@ sealed interface DriverArrivalResult {
     data object ContextInvalidated : DriverArrivalResult
     data object SessionInvalidated : DriverArrivalResult
 }
-
-
 
 sealed interface DriverOutcomeResult {
     data class Recorded(val summary: DriverOutcomeSummary) : DriverOutcomeResult

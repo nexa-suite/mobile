@@ -4,39 +4,39 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
+import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptStartCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptStartResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryLoadResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofAttachCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofAttachResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofCreateCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofCreateResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofEvidenceStatusResult as ProofEvidenceStatusResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofUploadCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofUploadResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverArrivalSummary
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryArrivalFact
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryAttempt
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryOutcomeLine
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliverySnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeSummary
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverProofEvidenceKind
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverProofEvidenceSummary
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverProofSummary
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverRemainingQuantityLine as RemainingQuantityLine
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverBusinessEvidenceProjection as BusinessEvidenceProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverDeliveryAttemptProjection as AttemptProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverDeliveryNetworkOutcome as Outcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverDeliveryProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverProofOfDeliveryProjection as ProofOfDeliveryProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDriverDeliveryGateway
-import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverArrivalSummary
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptStartCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptStartResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryArrivalFact
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryAttempt
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryLoadResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryOutcomeLine
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliverySnapshot
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeSummary
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofAttachCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofAttachResult
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofCreateCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofCreateResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverProofEvidenceKind
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofEvidenceStatusResult as ProofEvidenceStatusResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverProofEvidenceSummary
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverProofSummary
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofUploadCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofUploadResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverRemainingQuantityLine as RemainingQuantityLine
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

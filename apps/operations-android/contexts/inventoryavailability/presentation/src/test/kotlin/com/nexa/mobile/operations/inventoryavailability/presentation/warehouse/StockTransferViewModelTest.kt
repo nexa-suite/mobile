@@ -2,19 +2,19 @@
 
 package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferGateway
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferMetadataStore
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ConfirmedStockTransfer
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferAuthority
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferIntent
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockTransferRequest
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferScope
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TransferIntentStatus
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TransferLookupResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TransferMetadataRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TransferMetadataWrite
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TransferSourceLotChoice
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TransferSubmitResult
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferGateway
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ConfirmedStockTransfer
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockTransferRequest
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TransferSourceLotChoice
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TransferWarehouseChoice
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TransferZoneChoice
 import java.math.BigDecimal
@@ -152,7 +152,12 @@ class StockTransferViewModelTest {
 
     private fun viewModel(gateway: FakeTransferGateway, store: MemoryTransferStore) =
         StockTransferViewModel(
-            gateway, store, TestWarehouseFrozenPayloadCodec, newIdempotencyKey = { "transfer-key-1" }
+            gateway,
+            store,
+            TestWarehouseFrozenPayloadCodec,
+            newIdempotencyKey = {
+                "transfer-key-1"
+            }
         )
 
     private suspend fun TestScope.configure(viewModel: StockTransferViewModel) {

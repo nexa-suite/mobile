@@ -2,19 +2,19 @@ package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.LotSubstitutionGateway
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.LotSubstitutionMetadataStore
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseFrozenPayloadCodec
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionAuthority
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionCurrentResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionIntent
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionIntentStatus
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionLookupResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionMetadataRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionMetadataWrite
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionRequest
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionResult
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.LotSubstitutionGateway
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.LotSubstitutionMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseFrozenPayloadCodec
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionRequest
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionWork
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingAuthority
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.isEligibleFor
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.isUsable
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.isValidSubstitutionReason
@@ -40,7 +40,7 @@ class LotSubstitutionViewModel(
     private val mutableState = MutableStateFlow(LotSubstitutionUiState())
     val state: StateFlow<LotSubstitutionUiState> = mutableState.asStateFlow()
 
-    private var authority: PickingAuthority? = null
+    private var authority: LotSubstitutionAuthority? = null
     private var work: LotSubstitutionWork? = null
     private var generation = 0L
     private var lookupGeneration = 0L
@@ -50,7 +50,7 @@ class LotSubstitutionViewModel(
     private var restoreJob: Job? = null
     private var lookupJob: Job? = null
 
-    fun activate(currentAuthority: PickingAuthority, currentWork: LotSubstitutionWork) {
+    fun activate(currentAuthority: LotSubstitutionAuthority, currentWork: LotSubstitutionWork) {
         generation++
         val activation = generation
         authority = currentAuthority
@@ -344,7 +344,10 @@ class LotSubstitutionViewModel(
         }
     }
 
-    private suspend fun restoreIntent(currentAuthority: PickingAuthority, activation: Long) {
+    private suspend fun restoreIntent(
+        currentAuthority: LotSubstitutionAuthority,
+        activation: Long
+    ) {
         val read =
             withMetadataLock(currentAuthority, activation) {
                 metadataStore.load(currentAuthority.scope)
@@ -415,7 +418,7 @@ class LotSubstitutionViewModel(
 
     private suspend fun dispatch(
         frozen: LotSubstitutionIntent,
-        currentAuthority: PickingAuthority,
+        currentAuthority: LotSubstitutionAuthority,
         activation: Long
     ) {
         commandMutex.withLock {
@@ -533,7 +536,7 @@ class LotSubstitutionViewModel(
 
     private suspend fun knownFailure(
         frozen: LotSubstitutionIntent,
-        currentAuthority: PickingAuthority,
+        currentAuthority: LotSubstitutionAuthority,
         activation: Long,
         status: LotSubstitutionCommandStatus
     ) {
@@ -555,7 +558,7 @@ class LotSubstitutionViewModel(
 
     private suspend fun finishKnown(
         frozen: LotSubstitutionIntent,
-        currentAuthority: PickingAuthority,
+        currentAuthority: LotSubstitutionAuthority,
         activation: Long
     ) {
         val cleared = withMetadataLock(currentAuthority, activation) {
@@ -575,7 +578,7 @@ class LotSubstitutionViewModel(
 
     private suspend fun markUnknown(
         frozen: LotSubstitutionIntent,
-        currentAuthority: PickingAuthority,
+        currentAuthority: LotSubstitutionAuthority,
         activation: Long
     ) {
         val marked = withMetadataLock(currentAuthority, activation) {
@@ -598,7 +601,7 @@ class LotSubstitutionViewModel(
     }
 
     private suspend fun <T> withMetadataLock(
-        currentAuthority: PickingAuthority,
+        currentAuthority: LotSubstitutionAuthority,
         activation: Long,
         block: suspend () -> T
     ): T? = metadataMutex.withLock {
@@ -652,7 +655,7 @@ class LotSubstitutionViewModel(
         mutableState.update { it.copy(canRequest = canRequest) }
     }
 
-    private fun isCurrent(currentAuthority: PickingAuthority, activation: Long): Boolean =
+    private fun isCurrent(currentAuthority: LotSubstitutionAuthority, activation: Long): Boolean =
         generation == activation && authority == currentAuthority
 
     private fun LotSubstitutionIntent.isValid(): Boolean {
@@ -663,7 +666,8 @@ class LotSubstitutionViewModel(
             idempotencyKey.length <= MAX_IDEMPOTENCY_KEY_LENGTH &&
             UUID_TEXT.matches(alternativeLotId) &&
             reason.isValidSubstitutionReason() &&
-            frozenBody == payloadCodec.lotSubstitutionPayload(work, alternativeLotId, quantity, reason)
+            frozenBody ==
+            payloadCodec.lotSubstitutionPayload(work, alternativeLotId, quantity, reason)
     }
 
     private fun LotSubstitutionRequest.matches(frozen: LotSubstitutionIntent): Boolean =
@@ -694,6 +698,5 @@ class LotSubstitutionViewModel(
         const val MAX_REASON_LENGTH = 2_000
         const val MAX_IDEMPOTENCY_KEY_LENGTH = 160
         val UUID_TEXT = Regex("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
-
     }
 }

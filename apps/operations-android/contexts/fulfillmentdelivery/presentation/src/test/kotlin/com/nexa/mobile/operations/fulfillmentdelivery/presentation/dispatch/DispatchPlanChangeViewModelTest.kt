@@ -1,21 +1,20 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDispatchRequestBodyCodec
-
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDriverCandidate
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDriverCandidate
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchPlanChangeSnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.PreparedFulfillmentDriverAssignment
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDispatchRequestBodyCodec
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
@@ -37,7 +36,10 @@ class DispatchPlanChangeViewModelTest {
         val events = mutableListOf<String>()
         val metadata = FakeMetadata(events)
         val gateway = FakeGateway(snapshot(), events)
-        val viewModel = DispatchPlanChangeViewModel(gateway, metadata, commandKey = { "plan-key" }, requestBodyCodec = TestDispatchRequestBodyCodec())
+        val viewModel =
+            DispatchPlanChangeViewModel(gateway, metadata, commandKey = {
+                "plan-key"
+            }, requestBodyCodec = TestDispatchRequestBodyCodec())
 
         viewModel.activate(FULFILLMENT, context())
         runCurrent()
@@ -102,7 +104,12 @@ class DispatchPlanChangeViewModelTest {
                 current = false
             )
         }
-        val viewModel = DispatchPlanChangeViewModel(gateway, metadata, requestBodyCodec = TestDispatchRequestBodyCodec())
+        val viewModel =
+            DispatchPlanChangeViewModel(
+                gateway,
+                metadata,
+                requestBodyCodec = TestDispatchRequestBodyCodec()
+            )
 
         viewModel.activate(FULFILLMENT, context())
         runCurrent()
@@ -124,7 +131,12 @@ class DispatchPlanChangeViewModelTest {
     @Test
     fun invalidTimestampAndMissingSchedulePermissionCannotCreateMutation() = runTest {
         val gateway = FakeGateway(snapshot())
-        val viewModel = DispatchPlanChangeViewModel(gateway, FakeMetadata(), requestBodyCodec = TestDispatchRequestBodyCodec())
+        val viewModel =
+            DispatchPlanChangeViewModel(
+                gateway,
+                FakeMetadata(),
+                requestBodyCodec = TestDispatchRequestBodyCodec()
+            )
         viewModel.activate(
             FULFILLMENT,
             context(permissions = setOf("dispatch.read", "dispatch.schedule"))
@@ -207,7 +219,8 @@ class DispatchPlanChangeViewModelTest {
         requestedDispatchAt = Instant.parse("2026-10-01T15:30:00Z"),
         resultResponsibleMembershipId = OTHER_DRIVER,
         resultPlannedDispatchAt = Instant.parse("2026-10-01T15:30:00Z"),
-        requestBody = """{"expectedAssignmentId":"$ASSIGNMENT","expectedAssignmentVersion":13,"physicalAllocationId":"$ALLOCATION","physicalAllocationVersion":7,"responsibleMembershipId":"$OTHER_DRIVER","plannedDispatchAt":"2026-10-01T15:30:00Z"}""",
+        requestBody =
+            """{"expectedAssignmentId":"$ASSIGNMENT","expectedAssignmentVersion":13,"physicalAllocationId":"$ALLOCATION","physicalAllocationVersion":7,"responsibleMembershipId":"$OTHER_DRIVER","plannedDispatchAt":"2026-10-01T15:30:00Z"}""",
         idempotencyKey = "plan-key",
         status = status
     )

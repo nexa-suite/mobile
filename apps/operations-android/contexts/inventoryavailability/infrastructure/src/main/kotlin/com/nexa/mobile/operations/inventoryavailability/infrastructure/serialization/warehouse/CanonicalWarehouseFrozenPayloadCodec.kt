@@ -15,7 +15,9 @@ class CanonicalWarehouseFrozenPayloadCodec : WarehouseFrozenPayloadCodec {
             request.sourceLotId.isNotBlank() && request.sourceWarehouseId.isNotBlank() &&
                 request.sourceZoneId.isNotBlank()
         )
-        require(request.destinationWarehouseId.isNotBlank() && request.destinationZoneId.isNotBlank())
+        require(
+            request.destinationWarehouseId.isNotBlank() && request.destinationZoneId.isNotBlank()
+        )
         require(!request.skuId.isNullOrBlank() || !request.catalogItemId.isNullOrBlank())
         require(
             request.unit.isNotBlank() && request.reason.isNotBlank() &&
@@ -25,7 +27,9 @@ class CanonicalWarehouseFrozenPayloadCodec : WarehouseFrozenPayloadCodec {
             append("{\"sourceLotId\":").append(request.sourceLotId.jsonString())
             append(",\"sourceWarehouseId\":").append(request.sourceWarehouseId.jsonString())
             append(",\"sourceZoneId\":").append(request.sourceZoneId.jsonString())
-            append(",\"destinationWarehouseId\":").append(request.destinationWarehouseId.jsonString())
+            append(
+                ",\"destinationWarehouseId\":"
+            ).append(request.destinationWarehouseId.jsonString())
             append(",\"destinationZoneId\":").append(request.destinationZoneId.jsonString())
             request.skuId?.let { append(",\"skuId\":").append(it.jsonString()) }
             request.catalogItemId?.let { append(",\"catalogItemId\":").append(it.jsonString()) }
@@ -52,12 +56,19 @@ class CanonicalWarehouseFrozenPayloadCodec : WarehouseFrozenPayloadCodec {
         for (character in this@jsonString) {
             when (character) {
                 '"' -> append("\\\"")
+
                 '\\' -> append("\\\\")
+
                 '\b' -> append("\\b")
+
                 '\u000C' -> append("\\f")
+
                 '\n' -> append("\\n")
+
                 '\r' -> append("\\r")
+
                 '\t' -> append("\\t")
+
                 else -> if (character.code < 0x20) {
                     append("\\u%04x".format(character.code))
                 } else {

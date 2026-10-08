@@ -1,7 +1,9 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse
 
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.FulfillmentPickingLine
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.FulfillmentPickingSnapshot
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.PickingFulfillmentSnapshot
+import com.nexa.mobile.operations.inventoryavailability.application.publicapi.PhysicalAllocationLineProjection
+import com.nexa.mobile.operations.inventoryavailability.application.publicapi.PhysicalAllocationProjection
 import java.math.BigDecimal
 
 data class PickingAuthority(
@@ -44,6 +46,38 @@ data class PickingScopeIdentity(
     val membershipId: String
 ) {
     override fun toString(): String = "PickingScopeIdentity(REDACTED)"
+}
+
+/** Application projection that pairs fulfillment facts with BC-05's published allocation read. */
+data class PickingFulfillmentSnapshot(
+    val fulfillment: FulfillmentPickingSnapshot,
+    val allocation: PhysicalAllocationProjection
+) {
+    fun offers(): List<PickingOffer> = allocation.lines.map { allocated ->
+        val matching = fulfillment.lines.filter { line ->
+            line.skuId == allocated.skuId &&
+                (line.catalogItemId == null || line.catalogItemId == allocated.catalogItemId) &&
+                line.unit.equals(allocated.unit, ignoreCase = true)
+        }
+        PickingOffer(
+            fulfillmentLine = matching.singleOrNull(),
+            allocationLine = allocated,
+            ambiguousFulfillmentMatch = matching.size != 1
+        )
+    }
+}
+
+data class PickingOffer(
+    val fulfillmentLine: FulfillmentPickingLine?,
+    val allocationLine: PhysicalAllocationLineProjection,
+    val ambiguousFulfillmentMatch: Boolean
+) {
+    val isPickable: Boolean
+        get() = !ambiguousFulfillmentMatch &&
+            fulfillmentLine != null &&
+            allocationLine.remainingQuantity.signum() > 0 &&
+            fulfillmentLine.remainingQuantity.signum() > 0 &&
+            allocationLine.unit.equals(fulfillmentLine.unit, ignoreCase = true)
 }
 
 data class PickingConfirmationCommand(

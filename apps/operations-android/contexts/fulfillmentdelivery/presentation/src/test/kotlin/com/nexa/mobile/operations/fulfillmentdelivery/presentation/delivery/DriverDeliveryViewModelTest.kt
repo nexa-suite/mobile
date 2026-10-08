@@ -1,40 +1,30 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDeliveryRequestBodyCodec
-
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalIntentMetadata
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverArrivalSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptIntentMetadata
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptMetadataRead
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptMetadataStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptStartCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptStartResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryArrivalFact
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryAttempt
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryLoadResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryOutcomeLine
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliverySnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeIntentMetadata
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeIntentStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeKind
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofCreateCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofCreateResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofFileCandidate
@@ -42,9 +32,18 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.Drive
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofIntentStage
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofMetadataWrite
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverArrivalSummary
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryArrivalFact
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryAttempt
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryOutcomeLine
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliverySnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeKind
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverProofSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverRemainingQuantityLine
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDeliveryRequestBodyCodec
 import java.math.BigDecimal
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -68,7 +67,10 @@ class DriverDeliveryViewModelTest {
     fun startRefreshesCurrentDeliveryAndShowsOnlyConfirmedAttemptFacts() = runTest {
         val gateway = FakeDriverDeliveryGateway()
         val metadata = FakeDriverAttemptMetadataStore()
-        val viewModel = DriverDeliveryViewModel(gateway, metadata, keyFactory = { "start-key" }, requestBodyCodec = TestDeliveryRequestBodyCodec())
+        val viewModel =
+            DriverDeliveryViewModel(gateway, metadata, keyFactory = {
+                "start-key"
+            }, requestBodyCodec = TestDeliveryRequestBodyCodec())
         viewModel.activate(AUTHORITY)
         advanceUntilIdle()
         viewModel.selectDelivery(DELIVERY_ID)
@@ -102,7 +104,12 @@ class DriverDeliveryViewModelTest {
                 }
             }
         }
-        val viewModel = DriverDeliveryViewModel(gateway, FakeDriverAttemptMetadataStore(), requestBodyCodec = TestDeliveryRequestBodyCodec())
+        val viewModel =
+            DriverDeliveryViewModel(
+                gateway,
+                FakeDriverAttemptMetadataStore(),
+                requestBodyCodec = TestDeliveryRequestBodyCodec()
+            )
         viewModel.activate(AUTHORITY)
         advanceUntilIdle()
 
@@ -128,7 +135,12 @@ class DriverDeliveryViewModelTest {
         val gateway = FakeDriverDeliveryGateway()
         val detailGate = CompletableDeferred<DriverDeliveryLoadResult>()
         gateway.detailBlock = { detailGate.await() }
-        val viewModel = DriverDeliveryViewModel(gateway, FakeDriverAttemptMetadataStore(), requestBodyCodec = TestDeliveryRequestBodyCodec())
+        val viewModel =
+            DriverDeliveryViewModel(
+                gateway,
+                FakeDriverAttemptMetadataStore(),
+                requestBodyCodec = TestDeliveryRequestBodyCodec()
+            )
         viewModel.activate(AUTHORITY)
         advanceUntilIdle()
 
@@ -246,7 +258,12 @@ class DriverDeliveryViewModelTest {
     fun permissionGatesAreIndependentAndInvalidationClearsServerFacts() = runTest {
         val gateway = FakeDriverDeliveryGateway()
         val readOnly = AUTHORITY.copy(permissions = setOf("dispatch.read"))
-        val viewModel = DriverDeliveryViewModel(gateway, FakeDriverAttemptMetadataStore(), requestBodyCodec = TestDeliveryRequestBodyCodec())
+        val viewModel =
+            DriverDeliveryViewModel(
+                gateway,
+                FakeDriverAttemptMetadataStore(),
+                requestBodyCodec = TestDeliveryRequestBodyCodec()
+            )
         viewModel.activate(readOnly)
         advanceUntilIdle()
         viewModel.selectDelivery(DELIVERY_ID)
@@ -310,7 +327,12 @@ class DriverDeliveryViewModelTest {
                 DriverAttemptMetadataStatus.Pending
             )
         }
-        val viewModel = DriverDeliveryViewModel(gateway, metadata, requestBodyCodec = TestDeliveryRequestBodyCodec())
+        val viewModel =
+            DriverDeliveryViewModel(
+                gateway,
+                metadata,
+                requestBodyCodec = TestDeliveryRequestBodyCodec()
+            )
 
         viewModel.activate(AUTHORITY)
         advanceUntilIdle()

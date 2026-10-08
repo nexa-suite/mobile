@@ -13,15 +13,12 @@ data class DispatchPlanChangeScopeIdentity(
     override fun toString(): String = "DispatchPlanChangeScopeIdentity(REDACTED)"
 }
 
-
-
 enum class DispatchPlanChangeIntentStatus {
     Pending,
     UnknownOutcome
 }
 
 /** Exact request body and authority snapshots frozen before the first POST. */
-
 
 data class DispatchPlanChangeIntent(
     val scope: DispatchPlanChangeScopeIdentity,
@@ -46,14 +43,10 @@ data class DispatchPlanChangeIntent(
         "versions=$expectedFulfillmentVersion/$expectedAssignmentVersion, status=$status)"
 }
 
-
-
 sealed interface DispatchPlanChangeMetadataRead {
     data class Available(val intent: DispatchPlanChangeIntent?) : DispatchPlanChangeMetadataRead
     data object Unavailable : DispatchPlanChangeMetadataRead
 }
-
-
 
 enum class DispatchPlanChangeMetadataWrite {
     Saved,
@@ -61,8 +54,6 @@ enum class DispatchPlanChangeMetadataWrite {
     Stale,
     Unavailable
 }
-
-
 
 sealed interface DispatchPlanChangeGatewayResult {
     data class Snapshot(val value: DispatchPlanChangeSnapshot) : DispatchPlanChangeGatewayResult

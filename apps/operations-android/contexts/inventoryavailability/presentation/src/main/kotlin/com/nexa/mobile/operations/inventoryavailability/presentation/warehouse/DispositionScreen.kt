@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
-import com.nexa.mobile.operations.inventoryavailability.presentation.R
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -37,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.DispositionLotFacts
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotDispositionAction
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.PartialDispositionEvaluation
+import com.nexa.mobile.operations.inventoryavailability.presentation.R
 
 @Composable
 fun DispositionScreen(

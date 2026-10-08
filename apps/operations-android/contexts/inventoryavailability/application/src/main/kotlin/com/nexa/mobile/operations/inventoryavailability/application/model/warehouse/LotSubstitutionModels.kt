@@ -1,15 +1,49 @@
 package com.nexa.mobile.operations.inventoryavailability.application.model.warehouse
 
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingScopeIdentity
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionAlternative
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionCurrentFacts
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionRequest
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionWork
 
+/** Context-local identity used to bind protected substitution metadata to its owner scope. */
+data class LotSubstitutionScopeIdentity(
+    val userId: String,
+    val tenantId: String,
+    val workspaceId: String,
+    val membershipId: String
+) {
+    init {
+        require(listOf(userId, tenantId, workspaceId, membershipId).all(String::isNotBlank))
+    }
+
+    override fun toString(): String = "LotSubstitutionScopeIdentity(REDACTED)"
+}
+
+/** Current session proof supplied by composition; it carries no inventory decision authority. */
+data class LotSubstitutionAuthority(
+    val userId: String,
+    val tenantId: String,
+    val workspaceId: String,
+    val membershipId: String,
+    val permissions: Set<String>,
+    val authorityEpoch: Long
+) {
+    init {
+        require(listOf(userId, tenantId, workspaceId, membershipId).all(String::isNotBlank))
+        require(authorityEpoch > 0)
+    }
+
+    val scope: LotSubstitutionScopeIdentity
+        get() = LotSubstitutionScopeIdentity(userId, tenantId, workspaceId, membershipId)
+
+    override fun toString(): String =
+        "LotSubstitutionAuthority(scope=REDACTED, permissions=${permissions.size}, epoch=$authorityEpoch)"
+}
+
 enum class LotSubstitutionIntentStatus { Pending, UnknownOutcome }
 
 data class LotSubstitutionIntent(
-    val scope: PickingScopeIdentity,
+    val scope: LotSubstitutionScopeIdentity,
     val idempotencyKey: String,
     val work: LotSubstitutionWork,
     val alternativeLotId: String,

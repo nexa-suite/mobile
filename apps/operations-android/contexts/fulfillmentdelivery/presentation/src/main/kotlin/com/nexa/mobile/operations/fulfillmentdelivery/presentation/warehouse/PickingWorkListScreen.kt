@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,6 +21,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.PickingWorkItem
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
 
 /** Lists current server-authorized picking work; opening a row triggers a fresh detail read. */
 @Composable

@@ -23,8 +23,6 @@ fun driverExecutionTemperatureReadingBody(
         "\"occurredAt\":\"$occurredAt\"$source$evidence}"
 }
 
-
-
 fun driverExecutionTemperatureDispositionBody(
     disposition: DriverExecutionTemperatureDisposition,
     reason: String

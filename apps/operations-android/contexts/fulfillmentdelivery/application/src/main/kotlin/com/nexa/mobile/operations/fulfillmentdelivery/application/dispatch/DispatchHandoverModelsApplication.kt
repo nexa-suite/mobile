@@ -32,8 +32,6 @@ data class DispatchHandoverCommand(
     }
 }
 
-
-
 data class DispatchHandoverIntent(
     val scope: DispatchOutgoingGoodsScopeIdentity,
     val command: DispatchHandoverCommand,
@@ -42,14 +40,10 @@ data class DispatchHandoverIntent(
     override fun toString(): String = "DispatchHandoverIntent(REDACTED, status=$status)"
 }
 
-
-
 sealed interface DispatchHandoverMetadataRead {
     data class Available(val intent: DispatchHandoverIntent?) : DispatchHandoverMetadataRead
     data object Unavailable : DispatchHandoverMetadataRead
 }
-
-
 
 enum class DispatchHandoverMetadataWrite {
     Saved,
@@ -57,8 +51,6 @@ enum class DispatchHandoverMetadataWrite {
     Stale,
     Unavailable
 }
-
-
 
 sealed interface DispatchHandoverGatewayResult {
     data class Snapshot(val value: DispatchHandoverSnapshot) : DispatchHandoverGatewayResult

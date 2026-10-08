@@ -2,8 +2,8 @@ package com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch
 
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoad
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoadCompatibilityAttestation
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDeliveryInstructionKind
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.PreparedFulfillmentDriverAssignment
 import java.time.Instant
 

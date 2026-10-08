@@ -4,6 +4,20 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
+import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAssignmentGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAssignmentGatewayResult as AssignmentGatewayResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAssignmentIntent
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAssignmentScopeIdentity as AssignmentScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGatewayResult as ReadinessGatewayResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchAssignmentSnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDriverCandidate
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadinessLine
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.PreparedFulfillmentDriverAssignment
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchAssignmentNetworkOutcome as AssignmentOutcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchDriverAssignmentProjection as DriverAssignmentProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchDriverAssignmentRequest as DriverAssignmentRequest
@@ -11,20 +25,6 @@ import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.D
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchReadinessProjection as ReadinessProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDispatchAssignmentGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDispatchReadinessGateway
-import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAssignmentGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAssignmentGatewayResult as AssignmentGatewayResult
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAssignmentIntent
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAssignmentScopeIdentity as AssignmentScopeIdentity
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchAssignmentSnapshot
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDriverCandidate
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGatewayResult as ReadinessGatewayResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadinessLine
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.PreparedFulfillmentDriverAssignment
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

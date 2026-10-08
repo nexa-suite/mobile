@@ -5,7 +5,6 @@ import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.core.network.ProtectedMethod
 import com.nexa.mobile.operations.core.network.ProtectedRequest
 import com.nexa.mobile.operations.core.network.ProtectedResult
-
 import java.math.BigDecimal
 import java.time.Instant
 import kotlinx.serialization.Serializable

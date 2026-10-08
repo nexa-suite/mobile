@@ -1,25 +1,25 @@
 package com.nexa.mobile.operations.inventoryavailability.application.warehouse
 
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingAuthority
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingScopeIdentity
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionAuthority
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionCurrentResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionIntent
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionLookupResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionMetadataRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionMetadataWrite
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionResult
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionScopeIdentity
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionWork
 
 /** Stores only the exact scope-bound command needed for explicit recovery. */
 interface LotSubstitutionMetadataStore {
-    suspend fun load(scope: PickingScopeIdentity): LotSubstitutionMetadataRead
+    suspend fun load(scope: LotSubstitutionScopeIdentity): LotSubstitutionMetadataRead
     suspend fun freeze(intent: LotSubstitutionIntent): LotSubstitutionMetadataWrite
     suspend fun markUnknown(
-        scope: PickingScopeIdentity,
+        scope: LotSubstitutionScopeIdentity,
         idempotencyKey: String
     ): LotSubstitutionMetadataWrite
     suspend fun clear(
-        scope: PickingScopeIdentity,
+        scope: LotSubstitutionScopeIdentity,
         idempotencyKey: String
     ): LotSubstitutionMetadataWrite
 }
@@ -27,16 +27,16 @@ interface LotSubstitutionMetadataStore {
 interface LotSubstitutionGateway {
     suspend fun alternatives(
         work: LotSubstitutionWork,
-        authority: PickingAuthority
+        authority: LotSubstitutionAuthority
     ): LotSubstitutionLookupResult
 
     suspend fun request(
         intent: LotSubstitutionIntent,
-        authority: PickingAuthority
+        authority: LotSubstitutionAuthority
     ): LotSubstitutionResult
 
     suspend fun currentAllocation(
         work: LotSubstitutionWork,
-        authority: PickingAuthority
+        authority: LotSubstitutionAuthority
     ): LotSubstitutionCurrentResult
 }

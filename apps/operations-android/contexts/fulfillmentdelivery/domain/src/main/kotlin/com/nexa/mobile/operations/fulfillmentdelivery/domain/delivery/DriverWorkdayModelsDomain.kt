@@ -6,8 +6,6 @@ enum class DriverWorkdayStatus {
     CLOSED
 }
 
-
-
 data class DriverWorkday(
     val id: String,
     val version: Long,
@@ -17,8 +15,6 @@ data class DriverWorkday(
     val locationAvailable: Boolean
 )
 
-
-
 data class DriverWorkdayLocationSample(
     val sampleId: String,
     val latitude: Double,
@@ -26,8 +22,6 @@ data class DriverWorkdayLocationSample(
     val accuracyMeters: Double,
     val capturedAt: String
 )
-
-
 
 sealed interface DriverWorkdayLocationEvent {
     data class Sample(val value: DriverWorkdayLocationSample) : DriverWorkdayLocationEvent

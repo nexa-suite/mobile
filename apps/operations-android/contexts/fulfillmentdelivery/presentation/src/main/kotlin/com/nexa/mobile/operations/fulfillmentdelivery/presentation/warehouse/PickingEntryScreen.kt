@@ -1,8 +1,5 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse
 
-import com.nexa.mobile.operations.core.designsystem.R as SharedR
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +15,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.core.designsystem.R as SharedR
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
 
 /** A reference selects a server read; it never confirms allocation or authority. */
 @Composable
@@ -32,7 +31,9 @@ fun PickingEntryScreen(
             modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            TextButton(onClick = onBack) { Text(stringResource(SharedR.string.stock_condition_back)) }
+            TextButton(onClick = onBack) {
+                Text(stringResource(SharedR.string.stock_condition_back))
+            }
             Text(
                 stringResource(R.string.picking_title),
                 style = MaterialTheme.typography.headlineSmall

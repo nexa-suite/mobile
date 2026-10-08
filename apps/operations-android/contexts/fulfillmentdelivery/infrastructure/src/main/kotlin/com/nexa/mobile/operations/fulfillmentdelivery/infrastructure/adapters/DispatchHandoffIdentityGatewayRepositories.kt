@@ -4,18 +4,17 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
+import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoffIdentityCommand as HandoffIdentityCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoffIdentityGateway as HandoffIdentityGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoffIssueResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoffValidationResult as HandoffValidationResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoffIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchHandoffIdentityNetworkOutcome as HandoffIdentityOutcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchHandoffIdentityProjection as HandoffIdentityProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDispatchHandoffIdentityGateway
-import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoffIdentityGateway as HandoffIdentityGateway
-
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoffIdentity
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoffIdentityCommand as HandoffIdentityCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoffIssueResult
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoffValidationResult as HandoffValidationResult
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

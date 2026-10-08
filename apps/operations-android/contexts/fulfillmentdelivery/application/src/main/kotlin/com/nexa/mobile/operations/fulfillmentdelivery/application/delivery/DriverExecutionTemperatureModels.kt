@@ -7,8 +7,8 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.Drive
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureLoadResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMetadataRead
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMetadataWrite
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureMode
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMutationResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureMode
 
 interface DriverExecutionTemperatureMetadataStore {
     suspend fun loadIntent(

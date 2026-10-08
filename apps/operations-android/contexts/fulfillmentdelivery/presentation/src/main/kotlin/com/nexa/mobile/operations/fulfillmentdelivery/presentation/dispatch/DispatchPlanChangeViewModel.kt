@@ -2,16 +2,16 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchRequestBodyCodec
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeGatewayResult as ChangeGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPlanChangeScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchRequestBodyCodec
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchPlanChangeSnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.PreparedFulfillmentDriverAssignment
@@ -237,8 +237,10 @@ class DispatchPlanChangeViewModel(
                 is DispatchPlanChangeMetadataRead.Available -> {
                     val loaded = read.intent
                     if (loaded != null &&
-                        (loaded.scope != scope || loaded.fulfillmentId != fulfillmentId ||
-                            !requestBodyCodec.isValid(loaded))
+                        (
+                            loaded.scope != scope || loaded.fulfillmentId != fulfillmentId ||
+                                !requestBodyCodec.isValid(loaded)
+                            )
                     ) {
                         restoringMetadata = false
                         fail(DispatchPlanChangeStatus.ServiceUnavailable)

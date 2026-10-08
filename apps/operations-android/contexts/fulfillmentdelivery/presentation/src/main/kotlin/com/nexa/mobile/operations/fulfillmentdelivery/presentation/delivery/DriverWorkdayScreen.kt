@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkdayStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter

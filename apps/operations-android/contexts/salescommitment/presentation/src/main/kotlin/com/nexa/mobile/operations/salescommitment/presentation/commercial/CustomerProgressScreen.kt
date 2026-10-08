@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.salescommitment.presentation.commercial
 
-import com.nexa.mobile.operations.core.designsystem.R as SharedR
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,6 +24,7 @@ import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.core.designsystem.R as SharedR
 import com.nexa.mobile.operations.salescommitment.application.commercial.ProgressStatus
 import com.nexa.mobile.operations.salescommitment.presentation.R
 

@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.commercial
 
-import com.nexa.mobile.operations.core.designsystem.R as SharedR
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,6 +24,7 @@ import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.core.designsystem.R as SharedR
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
 
 @Composable
@@ -155,18 +154,27 @@ fun CustomerDeliveryInstructionsScreen(
 private fun CustomerInstructionsNotice.resource(): Int = when (this) {
     CustomerInstructionsNotice.ProtectedStorageUnavailable ->
         R.string.customer_instructions_notice_storage_unavailable
+
     CustomerInstructionsNotice.SubmissionBlocked ->
         R.string.customer_instructions_notice_storage_blocked
+
     CustomerInstructionsNotice.PermissionUnavailable ->
         R.string.customer_instructions_notice_permission
+
     CustomerInstructionsNotice.SessionUnavailable -> R.string.customer_instructions_notice_session
+
     CustomerInstructionsNotice.ContextChanged ->
         R.string.customer_instructions_notice_context_changed
+
     CustomerInstructionsNotice.ServiceUnavailable -> R.string.customer_instructions_notice_service
+
     CustomerInstructionsNotice.Registered -> R.string.customer_instructions_notice_registered
+
     CustomerInstructionsNotice.RegisteredNeedsRecovery ->
         R.string.customer_instructions_notice_registered_recovery
+
     CustomerInstructionsNotice.UnknownOutcome -> R.string.customer_instructions_notice_unknown
+
     CustomerInstructionsNotice.OperationUnavailable ->
         R.string.customer_instructions_notice_failed
 }

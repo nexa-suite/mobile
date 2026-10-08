@@ -1,7 +1,6 @@
 package com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport
 
 import com.nexa.mobile.operations.core.network.ApiEndpoint
-
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset

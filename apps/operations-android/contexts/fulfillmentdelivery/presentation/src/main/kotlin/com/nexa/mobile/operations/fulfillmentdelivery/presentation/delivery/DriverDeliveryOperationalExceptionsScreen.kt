@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,9 +31,10 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryOperationalExceptionCommandStatus as ExceptionCommandStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DRIVER_WARNING_RESOLUTION_MAX_CHARS
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryOperationalException
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryOperationalExceptionCommandStatus as ExceptionCommandStatus
 
 @Composable
 fun DriverDeliveryOperationalExceptionsScreen(

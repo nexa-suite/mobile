@@ -1,17 +1,16 @@
 package com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters
 
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.AppStockTransferMetadataStore
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.StockTransferScopedMetadataBackend
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.StockTransferScopedRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferIntent
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferScope
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TransferIntentStatus
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TransferMetadataRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TransferMetadataWrite
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.AppStockTransferMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.StockTransferScopedMetadataBackend
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.StockTransferScopedRead
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-
 import org.junit.Test
 
 class AppStockTransferMetadataStoreTest {

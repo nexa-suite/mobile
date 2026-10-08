@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse
 
-import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R
-
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +32,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ScannerIdentifierType
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R
 import com.nexa.mobile.operations.core.designsystem.NexaActiveContextBar
 import com.nexa.mobile.operations.core.designsystem.NexaColdChainTone
 import com.nexa.mobile.operations.core.designsystem.NexaColors
@@ -48,9 +50,6 @@ import com.nexa.mobile.operations.core.designsystem.NexaTaskRow
 import com.nexa.mobile.operations.core.designsystem.NexaTopAppBar
 import com.nexa.mobile.operations.core.designsystem.R as DesignR
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
-import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
-import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
-import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ScannerIdentifierType
 
 @Composable
 fun ProductSearchScreen(

@@ -4,19 +4,18 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
+import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffCurrentDeliveryResult as HandoffCurrentDeliveryResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffIssueCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffIssueResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffTokenGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverHandoffCurrentDelivery as HandoffCurrentDelivery
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverHandoffTokenReceipt
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverDeliveryNetworkOutcome as Outcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverHandoffTokenNetworkOutcome as HandoffTokenOutcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDriverDeliveryGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDriverHandoffTokenGateway
-import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffTokenGateway
-
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverHandoffCurrentDelivery as HandoffCurrentDelivery
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffCurrentDeliveryResult as HandoffCurrentDeliveryResult
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffIssueCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffIssueResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverHandoffTokenReceipt
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

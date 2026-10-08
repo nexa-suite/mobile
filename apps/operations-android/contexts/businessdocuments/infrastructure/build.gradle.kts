@@ -41,4 +41,6 @@ dependencies {
     testImplementation(libs.mockwebserver)
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)
+    androidTestImplementation(libs.androidx.test.junit)
+    androidTestImplementation(libs.androidx.test.runner)
 }

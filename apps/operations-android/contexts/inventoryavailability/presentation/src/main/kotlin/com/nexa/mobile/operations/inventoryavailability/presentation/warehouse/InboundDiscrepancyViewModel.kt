@@ -2,10 +2,6 @@ package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.InboundDiscrepancyValidationError as DiscrepancyValidationError
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyDraftStore
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyEvidenceArtifactStore
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyGateway
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyArtifactIdentity
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyArtifactRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyArtifactWrite
@@ -16,14 +12,18 @@ import com.nexa.mobile.operations.inventoryavailability.application.model.wareho
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyDraftWrite
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyEvidenceCandidate
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyEvidenceStatusResult
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.InboundDiscrepancyKind
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyMutationResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyPendingAction
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancySelectionContext
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyStartContext
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancySubmitCommand
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyUploadCommand
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyDraftStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyEvidenceArtifactStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyGateway
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyPayloadCodec
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.InboundDiscrepancyKind
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.InboundDiscrepancyValidationError as DiscrepancyValidationError
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -1050,7 +1050,7 @@ class InboundDiscrepancyViewModel(
     private fun InboundDiscrepancyDraft.isValidStored(): Boolean = try {
         val storedCaseVersion = this.caseVersion
         payloadCodec.isValid(this) &&
-        id.isNotBlank() && id.length <= MAX_REFERENCE_LENGTH &&
+            id.isNotBlank() && id.length <= MAX_REFERENCE_LENGTH &&
             warehouseId.length <= MAX_REFERENCE_LENGTH &&
             expectedSkuId.length <= MAX_REFERENCE_LENGTH &&
             observedSkuId.length <= MAX_REFERENCE_LENGTH &&

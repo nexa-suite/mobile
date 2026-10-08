@@ -2,17 +2,10 @@ package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingGateway
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingIntentCoordinator
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingIntentExecution
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingMetadataStore
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ConfirmedReceivingProduct
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundReceiptRequest
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivedLotFacts
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingAuthority
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingDraftMetadata
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingEvidenceCandidate
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivingEvidenceObject
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingEvidenceResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingEvidenceSelectionContext
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingIntentMetadata
@@ -20,8 +13,15 @@ import com.nexa.mobile.operations.inventoryavailability.application.model.wareho
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingLookupResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingMetadataRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingMetadataWrite
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivingProductReference
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingSubmitResult
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingGateway
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingIntentCoordinator
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingIntentExecution
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ConfirmedReceivingProduct
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivedLotFacts
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivingEvidenceObject
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivingProductReference
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivingWarehouseChoice
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivingZoneChoice
 import java.math.BigDecimal

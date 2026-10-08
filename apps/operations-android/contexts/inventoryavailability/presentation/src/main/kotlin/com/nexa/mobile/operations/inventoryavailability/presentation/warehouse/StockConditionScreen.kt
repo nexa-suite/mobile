@@ -1,8 +1,5 @@
 package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
-import com.nexa.mobile.operations.core.designsystem.R as SharedR
-import com.nexa.mobile.operations.inventoryavailability.presentation.R
-
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -39,7 +36,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.core.designsystem.R as SharedR
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockConditionLot
+import com.nexa.mobile.operations.inventoryavailability.presentation.R
 import java.time.Instant
 
 @Composable
@@ -76,7 +75,9 @@ fun StockConditionScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                TextButton(onClick = onBack) { Text(stringResource(SharedR.string.stock_condition_back)) }
+                TextButton(onClick = onBack) {
+                    Text(stringResource(SharedR.string.stock_condition_back))
+                }
                 Text(
                     text = stringResource(R.string.stock_condition_title),
                     style = MaterialTheme.typography.headlineSmall,

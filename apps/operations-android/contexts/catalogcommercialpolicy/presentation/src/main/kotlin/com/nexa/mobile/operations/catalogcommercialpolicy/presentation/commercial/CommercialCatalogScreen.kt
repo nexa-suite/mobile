@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.catalogcommercialpolicy.presentation.commercial
 
-import com.nexa.mobile.operations.core.designsystem.R as SharedR
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,11 +24,12 @@ import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.commercial.CommercialCatalogStatus
 import com.nexa.mobile.operations.core.designsystem.NexaCatalogImage
 import com.nexa.mobile.operations.core.designsystem.NexaProductCandidateRow
 import com.nexa.mobile.operations.core.designsystem.NexaSizes
-import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R
-import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.commercial.CommercialCatalogStatus
+import com.nexa.mobile.operations.core.designsystem.R as SharedR
 
 @Composable
 fun CommercialCatalogScreen(

@@ -20,8 +20,6 @@ data class DriverHandoffIssueCommand(
         "DriverHandoffIssueCommand(version=$expectedVersion, key=REDACTED)"
 }
 
-
-
 sealed interface DriverHandoffCurrentDeliveryResult {
     data class Loaded(val delivery: DriverHandoffCurrentDelivery) :
         DriverHandoffCurrentDeliveryResult
@@ -31,8 +29,6 @@ sealed interface DriverHandoffCurrentDeliveryResult {
     data object ContextInvalidated : DriverHandoffCurrentDeliveryResult
     data object SessionInvalidated : DriverHandoffCurrentDeliveryResult
 }
-
-
 
 sealed interface DriverHandoffIssueResult {
     data class Issued(val receipt: DriverHandoffTokenReceipt, val token: String) :
@@ -47,13 +43,9 @@ sealed interface DriverHandoffIssueResult {
     data object SessionInvalidated : DriverHandoffIssueResult
 }
 
-
-
 sealed interface DriverHandoffMetadataRead {
     data class Available(val command: DriverHandoffIssueCommand?) : DriverHandoffMetadataRead
     data object Unavailable : DriverHandoffMetadataRead
 }
-
-
 
 enum class DriverHandoffMetadataWrite { Saved, Conflict, Stale, Unavailable }

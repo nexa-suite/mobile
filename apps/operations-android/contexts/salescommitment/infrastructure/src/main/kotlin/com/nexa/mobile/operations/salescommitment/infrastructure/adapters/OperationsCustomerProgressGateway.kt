@@ -2,18 +2,18 @@ package com.nexa.mobile.operations.salescommitment.infrastructure.adapters
 
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
-import com.nexa.mobile.operations.customerbuyerrelationships.application.publicapi.CommercialCustomerRead
-import com.nexa.mobile.operations.salescommitment.infrastructure.transport.CustomerProgressNetworkResult
-import com.nexa.mobile.operations.customerbuyerrelationships.application.publicapi.CommercialCustomerQuery
-import com.nexa.mobile.operations.salescommitment.infrastructure.transport.NexaCustomerProgressGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.salescommitment.application.commercial.CustomerProgressGateway
-import com.nexa.mobile.operations.salescommitment.application.commercial.CustomerProgressResult
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
-import com.nexa.mobile.operations.salescommitment.domain.model.commercial.CustomerCommitment
 import com.nexa.mobile.operations.creditreceivables.application.publicapi.CustomerCreditExposureQuery
 import com.nexa.mobile.operations.creditreceivables.application.publicapi.CustomerCreditExposureRead
+import com.nexa.mobile.operations.customerbuyerrelationships.application.publicapi.CommercialCustomerQuery
+import com.nexa.mobile.operations.customerbuyerrelationships.application.publicapi.CommercialCustomerRead
+import com.nexa.mobile.operations.salescommitment.application.commercial.CustomerProgressGateway
+import com.nexa.mobile.operations.salescommitment.application.commercial.CustomerProgressResult
 import com.nexa.mobile.operations.salescommitment.application.commercial.ProgressStatus
+import com.nexa.mobile.operations.salescommitment.domain.model.commercial.CustomerCommitment
+import com.nexa.mobile.operations.salescommitment.infrastructure.transport.CustomerProgressNetworkResult
+import com.nexa.mobile.operations.salescommitment.infrastructure.transport.NexaCustomerProgressGateway
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import javax.inject.Inject
 
 class OperationsCustomerProgressGateway @Inject constructor(
@@ -22,7 +22,7 @@ class OperationsCustomerProgressGateway @Inject constructor(
     private val credit: CustomerCreditExposureQuery,
     calls: ProtectedCallExecutor
 ) : CustomerProgressGateway {
-        private val progress = NexaCustomerProgressGateway(calls)
+    private val progress = NexaCustomerProgressGateway(calls)
     override suspend fun read(
         authority: CommercialAuthority,
         id: String,

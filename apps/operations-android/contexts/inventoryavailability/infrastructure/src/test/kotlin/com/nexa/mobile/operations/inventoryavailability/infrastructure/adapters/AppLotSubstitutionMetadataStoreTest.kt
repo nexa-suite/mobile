@@ -2,14 +2,14 @@ package com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters
 
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.AppLotSubstitutionMetadataStore
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.LotSubstitutionMetadataBackend
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionIntent
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionIntentStatus
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionMetadataRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionMetadataWrite
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionScopeIdentity
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionWork
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingScopeIdentity
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.AppLotSubstitutionMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.LotSubstitutionMetadataBackend
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -70,7 +70,7 @@ class AppLotSubstitutionMetadataStoreTest {
             records.remove(scope) != null
     }
 
-    private fun intent(scope: PickingScopeIdentity) = LotSubstitutionIntent(
+    private fun intent(scope: LotSubstitutionScopeIdentity) = LotSubstitutionIntent(
         scope,
         KEY,
         LotSubstitutionWork(
@@ -83,11 +83,11 @@ class AppLotSubstitutionMetadataStoreTest {
         LotSubstitutionIntentStatus.Pending
     )
 
-    private fun backendScope(scope: PickingScopeIdentity) =
+    private fun backendScope(scope: LotSubstitutionScopeIdentity) =
         ScopedMetadataScope(scope.userId, scope.tenantId, scope.workspaceId, scope.membershipId)
 
     private companion object {
-        val scope = PickingScopeIdentity(
+        val scope = LotSubstitutionScopeIdentity(
             "00000000-0000-4000-8000-000000000001",
             "00000000-0000-4000-8000-000000000002",
             "00000000-0000-4000-8000-000000000003",

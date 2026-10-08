@@ -94,7 +94,6 @@ data class TemperatureEvidencePhotoCandidate(
     val checksumSha256: String
 ) {
     init {
-        require(file.isFile && file.length() == byteSize)
         require(originalFilename.isNotBlank() && originalFilename.length <= 255)
         require(declaredContentType in setOf("image/jpeg", "image/png", "image/webp"))
         require(byteSize in 1..10L * 1024 * 1024)

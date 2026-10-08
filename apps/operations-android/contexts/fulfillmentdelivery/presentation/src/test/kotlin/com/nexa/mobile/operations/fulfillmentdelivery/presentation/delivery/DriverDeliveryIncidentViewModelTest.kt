@@ -1,27 +1,26 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDeliveryRequestBodyCodec
-
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentCurrentDelivery
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentCurrentDeliveryResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentEvidenceAttachCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentEvidenceDraft
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentEvidenceResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentEvidenceUploadCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentMetadata
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentRecordStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentSelectionContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofFileCandidate
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentCurrentDelivery
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentType
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofFileCandidate
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDeliveryRequestBodyCodec
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -42,7 +41,9 @@ class DriverDeliveryIncidentViewModelTest {
         val gateway = FakeIncidentGateway(events)
         gateway.result = DriverIncidentResult.Recorded(summary())
         val viewModel =
-            DriverDeliveryIncidentViewModel(gateway, store, keyFactory = { "incident-key" }, requestBodyCodec = TestDeliveryRequestBodyCodec())
+            DriverDeliveryIncidentViewModel(gateway, store, keyFactory = {
+                "incident-key"
+            }, requestBodyCodec = TestDeliveryRequestBodyCodec())
         viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
         advanceUntilIdle()
         viewModel.editType(DriverIncidentType.DELAY)
@@ -89,7 +90,12 @@ class DriverDeliveryIncidentViewModelTest {
 
         val replayGateway = FakeIncidentGateway()
         replayGateway.result = DriverIncidentResult.Recorded(summary(replayed = true))
-        val recovered = DriverDeliveryIncidentViewModel(replayGateway, store, requestBodyCodec = TestDeliveryRequestBodyCodec())
+        val recovered =
+            DriverDeliveryIncidentViewModel(
+                replayGateway,
+                store,
+                requestBodyCodec = TestDeliveryRequestBodyCodec()
+            )
         recovered.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
         advanceUntilIdle()
         assertEquals(DriverIncidentUiStatus.UnknownOutcome, recovered.state.value.status)
@@ -135,7 +141,12 @@ class DriverDeliveryIncidentViewModelTest {
         val gateway = FakeIncidentGateway().apply {
             result = DriverIncidentResult.Recorded(summary(replayed = true, type = null))
         }
-        val recovered = DriverDeliveryIncidentViewModel(gateway, store, requestBodyCodec = TestDeliveryRequestBodyCodec())
+        val recovered =
+            DriverDeliveryIncidentViewModel(
+                gateway,
+                store,
+                requestBodyCodec = TestDeliveryRequestBodyCodec()
+            )
         recovered.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
         advanceUntilIdle()
 
@@ -216,7 +227,12 @@ class DriverDeliveryIncidentViewModelTest {
             operationalExceptionId = "99999999-9999-4999-8999-999999999999"
         )
         val gateway = FakeIncidentGateway()
-        val viewModel = DriverDeliveryIncidentViewModel(gateway, store, requestBodyCodec = TestDeliveryRequestBodyCodec())
+        val viewModel =
+            DriverDeliveryIncidentViewModel(
+                gateway,
+                store,
+                requestBodyCodec = TestDeliveryRequestBodyCodec()
+            )
         viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
         advanceUntilIdle()
 
@@ -232,7 +248,9 @@ class DriverDeliveryIncidentViewModelTest {
         store: FakeIncidentMetadataStore
     ): DriverDeliveryIncidentViewModel {
         val viewModel =
-            DriverDeliveryIncidentViewModel(gateway, store, keyFactory = { "incident-key" }, requestBodyCodec = TestDeliveryRequestBodyCodec())
+            DriverDeliveryIncidentViewModel(gateway, store, keyFactory = {
+                "incident-key"
+            }, requestBodyCodec = TestDeliveryRequestBodyCodec())
         viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
         advanceUntilIdle()
         viewModel.editType(DriverIncidentType.DELAY)

@@ -1,21 +1,22 @@
-package com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse
+package com.nexa.mobile.operations.inventoryavailability.application.publicapi
 
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
 
-data class PickingAllocationProjection(
+/** Immutable physical-allocation facts published for cross-context client reads. */
+data class PhysicalAllocationProjection(
     val allocationId: String,
     val status: String,
     val version: Long,
     val asOf: Instant,
-    val lines: List<PickingAllocationLine>
+    val lines: List<PhysicalAllocationLineProjection>
 ) {
     override fun toString(): String =
-        "PickingAllocationProjection(status=$status, version=$version, lines=${lines.size})"
+        "PhysicalAllocationProjection(status=$status, version=$version, lines=${lines.size})"
 }
 
-data class PickingAllocationLine(
+data class PhysicalAllocationLineProjection(
     val physicalAllocationLineId: String,
     val skuId: String,
     val catalogItemId: String,
@@ -30,7 +31,5 @@ data class PickingAllocationLine(
     val expirationDate: LocalDate?
 ) {
     override fun toString(): String =
-        "PickingAllocationLine(lotId=REDACTED, remaining=$remainingQuantity, unit=$unit)"
+        "PhysicalAllocationLineProjection(lotId=REDACTED, remaining=$remainingQuantity, unit=$unit)"
 }
-
-/** Typed proposal joined by server identifiers; a match is usable only when unique. */

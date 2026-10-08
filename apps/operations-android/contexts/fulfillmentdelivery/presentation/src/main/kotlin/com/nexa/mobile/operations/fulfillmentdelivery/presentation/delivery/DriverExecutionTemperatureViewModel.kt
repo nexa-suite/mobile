@@ -2,28 +2,28 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureCommandStatus as TemperatureCommandStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureEvidenceStatus as TemperatureEvidenceStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureLoadStatus as TemperatureLoadStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DeliveryRequestBodyCodec
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureDisposition
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureIntentStatus as TemperatureIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureLoadResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMetadataWrite
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureMode as ExecutionTemperatureMode
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMutationResult as TemperatureMutationResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentEvidenceResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureDisposition
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureMode as ExecutionTemperatureMode
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureReading
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureSnapshot
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentEvidenceResult
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentType
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureCommandStatus as TemperatureCommandStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureEvidenceStatus as TemperatureEvidenceStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureLoadStatus as TemperatureLoadStatus
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
@@ -510,7 +510,8 @@ class DriverExecutionTemperatureViewModel(
             intent.status != TemperatureIntentStatus.UnknownOutcome ||
             intent.scope != currentAuthority.scopeIdentity ||
             intent.command.deliveryId != activeDeliveryId ||
-            !requestBodyCodec.isValid(intent.command) || !modeAllows(intent.command, mode, currentAuthority)
+            !requestBodyCodec.isValid(intent.command) ||
+            !modeAllows(intent.command, mode, currentAuthority)
         ) {
             return
         }

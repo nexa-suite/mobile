@@ -9,8 +9,6 @@ enum class DriverDeliveryInstructionKind {
     GOODS_HANDLING
 }
 
-
-
 data class DriverDeliveryInstruction(
     val id: String,
     val kind: DriverDeliveryInstructionKind,
@@ -36,8 +34,6 @@ data class DriverDeliveryInstruction(
     }
 }
 
-
-
 data class DriverDeliveryInstructionsSnapshot(
     val deliveryId: String,
     val deliveryVersion: Long,
@@ -50,8 +46,6 @@ data class DriverDeliveryInstructionsSnapshot(
         require(instructions.map { it.id.lowercase() }.distinct().size == instructions.size)
     }
 }
-
-
 
 data class DriverDeliveryInstructionAcknowledgementFact(
     val instructionId: String,
@@ -66,8 +60,6 @@ data class DriverDeliveryInstructionAcknowledgementFact(
         require(acknowledgedAt.isNotBlank())
     }
 }
-
-
 
 data class DriverDeliveryInstructionAcknowledgementSummary(
     val deliveryId: String,

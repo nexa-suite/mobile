@@ -1,9 +1,9 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse
 
-import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingWorkListGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingAuthority
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.PickingWorkItem
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingWorkListResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingWorkListGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.PickingWorkItem
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.PickingWorkPage
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred

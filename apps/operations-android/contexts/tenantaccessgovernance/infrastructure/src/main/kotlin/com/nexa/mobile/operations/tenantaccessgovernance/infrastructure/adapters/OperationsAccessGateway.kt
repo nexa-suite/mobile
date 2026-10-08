@@ -1,36 +1,24 @@
 package com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.adapters
 
-import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.catalogReadHint
-
 import com.nexa.mobile.operations.core.auth.session.IssuedNativeSession
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
-import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.AccessContextSelectionOutcome
-import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.AccessContextsOutcome
-
-import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.IdentitySignInOutcome
-import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.NativeAccessContext
-import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.NativeAuthenticationSession
-import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.NexaIdentityAccessGateway
-
-
-
-
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.AccessGateway
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.ContextListResult
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.ContextSelectionResult
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.CurrentSessionContextResult
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.SignInResult
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.catalogReadHint
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.VerifiedContextAuthority
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
-
-
-
-
-
-
+import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.AccessContextSelectionOutcome
+import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.AccessContextsOutcome
+import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.IdentitySignInOutcome
+import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.NativeAccessContext
+import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.NativeAuthenticationSession
+import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.NexaIdentityAccessGateway
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.map

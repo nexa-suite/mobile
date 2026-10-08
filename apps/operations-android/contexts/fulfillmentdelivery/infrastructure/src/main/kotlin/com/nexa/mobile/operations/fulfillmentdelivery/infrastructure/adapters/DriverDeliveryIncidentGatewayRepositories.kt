@@ -4,6 +4,19 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
+import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentCurrentDeliveryResult as IncidentCurrentDeliveryResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentEvidenceAttachCommand as IncidentEvidenceAttachCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentEvidenceResult as IncidentEvidenceResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentEvidenceUploadCommand as IncidentEvidenceUploadCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentCurrentDelivery as IncidentCurrentDelivery
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentEvidenceProjection
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentSummary
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentType
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverDeliveryNetworkOutcome as Outcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverIncidentEvidenceProjection as IncidentEvidenceProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverIncidentNetworkOutcome as IncidentOutcome
@@ -11,20 +24,6 @@ import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.D
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverIncidentWireCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDriverDeliveryGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDriverIncidentGateway
-import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentGateway
-
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentCurrentDelivery as IncidentCurrentDelivery
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentCurrentDeliveryResult as IncidentCurrentDeliveryResult
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentEvidenceAttachCommand as IncidentEvidenceAttachCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentEvidenceProjection
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentEvidenceResult as IncidentEvidenceResult
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentEvidenceUploadCommand as IncidentEvidenceUploadCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentSummary
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentType
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -336,7 +335,7 @@ class OperationsDriverIncidentGateway @Inject constructor(
     )
 
     private fun IncidentEvidenceProjection.toEvidenceProjection() =
-        com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentEvidenceProjection(
+        DriverIncidentEvidenceProjection(
             id,
             subjectType,
             subjectId,

@@ -2,18 +2,17 @@ package com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters
 
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.AppCycleCountMetadataStore
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.CycleCountMetadataBackend
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountIntent
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountIntentStatus
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.CycleCountLot
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountMetadataRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountMetadataWrite
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountScope
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountStoredWork
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.CycleCountLot
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.AppCycleCountMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.CycleCountMetadataBackend
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-
 import org.junit.Test
 
 class AppCycleCountMetadataStoreTest {

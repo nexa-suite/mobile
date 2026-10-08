@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentEvidenceStage
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentType
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
 
 @Composable
 fun DriverDeliveryIncidentScreen(

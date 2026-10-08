@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -37,9 +35,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperatureLot
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchTemperatureMutationStatus as TemperatureMutationStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchTemperaturePhotoStatus as TemperaturePhotoStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperatureLot
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 

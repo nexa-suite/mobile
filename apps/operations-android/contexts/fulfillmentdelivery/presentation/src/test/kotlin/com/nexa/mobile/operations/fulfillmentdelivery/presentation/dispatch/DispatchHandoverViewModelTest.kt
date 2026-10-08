@@ -1,24 +1,23 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDispatchRequestBodyCodec
-
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverMetadataWrite
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsIntentStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverReceipt
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverSnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsAllocation
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCheck
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsIntentStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.PreparedFulfillmentDriverAssignment
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDispatchRequestBodyCodec
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
@@ -45,7 +44,10 @@ class DispatchHandoverViewModelTest {
                 snapshot(12, 7),
                 DispatchHandoverGatewayResult.Dispatched(receipt())
             )
-        val viewModel = DispatchHandoverViewModel(gateway, metadata, newCommandKey = { KEY }, requestBodyCodec = TestDispatchRequestBodyCodec())
+        val viewModel =
+            DispatchHandoverViewModel(gateway, metadata, newCommandKey = {
+                KEY
+            }, requestBodyCodec = TestDispatchRequestBodyCodec())
         viewModel.activate(readiness(12, 7), context())
         runCurrent()
 
@@ -64,7 +66,10 @@ class DispatchHandoverViewModelTest {
             events
         )
         val sent = gateway.command ?: error("dispatch not called")
-        assertEquals(TestDispatchRequestBodyCodec().dispatchHandoverRequestBody(sent), sent.exactRequestBody)
+        assertEquals(
+            TestDispatchRequestBodyCodec().dispatchHandoverRequestBody(sent),
+            sent.exactRequestBody
+        )
         assertEquals(KEY, sent.idempotencyKey)
         assertNull(metadata.intent)
         assertEquals(DispatchHandoverStatus.Completed, viewModel.state.value.status)
@@ -89,7 +94,12 @@ class DispatchHandoverViewModelTest {
                 snapshot(13, 8),
                 DispatchHandoverGatewayResult.Dispatched(receipt())
             )
-        val viewModel = DispatchHandoverViewModel(gateway, metadata, requestBodyCodec = TestDispatchRequestBodyCodec())
+        val viewModel =
+            DispatchHandoverViewModel(
+                gateway,
+                metadata,
+                requestBodyCodec = TestDispatchRequestBodyCodec()
+            )
         viewModel.activate(readiness(12, 7), context())
         runCurrent()
 
@@ -225,7 +235,9 @@ class DispatchHandoverViewModelTest {
         outgoingGoodsCheckId = CHECK_ID,
         idempotencyKey = KEY,
         exactRequestBody = ""
-    ).let { it.copy(exactRequestBody = TestDispatchRequestBodyCodec().dispatchHandoverRequestBody(it)) }
+    ).let {
+        it.copy(exactRequestBody = TestDispatchRequestBodyCodec().dispatchHandoverRequestBody(it))
+    }
 
     private fun context() = DispatchAuthorityContext(
         authorityEpoch = 3,

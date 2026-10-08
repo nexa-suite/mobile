@@ -2,12 +2,7 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryInstructionAcknowledgementStatus as InstructionAcknowledgementStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryInstructionsLoadStatus as InstructionsLoadStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryInstructionsUiState as InstructionsUiState
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DeliveryRequestBodyCodec
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionsGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionAcknowledgementCommand
@@ -15,9 +10,14 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.Drive
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionIntentMetadata
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionIntentStatus as InstructionIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionMetadataWrite
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionsGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryInstructionsLoadResult as InstructionsLoadResult
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryInstructionsSnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryInstructionAcknowledgementStatus as InstructionAcknowledgementStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryInstructionsLoadStatus as InstructionsLoadStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryInstructionsUiState as InstructionsUiState
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -250,7 +250,9 @@ class DriverDeliveryInstructionsViewModel(
             instructionSetVersion = snapshot.instructionSetVersion,
             instructionVersions = versions,
             idempotencyKey = keyFactory(),
-            frozenBody = requestBodyCodec.driverDeliveryInstructionAcknowledgementBody(versions.keys)
+            frozenBody = requestBodyCodec.driverDeliveryInstructionAcknowledgementBody(
+                versions.keys
+            )
         )
         val intent = DriverDeliveryInstructionIntentMetadata(
             scope = currentAuthority.scopeIdentity,

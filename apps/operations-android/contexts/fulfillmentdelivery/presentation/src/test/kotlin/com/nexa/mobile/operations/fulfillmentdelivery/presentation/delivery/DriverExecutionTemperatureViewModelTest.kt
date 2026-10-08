@@ -1,32 +1,31 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDeliveryRequestBodyCodec
-
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureHold
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureIntent
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureLine
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureLoadResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMetadataWrite
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureMode
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMutationResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureReading
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureSnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentCurrentDeliveryResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentEvidenceAttachCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentEvidenceProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentEvidenceResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentEvidenceUploadCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureHold
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureLine
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureMode
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureReading
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureSnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentEvidenceProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentType
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDeliveryRequestBodyCodec
 import java.math.BigDecimal
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
@@ -64,9 +63,14 @@ class DriverExecutionTemperatureViewModelTest {
             )
         }
         val vm =
-            DriverExecutionTemperatureViewModel(gateway, incidents, store, {
-                NOW
-            }, { "fixed-excursion-key" },
+            DriverExecutionTemperatureViewModel(
+                gateway,
+                incidents,
+                store,
+                {
+                    NOW
+                },
+                { "fixed-excursion-key" },
                 requestBodyCodec = TestDeliveryRequestBodyCodec()
             )
         vm.activate(AUTHORITY, DELIVERY_ID, DriverExecutionTemperatureMode.DRIVER)
@@ -113,9 +117,14 @@ class DriverExecutionTemperatureViewModelTest {
             )
         }
         val vm =
-            DriverExecutionTemperatureViewModel(gateway, incidents, MemoryMetadata(), {
-                NOW
-            }, { "unused" },
+            DriverExecutionTemperatureViewModel(
+                gateway,
+                incidents,
+                MemoryMetadata(),
+                {
+                    NOW
+                },
+                { "unused" },
                 requestBodyCodec = TestDeliveryRequestBodyCodec()
             )
         vm.activate(AUTHORITY, DELIVERY_ID, DriverExecutionTemperatureMode.DRIVER)
@@ -136,9 +145,14 @@ class DriverExecutionTemperatureViewModelTest {
         val store = MemoryMetadata(events)
         val gateway = MemoryGateway(events).apply { unknownOnce = true }
         val vm =
-            DriverExecutionTemperatureViewModel(gateway, MemoryIncidents(), store, {
-                NOW
-            }, { "stable-key" },
+            DriverExecutionTemperatureViewModel(
+                gateway,
+                MemoryIncidents(),
+                store,
+                {
+                    NOW
+                },
+                { "stable-key" },
                 requestBodyCodec = TestDeliveryRequestBodyCodec()
             )
         vm.activate(AUTHORITY, DELIVERY_ID, DriverExecutionTemperatureMode.DRIVER)
@@ -165,9 +179,14 @@ class DriverExecutionTemperatureViewModelTest {
         val pending = CompletableDeferred<DriverExecutionTemperatureLoadResult>()
         val gateway = MemoryGateway().apply { nextRead = pending }
         val vm =
-            DriverExecutionTemperatureViewModel(gateway, MemoryIncidents(), MemoryMetadata(), {
-                NOW
-            }, { "unused" },
+            DriverExecutionTemperatureViewModel(
+                gateway,
+                MemoryIncidents(),
+                MemoryMetadata(),
+                {
+                    NOW
+                },
+                { "unused" },
                 requestBodyCodec = TestDeliveryRequestBodyCodec()
             )
         vm.activate(AUTHORITY, DELIVERY_ID, DriverExecutionTemperatureMode.DRIVER)

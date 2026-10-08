@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
-import com.nexa.mobile.operations.inventoryavailability.presentation.R
-
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TransferSourceLotChoice
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TransferWarehouseChoice
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TransferZoneChoice
+import com.nexa.mobile.operations.inventoryavailability.presentation.R
 
 @Composable
 fun StockTransferScreen(

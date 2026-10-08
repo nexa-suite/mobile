@@ -119,7 +119,9 @@ class AuthorizedCommercialCustomerQueryTest {
         private val lease = AccessTokenLease("access-1", generation = 1, epoch = 1)
 
         override suspend fun currentAccess(): AccessTokenLease = lease
-        override suspend fun recoverAfterUnauthorized(observed: AccessTokenLease): AccessTokenLease? = null
+        override suspend fun recoverAfterUnauthorized(
+            observed: AccessTokenLease
+        ): AccessTokenLease? = null
         override suspend fun rejectCurrentAccess(observed: AccessTokenLease) = Unit
         override suspend fun isEpochCurrent(epoch: Long): Boolean = epoch == lease.epoch
     }

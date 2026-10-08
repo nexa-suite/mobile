@@ -3,7 +3,6 @@ package com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.AppDispatchTemperatureMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureIntentStatus as TemperatureIntentStatus
@@ -12,6 +11,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.Dispa
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperaturePhotoUploadIntent as TemperaturePhotoUploadIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperaturePhotoUploadMetadataRead as TemperaturePhotoUploadMetadataRead
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureScopeIdentity as TemperatureScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.AppDispatchTemperatureMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.JsonDispatchRequestBodyCodec
 import java.math.BigDecimal
 import java.time.Instant
@@ -47,10 +47,16 @@ class AppDispatchTemperatureMetadataStoreTest {
         val pending = DispatchTemperatureIntent(scope, command)
         assertEquals(
             TemperatureMetadataWrite.Saved,
-            AppDispatchTemperatureMetadataStore(local, JsonDispatchRequestBodyCodec()).saveIntent(pending)
+            AppDispatchTemperatureMetadataStore(
+                local,
+                JsonDispatchRequestBodyCodec()
+            ).saveIntent(pending)
         )
 
-        val recovered = AppDispatchTemperatureMetadataStore(local, JsonDispatchRequestBodyCodec()).loadIntent(scope, FULFILLMENT)
+        val recovered = AppDispatchTemperatureMetadataStore(
+            local,
+            JsonDispatchRequestBodyCodec()
+        ).loadIntent(scope, FULFILLMENT)
 
         assertEquals(
             TemperatureMetadataRead.Available(
@@ -95,7 +101,11 @@ class AppDispatchTemperatureMetadataStoreTest {
         val scope = scope()
         val original = command().let { command ->
             val withEvidence = command.copy(evidenceObjectId = EVIDENCE, expectedLotVersion = 3)
-            withEvidence.copy(exactRequestBody = JsonDispatchRequestBodyCodec().dispatchTemperatureRequestBody(withEvidence))
+            withEvidence.copy(
+                exactRequestBody = JsonDispatchRequestBodyCodec().dispatchTemperatureRequestBody(
+                    withEvidence
+                )
+            )
         }
         val store = AppDispatchTemperatureMetadataStore(local, JsonDispatchRequestBodyCodec())
         assertEquals(
@@ -103,7 +113,10 @@ class AppDispatchTemperatureMetadataStoreTest {
             store.saveIntent(DispatchTemperatureIntent(scope, original))
         )
 
-        val recovered = AppDispatchTemperatureMetadataStore(local, JsonDispatchRequestBodyCodec()).loadIntent(scope, FULFILLMENT)
+        val recovered = AppDispatchTemperatureMetadataStore(
+            local,
+            JsonDispatchRequestBodyCodec()
+        ).loadIntent(scope, FULFILLMENT)
 
         assertEquals(
             TemperatureMetadataRead.Available(
@@ -171,7 +184,11 @@ class AppDispatchTemperatureMetadataStoreTest {
             idempotencyKey = "temperature-key",
             exactRequestBody = ""
         )
-        return partial.copy(exactRequestBody = JsonDispatchRequestBodyCodec().dispatchTemperatureRequestBody(partial))
+        return partial.copy(
+            exactRequestBody = JsonDispatchRequestBodyCodec().dispatchTemperatureRequestBody(
+                partial
+            )
+        )
     }
 
     private fun scope() = TemperatureScopeIdentity(USER, TENANT, WORKSPACE, MEMBERSHIP)

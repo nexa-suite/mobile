@@ -22,8 +22,6 @@ data class DispatchTemperatureEvidence(
     override fun toString(): String = "DispatchTemperatureEvidence(REDACTED, status=$status)"
 }
 
-
-
 data class DispatchTemperatureLot(
     val skuId: String,
     val lotId: String?,
@@ -48,8 +46,6 @@ data class DispatchTemperatureLot(
     override fun toString(): String = "DispatchTemperatureLot(REDACTED, status=$status)"
 }
 
-
-
 data class DispatchTemperatureReadiness(
     val fulfillmentId: String,
     val fulfillmentStatus: String,
@@ -63,8 +59,6 @@ data class DispatchTemperatureReadiness(
     override fun toString(): String = "DispatchTemperatureReadiness(REDACTED, " +
         "version=$fulfillmentVersion, lots=${lots.size})"
 }
-
-
 
 data class DispatchTemperaturePhotoEvidence(
     val id: String,

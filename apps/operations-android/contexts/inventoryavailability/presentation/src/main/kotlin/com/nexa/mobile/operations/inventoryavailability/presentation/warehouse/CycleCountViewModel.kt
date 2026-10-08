@@ -2,21 +2,21 @@ package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.CycleCountGateway
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.CycleCountMetadataStore
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseFrozenPayloadCodec
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountAuthority
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.CycleCountCorrection
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountCorrectionIntent
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountIntent
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountIntentStatus
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountLookupResult
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.CycleCountLot
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountMetadataRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountMetadataWrite
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.CycleCountRecord
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountStoredWork
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.CycleCountGateway
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.CycleCountMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseFrozenPayloadCodec
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.CycleCountCorrection
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.CycleCountLot
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.CycleCountRecord
 import java.math.BigDecimal
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -864,7 +864,8 @@ class CycleCountViewModel(
                 countIntent == null || (
                     countIntent.scope == scope && countIntent.lot.id.isUuid() &&
                         intentQuantity?.takeIf { it.isValidStockQuantity() }?.let { quantity ->
-                            countIntent.frozenBody == payloadCodec.cycleCountPayload(quantity, countIntent.lot.unit)
+                            countIntent.frozenBody ==
+                                payloadCodec.cycleCountPayload(quantity, countIntent.lot.unit)
                         } == true
                     )
                 ) &&

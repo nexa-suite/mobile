@@ -1,8 +1,8 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
 import androidx.compose.runtime.Immutable
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoffIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoffIdentityCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoffIdentity
 
 enum class DispatchHandoffIdentityStatus {
     Loading,

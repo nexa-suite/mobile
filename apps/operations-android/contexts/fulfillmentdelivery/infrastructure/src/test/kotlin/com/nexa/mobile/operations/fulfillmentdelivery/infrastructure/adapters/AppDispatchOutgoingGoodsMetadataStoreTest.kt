@@ -3,15 +3,15 @@ package com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.AppDispatchOutgoingGoodsMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsCommand as OutgoingGoodsCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCommandType as OutgoingGoodsCommandType
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsIntent as OutgoingGoodsIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsIntentStatus as OutgoingGoodsIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsMetadataRead as OutgoingGoodsMetadataRead
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsMetadataWrite as OutgoingGoodsMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsObservation as OutgoingGoodsObservation
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsScopeIdentity as OutgoingGoodsScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCommandType as OutgoingGoodsCommandType
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.AppDispatchOutgoingGoodsMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.JsonDispatchRequestBodyCodec
 import java.math.BigDecimal
 import kotlinx.coroutines.test.runTest
@@ -97,7 +97,10 @@ class AppDispatchOutgoingGoodsMetadataStoreTest {
         val first = AppDispatchOutgoingGoodsMetadataStore(local, JsonDispatchRequestBodyCodec())
         assertEquals(OutgoingGoodsMetadataWrite.Saved, first.saveIntent(pending))
 
-        val recovered = AppDispatchOutgoingGoodsMetadataStore(local, JsonDispatchRequestBodyCodec()).loadIntent(scope, FULFILLMENT)
+        val recovered = AppDispatchOutgoingGoodsMetadataStore(
+            local,
+            JsonDispatchRequestBodyCodec()
+        ).loadIntent(scope, FULFILLMENT)
         assertEquals(
             OutgoingGoodsMetadataRead.Available(
                 pending.copy(status = OutgoingGoodsIntentStatus.UnknownOutcome)

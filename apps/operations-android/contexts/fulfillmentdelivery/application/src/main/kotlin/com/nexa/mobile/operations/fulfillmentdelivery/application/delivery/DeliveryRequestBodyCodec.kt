@@ -1,5 +1,6 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.application.delivery
 
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureDisposition
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentType
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeKind
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeLineDecision
@@ -35,7 +36,7 @@ interface DeliveryRequestBodyCodec {
         evidenceObjectId: String?
     ): String
     fun driverExecutionTemperatureDispositionBody(
-        disposition: com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureDisposition,
+        disposition: DriverExecutionTemperatureDisposition,
         reason: String
     ): String
     fun isValid(command: DriverExecutionTemperatureCommand): Boolean

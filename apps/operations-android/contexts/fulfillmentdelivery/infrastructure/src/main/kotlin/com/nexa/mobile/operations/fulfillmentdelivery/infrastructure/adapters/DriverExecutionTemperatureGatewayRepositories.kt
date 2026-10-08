@@ -10,31 +10,31 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataStore
+import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureCommand as TemperatureCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureGateway as TemperatureGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureIntent as TemperatureIntent
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureIntentStatus as TemperatureIntentStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureLoadResult as TemperatureLoadResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMetadataRead as TemperatureMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMetadataStore as TemperatureMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMetadataWrite as TemperatureMetadataWrite
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMutationResult as TemperatureMutationResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureDisposition as TemperatureDisposition
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureHold as TemperatureHold
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureLine as TemperatureLine
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureMode as TemperatureMode
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureReading as TemperatureReading
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureSnapshot as TemperatureSnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.JsonDeliveryRequestBodyCodec
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.ExecutionTemperatureHoldTransport
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.ExecutionTemperatureNetworkOutcome as ExecutionTemperatureOutcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.ExecutionTemperatureReadingTransport
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.ExecutionTemperatureReadingTransportCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.ExecutionTemperatureSnapshotTransport
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaExecutionTemperatureGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.JsonDeliveryRequestBodyCodec
-import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureGateway as TemperatureGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMetadataStore as TemperatureMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptScopeIdentity
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureCommand as TemperatureCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureDisposition as TemperatureDisposition
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureHold as TemperatureHold
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureIntent as TemperatureIntent
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureIntentStatus as TemperatureIntentStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureLine as TemperatureLine
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureLoadResult as TemperatureLoadResult
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMetadataRead as TemperatureMetadataRead
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMetadataWrite as TemperatureMetadataWrite
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureMode as TemperatureMode
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverExecutionTemperatureMutationResult as TemperatureMutationResult
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureReading as TemperatureReading
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureSnapshot as TemperatureSnapshot
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -347,8 +347,7 @@ private fun ExecutionTemperatureHoldTransport.toFeature() = TemperatureHold(
 class AppDriverExecutionTemperatureMetadataStore(
     private val local: ScopedMetadataStore,
     private val requestBodyCodec: JsonDeliveryRequestBodyCodec
-) :
-    TemperatureMetadataStore {
+) : TemperatureMetadataStore {
     override suspend fun loadIntent(scope: DriverAttemptScopeIdentity): TemperatureMetadataRead =
         mutex(scope).withLock {
             when (val record = local.load(scope.local())) {
@@ -567,12 +566,11 @@ object DriverExecutionTemperatureModule {
     fun metadata(
         @ApplicationContext context: Context,
         requestBodyCodec: JsonDeliveryRequestBodyCodec
-    ): TemperatureMetadataStore =
-        AppDriverExecutionTemperatureMetadataStore(
-            AndroidScopedMetadataStore(
-                context,
-                ScopedMetadataPurpose.DriverExecutionTemperatureCommand
-            ),
-            requestBodyCodec
-        )
+    ): TemperatureMetadataStore = AppDriverExecutionTemperatureMetadataStore(
+        AndroidScopedMetadataStore(
+            context,
+            ScopedMetadataPurpose.DriverExecutionTemperatureCommand
+        ),
+        requestBodyCodec
+    )
 }

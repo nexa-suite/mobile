@@ -2,21 +2,21 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchRequestBodyCodec
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommandMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DELIVERY_LOAD_STATUSES
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoad
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommandAction
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommandIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommandMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommandMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadCommandMetadataWrite
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoadCompatibilityAttestation
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoadDriverCandidate
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DeliveryLoadScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchRequestBodyCodec
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DELIVERY_LOAD_STATUSES
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoad
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoadCompatibilityAttestation
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DeliveryLoadDriverCandidate
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
 import java.time.Instant
 import java.util.UUID
@@ -230,7 +230,9 @@ class DeliveryLoadViewModel(
                         pending = null
                         metadataAvailable = false
                         mutableState.update {
-                            it.copy(commandStatus = DeliveryLoadCommandStatus.PersistenceUnavailable)
+                            it.copy(
+                                commandStatus = DeliveryLoadCommandStatus.PersistenceUnavailable
+                            )
                         }
                         return@launch
                     }

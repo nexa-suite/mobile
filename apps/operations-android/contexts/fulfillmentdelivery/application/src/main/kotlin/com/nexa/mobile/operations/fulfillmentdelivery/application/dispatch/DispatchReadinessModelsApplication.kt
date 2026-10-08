@@ -15,7 +15,6 @@ data class DispatchAuthorityIdentity(
 
 /** Full current scope captured from the verified session for each protected read. */
 
-
 data class DispatchAuthorityContext(
     val authorityEpoch: Long,
     val identity: DispatchAuthorityIdentity?
@@ -23,8 +22,6 @@ data class DispatchAuthorityContext(
     override fun toString(): String = "DispatchAuthorityContext(authorityEpoch=$authorityEpoch, " +
         "identity=${identity != null})"
 }
-
-
 
 sealed interface DispatchReadinessGatewayResult {
     data class ListResult(val items: List<DispatchReadiness>, val asOf: Instant) :

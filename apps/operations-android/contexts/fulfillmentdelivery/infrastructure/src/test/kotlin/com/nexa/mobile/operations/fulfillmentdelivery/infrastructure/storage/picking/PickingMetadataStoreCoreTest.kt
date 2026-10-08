@@ -53,7 +53,14 @@ class PickingMetadataStoreCoreTest {
         // Receiving v1 storage binding golden values keep the namespaces distinct
         // without exposing another context's persistence implementation.
         val receivingFileKey = "df6b03f89f7b473027db1bda3a198071c1406bfb86ee9104838b6026d1f22a94"
-        val receivingAdditionalData = byteArrayOf(0,0,0,23,78,69,88,65,45,82,69,67,69,73,86,73,78,71,45,77,69,84,65,68,65,84,65,1,0,0,0,2,97,98,0,0,0,1,99,0,0,0,1,100,0,0,0,1,101)
+        val receivingAdditionalData =
+            byteArrayOf(
+                0, 0, 0, 23, 78, 69, 88, 65, 45, 82, 69, 67,
+                69, 73, 86, 73, 78, 71, 45, 77, 69, 84, 65, 68,
+                65, 84, 65, 1, 0, 0, 0, 2, 97, 98, 0, 0,
+                0, 1, 99, 0, 0, 0, 1, 100, 0, 0, 0, 1,
+                101
+            )
 
         assertNotEquals(PickingScopeBinding.fileKey(first), PickingScopeBinding.fileKey(second))
         assertNotEquals(

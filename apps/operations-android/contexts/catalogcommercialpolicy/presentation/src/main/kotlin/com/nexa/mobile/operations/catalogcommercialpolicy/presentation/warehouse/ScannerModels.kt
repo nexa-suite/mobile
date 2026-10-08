@@ -1,9 +1,9 @@
 package com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse
 
 import androidx.compose.runtime.Immutable
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedScannedSku
 import com.nexa.mobile.operations.core.device.scanner.ProductCodeCandidate
 import com.nexa.mobile.operations.core.device.scanner.ProductCodeScannerEvent
-import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedScannedSku
 
 enum class ScannerUnverifiedReason {
     UnknownCode,

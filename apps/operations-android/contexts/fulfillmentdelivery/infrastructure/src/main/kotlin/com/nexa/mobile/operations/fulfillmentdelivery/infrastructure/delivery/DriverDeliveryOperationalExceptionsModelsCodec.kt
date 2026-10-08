@@ -9,15 +9,11 @@ import kotlinx.serialization.json.jsonPrimitive
 
 const val DRIVER_OPERATIONAL_EXCEPTION_EMPTY_BODY = "{}"
 
-
-
 fun driverDeliveryOperationalExceptionResolutionBody(value: String): String {
     val normalized = value.trim()
     require(normalized.isNotEmpty() && normalized.length <= DRIVER_WARNING_RESOLUTION_MAX_CHARS)
     return JsonObject(mapOf("resolution" to JsonPrimitive(normalized))).toString()
 }
-
-
 
 fun driverDeliveryOperationalExceptionResolutionFromBody(body: String): String? = try {
     val root = Json.parseToJsonElement(body).jsonObject
@@ -34,10 +30,6 @@ fun driverDeliveryOperationalExceptionResolutionFromBody(body: String): String? 
     null
 }
 
-
-
 const val DRIVER_OPERATIONAL_EXCEPTION_BODYLESS = ""
-
-
 
 fun driverDeliveryOperationalExceptionEmptyBody(): String = DRIVER_OPERATIONAL_EXCEPTION_EMPTY_BODY

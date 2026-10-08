@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,9 +26,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryInstructionAcknowledgementStatus as InstructionAcknowledgementStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryInstruction
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryInstructionKind
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryInstructionAcknowledgementStatus as InstructionAcknowledgementStatus
 
 @Composable
 fun DriverDeliveryInstructionsScreen(

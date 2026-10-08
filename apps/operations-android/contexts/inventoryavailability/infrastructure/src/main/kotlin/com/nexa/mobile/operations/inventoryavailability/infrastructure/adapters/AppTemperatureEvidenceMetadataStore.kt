@@ -1,6 +1,16 @@
 package com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters
 
 import android.content.Context
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureEvidenceDraft
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureEvidenceIntent
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureEvidenceScope
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureIntentStatus
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureMetadataRead
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureMetadataWrite
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.TemperatureEvidenceMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TemperatureEvidencePayload
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TemperatureEvidenceSubjectType
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TemperatureEvidenceUnit
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.temperature.AndroidTemperatureEvidenceMetadataStore
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.temperature.StoredTemperatureSubjectType
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.temperature.StoredTemperatureUnit
@@ -12,16 +22,6 @@ import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.t
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.temperature.TemperatureMetadataRead as LocalTemperatureMetadataRead
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.temperature.TemperatureMetadataScope
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.temperature.TemperatureMetadataWrite as LocalTemperatureMetadataWrite
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.TemperatureEvidenceMetadataStore
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureEvidenceDraft
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureEvidenceIntent
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TemperatureEvidencePayload
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureEvidenceScope
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TemperatureEvidenceSubjectType
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TemperatureEvidenceUnit
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureIntentStatus
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureMetadataRead
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureMetadataWrite
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

@@ -14,8 +14,6 @@ data class DispatchDeliveryInstruction(
     val recordedAt: String?
 )
 
-
-
 enum class DispatchDeliveryInstructionKind {
     NORMAL,
     COLD_CHAIN,
@@ -27,16 +25,12 @@ enum class DispatchDeliveryInstructionKind {
     val critical: Boolean get() = this != NORMAL
 }
 
-
-
 data class DispatchDeliveryInstructionsSnapshot(
     val deliveryId: String,
     val deliveryVersion: Long,
     val instructionSetVersion: Long,
     val instructions: List<DispatchDeliveryInstruction>
 )
-
-
 
 data class DispatchDeliveryInstructionReceipt(
     val deliveryId: String,

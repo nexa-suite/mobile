@@ -115,6 +115,7 @@ import com.nexa.mobile.operations.inventoryavailability.application.model.wareho
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyScope
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancySelectionContext
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyStartContext
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionAuthority
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingAuthority
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingEvidenceCandidate
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingEvidenceSelectionContext
@@ -1975,7 +1976,7 @@ class MainActivity : ComponentActivity() {
                             connectedRoute = route
                             val authority = route.authority
                             lotSubstitutionViewModel.activate(
-                                PickingAuthority(
+                                LotSubstitutionAuthority(
                                     authority.userId,
                                     authority.tenantId,
                                     authority.workspaceId,
@@ -2821,7 +2822,8 @@ class MainActivity : ComponentActivity() {
                                 businessDocumentsViewModel::previousPage,
                                 businessDocumentsViewModel::nextPage,
                                 businessDocumentsViewModel::open,
-                                businessDocumentsViewModel::closeContent
+                                businessDocumentsViewModel::closeContent,
+                                businessDocumentsFactory.pdfPageRenderer
                             )
 
                             "commercial.request" -> FieldRequestScreen(

@@ -1,13 +1,5 @@
 package com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport
 
-import com.nexa.mobile.operations.core.network.ApiEndpoint
-import com.nexa.mobile.operations.core.network.ApiHttpClient
-import com.nexa.mobile.operations.core.network.FailureKind
-import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.core.network.ProtectedMethod
-import com.nexa.mobile.operations.core.network.ProtectedRequest
-import com.nexa.mobile.operations.core.network.ProtectedResult
-
 import com.nexa.mobile.operations.core.auth.credentials.RefreshCredentialStore
 import com.nexa.mobile.operations.core.auth.credentials.StoredRefreshCredential
 import com.nexa.mobile.operations.core.auth.session.AccessTokenLease
@@ -15,6 +7,13 @@ import com.nexa.mobile.operations.core.auth.session.AccessTokenSource
 import com.nexa.mobile.operations.core.auth.session.NativeSignIn
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
+import com.nexa.mobile.operations.core.network.ApiEndpoint
+import com.nexa.mobile.operations.core.network.ApiHttpClient
+import com.nexa.mobile.operations.core.network.FailureKind
+import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
+import com.nexa.mobile.operations.core.network.ProtectedMethod
+import com.nexa.mobile.operations.core.network.ProtectedRequest
+import com.nexa.mobile.operations.core.network.ProtectedResult
 import java.io.IOException
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch

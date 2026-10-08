@@ -1,28 +1,27 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDispatchRequestBodyCodec
-
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsAllocation
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCheck
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCheckLine
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsCommand
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCommandType
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsDiscrepancy
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsIntentStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsLine
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsObservation
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsResolution
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsAllocation
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCheck
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCheckLine
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCommandType
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsDiscrepancy
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsLine
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsResolution
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsSnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDispatchRequestBodyCodec
 import java.math.BigDecimal
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -44,7 +43,10 @@ class DispatchOutgoingGoodsViewModelTest {
         val events = mutableListOf<String>()
         val metadata = FakeMetadata(events)
         val gateway = FakeGateway(events, allocation())
-        val viewModel = DispatchOutgoingGoodsViewModel(gateway, metadata, newCommandKey = { KEY }, requestBodyCodec = TestDispatchRequestBodyCodec())
+        val viewModel =
+            DispatchOutgoingGoodsViewModel(gateway, metadata, newCommandKey = {
+                KEY
+            }, requestBodyCodec = TestDispatchRequestBodyCodec())
         viewModel.activate(fulfillment(), context())
         runCurrent()
         viewModel.changeObservedLot(LINE_ID, LOT_ID)
@@ -73,7 +75,12 @@ class DispatchOutgoingGoodsViewModelTest {
         val frozen = intent(DispatchOutgoingGoodsIntentStatus.UnknownOutcome)
         val metadata = FakeMetadata(events, frozen)
         val gateway = FakeGateway(events, allocation())
-        val viewModel = DispatchOutgoingGoodsViewModel(gateway, metadata, requestBodyCodec = TestDispatchRequestBodyCodec())
+        val viewModel =
+            DispatchOutgoingGoodsViewModel(
+                gateway,
+                metadata,
+                requestBodyCodec = TestDispatchRequestBodyCodec()
+            )
         viewModel.activate(fulfillment(), context())
         runCurrent()
 
@@ -131,7 +138,9 @@ class DispatchOutgoingGoodsViewModelTest {
         val gateway = FakeGateway(events, allocation(), current)
         val metadata = FakeMetadata(events)
         val viewModel =
-            DispatchOutgoingGoodsViewModel(gateway, metadata, newCommandKey = { RESOLUTION_KEY }, requestBodyCodec = TestDispatchRequestBodyCodec())
+            DispatchOutgoingGoodsViewModel(gateway, metadata, newCommandKey = {
+                RESOLUTION_KEY
+            }, requestBodyCodec = TestDispatchRequestBodyCodec())
         viewModel.activate(fulfillment(), context())
         runCurrent()
         assertFalse(viewModel.state.value.canResolveDiscrepancy)

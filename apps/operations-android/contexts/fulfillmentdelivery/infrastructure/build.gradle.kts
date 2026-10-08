@@ -29,7 +29,6 @@ dependencies {
     api(project(":contexts:fulfillmentdelivery:application"))
     api(project(":contexts:fulfillmentdelivery:domain"))
     api(project(":contexts:inventoryavailability:application"))
-    api(project(":contexts:inventoryavailability:domain"))
     api(project(":contexts:tenantaccessgovernance:domain"))
     implementation(project(":core:auth"))
     implementation(project(":core:local"))

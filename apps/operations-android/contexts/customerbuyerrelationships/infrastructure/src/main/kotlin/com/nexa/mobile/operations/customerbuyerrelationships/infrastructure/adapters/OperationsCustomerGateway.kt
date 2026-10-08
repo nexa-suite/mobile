@@ -2,14 +2,14 @@ package com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.ada
 
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
-import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.transport.CustomerNetworkResult
-import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.transport.CustomerWire
-import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.transport.NexaCustomerGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.customerbuyerrelationships.application.commercial.CustomerGateway
 import com.nexa.mobile.operations.customerbuyerrelationships.application.commercial.CustomerResult
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import com.nexa.mobile.operations.customerbuyerrelationships.domain.model.commercial.CustomerRelationship
+import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.transport.CustomerNetworkResult
+import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.transport.CustomerWire
+import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.transport.NexaCustomerGateway
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import javax.inject.Inject
 
 class OperationsCustomerGateway @Inject constructor(

@@ -20,7 +20,6 @@ fun driverIncidentBody(
 
 /** Retains the immutable request shape of reports created before typed source classification. */
 
-
 fun driverIncidentLegacyBody(reason: String, description: String, place: String): String =
 
     JsonObject(

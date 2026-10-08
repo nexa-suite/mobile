@@ -12,12 +12,9 @@ data class DispatchAssignmentScopeIdentity(
     override fun toString(): String = "DispatchAssignmentScopeIdentity(REDACTED)"
 }
 
-
-
 enum class DispatchAssignmentIntentStatus { Pending, UnknownOutcome }
 
 /** Frozen wire command and verified actor scope. Fields must not change during replay. */
-
 
 data class DispatchAssignmentIntent(
     val scope: DispatchAssignmentScopeIdentity,
@@ -33,18 +30,12 @@ data class DispatchAssignmentIntent(
         "versions=$expectedFulfillmentVersion/$physicalAllocationVersion, status=$status)"
 }
 
-
-
 sealed interface DispatchAssignmentMetadataRead {
     data class Available(val intent: DispatchAssignmentIntent?) : DispatchAssignmentMetadataRead
     data object Unavailable : DispatchAssignmentMetadataRead
 }
 
-
-
 enum class DispatchAssignmentMetadataWrite { Saved, Conflict, Stale, Unavailable }
-
-
 
 sealed interface DispatchAssignmentGatewayResult {
     data class Snapshot(val value: DispatchAssignmentSnapshot) : DispatchAssignmentGatewayResult

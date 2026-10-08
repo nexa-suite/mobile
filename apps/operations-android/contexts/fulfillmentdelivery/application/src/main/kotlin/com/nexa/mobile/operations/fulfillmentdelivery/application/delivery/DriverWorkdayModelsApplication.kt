@@ -11,8 +11,6 @@ sealed interface DriverWorkdayReadResult {
     data object SessionInvalidated : DriverWorkdayReadResult
 }
 
-
-
 sealed interface DriverWorkdayCommandResult {
     data object Accepted : DriverWorkdayCommandResult
     data class Rejected(val code: String?) : DriverWorkdayCommandResult
@@ -25,15 +23,11 @@ sealed interface DriverWorkdayCommandResult {
     data object SessionInvalidated : DriverWorkdayCommandResult
 }
 
-
-
 enum class DriverWorkdayCommandAction {
     START,
     SET_LOCATION_AVAILABILITY,
     END
 }
-
-
 
 data class DriverWorkdayCommandScope(
     val userId: String,
@@ -45,8 +39,6 @@ data class DriverWorkdayCommandScope(
         require(listOf(userId, tenantId, workspaceId, membershipId).all(String::isNotBlank))
     }
 }
-
-
 
 data class DriverWorkdayCommandIntent(
     val scope: DriverWorkdayCommandScope,
@@ -79,8 +71,6 @@ data class DriverWorkdayCommandIntent(
 
     override fun toString(): String = "DriverWorkdayCommandIntent(action=$action, key=REDACTED)"
 }
-
-
 
 sealed interface DriverWorkdayCommandIntentRead {
     data class Available(val intent: DriverWorkdayCommandIntent?) : DriverWorkdayCommandIntentRead

@@ -50,8 +50,6 @@ data class DriverDeliveryOperationalException(
     }
 }
 
-
-
 data class DriverDeliveryOperationalExceptionsSnapshot(
     val deliveryId: String,
     val deliveryVersion: Long,
@@ -63,7 +61,5 @@ data class DriverDeliveryOperationalExceptionsSnapshot(
         require(exceptions.map { it.id.lowercase() }.distinct().size == exceptions.size)
     }
 }
-
-
 
 const val DRIVER_WARNING_RESOLUTION_MAX_CHARS = 2000

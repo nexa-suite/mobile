@@ -8,14 +8,13 @@ import com.nexa.mobile.operations.inventoryavailability.application.model.wareho
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyDraft
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyDraftRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyDraftWrite
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyEvidenceCandidate as DiscrepancyEvidenceCandidate
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyEvidenceStatusResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyMutationResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyScope
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancySelectionContext
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancySubmitCommand
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyUploadCommand
-
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyEvidenceCandidate as DiscrepancyEvidenceCandidate
 
 /** Encrypted, scope-bound artifact staging; loading never starts network work. */
 interface InboundDiscrepancyEvidenceArtifactStore {

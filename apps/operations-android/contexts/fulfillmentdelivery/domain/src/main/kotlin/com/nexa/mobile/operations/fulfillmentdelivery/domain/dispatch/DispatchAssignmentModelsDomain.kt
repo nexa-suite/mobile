@@ -10,8 +10,6 @@ data class DispatchDriverCandidate(
     override fun toString(): String = "DispatchDriverCandidate(membershipId=REDACTED)"
 }
 
-
-
 data class PreparedFulfillmentDriverAssignment(
     val id: String,
     val fulfillmentId: String,
@@ -28,8 +26,6 @@ data class PreparedFulfillmentDriverAssignment(
     override fun toString(): String = "PreparedFulfillmentDriverAssignment(id=REDACTED, " +
         "fulfillmentVersion=$fulfillmentVersion, deliveryLinked=${deliveryId != null})"
 }
-
-
 
 data class DispatchAssignmentSnapshot(
     val readiness: DispatchReadiness,

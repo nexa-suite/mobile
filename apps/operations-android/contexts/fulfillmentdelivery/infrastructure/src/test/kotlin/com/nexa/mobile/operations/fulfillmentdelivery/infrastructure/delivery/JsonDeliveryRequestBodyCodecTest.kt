@@ -32,7 +32,10 @@ class JsonDeliveryRequestBodyCodecTest {
         val body = codec.driverDeliveryOperationalExceptionResolutionBody("  Path cleared  ")
 
         assertEquals("{\"resolution\":\"Path cleared\"}", body)
-        assertEquals("Path cleared", codec.driverDeliveryOperationalExceptionResolutionFromBody(body))
+        assertEquals(
+            "Path cleared",
+            codec.driverDeliveryOperationalExceptionResolutionFromBody(body)
+        )
         assertNull(
             codec.driverDeliveryOperationalExceptionResolutionFromBody(
                 "{\"resolution\":4}"
@@ -43,9 +46,11 @@ class JsonDeliveryRequestBodyCodecTest {
     @Test
     fun temperatureReadingRetainsPreciseQuantitiesAndOptionalFieldOrder() {
         assertEquals(
-            "{\"fulfillmentLineId\":\"11111111-1111-4111-8111-111111111111\",\"skuId\":\"22222222-2222-4222-8222-222222222222\"," +
-                "\"affectedQuantity\":1.250,\"value\":-5,\"unit\":\"CELSIUS\"," +
-                "\"occurredAt\":\"2026-10-01T10:15:30Z\",\"sourceIncidentId\":\"33333333-3333-4333-8333-333333333333\"," +
+            "{\"fulfillmentLineId\":\"11111111-1111-4111-8111-111111111111\"," +
+                "\"skuId\":\"22222222-2222-4222-8222-222222222222\"," +
+                "\"affectedQuantity\":1.25,\"value\":-5,\"unit\":\"CELSIUS\"," +
+                "\"occurredAt\":\"2026-10-01T10:15:30Z\"," +
+                "\"sourceIncidentId\":\"33333333-3333-4333-8333-333333333333\"," +
                 "\"evidenceObjectId\":\"44444444-4444-4444-8444-444444444444\"}",
             codec.driverExecutionTemperatureReadingBody(
                 "11111111-1111-4111-8111-111111111111",

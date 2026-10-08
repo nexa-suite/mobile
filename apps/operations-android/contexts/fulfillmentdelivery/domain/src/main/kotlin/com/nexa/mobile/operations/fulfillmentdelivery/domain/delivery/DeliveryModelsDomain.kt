@@ -14,7 +14,6 @@ data class DriverDeliveryAttempt(
 
 /** Server projection; assignment eligibility and current attempt remain server-owned. */
 
-
 data class DriverDeliverySnapshot(
     val id: String,
     val fulfillmentId: String?,
@@ -34,11 +33,7 @@ data class DriverDeliverySnapshot(
         "DriverDeliverySnapshot(status=$status, version=$version, active=$activeAttempt)"
 }
 
-
-
 data class DriverDeliveryArrivalFact(val id: String, val attemptId: String, val arrivedAt: String)
-
-
 
 data class DriverDeliveryOutcomeLine(
     val fulfillmentLineId: String,
@@ -52,8 +47,6 @@ data class DriverDeliveryOutcomeLine(
     val unit: String
 )
 
-
-
 data class DriverRemainingQuantityLine(
     val fulfillmentLineId: String,
     val skuId: String,
@@ -62,11 +55,7 @@ data class DriverRemainingQuantityLine(
     val unit: String
 )
 
-
-
 enum class DriverOutcomeKind { DELIVERED, PARTIAL, FAILED, REFUSED, ABSENT }
-
-
 
 data class DriverOutcomeLineDecision(
     val fulfillmentLineId: String,
@@ -78,8 +67,6 @@ data class DriverOutcomeLineDecision(
     val unit: String
 )
 
-
-
 data class DriverOutcomeSummary(
     val attemptId: String,
     val outcome: String,
@@ -88,8 +75,6 @@ data class DriverOutcomeSummary(
     val partial: Boolean,
     val remainingLines: List<DriverRemainingQuantityLine>
 )
-
-
 
 data class DriverArrivalSummary(
     val eventId: String,

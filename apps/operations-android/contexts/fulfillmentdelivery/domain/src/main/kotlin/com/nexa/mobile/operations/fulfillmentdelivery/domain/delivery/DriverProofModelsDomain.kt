@@ -4,7 +4,6 @@ enum class DriverProofEvidenceKind { PHOTO, SIGNATURE }
 
 /** Captures route identity at picker launch so late results cannot target another delivery. */
 
-
 data class DriverProofSummary(
     val proofId: String,
     val deliveryId: String,
@@ -17,8 +16,6 @@ data class DriverProofSummary(
     val signatureEvidenceObjectId: String?,
     val deliveryVersion: Long
 )
-
-
 
 data class DriverProofEvidenceSummary(
     val evidenceId: String,

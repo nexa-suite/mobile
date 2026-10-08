@@ -1,6 +1,15 @@
 package com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters
 
 import android.content.Context
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundReceiptRequest
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingDraftMetadata
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingIntentMetadata
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingIntentMetadataStatus
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingMetadataRead
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingMetadataWrite
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingScopeIdentity
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivingProductReference
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.receiving.AndroidReceivingMetadataStore
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.receiving.ReceivingDraftMetadataRecord
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.receiving.ReceivingIntentMetadataRecord
@@ -11,15 +20,6 @@ import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.r
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.receiving.ReceivingMetadataStore as LocalMetadataStore
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.receiving.ReceivingMetadataWrite as LocalMetadataWrite
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.storage.receiving.ReceivingProductReferenceMetadata
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingMetadataStore
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundReceiptRequest
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingDraftMetadata
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingIntentMetadata
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingIntentMetadataStatus
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingMetadataRead
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingMetadataWrite
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivingProductReference
-import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingScopeIdentity
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

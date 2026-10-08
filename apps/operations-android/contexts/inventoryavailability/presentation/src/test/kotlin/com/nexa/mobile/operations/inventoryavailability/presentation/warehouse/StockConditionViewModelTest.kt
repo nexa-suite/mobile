@@ -1,10 +1,10 @@
 package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockConditionGateway
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockConditionAvailability
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockConditionGatewayResult
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockConditionGateway
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockConditionAvailability
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockConditionLot
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.VerifiedOperationsIdentity
 import java.math.BigDecimal
 import java.time.Instant

@@ -7,12 +7,12 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.salescommitment.application.commercial.FieldRequestRead
 import com.nexa.mobile.operations.salescommitment.application.commercial.FieldRequestStore
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
-import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestDraft
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestIntent
-import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestLine
-import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestRecord
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestReceipt
+import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestRecord
+import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestDraft
+import com.nexa.mobile.operations.salescommitment.domain.model.commercial.FieldRequestLine
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton

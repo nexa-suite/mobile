@@ -7,8 +7,6 @@ import com.nexa.mobile.operations.core.local.scoped.AndroidScopedMetadataStore
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
-import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.transport.CustomerNetworkResult
-import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.transport.NexaCustomerGateway
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.core.network.ProtectedMethod
 import com.nexa.mobile.operations.core.network.ProtectedRequest
@@ -16,10 +14,12 @@ import com.nexa.mobile.operations.core.network.ProtectedResult
 import com.nexa.mobile.operations.customerbuyerrelationships.application.commercial.FieldVisitGateway
 import com.nexa.mobile.operations.customerbuyerrelationships.application.commercial.FieldVisitResult
 import com.nexa.mobile.operations.customerbuyerrelationships.application.commercial.FieldVisitStore
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import com.nexa.mobile.operations.customerbuyerrelationships.domain.model.commercial.CustomerRelationship
 import com.nexa.mobile.operations.customerbuyerrelationships.domain.model.commercial.FieldVisitIntent
 import com.nexa.mobile.operations.customerbuyerrelationships.domain.model.commercial.FieldVisitRecord
+import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.transport.CustomerNetworkResult
+import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.transport.NexaCustomerGateway
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Instant
 import java.util.UUID

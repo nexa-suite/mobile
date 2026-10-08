@@ -9,29 +9,30 @@ import com.nexa.mobile.operations.core.local.scoped.AndroidScopedMetadataStore
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.LotSubstitutionCommandNetwork
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.LotSubstitutionNetworkOutcome as LotSubstitutionOutcome
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.LotSubstitutionRequestNetworkProjection
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.NexaLotSubstitutionGateway
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.NexaStockConditionGateway
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.StockConditionNetworkOutcome as StockConditionOutcome
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.LotSubstitutionGateway
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.LotSubstitutionMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingGateway
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionAlternative
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionCurrentFacts
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingAuthority
+import com.nexa.mobile.operations.fulfillmentdelivery.application.publicapi.CurrentPickingAllocationQuery
+import com.nexa.mobile.operations.fulfillmentdelivery.application.publicapi.CurrentPickingAllocationResult
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionAuthority
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionCurrentResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionIntent
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionIntentStatus
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionLookupResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionMetadataRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionMetadataWrite
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionRequest
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionResult
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionScopeIdentity
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.LotSubstitutionGateway
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.LotSubstitutionMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionAlternative
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionCurrentFacts
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionRequest
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionWork
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingAuthority
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingLoadResult
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingScopeIdentity
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.LotSubstitutionCommandNetwork
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.LotSubstitutionNetworkOutcome as LotSubstitutionOutcome
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.LotSubstitutionRequestNetworkProjection
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.NexaLotSubstitutionGateway
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.NexaStockConditionGateway
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.StockConditionNetworkOutcome as StockConditionOutcome
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -66,7 +67,7 @@ class AndroidLotSubstitutionMetadataBackend @Inject constructor(
 /** Encrypted local metadata retains only the exact command necessary for manual recovery. */
 class AppLotSubstitutionMetadataStore(private val backend: LotSubstitutionMetadataBackend) :
     LotSubstitutionMetadataStore {
-    override suspend fun load(scope: PickingScopeIdentity): LotSubstitutionMetadataRead =
+    override suspend fun load(scope: LotSubstitutionScopeIdentity): LotSubstitutionMetadataRead =
         locked(scope) {
             read(scope)
         } ?: LotSubstitutionMetadataRead.Unavailable
@@ -89,7 +90,7 @@ class AppLotSubstitutionMetadataStore(private val backend: LotSubstitutionMetada
         } ?: LotSubstitutionMetadataWrite.Unavailable
 
     override suspend fun markUnknown(
-        scope: PickingScopeIdentity,
+        scope: LotSubstitutionScopeIdentity,
         idempotencyKey: String
     ): LotSubstitutionMetadataWrite = locked(scope) {
         val current = (read(scope) as? LotSubstitutionMetadataRead.Available)?.value
@@ -103,7 +104,7 @@ class AppLotSubstitutionMetadataStore(private val backend: LotSubstitutionMetada
     } ?: LotSubstitutionMetadataWrite.Unavailable
 
     override suspend fun clear(
-        scope: PickingScopeIdentity,
+        scope: LotSubstitutionScopeIdentity,
         idempotencyKey: String
     ): LotSubstitutionMetadataWrite = locked(scope) {
         val current = read(scope)
@@ -119,7 +120,7 @@ class AppLotSubstitutionMetadataStore(private val backend: LotSubstitutionMetada
         }
     } ?: LotSubstitutionMetadataWrite.Unavailable
 
-    private suspend fun read(scope: PickingScopeIdentity): LotSubstitutionMetadataRead =
+    private suspend fun read(scope: LotSubstitutionScopeIdentity): LotSubstitutionMetadataRead =
         when (val result = safeBackend { backend.load(scope.toBackendScope()) }) {
             null -> LotSubstitutionMetadataRead.Unavailable
 
@@ -171,18 +172,20 @@ class AppLotSubstitutionMetadataStore(private val backend: LotSubstitutionMetada
         null
     }
 
-    private suspend fun <T> locked(scope: PickingScopeIdentity, block: suspend () -> T): T? =
-        locks.getOrPut(scope) { Mutex() }.withLock {
-            try {
-                block()
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                null
-            }
+    private suspend fun <T> locked(
+        scope: LotSubstitutionScopeIdentity,
+        block: suspend () -> T
+    ): T? = locks.getOrPut(scope) { Mutex() }.withLock {
+        try {
+            block()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
         }
+    }
 
-    private fun PickingScopeIdentity.toBackendScope() =
+    private fun LotSubstitutionScopeIdentity.toBackendScope() =
         ScopedMetadataScope(userId, tenantId, workspaceId, membershipId)
 
     private fun LotSubstitutionIntent.isValid(): Boolean {
@@ -226,7 +229,7 @@ class AppLotSubstitutionMetadataStore(private val backend: LotSubstitutionMetada
     )
 
     private fun LotSubstitutionIntentWire.toIntent() = LotSubstitutionIntent(
-        scope = PickingScopeIdentity(userId, tenantId, workspaceId, membershipId),
+        scope = LotSubstitutionScopeIdentity(userId, tenantId, workspaceId, membershipId),
         idempotencyKey = idempotencyKey,
         work = LotSubstitutionWork(
             fulfillmentId, allocationId, allocationLineId, skuId, catalogItemId, expectedLotId,
@@ -238,7 +241,7 @@ class AppLotSubstitutionMetadataStore(private val backend: LotSubstitutionMetada
         status = LotSubstitutionIntentStatus.valueOf(status)
     )
 
-    private fun LotSubstitutionIntentWire.matches(scope: PickingScopeIdentity): Boolean =
+    private fun LotSubstitutionIntentWire.matches(scope: LotSubstitutionScopeIdentity): Boolean =
         schemaVersion == 1 && userId == scope.userId && tenantId == scope.tenantId &&
             workspaceId == scope.workspaceId && membershipId == scope.membershipId
 
@@ -250,7 +253,7 @@ class AppLotSubstitutionMetadataStore(private val backend: LotSubstitutionMetada
     private fun String.isUuid(): Boolean = UUID_PATTERN.matches(this)
 
     private companion object {
-        val locks = ConcurrentHashMap<PickingScopeIdentity, Mutex>()
+        val locks = ConcurrentHashMap<LotSubstitutionScopeIdentity, Mutex>()
         val UUID_PATTERN = Regex("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
         val substitutionJson = Json { ignoreUnknownKeys = false }
     }
@@ -286,11 +289,11 @@ class OperationsLotSubstitutionGateway @Inject constructor(
     private val sessions: SessionCoordinator,
     private val stockCondition: NexaStockConditionGateway,
     private val substitutions: NexaLotSubstitutionGateway,
-    private val picking: PickingGateway
+    private val pickingAllocation: CurrentPickingAllocationQuery
 ) : LotSubstitutionGateway {
     override suspend fun alternatives(
         work: LotSubstitutionWork,
-        authority: PickingAuthority
+        authority: LotSubstitutionAuthority
     ): LotSubstitutionLookupResult {
         val before = authorize(authority, LOOKUP_PERMISSIONS)
         if (before !is Authorization.Current) return before.toLookupFailure()
@@ -335,7 +338,7 @@ class OperationsLotSubstitutionGateway @Inject constructor(
 
     override suspend fun request(
         intent: LotSubstitutionIntent,
-        authority: PickingAuthority
+        authority: LotSubstitutionAuthority
     ): LotSubstitutionResult {
         if (intent.scope != authority.scope) return LotSubstitutionResult.ContextInvalidated
         val before = authorize(authority, SUBSTITUTION_PERMISSIONS)
@@ -375,12 +378,12 @@ class OperationsLotSubstitutionGateway @Inject constructor(
 
     override suspend fun currentAllocation(
         work: LotSubstitutionWork,
-        authority: PickingAuthority
+        authority: LotSubstitutionAuthority
     ): LotSubstitutionCurrentResult {
         val before = authorize(authority, FULFILLMENT_READ_PERMISSIONS)
         if (before !is Authorization.Current) return before.toCurrentFailure()
         val loaded = try {
-            picking.load(work.fulfillmentId, authority)
+            pickingAllocation.current(work.fulfillmentId, authority.toPickingAuthority())
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -395,8 +398,8 @@ class OperationsLotSubstitutionGateway @Inject constructor(
             return authorityDriftCurrent(authority)
         }
         return when (loaded) {
-            is PickingLoadResult.Loaded -> {
-                val allocation = loaded.snapshot.allocation
+            is CurrentPickingAllocationResult.Loaded -> {
+                val allocation = loaded.allocation
                 if (allocation.allocationId != work.allocationId) {
                     LotSubstitutionCurrentResult.Current(
                         LotSubstitutionCurrentFacts(
@@ -424,23 +427,36 @@ class OperationsLotSubstitutionGateway @Inject constructor(
                 }
             }
 
-            is PickingLoadResult.AllocationUnavailable, PickingLoadResult.NotFound ->
-                LotSubstitutionCurrentResult.NotFound
+            CurrentPickingAllocationResult.NotFound -> LotSubstitutionCurrentResult.NotFound
 
-            PickingLoadResult.NetworkUnavailable -> LotSubstitutionCurrentResult.NetworkUnavailable
+            CurrentPickingAllocationResult.NetworkUnavailable ->
+                LotSubstitutionCurrentResult.NetworkUnavailable
 
-            PickingLoadResult.PermissionDenied -> LotSubstitutionCurrentResult.PermissionDenied
+            CurrentPickingAllocationResult.PermissionDenied ->
+                LotSubstitutionCurrentResult.PermissionDenied
 
-            PickingLoadResult.ContextInvalidated -> LotSubstitutionCurrentResult.ContextInvalidated
+            CurrentPickingAllocationResult.ContextInvalidated ->
+                LotSubstitutionCurrentResult.ContextInvalidated
 
-            PickingLoadResult.SessionInvalidated -> LotSubstitutionCurrentResult.SessionInvalidated
+            CurrentPickingAllocationResult.SessionInvalidated ->
+                LotSubstitutionCurrentResult.SessionInvalidated
 
-            PickingLoadResult.ServiceUnavailable -> LotSubstitutionCurrentResult.ServiceUnavailable
+            CurrentPickingAllocationResult.ServiceUnavailable ->
+                LotSubstitutionCurrentResult.ServiceUnavailable
         }
     }
 
+    private fun LotSubstitutionAuthority.toPickingAuthority() = PickingAuthority(
+        userId = userId,
+        tenantId = tenantId,
+        workspaceId = workspaceId,
+        membershipId = membershipId,
+        permissions = permissions,
+        authorityEpoch = authorityEpoch
+    )
+
     private suspend fun authorize(
-        authority: PickingAuthority,
+        authority: LotSubstitutionAuthority,
         required: Set<String>
     ): Authorization {
         if (sessions.sessionState.value !=
@@ -456,7 +472,7 @@ class OperationsLotSubstitutionGateway @Inject constructor(
     }
 
     private suspend fun currentAfter(
-        authority: PickingAuthority,
+        authority: LotSubstitutionAuthority,
         lease: AccessTokenLease,
         required: Set<String>
     ): Boolean = sessions.sessionState.value == SessionState.Active && sessions.isEpochCurrent(
@@ -465,37 +481,39 @@ class OperationsLotSubstitutionGateway @Inject constructor(
         sessions.verifiedSession.value?.matches(authority) == true &&
         authority.permissions.any(required::contains)
 
-    private fun VerifiedSession.matches(authority: PickingAuthority): Boolean =
+    private fun VerifiedSession.matches(authority: LotSubstitutionAuthority): Boolean =
         hasAuthorizedContext && userId == authority.userId && tenantId == authority.tenantId &&
             workspaceId == authority.workspaceId && membershipId == authority.membershipId &&
             permissions == authority.permissions
 
-    private suspend fun authorityDrift(authority: PickingAuthority): LotSubstitutionLookupResult =
-        when {
-            sessions.sessionState.value != SessionState.Active ->
-                LotSubstitutionLookupResult.SessionInvalidated
+    private suspend fun authorityDrift(
+        authority: LotSubstitutionAuthority
+    ): LotSubstitutionLookupResult = when {
+        sessions.sessionState.value != SessionState.Active ->
+            LotSubstitutionLookupResult.SessionInvalidated
 
-            sessions.verifiedSession.value?.matches(
-                authority
-            ) == true -> LotSubstitutionLookupResult.SessionInvalidated
+        sessions.verifiedSession.value?.matches(
+            authority
+        ) == true -> LotSubstitutionLookupResult.SessionInvalidated
 
-            else -> LotSubstitutionLookupResult.ContextInvalidated
-        }
+        else -> LotSubstitutionLookupResult.ContextInvalidated
+    }
 
-    private suspend fun authorityDriftCommand(authority: PickingAuthority): LotSubstitutionResult =
-        when {
-            sessions.sessionState.value != SessionState.Active ->
-                LotSubstitutionResult.SessionInvalidated
+    private suspend fun authorityDriftCommand(
+        authority: LotSubstitutionAuthority
+    ): LotSubstitutionResult = when {
+        sessions.sessionState.value != SessionState.Active ->
+            LotSubstitutionResult.SessionInvalidated
 
-            sessions.verifiedSession.value?.matches(
-                authority
-            ) == true -> LotSubstitutionResult.SessionInvalidated
+        sessions.verifiedSession.value?.matches(
+            authority
+        ) == true -> LotSubstitutionResult.SessionInvalidated
 
-            else -> LotSubstitutionResult.ContextInvalidated
-        }
+        else -> LotSubstitutionResult.ContextInvalidated
+    }
 
     private suspend fun authorityDriftCurrent(
-        authority: PickingAuthority
+        authority: LotSubstitutionAuthority
     ): LotSubstitutionCurrentResult = when {
         sessions.sessionState.value != SessionState.Active ->
             LotSubstitutionCurrentResult.SessionInvalidated
@@ -593,4 +611,4 @@ class OperationsLotSubstitutionGateway @Inject constructor(
 }
 
 private val substitutionJson = Json { ignoreUnknownKeys = false }
-private val substitutionLocks = ConcurrentHashMap<PickingScopeIdentity, Mutex>()
+private val substitutionLocks = ConcurrentHashMap<LotSubstitutionScopeIdentity, Mutex>()

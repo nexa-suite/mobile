@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.salescommitment.presentation.commercial
 
-import com.nexa.mobile.operations.core.designsystem.R as SharedR
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -27,6 +25,7 @@ import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.core.designsystem.R as SharedR
 import com.nexa.mobile.operations.salescommitment.application.commercial.isValidForSubmission
 import com.nexa.mobile.operations.salescommitment.presentation.R
 
@@ -50,13 +49,24 @@ fun FieldRequestScreen(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         TextButton(onClick = onBack) { Text(stringResource(SharedR.string.commercial_back)) }
-        Text(stringResource(R.string.field_request_title), style = MaterialTheme.typography.headlineSmall)
+        Text(
+            stringResource(R.string.field_request_title),
+            style = MaterialTheme.typography.headlineSmall
+        )
         Text(
             fieldRequestStatus(state),
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
         )
         state.record.intent?.receipt?.let { receipt ->
-            Text(stringResource(R.string.field_request_receipt, receipt.number, receipt.total, receipt.currency, receipt.version))
+            Text(
+                stringResource(
+                    R.string.field_request_receipt,
+                    receipt.number,
+                    receipt.total,
+                    receipt.currency,
+                    receipt.version
+                )
+            )
         }
         OutlinedTextField(
             draft.customerId,
@@ -163,7 +173,14 @@ fun FieldRequestScreen(
                 Text(stringResource(SharedR.string.field_request_retry))
             }
         }
-        if (state.status in setOf(FieldRequestStatus.Confirmed, FieldRequestStatus.PrepaidPending, FieldRequestStatus.Conflict, FieldRequestStatus.Rejected)) {
+        if (state.status in
+            setOf(
+                FieldRequestStatus.Confirmed,
+                FieldRequestStatus.PrepaidPending,
+                FieldRequestStatus.Conflict,
+                FieldRequestStatus.Rejected
+            )
+        ) {
             Button(onClick = viewModel::startNewDecision) {
                 Text(stringResource(R.string.field_request_new_decision))
             }
@@ -178,20 +195,35 @@ private fun fieldRequestStatus(state: FieldRequestState): String = when (state.s
         state.record.intent?.receiptId ?: stringResource(SharedR.string.commercial_catalog_missing)
     )
 
-    FieldRequestStatus.PrepaidPending -> stringResource(R.string.field_request_status_prepaid_pending)
+    FieldRequestStatus.PrepaidPending -> stringResource(
+        R.string.field_request_status_prepaid_pending
+    )
+
     FieldRequestStatus.Rejected -> stringResource(R.string.field_request_status_rejected)
+
     FieldRequestStatus.LegacyIntent -> stringResource(R.string.field_request_status_legacy)
+
     FieldRequestStatus.UnknownOutcome -> stringResource(R.string.field_request_status_unknown)
+
     FieldRequestStatus.Conflict -> stringResource(R.string.field_request_status_conflict)
+
     FieldRequestStatus.Changed -> stringResource(R.string.field_request_status_changed)
+
     FieldRequestStatus.Reviewed -> stringResource(R.string.field_request_status_reviewed)
+
     FieldRequestStatus.MetadataUnavailable ->
         stringResource(R.string.field_request_status_storage_unavailable)
+
     FieldRequestStatus.PermissionDenied ->
         stringResource(R.string.field_request_status_permission_denied)
+
     FieldRequestStatus.Unavailable -> stringResource(R.string.field_request_status_unavailable)
+
     FieldRequestStatus.Pending -> stringResource(R.string.field_request_status_pending)
+
     FieldRequestStatus.Reviewing -> stringResource(R.string.field_request_status_reviewing)
+
     FieldRequestStatus.Loading -> stringResource(R.string.field_request_status_loading)
+
     FieldRequestStatus.Draft -> stringResource(R.string.field_request_status_draft)
 }

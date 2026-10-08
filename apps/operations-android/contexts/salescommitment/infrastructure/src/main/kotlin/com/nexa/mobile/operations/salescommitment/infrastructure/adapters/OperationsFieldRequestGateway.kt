@@ -1,7 +1,7 @@
 package com.nexa.mobile.operations.salescommitment.infrastructure.adapters
 
-import com.nexa.mobile.operations.catalogcommercialpolicy.application.publicapi.CustomerOfferRead
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.publicapi.CustomerOfferQuery
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.publicapi.CustomerOfferRead
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor

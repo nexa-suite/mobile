@@ -4,8 +4,6 @@ import java.time.Instant
 
 const val MAX_LOAD_STOPS = 20
 
-
-
 val DELIVERY_LOAD_STATUSES = setOf(
     "DRAFT",
     "ASSIGNED",
@@ -14,8 +12,6 @@ val DELIVERY_LOAD_STATUSES = setOf(
     "DRIVER_ACCEPTED",
     "RESPONSIBILITY_TRANSFERRED"
 )
-
-
 
 data class DeliveryLoadStop(
     val fulfillmentId: String,
@@ -28,8 +24,6 @@ data class DeliveryLoadStop(
         require(position > 0 && deliveryVersion >= 0)
     }
 }
-
-
 
 data class DeliveryLoadCompatibilityAttestation(
     val capacitySufficient: Boolean,
@@ -53,8 +47,6 @@ data class DeliveryLoadCompatibilityAttestation(
     }
 }
 
-
-
 data class DeliveryLoadHistoryEvent(
     val eventType: String,
     val actorMembershipId: String,
@@ -64,8 +56,6 @@ data class DeliveryLoadHistoryEvent(
     val previousStopOrder: List<String>,
     val newStopOrder: List<String>
 )
-
-
 
 data class DeliveryLoad(
     val id: String,
@@ -87,13 +77,19 @@ data class DeliveryLoad(
     val orderedStops: List<DeliveryLoadStop> get() = stops.sortedBy(DeliveryLoadStop::position)
 
     init {
-        require(isValidOpaqueIdentifier(id) && isValidOpaqueIdentifier(originWarehouseId) && version >= 0)
+        require(
+            isValidOpaqueIdentifier(id) && isValidOpaqueIdentifier(originWarehouseId) &&
+                version >= 0
+        )
         require(status in DELIVERY_LOAD_STATUSES)
         require(stops.size in 2..MAX_LOAD_STOPS)
         require(stops.map { it.fulfillmentId.lowercase() }.distinct().size == stops.size)
         require(stops.map { it.deliveryId.lowercase() }.distinct().size == stops.size)
         require(stops.map { it.position }.sorted() == (1..stops.size).toList())
-        require(assignedDriverMembershipId == null || isValidOpaqueIdentifier(assignedDriverMembershipId))
+        require(
+            assignedDriverMembershipId == null ||
+                isValidOpaqueIdentifier(assignedDriverMembershipId)
+        )
         require((offeredByMembershipId == null) == (offeredAt == null))
         require(offeredByMembershipId == null || isValidOpaqueIdentifier(offeredByMembershipId))
         require((dispatchConfirmedByMembershipId == null) == (dispatchConfirmedAt == null))
@@ -103,7 +99,8 @@ data class DeliveryLoad(
         )
         require((driverAcceptedByMembershipId == null) == (driverAcceptedAt == null))
         require(
-            driverAcceptedByMembershipId == null || isValidOpaqueIdentifier(driverAcceptedByMembershipId)
+            driverAcceptedByMembershipId == null ||
+                isValidOpaqueIdentifier(driverAcceptedByMembershipId)
         )
         require(
             status != "RESPONSIBILITY_TRANSFERRED" ||
@@ -114,8 +111,6 @@ data class DeliveryLoad(
     override fun toString(): String =
         "DeliveryLoad(status=$status, version=$version, stops=${stops.size})"
 }
-
-
 
 data class DeliveryLoadDriverCandidate(val membershipId: String, val displayName: String) {
     init {

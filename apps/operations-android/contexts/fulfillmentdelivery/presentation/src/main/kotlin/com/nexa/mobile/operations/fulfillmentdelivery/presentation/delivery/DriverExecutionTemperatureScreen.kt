@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,13 +19,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureDisposition as ExecutionTemperatureDisposition
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureMode
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R.string.execution_temperature_disposition_reason as DispositionReasonLabel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R.string.execution_temperature_report_excursion as ReportExcursionLabel
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureCommandStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureEvidenceStatus as TemperatureEvidenceStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureLoadStatus as LoadStatus
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R.string.execution_temperature_disposition_reason as DispositionReasonLabel
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R.string.execution_temperature_report_excursion as ReportExcursionLabel
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureDisposition as ExecutionTemperatureDisposition
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureMode
 
 @Composable
 fun DriverExecutionTemperatureScreen(

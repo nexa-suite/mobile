@@ -8,7 +8,6 @@ kotlin { jvmToolchain(17) }
 ktlint { version.set("1.8.0") }
 
 dependencies {
-    api(project(":contexts:fulfillmentdelivery:application"))
     api(project(":contexts:inventoryavailability:domain"))
     api(project(":contexts:tenantaccessgovernance:domain"))
     implementation(libs.coroutines.core)

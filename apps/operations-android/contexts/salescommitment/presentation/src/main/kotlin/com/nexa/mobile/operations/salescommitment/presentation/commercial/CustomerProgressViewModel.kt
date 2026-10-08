@@ -2,12 +2,12 @@ package com.nexa.mobile.operations.salescommitment.presentation.commercial
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.creditreceivables.domain.model.commercial.CustomerCredit
 import com.nexa.mobile.operations.salescommitment.application.commercial.CustomerProgressGateway
 import com.nexa.mobile.operations.salescommitment.application.commercial.CustomerProgressResult
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
-import com.nexa.mobile.operations.salescommitment.domain.model.commercial.CustomerCommitment
-import com.nexa.mobile.operations.creditreceivables.domain.model.commercial.CustomerCredit
 import com.nexa.mobile.operations.salescommitment.application.commercial.ProgressStatus
+import com.nexa.mobile.operations.salescommitment.domain.model.commercial.CustomerCommitment
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
 import java.time.Instant
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

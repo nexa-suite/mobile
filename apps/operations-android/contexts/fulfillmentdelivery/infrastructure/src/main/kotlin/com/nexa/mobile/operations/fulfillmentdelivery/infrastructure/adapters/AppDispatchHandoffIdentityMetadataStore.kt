@@ -5,9 +5,9 @@ import com.nexa.mobile.operations.core.local.scoped.AndroidScopedMetadataStore
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoffIdentityMetadataStore as HandoffIdentityMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoffIdentityCommand as HandoffIdentityCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoffIdentityMetadataStore as HandoffIdentityMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoffMetadataRead as HandoffMetadataRead
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoffMetadataWrite as HandoffMetadataWrite
 import dagger.Module

@@ -3,8 +3,6 @@ package com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch
 internal val BUSINESS_OPERATIONAL_EXCEPTION_STATUSES =
     setOf("OPEN", "CLAIMED", "UNDER_REVIEW", "RESOLVED", "CLOSED")
 
-
-
 data class BusinessOperationalException(
     val id: String,
     val deliveryId: String,
@@ -57,8 +55,6 @@ data class BusinessOperationalException(
     }
 }
 
-
-
 data class BusinessOperationalExceptionsSnapshot(
     val asOf: String,
     val exceptions: List<BusinessOperationalException>
@@ -68,8 +64,6 @@ data class BusinessOperationalExceptionsSnapshot(
         require(exceptions.map { it.id.lowercase() }.distinct().size == exceptions.size)
     }
 }
-
-
 
 data class BusinessOperationalExceptionActor(
     val membershipId: String,

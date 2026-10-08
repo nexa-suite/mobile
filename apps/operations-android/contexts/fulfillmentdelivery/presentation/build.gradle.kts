@@ -27,7 +27,6 @@ ktlint { version.set("1.8.0") }
 dependencies {
     api(project(":contexts:fulfillmentdelivery:application"))
     api(project(":contexts:fulfillmentdelivery:domain"))
-    api(project(":contexts:inventoryavailability:domain"))
     api(project(":contexts:tenantaccessgovernance:domain"))
     implementation(project(":core:designsystem"))
     testImplementation(project(":contexts:fulfillmentdelivery:infrastructure"))

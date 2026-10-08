@@ -25,7 +25,6 @@ android {
 ktlint { version.set("1.8.0") }
 
 dependencies {
-    api(project(":contexts:fulfillmentdelivery:application"))
     api(project(":contexts:inventoryavailability:application"))
     api(project(":contexts:inventoryavailability:domain"))
     api(project(":contexts:tenantaccessgovernance:domain"))

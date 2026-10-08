@@ -10,25 +10,25 @@ import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaOperationalDeliveryInstructionsGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.OperationalDeliveryInstructionsNetworkResult as DeliveryInstructionsNetworkResult
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionMetadataStore as InstructionMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionsGateway as InstructionsGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDeliveryInstruction as Instruction
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionIntent as InstructionIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionIntentStatus as InstructionIntentStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionMetadataRead as InstructionMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionMetadataStore as InstructionMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionMetadataWrite as InstructionMetadataWrite
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionScopeIdentity as InstructionScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionsGateway as InstructionsGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionsGatewayResult as InstructionsGatewayResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDeliveryInstruction as Instruction
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDeliveryInstructionKind as InstructionKind
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDeliveryInstructionLimits
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionMetadataRead as InstructionMetadataRead
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionMetadataWrite as InstructionMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDeliveryInstructionReceipt as InstructionReceipt
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionScopeIdentity as InstructionScopeIdentity
-import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryInstructionsGatewayResult as InstructionsGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDeliveryInstructionsSnapshot as InstructionsSnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.JsonDispatchRequestBodyCodec
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaOperationalDeliveryInstructionsGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.OperationalDeliveryInstructionsNetworkResult as DeliveryInstructionsNetworkResult
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -311,8 +311,7 @@ class OperationsDispatchDeliveryInstructionsGateway @Inject constructor(
 class AppDispatchDeliveryInstructionMetadataStore(
     private val local: ScopedMetadataStore,
     private val requestBodyCodec: JsonDispatchRequestBodyCodec
-) :
-    InstructionMetadataStore {
+) : InstructionMetadataStore {
     override suspend fun loadIntent(
         scope: InstructionScopeIdentity,
         deliveryId: String

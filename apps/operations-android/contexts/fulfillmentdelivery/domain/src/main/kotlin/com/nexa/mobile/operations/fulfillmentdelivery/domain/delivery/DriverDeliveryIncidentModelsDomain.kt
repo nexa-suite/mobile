@@ -9,7 +9,6 @@ data class DriverIncidentCurrentDelivery(
 
 /** Ephemeral native-picker binding. It carries no access token or server authority. */
 
-
 enum class DriverIncidentType {
     DELAY,
     INCOMPLETE_INSTRUCTION,
@@ -19,8 +18,6 @@ enum class DriverIncidentType {
     TEMPERATURE_EXCURSION,
     SAFETY_COMPROMISING_DAMAGE
 }
-
-
 
 data class DriverIncidentSummary(
     val incidentId: String,
@@ -45,8 +42,6 @@ data class DriverIncidentSummary(
             "EVIDENCIA_VINCULADA_PARA_REVISION"
         }
 }
-
-
 
 data class DriverIncidentEvidenceProjection(
     val evidenceId: String,

@@ -2,29 +2,28 @@
 
 package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
-import com.nexa.mobile.operations.inventoryavailability.infrastructure.serialization.warehouse.CanonicalInboundDiscrepancyPayloadCodec
-
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyDraftStore
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyEvidenceArtifactStore
-import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyGateway
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyArtifactIdentity
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyArtifactRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyArtifactWrite
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyAuthority
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.InboundDiscrepancyCase
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyCreateCommand
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyDraft
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyDraftRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyDraftWrite
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyEvidenceCandidate
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyEvidenceStatusResult
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.InboundDiscrepancyKind
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyMutationResult as DiscrepancyMutationResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyPendingAction
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyScope
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancySelectionContext
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancySubmitCommand
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyUploadCommand
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyDraftStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyEvidenceArtifactStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyGateway
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.InboundDiscrepancyCase
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.InboundDiscrepancyKind
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.serialization.warehouse.CanonicalInboundDiscrepancyPayloadCodec
 import java.time.Instant
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest

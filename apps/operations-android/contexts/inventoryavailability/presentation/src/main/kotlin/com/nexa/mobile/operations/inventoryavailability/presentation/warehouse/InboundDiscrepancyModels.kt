@@ -2,8 +2,8 @@ package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
 import androidx.compose.runtime.Immutable
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyEvidenceArtifact
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.InboundDiscrepancyKind
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyPendingAction
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.InboundDiscrepancyKind
 
 enum class InboundDiscrepancyMetadataStatus {
     Loading,

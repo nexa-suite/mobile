@@ -17,8 +17,6 @@ data class DeliveryLoadScopeIdentity(
     override fun toString(): String = "DeliveryLoadScopeIdentity(REDACTED)"
 }
 
-
-
 enum class DeliveryLoadCommandAction {
     CREATE,
     REORDER,
@@ -29,14 +27,10 @@ enum class DeliveryLoadCommandAction {
     PLAN_WINDOW
 }
 
-
-
 enum class DeliveryLoadCommandIntentStatus {
     Pending,
     UnknownOutcome
 }
-
-
 
 data class DeliveryLoadCommand(
     val scope: DeliveryLoadScopeIdentity,
@@ -78,14 +72,10 @@ data class DeliveryLoadCommand(
         "DeliveryLoadCommand(action=$action, version=$expectedVersion, key=REDACTED, body=REDACTED)"
 }
 
-
-
 sealed interface DeliveryLoadCommandMetadataRead {
     data class Available(val command: DeliveryLoadCommand?) : DeliveryLoadCommandMetadataRead
     data object Unavailable : DeliveryLoadCommandMetadataRead
 }
-
-
 
 enum class DeliveryLoadCommandMetadataWrite {
     Saved,
@@ -93,8 +83,6 @@ enum class DeliveryLoadCommandMetadataWrite {
     Stale,
     Unavailable
 }
-
-
 
 sealed interface DeliveryLoadGatewayResult {
     data class Loaded(

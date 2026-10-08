@@ -5,15 +5,15 @@ import com.nexa.mobile.operations.core.local.scoped.AndroidScopedMetadataStore
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeIntentMetadata as OutcomeIntentMetadata
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeIntentStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeKind
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeLineDecision
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeMetadataRead
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeMetadataWrite
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
