@@ -35,8 +35,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionKind as DeliveryInstructionKind
 import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionsStatus as DeliveryInstructionsStatus
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchDeliveryInstruction
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchDeliveryInstructionKind as DeliveryInstructionKind
 
 @Composable
 fun DispatchDeliveryInstructionsScreen(

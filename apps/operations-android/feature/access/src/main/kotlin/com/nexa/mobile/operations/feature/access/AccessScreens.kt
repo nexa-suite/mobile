@@ -49,6 +49,7 @@ import com.nexa.mobile.operations.core.designsystem.NexaStatePanel
 import com.nexa.mobile.operations.core.designsystem.NexaTextField
 import com.nexa.mobile.operations.core.designsystem.NexaTopAppBar
 import com.nexa.mobile.operations.core.designsystem.R as DesignR
+import com.nexa.mobile.operations.feature.access.model.WorkforceContextSummary
 
 @Composable
 fun AccessScreen(

@@ -1,6 +1,9 @@
 package com.nexa.mobile.operations.feature.warehouse
 
 import androidx.lifecycle.ViewModel
+import com.nexa.mobile.operations.feature.warehouse.model.FulfillmentPickingSnapshot
+import com.nexa.mobile.operations.feature.warehouse.model.PickingAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.PickingWorkItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 

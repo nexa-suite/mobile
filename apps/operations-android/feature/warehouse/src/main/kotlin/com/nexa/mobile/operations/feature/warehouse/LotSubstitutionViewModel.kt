@@ -2,6 +2,21 @@ package com.nexa.mobile.operations.feature.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.feature.warehouse.application.LotSubstitutionGateway
+import com.nexa.mobile.operations.feature.warehouse.application.LotSubstitutionMetadataStore
+import com.nexa.mobile.operations.feature.warehouse.model.LotSubstitutionCurrentResult
+import com.nexa.mobile.operations.feature.warehouse.model.LotSubstitutionIntent
+import com.nexa.mobile.operations.feature.warehouse.model.LotSubstitutionIntentStatus
+import com.nexa.mobile.operations.feature.warehouse.model.LotSubstitutionLookupResult
+import com.nexa.mobile.operations.feature.warehouse.model.LotSubstitutionMetadataRead
+import com.nexa.mobile.operations.feature.warehouse.model.LotSubstitutionMetadataWrite
+import com.nexa.mobile.operations.feature.warehouse.model.LotSubstitutionRequest
+import com.nexa.mobile.operations.feature.warehouse.model.LotSubstitutionResult
+import com.nexa.mobile.operations.feature.warehouse.model.LotSubstitutionWork
+import com.nexa.mobile.operations.feature.warehouse.model.PickingAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.isEligibleFor
+import com.nexa.mobile.operations.feature.warehouse.model.isUsable
+import com.nexa.mobile.operations.feature.warehouse.model.isValidSubstitutionReason
 import java.math.BigDecimal
 import java.util.UUID
 import kotlinx.coroutines.CancellationException

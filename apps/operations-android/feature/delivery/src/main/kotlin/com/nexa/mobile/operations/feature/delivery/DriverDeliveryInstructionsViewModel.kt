@@ -2,12 +2,22 @@ package com.nexa.mobile.operations.feature.delivery
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionAcknowledgementResult as InstructionAcknowledgementResult
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionAcknowledgementStatus as InstructionAcknowledgementStatus
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionIntentStatus as InstructionIntentStatus
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionsLoadResult as InstructionsLoadResult
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionsLoadStatus as InstructionsLoadStatus
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionsUiState as InstructionsUiState
+import com.nexa.mobile.operations.feature.delivery.application.DriverDeliveryInstructionMetadataStore
+import com.nexa.mobile.operations.feature.delivery.application.DriverDeliveryInstructionsGateway
+import com.nexa.mobile.operations.feature.delivery.model.DriverAttemptScopeIdentity
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryAuthority
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryInstructionAcknowledgementCommand
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryInstructionAcknowledgementResult as InstructionAcknowledgementResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryInstructionIntentMetadata
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryInstructionIntentStatus as InstructionIntentStatus
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryInstructionMetadataRead
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryInstructionMetadataWrite
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryInstructionsLoadResult as InstructionsLoadResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryInstructionsSnapshot
+import com.nexa.mobile.operations.feature.delivery.model.driverDeliveryInstructionAcknowledgementBody
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException

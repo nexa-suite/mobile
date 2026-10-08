@@ -1,6 +1,11 @@
 package com.nexa.mobile.operations.feature.warehouse
 
-import androidx.lifecycle.ViewModel
+import com.nexa.mobile.operations.feature.warehouse.application.WarehouseGateway
+import com.nexa.mobile.operations.feature.warehouse.model.ActiveOperationsContext
+import com.nexa.mobile.operations.feature.warehouse.model.CandidateConfirmationResult
+import com.nexa.mobile.operations.feature.warehouse.model.ConfirmedSkuProjection
+import com.nexa.mobile.operations.feature.warehouse.model.ProductCandidate
+import com.nexa.mobile.operations.feature.warehouse.model.ProductSearchResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -451,7 +456,7 @@ class WarehouseViewModelTest {
             sku = "SKU-DEMO-001"
         )
 
-        fun confirmed(candidate: ProductCandidate, epoch: Long) = ConfirmedSkuUiState(
+        fun confirmed(candidate: ProductCandidate, epoch: Long) = ConfirmedSkuProjection(
             candidateKey = candidate.key,
             productDisplayName = candidate.productDisplayName,
             variant = candidate.brandOrVariant,

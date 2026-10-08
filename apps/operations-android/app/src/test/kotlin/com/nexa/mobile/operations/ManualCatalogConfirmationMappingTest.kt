@@ -1,9 +1,10 @@
 package com.nexa.mobile.operations
 
 import com.nexa.mobile.operations.core.network.CatalogDetailProjection
-import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
-import com.nexa.mobile.operations.feature.warehouse.CandidateConfirmationResult
-import com.nexa.mobile.operations.feature.warehouse.ProductCandidate
+import com.nexa.mobile.operations.data.mapConfirmedCatalogDetail
+import com.nexa.mobile.operations.feature.warehouse.model.ActiveOperationsContext
+import com.nexa.mobile.operations.feature.warehouse.model.CandidateConfirmationResult
+import com.nexa.mobile.operations.feature.warehouse.model.ProductCandidate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue

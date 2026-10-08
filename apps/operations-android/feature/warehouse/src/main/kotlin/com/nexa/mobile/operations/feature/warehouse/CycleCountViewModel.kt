@@ -2,6 +2,20 @@ package com.nexa.mobile.operations.feature.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.feature.warehouse.application.CycleCountGateway
+import com.nexa.mobile.operations.feature.warehouse.application.CycleCountMetadataStore
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountCorrection
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountCorrectionIntent
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountIntent
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountIntentStatus
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountLookupResult
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountLot
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountMetadataRead
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountMetadataWrite
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountRecord
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountResult
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountStoredWork
 import java.math.BigDecimal
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -834,6 +848,10 @@ class CycleCountViewModel(
     ): Boolean = activation == expectedActivation && activeAuthority == authority
 
     private fun CycleCountStoredWork.isValid(): Boolean {
+        val countIntent = this.countIntent
+        val recordedCount = this.recordedCount
+        val correctionIntent = this.correctionIntent
+        val appliedCorrection = this.appliedCorrection
         val intentQuantity = countIntent?.observedQuantityText?.toBigDecimalOrNull()
         return observedQuantityText.length <= 64 &&
             (
@@ -843,9 +861,9 @@ class CycleCountViewModel(
             (
                 countIntent == null || (
                     countIntent.scope == scope && countIntent.lot.id.isUuid() &&
-                        intentQuantity?.isValidStockQuantity() == true &&
-                        countIntent.frozenBody ==
-                        countBody(requireNotNull(intentQuantity), countIntent.lot.unit)
+                        intentQuantity?.takeIf { it.isValidStockQuantity() }?.let { quantity ->
+                            countIntent.frozenBody == countBody(quantity, countIntent.lot.unit)
+                        } == true
                     )
                 ) &&
             (

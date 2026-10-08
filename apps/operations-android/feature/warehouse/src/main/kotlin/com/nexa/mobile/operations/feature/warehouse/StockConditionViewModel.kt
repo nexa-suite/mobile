@@ -2,6 +2,10 @@ package com.nexa.mobile.operations.feature.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.feature.warehouse.application.StockConditionGateway
+import com.nexa.mobile.operations.feature.warehouse.model.ActiveOperationsContext
+import com.nexa.mobile.operations.feature.warehouse.model.StockConditionGatewayResult
+import com.nexa.mobile.operations.feature.warehouse.model.StockConditionLot
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow

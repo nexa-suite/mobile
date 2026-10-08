@@ -4,6 +4,21 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexa.mobile.operations.feature.dispatch.BusinessOperationalExceptionCommandStatus as ExceptionCommandStatus
 import com.nexa.mobile.operations.feature.dispatch.BusinessOperationalExceptionsStatus as OperationalExceptionsStatus
+import com.nexa.mobile.operations.feature.dispatch.application.BusinessOperationalExceptionMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.application.BusinessOperationalExceptionsGateway
+import com.nexa.mobile.operations.feature.dispatch.model.BusinessOperationalException
+import com.nexa.mobile.operations.feature.dispatch.model.BusinessOperationalExceptionAction
+import com.nexa.mobile.operations.feature.dispatch.model.BusinessOperationalExceptionActor
+import com.nexa.mobile.operations.feature.dispatch.model.BusinessOperationalExceptionAssigneesResult
+import com.nexa.mobile.operations.feature.dispatch.model.BusinessOperationalExceptionAuthority
+import com.nexa.mobile.operations.feature.dispatch.model.BusinessOperationalExceptionCommand
+import com.nexa.mobile.operations.feature.dispatch.model.BusinessOperationalExceptionIntent
+import com.nexa.mobile.operations.feature.dispatch.model.BusinessOperationalExceptionIntentStatus
+import com.nexa.mobile.operations.feature.dispatch.model.BusinessOperationalExceptionMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.model.BusinessOperationalExceptionMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.model.BusinessOperationalExceptionsGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.model.BusinessOperationalExceptionsSnapshot
+import com.nexa.mobile.operations.feature.dispatch.model.businessOperationalExceptionRequestBody
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow

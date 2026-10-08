@@ -4,10 +4,27 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexa.mobile.operations.feature.delivery.DriverExecutionTemperatureCommandStatus as TemperatureCommandStatus
 import com.nexa.mobile.operations.feature.delivery.DriverExecutionTemperatureEvidenceStatus as TemperatureEvidenceStatus
-import com.nexa.mobile.operations.feature.delivery.DriverExecutionTemperatureIntentStatus as TemperatureIntentStatus
 import com.nexa.mobile.operations.feature.delivery.DriverExecutionTemperatureLoadStatus as TemperatureLoadStatus
-import com.nexa.mobile.operations.feature.delivery.DriverExecutionTemperatureMode as ExecutionTemperatureMode
-import com.nexa.mobile.operations.feature.delivery.DriverExecutionTemperatureMutationResult as TemperatureMutationResult
+import com.nexa.mobile.operations.feature.delivery.application.DriverExecutionTemperatureGateway
+import com.nexa.mobile.operations.feature.delivery.application.DriverExecutionTemperatureMetadataStore
+import com.nexa.mobile.operations.feature.delivery.application.DriverIncidentGateway
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryAuthority
+import com.nexa.mobile.operations.feature.delivery.model.DriverExecutionTemperatureCommand
+import com.nexa.mobile.operations.feature.delivery.model.DriverExecutionTemperatureDisposition
+import com.nexa.mobile.operations.feature.delivery.model.DriverExecutionTemperatureIntent
+import com.nexa.mobile.operations.feature.delivery.model.DriverExecutionTemperatureIntentStatus as TemperatureIntentStatus
+import com.nexa.mobile.operations.feature.delivery.model.DriverExecutionTemperatureLoadResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverExecutionTemperatureMetadataRead
+import com.nexa.mobile.operations.feature.delivery.model.DriverExecutionTemperatureMetadataWrite
+import com.nexa.mobile.operations.feature.delivery.model.DriverExecutionTemperatureMode as ExecutionTemperatureMode
+import com.nexa.mobile.operations.feature.delivery.model.DriverExecutionTemperatureMutationResult as TemperatureMutationResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverExecutionTemperatureReading
+import com.nexa.mobile.operations.feature.delivery.model.DriverExecutionTemperatureSnapshot
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentEvidenceResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentSummary
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentType
+import com.nexa.mobile.operations.feature.delivery.model.driverExecutionTemperatureDispositionBody
+import com.nexa.mobile.operations.feature.delivery.model.driverExecutionTemperatureReadingBody
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID

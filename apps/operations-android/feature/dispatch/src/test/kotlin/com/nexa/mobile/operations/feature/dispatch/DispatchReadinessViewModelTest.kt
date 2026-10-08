@@ -1,5 +1,11 @@
 package com.nexa.mobile.operations.feature.dispatch
 
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchReadinessGateway
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityContext
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchReadiness
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchReadinessGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchReadinessLine
 import java.math.BigDecimal
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred

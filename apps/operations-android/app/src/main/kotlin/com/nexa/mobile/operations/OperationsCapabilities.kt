@@ -3,7 +3,7 @@ package com.nexa.mobile.operations
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.feature.access.AccessStage
 import com.nexa.mobile.operations.feature.access.AccessUiState
-import com.nexa.mobile.operations.feature.access.PermissionHint
+import com.nexa.mobile.operations.feature.access.model.PermissionHint
 import com.nexa.mobile.operations.feature.warehouse.ProductScannerUiState
 import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
 import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute

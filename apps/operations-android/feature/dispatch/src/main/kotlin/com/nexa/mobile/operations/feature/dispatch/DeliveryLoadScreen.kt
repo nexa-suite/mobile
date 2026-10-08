@@ -391,13 +391,12 @@ fun DeliveryLoadScreen(
                                     load.orderedStops.size
                                 )
                             )
-                            if (load.assignedDriverMembershipId !=
-                                null
-                            ) {
+                            val assignedDriverMembershipId = load.assignedDriverMembershipId
+                            if (assignedDriverMembershipId != null) {
                                 Text(
                                     stringResource(
                                         R.string.delivery_load_driver_id,
-                                        load.assignedDriverMembershipId
+                                        assignedDriverMembershipId
                                     )
                                 )
                             }

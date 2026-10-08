@@ -1,5 +1,22 @@
 package com.nexa.mobile.operations.feature.dispatch
 
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchHandoverGateway
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchHandoverMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityContext
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoverCommand
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoverGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoverIntent
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoverMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoverMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoverReceipt
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoverSnapshot
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsAllocation
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsCheck
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsIntentStatus
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsScopeIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchReadiness
+import com.nexa.mobile.operations.feature.dispatch.model.PreparedFulfillmentDriverAssignment
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent

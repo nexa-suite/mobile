@@ -2,6 +2,21 @@
 
 package com.nexa.mobile.operations.feature.warehouse
 
+import com.nexa.mobile.operations.feature.warehouse.application.CycleCountGateway
+import com.nexa.mobile.operations.feature.warehouse.application.CycleCountMetadataStore
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountCorrection
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountCorrectionIntent
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountIntent
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountIntentStatus
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountLookupResult
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountLot
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountMetadataRead
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountMetadataWrite
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountRecord
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountResult
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountScope
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountStoredWork
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals

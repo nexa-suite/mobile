@@ -32,6 +32,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchReadiness
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 
@@ -373,11 +374,11 @@ private fun ReadinessDetail(item: DispatchReadiness, onClose: () -> Unit) {
                     yesNo(item.pickingEvidenceComplete)
                 )
             )
-            if (item.deliveryId != null) {
+            item.deliveryId?.let { deliveryId ->
                 Text(
                     stringResource(
                         R.string.dispatch_readiness_delivery,
-                        item.deliveryId,
+                        deliveryId,
                         item.deliveryStatus.orEmpty()
                     )
                 )

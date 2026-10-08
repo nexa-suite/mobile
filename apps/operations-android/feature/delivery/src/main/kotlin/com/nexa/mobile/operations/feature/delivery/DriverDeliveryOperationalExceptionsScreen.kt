@@ -32,6 +32,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionCommandStatus as ExceptionCommandStatus
+import com.nexa.mobile.operations.feature.delivery.model.DRIVER_WARNING_RESOLUTION_MAX_CHARS
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalException
 
 @Composable
 fun DriverDeliveryOperationalExceptionsScreen(

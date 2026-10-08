@@ -2,6 +2,19 @@ package com.nexa.mobile.operations.feature.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.feature.warehouse.application.DispositionGateway
+import com.nexa.mobile.operations.feature.warehouse.application.DispositionMetadataStore
+import com.nexa.mobile.operations.feature.warehouse.model.DispositionAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.DispositionDraftMetadata
+import com.nexa.mobile.operations.feature.warehouse.model.DispositionGatewayResult
+import com.nexa.mobile.operations.feature.warehouse.model.DispositionIntentMetadata
+import com.nexa.mobile.operations.feature.warehouse.model.DispositionIntentMetadataStatus
+import com.nexa.mobile.operations.feature.warehouse.model.DispositionLotFacts
+import com.nexa.mobile.operations.feature.warehouse.model.DispositionMetadataRead
+import com.nexa.mobile.operations.feature.warehouse.model.DispositionMetadataWrite
+import com.nexa.mobile.operations.feature.warehouse.model.LotDispositionAction
+import com.nexa.mobile.operations.feature.warehouse.model.LotDispositionCommand
+import com.nexa.mobile.operations.feature.warehouse.model.PartialDispositionEvaluation
 import java.math.BigDecimal
 import java.util.UUID
 import kotlinx.coroutines.CancellationException

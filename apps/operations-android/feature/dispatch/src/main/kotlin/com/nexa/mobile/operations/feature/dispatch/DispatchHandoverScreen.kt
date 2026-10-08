@@ -35,6 +35,7 @@ fun DispatchHandoverScreen(
         }
         Text(stringResource(statusLabel(state.status)))
         state.snapshot?.let { snapshot ->
+            val outgoingCheck = snapshot.outgoingCheck
             Text(
                 stringResource(
                     R.string.dispatch_handover_versions,
@@ -52,7 +53,7 @@ fun DispatchHandoverScreen(
             Text(
                 stringResource(
                     R.string.dispatch_handover_check,
-                    if (snapshot.outgoingCheck?.current == true && snapshot.outgoingCheck.matches) {
+                    if (outgoingCheck?.current == true && outgoingCheck.matches) {
                         stringResource(R.string.dispatch_handover_confirmed)
                     } else {
                         stringResource(R.string.dispatch_handover_missing)

@@ -3,12 +3,12 @@ package com.nexa.mobile.operations
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.feature.access.AccessStage
 import com.nexa.mobile.operations.feature.access.AccessUiState
-import com.nexa.mobile.operations.feature.access.PermissionHint
-import com.nexa.mobile.operations.feature.access.VerifiedContextAuthority
-import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
-import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
-import com.nexa.mobile.operations.feature.warehouse.VerifiedOperationsIdentity
+import com.nexa.mobile.operations.feature.access.model.PermissionHint
+import com.nexa.mobile.operations.feature.access.model.VerifiedContextAuthority
+import com.nexa.mobile.operations.feature.access.model.WorkforceContextSummary
 import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
+import com.nexa.mobile.operations.feature.warehouse.model.ActiveOperationsContext
+import com.nexa.mobile.operations.feature.warehouse.model.VerifiedOperationsIdentity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull

@@ -32,6 +32,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureEvidenceFacts
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureEvidenceSubject
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureEvidenceSubjectType
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureEvidenceUnit
 import java.math.BigDecimal
 
 @Composable

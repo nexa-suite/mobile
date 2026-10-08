@@ -2,6 +2,11 @@ package com.nexa.mobile.operations.feature.warehouse
 
 import com.nexa.mobile.operations.core.device.scanner.ProductCodeCandidate
 import com.nexa.mobile.operations.core.device.scanner.ProductCodeScannerEvent
+import com.nexa.mobile.operations.feature.warehouse.application.ProductScannerGateway
+import com.nexa.mobile.operations.feature.warehouse.model.ActiveOperationsContext
+import com.nexa.mobile.operations.feature.warehouse.model.ConfirmedScannedSku
+import com.nexa.mobile.operations.feature.warehouse.model.ProductScannerResolution
+import com.nexa.mobile.operations.feature.warehouse.model.ScannerIdentifierType
 import java.util.UUID
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -11,7 +16,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 

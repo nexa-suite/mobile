@@ -1,6 +1,9 @@
 package com.nexa.mobile.operations.feature.warehouse
 
 import androidx.compose.runtime.Immutable
+import com.nexa.mobile.operations.feature.warehouse.model.ActiveOperationsContext
+import com.nexa.mobile.operations.feature.warehouse.model.ConfirmedSkuProjection
+import com.nexa.mobile.operations.feature.warehouse.model.ProductCandidate
 
 enum class WarehouseRoute {
     WorkEntry,
@@ -53,60 +56,6 @@ enum class ProductSearchStatus {
 }
 
 @Immutable
-data class VerifiedOperationsIdentity(
-    val userId: String,
-    val tenantId: String,
-    val workspaceId: String,
-    val membershipId: String,
-    val permissions: Set<String>
-) {
-    override fun toString(): String = "VerifiedOperationsIdentity(REDACTED)"
-}
-
-@Immutable
-data class ActiveOperationsContext(
-    val companyName: String,
-    val workspaceName: String,
-    val authorityEpoch: Long,
-    val verifiedIdentity: VerifiedOperationsIdentity? = null
-)
-
-@Immutable
-data class ProductCandidate(
-    val key: String,
-    val productDisplayName: String,
-    val brandOrVariant: String?,
-    val presentation: String,
-    val sku: String,
-    val imageFileName: String? = null,
-    /** Opaque server detail key used by an authorized catalog projection. */
-    val detailKey: String? = null
-) {
-    override fun toString(): String =
-        "ProductCandidate(productDisplayName=$productDisplayName, sku=REDACTED, key=REDACTED)"
-}
-
-@Immutable
-data class ConfirmedSkuUiState(
-    val candidateKey: String,
-    val productDisplayName: String,
-    val variant: String?,
-    val presentation: String,
-    val sku: String,
-    val brand: String?,
-    val unit: String?,
-    val packaging: String?,
-    val coldChain: String?,
-    val context: ActiveOperationsContext,
-    val authorityEpoch: Long,
-    val imageFileName: String? = null
-) {
-    override fun toString(): String =
-        "ConfirmedSkuUiState(productDisplayName=$productDisplayName, " +
-            "sku=REDACTED, authorityEpoch=$authorityEpoch)"
-}
-
-@Immutable
 data class ProductSearchUiState(
     val query: String = "",
     val status: ProductSearchStatus = ProductSearchStatus.Initial,
@@ -128,45 +77,10 @@ data class WarehouseUiState(
     val permissionHint: TaskVisibilityHint = TaskVisibilityHint.Unknown,
     val activeContext: ActiveOperationsContext? = null,
     val search: ProductSearchUiState? = null,
-    val confirmedSku: ConfirmedSkuUiState? = null,
+    val confirmedSku: ConfirmedSkuProjection? = null,
     val authorityEpoch: Long = 0,
     val invalidatedFromAuthorityEpoch: Long? = null
 ) {
     override fun toString(): String =
         "WarehouseUiState(route=$route, workEntryStatus=$workEntryStatus, authorityEpoch=$authorityEpoch)"
-}
-
-sealed interface ProductSearchResult {
-    data class Page(val items: List<ProductCandidate>, val nextPageKey: String?) :
-        ProductSearchResult
-    data object InvalidQuery : ProductSearchResult
-    data object NetworkUnavailable : ProductSearchResult
-    data object ServiceUnavailable : ProductSearchResult
-    data object PermissionDenied : ProductSearchResult
-    data object ContextInvalidated : ProductSearchResult
-    data object SessionInvalidated : ProductSearchResult
-    data object IntegrationUnavailable : ProductSearchResult
-}
-
-sealed interface CandidateConfirmationResult {
-    data class Confirmed(val sku: ConfirmedSkuUiState) : CandidateConfirmationResult
-    data object CandidateUnavailable : CandidateConfirmationResult
-    data object NetworkUnavailable : CandidateConfirmationResult
-    data object ServiceUnavailable : CandidateConfirmationResult
-    data object PermissionDenied : CandidateConfirmationResult
-    data object ContextInvalidated : CandidateConfirmationResult
-    data object SessionInvalidated : CandidateConfirmationResult
-    data object IntegrationUnavailable : CandidateConfirmationResult
-    data object UnknownOutcome : CandidateConfirmationResult
-}
-
-/** Client port. Search and confirmation outcomes must come from authoritative service responses. */
-interface WarehouseGateway {
-    suspend fun search(query: String, pageKey: String?, authorityEpoch: Long): ProductSearchResult
-
-    suspend fun confirm(
-        candidate: ProductCandidate,
-        authorityEpoch: Long,
-        context: ActiveOperationsContext
-    ): CandidateConfirmationResult
 }

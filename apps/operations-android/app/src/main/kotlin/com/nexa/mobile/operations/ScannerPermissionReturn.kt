@@ -3,7 +3,7 @@ package com.nexa.mobile.operations
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.feature.access.AccessStage
 import com.nexa.mobile.operations.feature.access.AccessUiState
-import com.nexa.mobile.operations.feature.access.VerifiedContextAuthority
+import com.nexa.mobile.operations.feature.access.model.VerifiedContextAuthority
 import java.util.UUID
 
 internal enum class ScannerPermissionReturnSource { RuntimePrompt, AppSettings }

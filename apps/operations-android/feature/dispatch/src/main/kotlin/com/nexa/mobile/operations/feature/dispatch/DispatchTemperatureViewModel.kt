@@ -2,7 +2,24 @@ package com.nexa.mobile.operations.feature.dispatch
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import java.math.BigDecimal
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchTemperatureGateway
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchTemperatureMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityContext
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchTemperatureCommand
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchTemperatureEvidence
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchTemperatureEvidenceSelectionContext
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchTemperatureGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchTemperatureIntent
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchTemperatureIntentStatus
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchTemperatureMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchTemperatureMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchTemperaturePhotoCandidate
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchTemperaturePhotoEvidence
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchTemperaturePhotoGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchTemperaturePhotoUploadIntent
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchTemperaturePhotoUploadMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchTemperatureReadiness
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchTemperatureScopeIdentity
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException

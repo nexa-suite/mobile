@@ -2,13 +2,27 @@ package com.nexa.mobile.operations.feature.delivery
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionAction as OperationalExceptionAction
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionCommandStatus as ExceptionCommandStatus
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionIntentStatus as ExceptionIntentStatus
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionMutationResult as ExceptionMutationResult
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsLoadResult as ExceptionsLoadResult
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsLoadStatus as ExceptionsLoadStatus
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsUiState as ExceptionsUiState
+import com.nexa.mobile.operations.feature.delivery.application.DriverDeliveryOperationalExceptionMetadataStore
+import com.nexa.mobile.operations.feature.delivery.application.DriverDeliveryOperationalExceptionsGateway
+import com.nexa.mobile.operations.feature.delivery.model.DRIVER_OPERATIONAL_EXCEPTION_BODYLESS
+import com.nexa.mobile.operations.feature.delivery.model.DriverAttemptScopeIdentity
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryAuthority
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalException
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionAction as OperationalExceptionAction
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionCommand
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionIntent
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionIntentStatus as ExceptionIntentStatus
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionMetadataRead
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionMetadataWrite
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionMutationResult as ExceptionMutationResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionsLoadResult as ExceptionsLoadResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionsSnapshot
+import com.nexa.mobile.operations.feature.delivery.model.driverDeliveryOperationalExceptionEmptyBody
+import com.nexa.mobile.operations.feature.delivery.model.driverDeliveryOperationalExceptionResolutionBody
+import com.nexa.mobile.operations.feature.delivery.model.driverDeliveryOperationalExceptionResolutionFromBody
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException

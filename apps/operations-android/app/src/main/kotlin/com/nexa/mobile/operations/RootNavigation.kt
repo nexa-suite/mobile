@@ -18,16 +18,13 @@ import com.nexa.mobile.operations.feature.access.ContextChooserMode
 import com.nexa.mobile.operations.feature.access.ContextChooserPhase
 import com.nexa.mobile.operations.feature.access.ContextChooserScreen
 import com.nexa.mobile.operations.feature.access.ContextChooserUiState
-import com.nexa.mobile.operations.feature.access.PermissionHint
 import com.nexa.mobile.operations.feature.warehouse.ConfirmedSkuScreen
 import com.nexa.mobile.operations.feature.warehouse.OperationsWorkEntryScreen
 import com.nexa.mobile.operations.feature.warehouse.ProductScannerScreen
 import com.nexa.mobile.operations.feature.warehouse.ProductScannerUiState
 import com.nexa.mobile.operations.feature.warehouse.ProductSearchScreen
-import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
 import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute
 import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
-import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
 
 internal enum class RootDestination {
     Bootstrapping,

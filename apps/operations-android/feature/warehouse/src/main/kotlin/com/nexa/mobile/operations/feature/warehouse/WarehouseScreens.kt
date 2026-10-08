@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -46,6 +45,10 @@ import com.nexa.mobile.operations.core.designsystem.NexaStatePanel
 import com.nexa.mobile.operations.core.designsystem.NexaTaskRow
 import com.nexa.mobile.operations.core.designsystem.NexaTopAppBar
 import com.nexa.mobile.operations.core.designsystem.R as DesignR
+import com.nexa.mobile.operations.feature.warehouse.model.ActiveOperationsContext
+import com.nexa.mobile.operations.feature.warehouse.model.ConfirmedSkuProjection
+import com.nexa.mobile.operations.feature.warehouse.model.ProductCandidate
+import com.nexa.mobile.operations.feature.warehouse.model.ScannerIdentifierType
 
 @Composable
 fun OperationsWorkEntryScreen(
@@ -226,7 +229,7 @@ fun ProductSearchScreen(
 
 @Composable
 fun ConfirmedSkuScreen(
-    state: ConfirmedSkuUiState,
+    state: ConfirmedSkuProjection,
     modifier: Modifier = Modifier,
     onChangeContext: () -> Unit,
     onBack: () -> Unit
@@ -718,7 +721,7 @@ private fun ProductCandidateResult(
 }
 
 @Composable
-private fun ConfirmedSkuHierarchy(state: ConfirmedSkuUiState) {
+private fun ConfirmedSkuHierarchy(state: ConfirmedSkuProjection) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)

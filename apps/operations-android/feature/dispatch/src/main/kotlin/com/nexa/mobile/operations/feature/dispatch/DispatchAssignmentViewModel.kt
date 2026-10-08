@@ -2,6 +2,16 @@ package com.nexa.mobile.operations.feature.dispatch
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchAssignmentGateway
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchAssignmentMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAssignmentGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAssignmentIntent
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAssignmentIntentStatus
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAssignmentMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAssignmentMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAssignmentScopeIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAssignmentSnapshot
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityContext
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -437,8 +447,10 @@ class DispatchAssignmentViewModel(
         )
     }
 
-    private fun DispatchAssignmentSnapshot.isFor(fulfillmentId: String): Boolean =
-        readiness.subjectKind == PREPARED_FULFILLMENT && readiness.fulfillmentId == fulfillmentId &&
+    private fun DispatchAssignmentSnapshot.isFor(fulfillmentId: String): Boolean {
+        val assignment = this.assignment
+        return readiness.subjectKind == PREPARED_FULFILLMENT &&
+            readiness.fulfillmentId == fulfillmentId &&
             candidates.map { it.membershipId.lowercase() }.distinct().size == candidates.size &&
             (
                 assignment == null || (
@@ -448,6 +460,7 @@ class DispatchAssignmentViewModel(
                         assignment.physicalAllocationVersion <= readiness.physicalAllocationVersion
                     )
                 )
+    }
 
     private fun fail(status: DispatchAssignmentStatus) {
         mutableState.value = mutableState.value.copy(status = status)

@@ -20,6 +20,9 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentEvidenceStage
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentSummary
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentType
 
 @Composable
 fun DriverDeliveryIncidentScreen(
@@ -188,13 +191,14 @@ fun DriverDeliveryIncidentScreen(
         }
 
         state.summary?.let { summary ->
-            if (summary.type == null) {
+            val incidentType = summary.type
+            if (incidentType == null) {
                 Text(stringResource(R.string.driver_incident_unclassified_historical))
             } else {
                 Text(
                     stringResource(
                         R.string.driver_incident_classification,
-                        stringResource(summary.type.labelResource())
+                        stringResource(incidentType.labelResource())
                     )
                 )
             }

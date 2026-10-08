@@ -2,6 +2,28 @@ package com.nexa.mobile.operations.feature.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.feature.warehouse.application.ReceivingGateway
+import com.nexa.mobile.operations.feature.warehouse.application.ReceivingIntentCoordinator
+import com.nexa.mobile.operations.feature.warehouse.application.ReceivingIntentExecution
+import com.nexa.mobile.operations.feature.warehouse.application.ReceivingMetadataStore
+import com.nexa.mobile.operations.feature.warehouse.model.ConfirmedReceivingProduct
+import com.nexa.mobile.operations.feature.warehouse.model.InboundReceiptRequest
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivedLotFacts
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingDraftMetadata
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingEvidenceCandidate
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingEvidenceObject
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingEvidenceResult
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingEvidenceSelectionContext
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingIntentMetadata
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingIntentMetadataStatus
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingLookupResult
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingMetadataRead
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingMetadataWrite
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingProductReference
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingSubmitResult
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingWarehouseChoice
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingZoneChoice
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
@@ -139,6 +161,11 @@ class ReceivingViewModel(
 
     /** Serializes scoped metadata access so reactivation cannot miss a late old-epoch write. */
     private val metadataMutex = Mutex()
+    private val intentCoordinator = ReceivingIntentCoordinator(
+        gateway = gateway,
+        metadataStore = metadataStore,
+        metadataMutex = metadataMutex
+    )
 
     fun activate(
         currentAuthority: ReceivingAuthority,
@@ -821,41 +848,29 @@ class ReceivingViewModel(
             )
         }
         viewModelScope.launch {
-            val savedCommand = metadataMutex.withLock {
-                if (!isCurrent(requestGeneration, currentAuthority.authorityEpoch)) {
-                    return@withLock ReceivingMetadataWrite.Unavailable
-                }
-                val savedDraft = safeMetadataCall(ReceivingMetadataWrite.Unavailable) {
-                    metadataStore.saveDraft(currentAuthority.scope, draft)
-                }
-                if (savedDraft == ReceivingMetadataWrite.Saved) {
-                    safeMetadataCall(ReceivingMetadataWrite.Unavailable) {
-                        metadataStore.saveIntent(command)
+            val execution = intentCoordinator.execute(
+                command = command,
+                draft = draft,
+                authority = currentAuthority,
+                isCurrent = { isCurrent(requestGeneration, currentAuthority.authorityEpoch) },
+                onIntentPersisted = {
+                    if (isCurrent(requestGeneration, currentAuthority.authorityEpoch)) {
+                        mutableState.update {
+                            it.copy(
+                                metadata = ReceivingMetadataStatus.Available,
+                                command = ReceivingCommandStatus.Pending
+                            )
+                        }
                     }
-                } else {
-                    ReceivingMetadataWrite.Unavailable
                 }
-            }
-            if (!isCurrent(requestGeneration, currentAuthority.authorityEpoch)) return@launch
-            if (savedCommand != ReceivingMetadataWrite.Saved) {
-                intent = null
-                mutableState.update {
-                    it.copy(
-                        metadata = ReceivingMetadataStatus.Unavailable,
-                        command = ReceivingCommandStatus.Editing,
-                        validationError = ReceivingValidationError.MetadataUnavailable,
-                        notice = ReceivingSubmitNotice.IntentMetadataUnavailable
-                    )
-                }
-                return@launch
-            }
-            mutableState.update {
-                it.copy(
-                    metadata = ReceivingMetadataStatus.Available,
-                    command = ReceivingCommandStatus.Pending
-                )
-            }
-            dispatch(command, requestGeneration, currentAuthority)
+            )
+            applyIntentExecution(
+                execution,
+                command,
+                requestGeneration,
+                currentAuthority,
+                isReplay = false
+            )
         }
     }
 
@@ -879,41 +894,30 @@ class ReceivingViewModel(
             )
         }
         viewModelScope.launch {
-            val saved = metadataMutex.withLock {
-                if (!isCurrent(requestGeneration, currentAuthority.authorityEpoch)) {
-                    ReceivingMetadataWrite.Unavailable
-                } else {
-                    safeMetadataCall(ReceivingMetadataWrite.Unavailable) {
-                        metadataStore.saveIntent(
-                            frozen.copy(status = ReceivingIntentMetadataStatus.Pending)
-                        )
+            val pending = frozen.copy(status = ReceivingIntentMetadataStatus.Pending)
+            val execution = intentCoordinator.execute(
+                command = pending,
+                draft = null,
+                authority = currentAuthority,
+                isCurrent = { isCurrent(requestGeneration, currentAuthority.authorityEpoch) },
+                onIntentPersisted = {
+                    if (isCurrent(requestGeneration, currentAuthority.authorityEpoch)) {
+                        mutableState.update {
+                            it.copy(
+                                command = ReceivingCommandStatus.Pending,
+                                notice = null,
+                                confirmedLot = null
+                            )
+                        }
                     }
                 }
-            }
-            if (saved != ReceivingMetadataWrite.Saved) {
-                if (isCurrent(requestGeneration, currentAuthority.authorityEpoch)) {
-                    mutableState.update {
-                        it.copy(
-                            metadata = ReceivingMetadataStatus.Unavailable,
-                            command = ReceivingCommandStatus.UnknownOutcome,
-                            notice = ReceivingSubmitNotice.IntentMetadataUnavailable
-                        )
-                    }
-                }
-                return@launch
-            }
-            if (!isCurrent(requestGeneration, currentAuthority.authorityEpoch)) return@launch
-            mutableState.update {
-                it.copy(
-                    command = ReceivingCommandStatus.Pending,
-                    notice = null,
-                    confirmedLot = null
-                )
-            }
-            dispatch(
-                frozen.copy(status = ReceivingIntentMetadataStatus.Pending),
+            )
+            applyIntentExecution(
+                execution,
+                pending,
                 requestGeneration,
-                currentAuthority
+                currentAuthority,
+                isReplay = true
             )
         }
     }
@@ -984,185 +988,116 @@ class ReceivingViewModel(
         persistDraft()
     }
 
-    private suspend fun dispatch(
-        command: ReceivingIntentMetadata,
-        requestGeneration: Long,
-        currentAuthority: ReceivingAuthority
-    ) {
-        val result = try {
-            gateway.receive(command.request, command.idempotencyKey, currentAuthority)
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (_: Exception) {
-            ReceivingSubmitResult.UnknownOutcome
-        }
-        if (!isCurrent(requestGeneration, currentAuthority.authorityEpoch)) return
-        when (result) {
-            is ReceivingSubmitResult.Confirmed -> {
-                if (!result.facts.matches(command.request)) {
-                    markUnknown(command, requestGeneration, currentAuthority)
-                    return
-                }
-                val cleared = cleanupTerminalIntent(command, requestGeneration, currentAuthority)
-                if (!isCurrent(requestGeneration, currentAuthority.authorityEpoch)) return
-                mutableState.update {
-                    it.copy(
-                        command = ReceivingCommandStatus.Confirmed,
-                        confirmedLot = result.facts,
-                        intentCleanupPending = !cleared,
-                        metadata = if (cleared) {
-                            ReceivingMetadataStatus.Available
-                        } else {
-                            ReceivingMetadataStatus.Unavailable
-                        },
-                        notice = if (cleared) {
-                            null
-                        } else {
-                            ReceivingSubmitNotice.IntentMetadataUnavailable
-                        }
-                    )
-                }
-            }
-
-            is ReceivingSubmitResult.Rejected -> {
-                val cleared = cleanupTerminalIntent(command, requestGeneration, currentAuthority)
-                if (!isCurrent(requestGeneration, currentAuthority.authorityEpoch)) return
-                mutableState.update {
-                    it.copy(
-                        command = ReceivingCommandStatus.Rejected,
-                        confirmedLot = null,
-                        rejectionCode = result.code,
-                        intentCleanupPending = !cleared,
-                        metadata = if (cleared) {
-                            ReceivingMetadataStatus.Available
-                        } else {
-                            ReceivingMetadataStatus.Unavailable
-                        },
-                        notice = if (cleared) {
-                            null
-                        } else {
-                            ReceivingSubmitNotice.IntentMetadataUnavailable
-                        }
-                    )
-                }
-            }
-
-            ReceivingSubmitResult.UnknownOutcome -> markUnknown(
-                command,
-                requestGeneration,
-                currentAuthority
-            )
-
-            ReceivingSubmitResult.PermissionDenied -> terminalFailure(
-                command,
-                requestGeneration,
-                currentAuthority,
-                ReceivingSubmitNotice.PermissionDenied
-            )
-
-            ReceivingSubmitResult.ContextInvalidated -> terminalFailure(
-                command,
-                requestGeneration,
-                currentAuthority,
-                ReceivingSubmitNotice.ContextInvalidated
-            )
-
-            ReceivingSubmitResult.SessionInvalidated -> terminalFailure(
-                command,
-                requestGeneration,
-                currentAuthority,
-                ReceivingSubmitNotice.SessionInvalidated
-            )
-
-            ReceivingSubmitResult.ServiceUnavailable -> markUnknown(
-                command,
-                requestGeneration,
-                currentAuthority
-            )
-        }
-    }
-
-    /** Clears only while this screen still owns the authority; a late clear restores uncertainty. */
-    private suspend fun cleanupTerminalIntent(
-        command: ReceivingIntentMetadata,
-        requestGeneration: Long,
-        currentAuthority: ReceivingAuthority
-    ): Boolean = metadataMutex.withLock {
-        if (!isCurrent(requestGeneration, currentAuthority.authorityEpoch)) return@withLock false
-        val cleared = safeMetadataCall(ReceivingMetadataWrite.Unavailable) {
-            metadataStore.clearIntent(currentAuthority.scope, command.idempotencyKey)
-        } == ReceivingMetadataWrite.Saved
-        if (!isCurrent(requestGeneration, currentAuthority.authorityEpoch)) {
-            if (cleared) {
-                safeMetadataCall(ReceivingMetadataWrite.Unavailable) {
-                    metadataStore.saveIntent(
-                        command.copy(status = ReceivingIntentMetadataStatus.UnknownOutcome)
-                    )
-                }
-            }
-            return@withLock false
-        }
-        if (cleared) intent = null
-        cleared
-    }
-
-    private suspend fun markUnknown(
-        command: ReceivingIntentMetadata,
-        requestGeneration: Long,
-        currentAuthority: ReceivingAuthority
-    ) {
-        val frozen = command.copy(status = ReceivingIntentMetadataStatus.UnknownOutcome)
-        val saved = metadataMutex.withLock {
-            safeMetadataCall(ReceivingMetadataWrite.Unavailable) {
-                metadataStore.saveIntent(frozen)
-            }
-        }
-        if (!isCurrent(requestGeneration, currentAuthority.authorityEpoch)) return
-        intent = frozen
-        mutableState.update {
-            it.copy(
-                command = ReceivingCommandStatus.UnknownOutcome,
-                confirmedLot = null,
-                metadata = if (saved == ReceivingMetadataWrite.Saved) {
-                    it.metadata
-                } else {
-                    ReceivingMetadataStatus.Unavailable
-                },
-                notice = if (saved == ReceivingMetadataWrite.Saved) {
-                    null
-                } else {
-                    ReceivingSubmitNotice.IntentMetadataUnavailable
-                }
-            )
-        }
-    }
-
-    private suspend fun terminalFailure(
+    private fun applyIntentExecution(
+        execution: ReceivingIntentExecution,
         command: ReceivingIntentMetadata,
         requestGeneration: Long,
         currentAuthority: ReceivingAuthority,
-        notice: ReceivingSubmitNotice
+        isReplay: Boolean
     ) {
-        // A scope/session change after dispatch may hide the response even if the server committed.
-        val frozen = command.copy(status = ReceivingIntentMetadataStatus.UnknownOutcome)
-        val saved = metadataMutex.withLock {
-            safeMetadataCall(ReceivingMetadataWrite.Unavailable) {
-                metadataStore.saveIntent(frozen)
-            }
-        }
         if (!isCurrent(requestGeneration, currentAuthority.authorityEpoch)) return
-        intent = frozen
-        mutableState.update {
-            it.copy(
-                command = ReceivingCommandStatus.UnknownOutcome,
-                metadata = if (saved == ReceivingMetadataWrite.Saved) {
-                    it.metadata
-                } else {
-                    ReceivingMetadataStatus.Unavailable
-                },
-                confirmedLot = null,
-                notice = notice
-            )
+        when (execution) {
+            ReceivingIntentExecution.Stale -> return
+
+            ReceivingIntentExecution.MetadataUnavailable -> {
+                if (!isReplay) intent = null
+                mutableState.update {
+                    it.copy(
+                        metadata = ReceivingMetadataStatus.Unavailable,
+                        command = if (isReplay) {
+                            ReceivingCommandStatus.UnknownOutcome
+                        } else {
+                            ReceivingCommandStatus.Editing
+                        },
+                        validationError = if (isReplay) {
+                            it.validationError
+                        } else {
+                            ReceivingValidationError.MetadataUnavailable
+                        },
+                        notice = ReceivingSubmitNotice.IntentMetadataUnavailable
+                    )
+                }
+            }
+
+            is ReceivingIntentExecution.Terminal -> when (val result = execution.result) {
+                is ReceivingSubmitResult.Confirmed -> {
+                    if (execution.intentCleared) intent = null
+                    mutableState.update {
+                        it.copy(
+                            command = ReceivingCommandStatus.Confirmed,
+                            confirmedLot = result.facts,
+                            intentCleanupPending = !execution.intentCleared,
+                            metadata = if (execution.intentCleared) {
+                                ReceivingMetadataStatus.Available
+                            } else {
+                                ReceivingMetadataStatus.Unavailable
+                            },
+                            notice = if (execution.intentCleared) {
+                                null
+                            } else {
+                                ReceivingSubmitNotice.IntentMetadataUnavailable
+                            }
+                        )
+                    }
+                }
+
+                is ReceivingSubmitResult.Rejected -> {
+                    if (execution.intentCleared) intent = null
+                    mutableState.update {
+                        it.copy(
+                            command = ReceivingCommandStatus.Rejected,
+                            confirmedLot = null,
+                            rejectionCode = result.code,
+                            intentCleanupPending = !execution.intentCleared,
+                            metadata = if (execution.intentCleared) {
+                                ReceivingMetadataStatus.Available
+                            } else {
+                                ReceivingMetadataStatus.Unavailable
+                            },
+                            notice = if (execution.intentCleared) {
+                                null
+                            } else {
+                                ReceivingSubmitNotice.IntentMetadataUnavailable
+                            }
+                        )
+                    }
+                }
+
+                else -> return
+            }
+
+            is ReceivingIntentExecution.UnknownOutcome -> {
+                val frozen = command.copy(status = ReceivingIntentMetadataStatus.UnknownOutcome)
+                intent = frozen
+                val notice = when (execution.reason) {
+                    ReceivingSubmitResult.PermissionDenied ->
+                        ReceivingSubmitNotice.PermissionDenied
+
+                    ReceivingSubmitResult.ContextInvalidated ->
+                        ReceivingSubmitNotice.ContextInvalidated
+
+                    ReceivingSubmitResult.SessionInvalidated ->
+                        ReceivingSubmitNotice.SessionInvalidated
+
+                    else -> if (execution.intentPersisted) {
+                        null
+                    } else {
+                        ReceivingSubmitNotice.IntentMetadataUnavailable
+                    }
+                }
+                mutableState.update {
+                    it.copy(
+                        command = ReceivingCommandStatus.UnknownOutcome,
+                        confirmedLot = null,
+                        metadata = if (execution.intentPersisted) {
+                            it.metadata
+                        } else {
+                            ReceivingMetadataStatus.Unavailable
+                        },
+                        notice = notice
+                    )
+                }
+            }
         }
     }
 
@@ -1370,13 +1305,6 @@ class ReceivingViewModel(
     private fun ReceivingProductReference.matches(request: InboundReceiptRequest): Boolean =
         (request.catalogItemId == null || catalogItemId == request.catalogItemId) &&
             (request.skuId == null || skuId == request.skuId)
-
-    private fun ReceivedLotFacts.matches(request: InboundReceiptRequest): Boolean =
-        id.isNotBlank() && warehouseId == request.warehouseId && zoneId == request.zoneId &&
-            (request.catalogItemId == null || catalogItemId == request.catalogItemId) &&
-            (request.skuId == null || skuId == request.skuId) &&
-            batchNumber == request.batchNumber && expirationDate == request.expirationDate &&
-            onHand.compareTo(request.quantity) == 0 && unit.equals(request.unit, ignoreCase = true)
 
     private fun canEdit(): Boolean {
         val current = mutableState.value

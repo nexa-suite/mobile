@@ -20,12 +20,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.feature.delivery.DriverExecutionTemperatureCommandStatus
-import com.nexa.mobile.operations.feature.delivery.DriverExecutionTemperatureDisposition as ExecutionTemperatureDisposition
 import com.nexa.mobile.operations.feature.delivery.DriverExecutionTemperatureEvidenceStatus as TemperatureEvidenceStatus
 import com.nexa.mobile.operations.feature.delivery.DriverExecutionTemperatureLoadStatus as LoadStatus
 import com.nexa.mobile.operations.feature.delivery.R.string.execution_temperature_disposition_reason as DispositionReasonLabel
 import com.nexa.mobile.operations.feature.delivery.R.string.execution_temperature_report_excursion as ReportExcursionLabel
-import java.math.BigDecimal
+import com.nexa.mobile.operations.feature.delivery.model.DriverExecutionTemperatureDisposition as ExecutionTemperatureDisposition
+import com.nexa.mobile.operations.feature.delivery.model.DriverExecutionTemperatureMode
 
 @Composable
 fun DriverExecutionTemperatureScreen(
@@ -117,13 +117,14 @@ fun DriverExecutionTemperatureScreen(
                                         line.unit
                                     )
                                 )
-                                if (line.minimumCelsius != null && line.maximumCelsius != null) {
+                                val minimumCelsius = line.minimumCelsius
+                                val maximumCelsius = line.maximumCelsius
+                                if (minimumCelsius != null && maximumCelsius != null) {
                                     Text(
                                         stringResource(
                                             R.string.execution_temperature_range,
-                                            line.minimumCelsius
-                                                .stripTrailingZeros().toPlainString(),
-                                            line.maximumCelsius.stripTrailingZeros().toPlainString()
+                                            minimumCelsius.stripTrailingZeros().toPlainString(),
+                                            maximumCelsius.stripTrailingZeros().toPlainString()
                                         )
                                     )
                                 }

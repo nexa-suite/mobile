@@ -1,5 +1,26 @@
 package com.nexa.mobile.operations.feature.delivery
 
+import com.nexa.mobile.operations.feature.delivery.application.DriverIncidentGateway
+import com.nexa.mobile.operations.feature.delivery.application.DriverIncidentMetadataStore
+import com.nexa.mobile.operations.feature.delivery.model.DriverAttemptScopeIdentity
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryAuthority
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentCommand
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentCurrentDelivery
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentCurrentDeliveryResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentEvidenceAttachCommand
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentEvidenceDraft
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentEvidenceResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentEvidenceUploadCommand
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentMetadata
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentMetadataRead
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentMetadataWrite
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentRecordStatus
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentSelectionContext
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentSummary
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentType
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofFileCandidate
+import com.nexa.mobile.operations.feature.delivery.model.driverIncidentLegacyBody
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest

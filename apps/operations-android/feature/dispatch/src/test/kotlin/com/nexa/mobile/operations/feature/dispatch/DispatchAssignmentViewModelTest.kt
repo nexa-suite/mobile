@@ -1,5 +1,19 @@
 package com.nexa.mobile.operations.feature.dispatch
 
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchAssignmentGateway
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchAssignmentMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAssignmentGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAssignmentIntent
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAssignmentIntentStatus
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAssignmentMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAssignmentMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAssignmentScopeIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAssignmentSnapshot
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityContext
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchDriverCandidate
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchReadiness
+import com.nexa.mobile.operations.feature.dispatch.model.PreparedFulfillmentDriverAssignment
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi

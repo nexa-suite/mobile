@@ -12,20 +12,20 @@ import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
 import com.nexa.mobile.operations.feature.access.AccessStage
 import com.nexa.mobile.operations.feature.access.AccessUiState
-import com.nexa.mobile.operations.feature.access.PermissionHint
-import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
-import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
-import com.nexa.mobile.operations.feature.warehouse.CandidateConfirmationResult
-import com.nexa.mobile.operations.feature.warehouse.ConfirmedSkuUiState
-import com.nexa.mobile.operations.feature.warehouse.ProductCandidate
-import com.nexa.mobile.operations.feature.warehouse.ProductSearchResult
+import com.nexa.mobile.operations.feature.access.model.PermissionHint
+import com.nexa.mobile.operations.feature.access.model.WorkforceContextSummary
 import com.nexa.mobile.operations.feature.warehouse.ProductSearchUiState
 import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
-import com.nexa.mobile.operations.feature.warehouse.WarehouseGateway
 import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute
 import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
 import com.nexa.mobile.operations.feature.warehouse.WarehouseViewModel
 import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
+import com.nexa.mobile.operations.feature.warehouse.application.WarehouseGateway
+import com.nexa.mobile.operations.feature.warehouse.model.ActiveOperationsContext
+import com.nexa.mobile.operations.feature.warehouse.model.CandidateConfirmationResult
+import com.nexa.mobile.operations.feature.warehouse.model.ConfirmedSkuProjection
+import com.nexa.mobile.operations.feature.warehouse.model.ProductCandidate
+import com.nexa.mobile.operations.feature.warehouse.model.ProductSearchResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -62,7 +62,7 @@ class RootCapabilityInvalidationTest {
                 activeContext = context,
                 authorityEpoch = 4,
                 search = ProductSearchUiState(query = "old selection", authorityEpoch = 4),
-                confirmedSku = ConfirmedSkuUiState(
+                confirmedSku = ConfirmedSkuProjection(
                     candidateKey = "test-candidate",
                     productDisplayName = "Test Product",
                     variant = null,

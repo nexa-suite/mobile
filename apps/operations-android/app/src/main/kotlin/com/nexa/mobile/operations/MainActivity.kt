@@ -28,31 +28,33 @@ import androidx.compose.ui.res.stringResource
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
-import com.nexa.mobile.operations.commercial.BusinessDocumentsScreen
-import com.nexa.mobile.operations.commercial.BusinessDocumentsViewModel
-import com.nexa.mobile.operations.commercial.CommercialAuthority
-import com.nexa.mobile.operations.commercial.CommercialCatalogScreen
-import com.nexa.mobile.operations.commercial.CommercialCatalogViewModel
-import com.nexa.mobile.operations.commercial.CustomerDeliveryInstructionsScreen
-import com.nexa.mobile.operations.commercial.CustomerDeliveryInstructionsViewModel
-import com.nexa.mobile.operations.commercial.CustomerProgressScreen
-import com.nexa.mobile.operations.commercial.CustomerProgressViewModel
-import com.nexa.mobile.operations.commercial.CustomerSearchScreen
-import com.nexa.mobile.operations.commercial.CustomerSearchViewModel
-import com.nexa.mobile.operations.commercial.FieldRequestScreen
-import com.nexa.mobile.operations.commercial.FieldRequestViewModel
-import com.nexa.mobile.operations.commercial.FieldVisitScreen
-import com.nexa.mobile.operations.commercial.FieldVisitViewModel
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
 import com.nexa.mobile.operations.core.device.scanner.CameraXProductCodeScanner
+import com.nexa.mobile.operations.data.AppTemperatureEvidencePhotoArtifactStore
+import com.nexa.mobile.operations.data.OperationsAccessGateway
+import com.nexa.mobile.operations.data.ScannerOperationsGateway
 import com.nexa.mobile.operations.feature.access.AccessNotice
 import com.nexa.mobile.operations.feature.access.AccessStage
 import com.nexa.mobile.operations.feature.access.AccessUiState
 import com.nexa.mobile.operations.feature.access.AccessViewModel
-import com.nexa.mobile.operations.feature.access.PermissionHint
-import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryAuthority
+import com.nexa.mobile.operations.feature.access.model.PermissionHint
+import com.nexa.mobile.operations.feature.access.model.WorkforceContextSummary
+import com.nexa.mobile.operations.feature.commercial.BusinessDocumentsScreen
+import com.nexa.mobile.operations.feature.commercial.BusinessDocumentsViewModel
+import com.nexa.mobile.operations.feature.commercial.CommercialCatalogScreen
+import com.nexa.mobile.operations.feature.commercial.CommercialCatalogViewModel
+import com.nexa.mobile.operations.feature.commercial.CustomerDeliveryInstructionsScreen
+import com.nexa.mobile.operations.feature.commercial.CustomerDeliveryInstructionsViewModel
+import com.nexa.mobile.operations.feature.commercial.CustomerProgressScreen
+import com.nexa.mobile.operations.feature.commercial.CustomerProgressViewModel
+import com.nexa.mobile.operations.feature.commercial.CustomerSearchScreen
+import com.nexa.mobile.operations.feature.commercial.CustomerSearchViewModel
+import com.nexa.mobile.operations.feature.commercial.FieldRequestScreen
+import com.nexa.mobile.operations.feature.commercial.FieldRequestViewModel
+import com.nexa.mobile.operations.feature.commercial.FieldVisitScreen
+import com.nexa.mobile.operations.feature.commercial.FieldVisitViewModel
+import com.nexa.mobile.operations.feature.commercial.model.CommercialAuthority
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryIncidentScreen as IncidentScreen
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryIncidentViewModel as IncidentViewModel
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionsScreen as InstructionsScreen
@@ -62,37 +64,32 @@ import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExce
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsViewModel as OperationalExceptionsViewModel
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryScreen
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryViewModel
-import com.nexa.mobile.operations.feature.delivery.DriverExecutionTemperatureMode as TemperatureMode
 import com.nexa.mobile.operations.feature.delivery.DriverExecutionTemperatureScreen as TemperatureScreen
 import com.nexa.mobile.operations.feature.delivery.DriverExecutionTemperatureViewModel as TemperatureViewModel
 import com.nexa.mobile.operations.feature.delivery.DriverHandoffTokenScreen
 import com.nexa.mobile.operations.feature.delivery.DriverHandoffTokenViewModel as HandoffTokenViewModel
-import com.nexa.mobile.operations.feature.delivery.DriverIncidentMetadataWrite as IncidentMetadataWrite
-import com.nexa.mobile.operations.feature.delivery.DriverIncidentSelectionContext as IncidentSelectionContext
-import com.nexa.mobile.operations.feature.delivery.DriverIncidentType
-import com.nexa.mobile.operations.feature.delivery.DriverProofFileCandidate
-import com.nexa.mobile.operations.feature.delivery.DriverProofMetadataStore
-import com.nexa.mobile.operations.feature.delivery.DriverProofSelectionContext as ProofSelectionContext
 import com.nexa.mobile.operations.feature.delivery.DriverWorkdayScreen
 import com.nexa.mobile.operations.feature.delivery.DriverWorkdayViewModel
-import com.nexa.mobile.operations.feature.dispatch.BusinessOperationalExceptionAuthority as ExceptionAuthority
-import com.nexa.mobile.operations.feature.dispatch.BusinessOperationalExceptionScopeIdentity as ExceptionScopeIdentity
+import com.nexa.mobile.operations.feature.delivery.application.DriverProofMetadataStore
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryAuthority
+import com.nexa.mobile.operations.feature.delivery.model.DriverExecutionTemperatureMode as TemperatureMode
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentMetadataWrite as IncidentMetadataWrite
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentSelectionContext as IncidentSelectionContext
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentType
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofFileCandidate
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofSelectionContext as ProofSelectionContext
 import com.nexa.mobile.operations.feature.dispatch.BusinessOperationalExceptionsScreen
 import com.nexa.mobile.operations.feature.dispatch.BusinessOperationalExceptionsViewModel as ExceptionsViewModel
 import com.nexa.mobile.operations.feature.dispatch.DeliveryLoadScreen
 import com.nexa.mobile.operations.feature.dispatch.DeliveryLoadViewModel
 import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentScreen
 import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentViewModel as AssignmentViewModel
-import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityContext
-import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityIdentity
 import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionsScreen
 import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionsViewModel as InstructionsViewModel
 import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIdentityScreen as HandoffIdentityScreen
 import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIdentityViewModel as HandoffIdentityViewModel
 import com.nexa.mobile.operations.feature.dispatch.DispatchHandoverScreen
 import com.nexa.mobile.operations.feature.dispatch.DispatchHandoverViewModel
-import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsGateway as OutgoingGoodsGateway
-import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsMetadataStore as OutgoingGoodsMetadataStore
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsScreen as OutgoingGoodsScreen
 import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsViewModel as OutgoingGoodsViewModel
 import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeScreen
@@ -100,40 +97,26 @@ import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeViewModel a
 import com.nexa.mobile.operations.feature.dispatch.DispatchReadinessDetailStatus as ReadinessDetailStatus
 import com.nexa.mobile.operations.feature.dispatch.DispatchReadinessScreen
 import com.nexa.mobile.operations.feature.dispatch.DispatchReadinessViewModel
-import com.nexa.mobile.operations.feature.dispatch.DispatchTemperatureEvidenceSelectionContext as TemperatureEvidenceSelectionContext
-import com.nexa.mobile.operations.feature.dispatch.DispatchTemperaturePhotoCandidate as TemperaturePhotoCandidate
 import com.nexa.mobile.operations.feature.dispatch.DispatchTemperatureScreen
 import com.nexa.mobile.operations.feature.dispatch.DispatchTemperatureStatus
 import com.nexa.mobile.operations.feature.dispatch.DispatchTemperatureViewModel
-import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
-import com.nexa.mobile.operations.feature.warehouse.ConfirmedReceivingProduct
-import com.nexa.mobile.operations.feature.warehouse.CycleCountAuthority
-import com.nexa.mobile.operations.feature.warehouse.CycleCountGateway
-import com.nexa.mobile.operations.feature.warehouse.CycleCountMetadataStore
-import com.nexa.mobile.operations.feature.warehouse.CycleCountScope
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchOutgoingGoodsGateway as OutgoingGoodsGateway
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchOutgoingGoodsMetadataStore as OutgoingGoodsMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.model.BusinessOperationalExceptionAuthority as ExceptionAuthority
+import com.nexa.mobile.operations.feature.dispatch.model.BusinessOperationalExceptionScopeIdentity as ExceptionScopeIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityContext
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchTemperatureEvidenceSelectionContext as TemperatureEvidenceSelectionContext
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchTemperaturePhotoCandidate as TemperaturePhotoCandidate
 import com.nexa.mobile.operations.feature.warehouse.CycleCountScreen
 import com.nexa.mobile.operations.feature.warehouse.CycleCountViewModel
-import com.nexa.mobile.operations.feature.warehouse.DispositionAuthority
 import com.nexa.mobile.operations.feature.warehouse.DispositionMetadataStatus
 import com.nexa.mobile.operations.feature.warehouse.DispositionScreen
 import com.nexa.mobile.operations.feature.warehouse.DispositionViewModel
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyArtifactWrite
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyAuthority
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyDraftStore
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyEvidenceArtifactStore
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyEvidenceCandidate
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyGateway
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyScope
 import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyScreen
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancySelectionContext
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyStartContext
 import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyViewModel
-import com.nexa.mobile.operations.feature.warehouse.LotSubstitutionGateway
-import com.nexa.mobile.operations.feature.warehouse.LotSubstitutionMetadataStore
 import com.nexa.mobile.operations.feature.warehouse.LotSubstitutionScreen
 import com.nexa.mobile.operations.feature.warehouse.LotSubstitutionViewModel
-import com.nexa.mobile.operations.feature.warehouse.LotSubstitutionWork
-import com.nexa.mobile.operations.feature.warehouse.PickingAuthority
 import com.nexa.mobile.operations.feature.warehouse.PickingEntryScreen
 import com.nexa.mobile.operations.feature.warehouse.PickingScreen
 import com.nexa.mobile.operations.feature.warehouse.PickingViewModel
@@ -141,38 +124,58 @@ import com.nexa.mobile.operations.feature.warehouse.PickingWorkListScreen
 import com.nexa.mobile.operations.feature.warehouse.PickingWorkListViewModel
 import com.nexa.mobile.operations.feature.warehouse.ProductScannerUiState
 import com.nexa.mobile.operations.feature.warehouse.ProductScannerViewModel
-import com.nexa.mobile.operations.feature.warehouse.ReceivingAuthority
-import com.nexa.mobile.operations.feature.warehouse.ReceivingEvidenceCandidate
-import com.nexa.mobile.operations.feature.warehouse.ReceivingEvidenceSelectionContext
 import com.nexa.mobile.operations.feature.warehouse.ReceivingLookupStatus
 import com.nexa.mobile.operations.feature.warehouse.ReceivingMetadataStatus
-import com.nexa.mobile.operations.feature.warehouse.ReceivingProductReference
 import com.nexa.mobile.operations.feature.warehouse.ReceivingScreen
 import com.nexa.mobile.operations.feature.warehouse.ReceivingViewModel
 import com.nexa.mobile.operations.feature.warehouse.StockConditionScreen
 import com.nexa.mobile.operations.feature.warehouse.StockConditionViewModel
-import com.nexa.mobile.operations.feature.warehouse.StockTransferAuthority
-import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptGateway
-import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptMetadataStore
-import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservationMetadataStore
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptScreen
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptViewModel
 import com.nexa.mobile.operations.feature.warehouse.StockTransferScreen
 import com.nexa.mobile.operations.feature.warehouse.StockTransferViewModel
 import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
-import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidenceAuthority
-import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidencePhotoCandidate
-import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidencePhotoSelection
 import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidenceScreen
 import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidenceViewModel
 import com.nexa.mobile.operations.feature.warehouse.TemperaturePhotoStatus
-import com.nexa.mobile.operations.feature.warehouse.VerifiedOperationsIdentity
 import com.nexa.mobile.operations.feature.warehouse.WarehouseAutomationScreen
 import com.nexa.mobile.operations.feature.warehouse.WarehouseBatchScreen
 import com.nexa.mobile.operations.feature.warehouse.WarehouseBatchViewModel
 import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute
 import com.nexa.mobile.operations.feature.warehouse.WarehouseViewModel
 import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
+import com.nexa.mobile.operations.feature.warehouse.application.CycleCountGateway
+import com.nexa.mobile.operations.feature.warehouse.application.CycleCountMetadataStore
+import com.nexa.mobile.operations.feature.warehouse.application.InboundDiscrepancyDraftStore
+import com.nexa.mobile.operations.feature.warehouse.application.InboundDiscrepancyEvidenceArtifactStore
+import com.nexa.mobile.operations.feature.warehouse.application.InboundDiscrepancyGateway
+import com.nexa.mobile.operations.feature.warehouse.application.LotSubstitutionGateway
+import com.nexa.mobile.operations.feature.warehouse.application.LotSubstitutionMetadataStore
+import com.nexa.mobile.operations.feature.warehouse.application.StockTransferReceiptGateway
+import com.nexa.mobile.operations.feature.warehouse.application.StockTransferReceiptMetadataStore
+import com.nexa.mobile.operations.feature.warehouse.application.StockTransferReceiptObservationMetadataStore
+import com.nexa.mobile.operations.feature.warehouse.model.ActiveOperationsContext
+import com.nexa.mobile.operations.feature.warehouse.model.ConfirmedReceivingProduct
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.CycleCountScope
+import com.nexa.mobile.operations.feature.warehouse.model.DispositionAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyArtifactWrite
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyEvidenceCandidate
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyScope
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancySelectionContext
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyStartContext
+import com.nexa.mobile.operations.feature.warehouse.model.LotSubstitutionWork
+import com.nexa.mobile.operations.feature.warehouse.model.PickingAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingEvidenceCandidate
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingEvidenceSelectionContext
+import com.nexa.mobile.operations.feature.warehouse.model.ReceivingProductReference
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureEvidenceAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureEvidencePhotoCandidate
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureEvidencePhotoSelection
+import com.nexa.mobile.operations.feature.warehouse.model.VerifiedOperationsIdentity
 import com.nexa.mobile.operations.visibility.OperationsOverviewScreen
 import dagger.hilt.android.AndroidEntryPoint
 import java.math.BigDecimal

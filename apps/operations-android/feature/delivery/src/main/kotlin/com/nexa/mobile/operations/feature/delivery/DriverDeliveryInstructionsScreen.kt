@@ -27,6 +27,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionAcknowledgementStatus as InstructionAcknowledgementStatus
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryInstruction
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryInstructionKind
 
 @Composable
 fun DriverDeliveryInstructionsScreen(

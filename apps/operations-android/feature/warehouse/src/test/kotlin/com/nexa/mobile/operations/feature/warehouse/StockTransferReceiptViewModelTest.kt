@@ -2,6 +2,25 @@
 
 package com.nexa.mobile.operations.feature.warehouse
 
+import com.nexa.mobile.operations.feature.warehouse.application.StockTransferReceiptGateway
+import com.nexa.mobile.operations.feature.warehouse.application.StockTransferReceiptMetadataStore
+import com.nexa.mobile.operations.feature.warehouse.application.StockTransferReceiptObservationMetadataStore
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptIntent
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptIntentStatus
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptLookupResult
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptMetadataRead
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptMetadataWrite
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptObservation
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptObservationIntent
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptObservationIntentStatus
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptObservationMetadataRead
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptObservationMetadataWrite
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptObservationResult
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptResult
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptTransfer
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferScope
+import com.nexa.mobile.operations.feature.warehouse.model.TransferWarehouseChoice
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals

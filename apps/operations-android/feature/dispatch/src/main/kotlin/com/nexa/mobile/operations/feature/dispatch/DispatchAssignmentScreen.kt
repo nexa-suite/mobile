@@ -33,6 +33,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchDriverCandidate
+import com.nexa.mobile.operations.feature.dispatch.model.PreparedFulfillmentDriverAssignment
 
 @Composable
 fun DispatchAssignmentScreen(

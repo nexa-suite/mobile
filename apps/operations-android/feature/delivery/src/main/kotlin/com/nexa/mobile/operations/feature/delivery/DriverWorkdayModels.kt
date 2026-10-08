@@ -3,175 +3,27 @@ package com.nexa.mobile.operations.feature.delivery
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.feature.delivery.application.DriverWorkdayCommandStore
+import com.nexa.mobile.operations.feature.delivery.application.DriverWorkdayGateway
+import com.nexa.mobile.operations.feature.delivery.application.DriverWorkdayLocationCapture
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryAuthority
+import com.nexa.mobile.operations.feature.delivery.model.DriverWorkday
+import com.nexa.mobile.operations.feature.delivery.model.DriverWorkdayCommandAction
+import com.nexa.mobile.operations.feature.delivery.model.DriverWorkdayCommandIntent
+import com.nexa.mobile.operations.feature.delivery.model.DriverWorkdayCommandIntentRead
+import com.nexa.mobile.operations.feature.delivery.model.DriverWorkdayCommandResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverWorkdayCommandScope
+import com.nexa.mobile.operations.feature.delivery.model.DriverWorkdayLocationEvent
+import com.nexa.mobile.operations.feature.delivery.model.DriverWorkdayReadResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverWorkdayStatus
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
-
-enum class DriverWorkdayStatus {
-    ACTIVE,
-    LOCATION_UNAVAILABLE,
-    CLOSED
-}
-
-@Immutable
-data class DriverWorkday(
-    val id: String,
-    val version: Long,
-    val status: DriverWorkdayStatus,
-    val startedAt: String,
-    val endedAt: String?,
-    val locationAvailable: Boolean
-)
-
-@Immutable
-data class DriverWorkdayLocationSample(
-    val sampleId: String,
-    val latitude: Double,
-    val longitude: Double,
-    val accuracyMeters: Double,
-    val capturedAt: String
-)
-
-sealed interface DriverWorkdayLocationEvent {
-    data class Sample(val value: DriverWorkdayLocationSample) : DriverWorkdayLocationEvent
-    data object PermissionUnavailable : DriverWorkdayLocationEvent
-    data object ProviderUnavailable : DriverWorkdayLocationEvent
-}
-
-/** Small volatile handoff only; there is no replay or disk-backed coordinate queue. */
-class DriverWorkdayLocationEventStream {
-    private val mutableEvents = MutableSharedFlow<DriverWorkdayLocationEvent>(
-        replay = 0,
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    val events: Flow<DriverWorkdayLocationEvent> = mutableEvents
-
-    fun publish(event: DriverWorkdayLocationEvent): Boolean = mutableEvents.tryEmit(event)
-}
-
-/** The app adapter is an Android foreground location service; events are never buffered to disk. */
-interface DriverWorkdayLocationCapture {
-    val events: Flow<DriverWorkdayLocationEvent>
-    fun start(workdayId: String): Boolean
-    fun stop()
-}
-
-sealed interface DriverWorkdayReadResult {
-    data class Current(val workday: DriverWorkday?) : DriverWorkdayReadResult
-    data object Unavailable : DriverWorkdayReadResult
-    data object PermissionDenied : DriverWorkdayReadResult
-    data object ContextInvalidated : DriverWorkdayReadResult
-    data object SessionInvalidated : DriverWorkdayReadResult
-}
-
-sealed interface DriverWorkdayCommandResult {
-    data object Accepted : DriverWorkdayCommandResult
-    data class Rejected(val code: String?) : DriverWorkdayCommandResult
-    data object NotFound : DriverWorkdayCommandResult
-    data object StaleVersion : DriverWorkdayCommandResult
-    data object UnknownOutcome : DriverWorkdayCommandResult
-    data object Unavailable : DriverWorkdayCommandResult
-    data object PermissionDenied : DriverWorkdayCommandResult
-    data object ContextInvalidated : DriverWorkdayCommandResult
-    data object SessionInvalidated : DriverWorkdayCommandResult
-}
-
-interface DriverWorkdayGateway {
-    suspend fun current(authority: DriverDeliveryAuthority): DriverWorkdayReadResult
-    suspend fun start(
-        authority: DriverDeliveryAuthority,
-        idempotencyKey: String
-    ): DriverWorkdayCommandResult
-    suspend fun end(
-        authority: DriverDeliveryAuthority,
-        workdayId: String,
-        version: Long,
-        idempotencyKey: String
-    ): DriverWorkdayCommandResult
-    suspend fun setLocationAvailability(
-        authority: DriverDeliveryAuthority,
-        workdayId: String,
-        version: Long,
-        locationAvailable: Boolean,
-        idempotencyKey: String
-    ): DriverWorkdayCommandResult
-    suspend fun reportLocation(
-        authority: DriverDeliveryAuthority,
-        workdayId: String,
-        location: DriverWorkdayLocationSample
-    ): DriverWorkdayCommandResult
-}
-
-enum class DriverWorkdayCommandAction {
-    START,
-    SET_LOCATION_AVAILABILITY,
-    END
-}
-
-@Immutable
-data class DriverWorkdayCommandScope(
-    val userId: String,
-    val tenantId: String,
-    val workspaceId: String,
-    val membershipId: String
-) {
-    init {
-        require(listOf(userId, tenantId, workspaceId, membershipId).all(String::isNotBlank))
-    }
-}
-
-@Immutable
-data class DriverWorkdayCommandIntent(
-    val scope: DriverWorkdayCommandScope,
-    val action: DriverWorkdayCommandAction,
-    val workdayId: String?,
-    val expectedVersion: Long?,
-    val locationAvailable: Boolean?,
-    val idempotencyKey: String,
-    val initiatedAt: String
-) {
-    init {
-        require(idempotencyKey.isNotBlank() && idempotencyKey.length <= 160)
-        require(runCatching { Instant.parse(initiatedAt) }.isSuccess)
-        when (action) {
-            DriverWorkdayCommandAction.START -> require(
-                workdayId == null && expectedVersion == null && locationAvailable == true
-            )
-
-            DriverWorkdayCommandAction.END -> require(
-                workdayId != null && expectedVersion != null && expectedVersion >= 0 &&
-                    locationAvailable == null
-            )
-
-            DriverWorkdayCommandAction.SET_LOCATION_AVAILABILITY -> require(
-                workdayId != null && expectedVersion != null && expectedVersion >= 0 &&
-                    locationAvailable != null
-            )
-        }
-    }
-
-    override fun toString(): String = "DriverWorkdayCommandIntent(action=$action, key=REDACTED)"
-}
-
-sealed interface DriverWorkdayCommandIntentRead {
-    data class Available(val intent: DriverWorkdayCommandIntent?) : DriverWorkdayCommandIntentRead
-    data object Unavailable : DriverWorkdayCommandIntentRead
-}
-
-interface DriverWorkdayCommandStore {
-    suspend fun load(scope: DriverWorkdayCommandScope): DriverWorkdayCommandIntentRead
-    suspend fun save(intent: DriverWorkdayCommandIntent): Boolean
-    suspend fun clear(scope: DriverWorkdayCommandScope, idempotencyKey: String): Boolean
-}
 
 enum class DriverWorkdayNotice {
     NONE,
@@ -331,15 +183,14 @@ class DriverWorkdayViewModel(
             if (!isCurrent(currentAuthority, requestGeneration)) return@launch
             when (current) {
                 is DriverWorkdayReadResult.Current -> {
-                    if (current.workday != null &&
-                        current.workday.status != DriverWorkdayStatus.CLOSED
-                    ) {
+                    val workday = current.workday
+                    if (workday != null && workday.status != DriverWorkdayStatus.CLOSED) {
                         mutableState.value =
                             mutableState.value.copy(
-                                workday = current.workday,
+                                workday = workday,
                                 commandPending = false
                             )
-                        reconcileCapture(currentAuthority, current.workday)
+                        reconcileCapture(currentAuthority, workday)
                         return@launch
                     }
                 }

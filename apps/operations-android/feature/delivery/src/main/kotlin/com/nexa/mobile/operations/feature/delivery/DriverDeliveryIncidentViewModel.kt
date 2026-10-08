@@ -2,7 +2,29 @@ package com.nexa.mobile.operations.feature.delivery
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.feature.delivery.DriverIncidentCurrentDeliveryResult as CurrentDeliveryResult
+import com.nexa.mobile.operations.feature.delivery.application.DriverIncidentGateway
+import com.nexa.mobile.operations.feature.delivery.application.DriverIncidentMetadataStore
+import com.nexa.mobile.operations.feature.delivery.model.DriverAttemptScopeIdentity
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryAuthority
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentCommand
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentCurrentDelivery
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentCurrentDeliveryResult as CurrentDeliveryResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentEvidenceAttachCommand
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentEvidenceDraft
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentEvidenceProjection
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentEvidenceResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentEvidenceStage
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentEvidenceUploadCommand
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentMetadata
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentMetadataRead
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentMetadataWrite
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentRecordStatus
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentSelectionContext
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentSummary
+import com.nexa.mobile.operations.feature.delivery.model.DriverIncidentType
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofFileCandidate
+import com.nexa.mobile.operations.feature.delivery.model.driverIncidentBody
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -751,7 +773,8 @@ class DriverDeliveryIncidentViewModel(
                 return@launch
             }
             val command = if (evidence.stage == DriverIncidentEvidenceStage.AttachUnknownOutcome) {
-                if (fresh.version != evidence.attachExpectedVersion) {
+                val attachExpectedVersion = evidence.attachExpectedVersion
+                if (attachExpectedVersion == null || fresh.version != attachExpectedVersion) {
                     evidenceFailure("ATTACH_REVIEW_VERSION_CHANGED")
                     return@launch
                 }
@@ -760,7 +783,7 @@ class DriverDeliveryIncidentViewModel(
                     attemptId,
                     summary.incidentId,
                     evidenceId,
-                    evidence.attachExpectedVersion,
+                    attachExpectedVersion,
                     evidence.attachIdempotencyKey ?: return@launch,
                     evidence.attachBody ?: return@launch
                 )

@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.feature.delivery.model.DriverWorkdayStatus
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter

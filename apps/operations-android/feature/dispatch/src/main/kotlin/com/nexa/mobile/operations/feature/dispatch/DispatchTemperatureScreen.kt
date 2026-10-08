@@ -37,7 +37,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.feature.dispatch.DispatchTemperatureMutationStatus as TemperatureMutationStatus
 import com.nexa.mobile.operations.feature.dispatch.DispatchTemperaturePhotoStatus as TemperaturePhotoStatus
-import java.math.BigDecimal
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchTemperatureLot
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 
@@ -249,16 +249,17 @@ private fun TemperatureLotCard(
                     )
                 }
             }
-            if (lot.supportsInRangeEvidence && lot.lotId != null) {
+            val lotId = lot.lotId
+            if (lot.supportsInRangeEvidence && lotId != null) {
                 val readingDescription = stringResource(R.string.dispatch_temperature_entry)
                 OutlinedTextField(
                     value = value,
-                    onValueChange = { onValueChanged(lot.lotId, it) },
+                    onValueChange = { onValueChanged(lotId, it) },
                     enabled = canRecord,
                     modifier = Modifier
                         .fillMaxWidth()
                         .semantics {
-                            contentDescription = "$readingDescription ${lot.lotId}"
+                            contentDescription = "$readingDescription $lotId"
                         },
                     label = { Text(stringResource(R.string.dispatch_temperature_celsius_label)) },
                     singleLine = true,
@@ -272,7 +273,7 @@ private fun TemperatureLotCard(
                         color = MaterialTheme.colorScheme.error
                     )
                     ExcursionPhotoPanel(
-                        lotId = lot.lotId,
+                        lotId = lotId,
                         photo = photo?.takeIf { it.warehouseId == lot.warehouseId },
                         canUpload = canUploadPhoto,
                         onSelect = onSelectExcursionEvidence,
@@ -280,7 +281,7 @@ private fun TemperatureLotCard(
                     )
                 }
                 Button(
-                    onClick = { onRecord(lot.lotId) },
+                    onClick = { onRecord(lotId) },
                     enabled = canRecord && numericValue != null && (
                         !outOfRange || photo?.let {
                             it.warehouseId == lot.warehouseId && it.isAvailable &&

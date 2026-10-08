@@ -1,14 +1,14 @@
 package com.nexa.mobile.operations
 
-import com.nexa.mobile.operations.feature.delivery.DriverAttemptScopeIdentity
-import com.nexa.mobile.operations.feature.delivery.DriverProofFileCandidate
-import com.nexa.mobile.operations.feature.delivery.DriverProofIntentMetadata
-import com.nexa.mobile.operations.feature.delivery.DriverProofIntentStage
-import com.nexa.mobile.operations.feature.delivery.DriverProofIntentStatus
-import com.nexa.mobile.operations.feature.delivery.DriverProofMetadataRead
-import com.nexa.mobile.operations.feature.delivery.DriverProofMetadataStore
-import com.nexa.mobile.operations.feature.delivery.DriverProofMetadataWrite
-import com.nexa.mobile.operations.feature.delivery.DriverProofSelectionContext as ProofSelectionContext
+import com.nexa.mobile.operations.feature.delivery.application.DriverProofMetadataStore
+import com.nexa.mobile.operations.feature.delivery.model.DriverAttemptScopeIdentity
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofFileCandidate
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofIntentMetadata
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofIntentStage
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofIntentStatus
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofMetadataRead
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofMetadataWrite
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofSelectionContext as ProofSelectionContext
 import java.io.File
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals

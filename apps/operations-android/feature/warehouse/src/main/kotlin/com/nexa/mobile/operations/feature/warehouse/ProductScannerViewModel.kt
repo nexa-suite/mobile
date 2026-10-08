@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexa.mobile.operations.core.device.scanner.ProductCodeCandidate
 import com.nexa.mobile.operations.core.device.scanner.ProductCodeScannerEvent
+import com.nexa.mobile.operations.feature.warehouse.application.ProductScannerGateway
+import com.nexa.mobile.operations.feature.warehouse.model.ActiveOperationsContext
+import com.nexa.mobile.operations.feature.warehouse.model.ProductScannerResolution
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

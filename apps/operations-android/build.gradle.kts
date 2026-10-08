@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false
     alias(libs.plugins.kotlin.compose) apply false
+    alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.hilt) apply false
@@ -10,20 +11,23 @@ plugins {
 
 ktlint { version.set("1.8.0") }
 
-val configuredAndroidModules = subprojects.filter { it.buildFile.isFile }
+val configuredModules = subprojects.filter { it.buildFile.isFile }
+val configuredAndroidModules = configuredModules.filter { !it.path.endsWith(":contract") }
+val configuredContractModules = configuredModules.filter { it.path.endsWith(":contract") }
 
 tasks.named("ktlintCheck") {
-    dependsOn(configuredAndroidModules.map { "${it.path}:ktlintCheck" })
+    dependsOn(configuredModules.map { "${it.path}:ktlintCheck" })
 }
 
 tasks.register("testDebugUnitTest") {
     group = "verification"
     description = "Runs JVM unit tests for every configured Operations Android module."
     dependsOn(configuredAndroidModules.map { "${it.path}:testDebugUnitTest" })
+    dependsOn(configuredContractModules.map { "${it.path}:test" })
 }
 
 tasks.named("ktlintFormat") {
-    dependsOn(configuredAndroidModules.map { "${it.path}:ktlintFormat" })
+    dependsOn(configuredModules.map { "${it.path}:ktlintFormat" })
 }
 
 tasks.register("lintDebug") {
@@ -374,11 +378,19 @@ tasks.register("verifyAndroidArchitecture") {
             ":feature:access",
             ":feature:warehouse",
             ":feature:dispatch",
-            ":feature:delivery"
+            ":feature:delivery",
+            ":feature:commercial"
         )
+        val allowedContractModules = allowedFeatureModules.map { "$it:contract" }.toSet()
+        val dataModules = setOf(":data:operations")
         check(
-            includedModules.containsAll(foundationModules + requiredFeatureModules) &&
-                includedModules.all { it in foundationModules || it in allowedFeatureModules }
+            includedModules.containsAll(
+                foundationModules + requiredFeatureModules + allowedContractModules + dataModules
+            ) &&
+                includedModules.all {
+                    it in foundationModules || it in allowedFeatureModules ||
+                        it in allowedContractModules || it in dataModules
+                }
         ) {
             "Operations Android modules must use the foundations and Blueprint feature areas"
         }
@@ -417,7 +429,7 @@ tasks.register("verifyAndroidArchitecture") {
         ) { ":core:local must store plain scoped metadata, not authority or server facts" }
 
         val featureModules = includedModules
-            .filter { it.startsWith(":feature:") }
+            .filter { it in allowedFeatureModules }
             .map { it.removePrefix(":").replace(':', '/') }
         featureModules.forEach { module ->
             val buildFile = file("$module/build.gradle.kts")
@@ -429,7 +441,11 @@ tasks.register("verifyAndroidArchitecture") {
                 !buildText.contains("project(\":core:auth\")") &&
                     !buildText.contains("project(\":core:local\")") &&
                     !buildText.contains("project(\":core:network\")") &&
-                    !buildText.contains("project(\":feature:")
+                    !buildText.contains("project(\":data:") &&
+                    Regex("project\\(\"(:feature:[^\"]+)\"\\)")
+                        .findAll(buildText).all {
+                            it.groupValues[1] == ":${module.replace('/', ':')}:contract"
+                        }
             ) { "$module must remain independent of auth, transport, and other Product features" }
             check(
                 listOf("room", "datastore", "work-runtime", "camera", "retrofit", "okhttp")
@@ -445,12 +461,81 @@ tasks.register("verifyAndroidArchitecture") {
                         "import okhttp3.",
                         "com.nexa.mobile.operations.core.network",
                         "com.nexa.mobile.operations.core.auth",
+                        "com.nexa.mobile.operations.core.local",
+                        "com.nexa.mobile.operations.data.",
                         "workspaceSlug",
                         "NativeSignIn"
                     ).any(body::contains)
                 }
             ) { "$module source crosses a transport/security boundary or adds slug identity UX" }
+            sources.forEach { source ->
+                Regex("(?m)^import com\\.nexa\\.mobile\\.operations\\.feature\\.([^\\s]+)")
+                    .findAll(source.readText()).forEach { dependency ->
+                        val area = module.substringAfterLast('/')
+                        check(dependency.groupValues[1].startsWith("$area.")) {
+                            "$module imports another feature area in ${source.name}"
+                        }
+                    }
+            }
         }
+
+        allowedContractModules.forEach { module ->
+            val path = module.removePrefix(":").replace(':', '/')
+            val contractBuild = file("$path/build.gradle.kts").readText()
+            check(contractBuild.contains("libs.plugins.kotlin.jvm")) {
+                "$module must compile as a framework-free Kotlin/JVM client contract"
+            }
+            check(
+                !contractBuild.contains("libs.plugins.android") &&
+                    !contractBuild.contains("libs.plugins.kotlin.compose")
+            ) {
+                "$module must compile without Android or Compose"
+            }
+            Regex("project\\(\"(:[^\"]+)\"\\)").findAll(contractBuild).forEach {
+                check(it.groupValues[1] in allowedContractModules) {
+                    "$module depends on an implementation instead of a client contract"
+                }
+            }
+            file("$path/src/main").walkTopDown().filter { it.extension == "kt" }
+                .forEach { source ->
+                    val body = source.readText()
+                    check(
+                        Regex(
+                            "(?m)^import (android\\.|androidx\\.|dagger\\.|" +
+                                "retrofit2\\.|okhttp3\\.|" +
+                                "com\\.nexa\\.mobile\\.operations\\.(core|data)\\.)"
+                        ).find(body) == null
+                    ) { "$module imports framework or implementation in ${source.name}" }
+                    Regex("(?m)^import com\\.nexa\\.mobile\\.operations\\.feature\\.([^\\s]+)")
+                        .findAll(body).forEach { dependency ->
+                            val target = dependency.groupValues[1]
+                            check(target.contains(".model.") || target.contains(".application.")) {
+                                "$module imports a presentation type: $target"
+                            }
+                        }
+                }
+        }
+        val dataBuild = file("data/operations/build.gradle.kts").readText()
+        val dataFeatureDependencies = Regex("project\\(\"(:feature:[^\"]+)\"\\)")
+            .findAll(dataBuild).map { it.groupValues[1] }.toSet()
+        check(dataFeatureDependencies == allowedContractModules) {
+            "Data must depend on client contracts, never feature presentation"
+        }
+        file("data/operations/src/main").walkTopDown().filter { it.extension == "kt" }
+            .forEach { source ->
+                val body = source.readText()
+                check(
+                    Regex("(?m)^import (androidx\\.lifecycle\\.|androidx\\.compose\\.)")
+                        .find(body) == null
+                ) { "Data imports presentation in ${source.name}" }
+                Regex("(?m)^import com\\.nexa\\.mobile\\.operations\\.feature\\.([^\\s]+)")
+                    .findAll(body).forEach { dependency ->
+                        val target = dependency.groupValues[1]
+                        check(target.contains(".model.") || target.contains(".application.")) {
+                            "Data imports a feature presentation type: $target"
+                        }
+                    }
+            }
 
         val appBuild = file("app/build.gradle.kts").readText()
         check(

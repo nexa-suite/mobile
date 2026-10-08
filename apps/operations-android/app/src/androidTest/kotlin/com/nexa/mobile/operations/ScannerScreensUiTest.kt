@@ -8,10 +8,10 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
-import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
 import com.nexa.mobile.operations.feature.warehouse.ProductScannerScreen
 import com.nexa.mobile.operations.feature.warehouse.ProductScannerUiState
 import com.nexa.mobile.operations.feature.warehouse.ScannerUnverifiedReason
+import com.nexa.mobile.operations.feature.warehouse.model.ActiveOperationsContext
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test

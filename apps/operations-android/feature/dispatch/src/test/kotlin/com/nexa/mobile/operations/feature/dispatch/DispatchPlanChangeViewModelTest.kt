@@ -1,5 +1,19 @@
 package com.nexa.mobile.operations.feature.dispatch
 
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchPlanChangeGateway
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchPlanChangeMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityContext
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchDriverCandidate
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchPlanChangeGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchPlanChangeIntent
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchPlanChangeIntentStatus
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchPlanChangeMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchPlanChangeMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchPlanChangeScopeIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchPlanChangeSnapshot
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchReadiness
+import com.nexa.mobile.operations.feature.dispatch.model.PreparedFulfillmentDriverAssignment
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent

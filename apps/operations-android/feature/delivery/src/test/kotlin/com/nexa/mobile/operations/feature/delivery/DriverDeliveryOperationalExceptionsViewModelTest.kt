@@ -1,7 +1,22 @@
 package com.nexa.mobile.operations.feature.delivery
 
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionAction as OperationalExceptionAction
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionMutationResult as ExceptionMutationResult
+import com.nexa.mobile.operations.feature.delivery.application.DriverDeliveryOperationalExceptionMetadataStore
+import com.nexa.mobile.operations.feature.delivery.application.DriverDeliveryOperationalExceptionsGateway
+import com.nexa.mobile.operations.feature.delivery.model.DRIVER_WARNING_RESOLUTION_MAX_CHARS
+import com.nexa.mobile.operations.feature.delivery.model.DriverAttemptScopeIdentity
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryAuthority
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalException
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionAction as OperationalExceptionAction
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionCommand
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionIntent
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionIntentStatus
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionMetadataRead
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionMetadataWrite
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionMutation
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionMutationResult as ExceptionMutationResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionsLoadResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOperationalExceptionsSnapshot
+import com.nexa.mobile.operations.feature.delivery.model.driverDeliveryOperationalExceptionResolutionFromBody
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle

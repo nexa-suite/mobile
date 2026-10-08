@@ -1,5 +1,26 @@
 package com.nexa.mobile.operations.feature.dispatch
 
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchOutgoingGoodsGateway
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchOutgoingGoodsMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityContext
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsAllocation
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsCheck
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsCheckLine
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsCommand
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsCommandType
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsDiscrepancy
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsIntent
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsIntentStatus
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsLine
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsObservation
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsResolution
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsScopeIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsSnapshot
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchReadiness
 import java.math.BigDecimal
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi

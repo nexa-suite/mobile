@@ -25,6 +25,7 @@ android {
 ktlint { version.set("1.8.0") }
 
 dependencies {
+    api(project(":feature:warehouse:contract"))
     implementation(project(":core:device"))
     implementation(project(":core:designsystem"))
     implementation(platform(libs.compose.bom))

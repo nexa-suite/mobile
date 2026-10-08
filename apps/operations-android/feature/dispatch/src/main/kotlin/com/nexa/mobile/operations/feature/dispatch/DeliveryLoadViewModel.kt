@@ -2,6 +2,25 @@ package com.nexa.mobile.operations.feature.dispatch
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.feature.dispatch.application.DeliveryLoadCommandMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.application.DeliveryLoadGateway
+import com.nexa.mobile.operations.feature.dispatch.model.DELIVERY_LOAD_STATUSES
+import com.nexa.mobile.operations.feature.dispatch.model.DeliveryLoad
+import com.nexa.mobile.operations.feature.dispatch.model.DeliveryLoadCommand
+import com.nexa.mobile.operations.feature.dispatch.model.DeliveryLoadCommandAction
+import com.nexa.mobile.operations.feature.dispatch.model.DeliveryLoadCommandIntentStatus
+import com.nexa.mobile.operations.feature.dispatch.model.DeliveryLoadCommandMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.model.DeliveryLoadCommandMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.model.DeliveryLoadCompatibilityAttestation
+import com.nexa.mobile.operations.feature.dispatch.model.DeliveryLoadDriverCandidate
+import com.nexa.mobile.operations.feature.dispatch.model.DeliveryLoadGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.model.DeliveryLoadScopeIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityContext
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchReadiness
+import com.nexa.mobile.operations.feature.dispatch.model.deliveryLoadAssignBody
+import com.nexa.mobile.operations.feature.dispatch.model.deliveryLoadCreationBody
+import com.nexa.mobile.operations.feature.dispatch.model.deliveryLoadReorderBody
+import com.nexa.mobile.operations.feature.dispatch.model.dispatchWindowPlanBody
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -796,7 +815,8 @@ private fun DeliveryLoadUiState.canStartCommandForCall() =
 private fun DeliveryLoad.matches(command: DeliveryLoadCommand, membershipId: String?): Boolean {
     if (command.action == DeliveryLoadCommandAction.CREATE && command.loadId != null) return false
     if (command.loadId != null && id != command.loadId) return false
-    if (command.expectedVersion != null && version < command.expectedVersion) return false
+    val expectedVersion = command.expectedVersion
+    if (expectedVersion != null && version < expectedVersion) return false
     return when (command.action) {
         DeliveryLoadCommandAction.CREATE -> {
             val body = command.frozenBody ?: return false

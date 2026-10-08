@@ -34,6 +34,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliverySnapshot
+import com.nexa.mobile.operations.feature.delivery.model.DriverOutcomeKind
 
 @Composable
 fun DriverDeliveryScreen(
@@ -482,12 +484,13 @@ fun DriverDeliveryScreen(
                         onRecordOutcome = onRecordOutcome
                     )
                 }
-                if (onOpenHandoffCode != null && delivery.activeAttempt != null) {
+                val activeAttempt = delivery.activeAttempt
+                if (onOpenHandoffCode != null && activeAttempt != null) {
                     OutlinedButton(
                         onClick = {
                             onOpenHandoffCode(
                                 delivery.id,
-                                delivery.activeAttempt.id,
+                                activeAttempt.id,
                                 delivery.version
                             )
                         },

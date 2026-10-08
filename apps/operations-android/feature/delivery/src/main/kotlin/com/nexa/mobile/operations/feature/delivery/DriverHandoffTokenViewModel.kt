@@ -2,7 +2,18 @@ package com.nexa.mobile.operations.feature.delivery
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.feature.delivery.DriverHandoffCurrentDeliveryResult as CurrentDeliveryResult
+import com.nexa.mobile.operations.feature.delivery.application.DriverHandoffTokenGateway
+import com.nexa.mobile.operations.feature.delivery.application.DriverHandoffTokenMetadataStore
+import com.nexa.mobile.operations.feature.delivery.model.DriverAttemptScopeIdentity
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryAuthority
+import com.nexa.mobile.operations.feature.delivery.model.DriverHandoffCurrentDelivery
+import com.nexa.mobile.operations.feature.delivery.model.DriverHandoffCurrentDeliveryResult as CurrentDeliveryResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverHandoffIssueCommand
+import com.nexa.mobile.operations.feature.delivery.model.DriverHandoffIssueResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverHandoffMetadataRead
+import com.nexa.mobile.operations.feature.delivery.model.DriverHandoffMetadataWrite
+import com.nexa.mobile.operations.feature.delivery.model.DriverHandoffTokenReceipt
+import com.nexa.mobile.operations.feature.delivery.model.driverHandoffIssueBody
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID

@@ -2,6 +2,18 @@ package com.nexa.mobile.operations.feature.dispatch
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchHandoverGateway
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchHandoverMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityContext
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoverCommand
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoverGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoverIntent
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoverMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoverMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoverSnapshot
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsIntentStatus
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsScopeIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchReadiness
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException

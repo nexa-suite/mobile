@@ -2,7 +2,18 @@ package com.nexa.mobile.operations.feature.dispatch
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeGatewayResult as ChangeGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchPlanChangeGateway
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchPlanChangeMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityContext
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchPlanChangeGatewayResult as ChangeGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchPlanChangeIntent
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchPlanChangeIntentStatus
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchPlanChangeMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchPlanChangeMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchPlanChangeScopeIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchPlanChangeSnapshot
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchReadiness
+import com.nexa.mobile.operations.feature.dispatch.model.PreparedFulfillmentDriverAssignment
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -451,8 +462,9 @@ class DispatchPlanChangeViewModel(
         DispatchPlanChangeMetadataWrite.Unavailable
     }
 
-    private fun DispatchPlanChangeSnapshot.isFor(fulfillmentId: String): Boolean =
-        readiness.subjectKind == "PREPARED_FULFILLMENT" &&
+    private fun DispatchPlanChangeSnapshot.isFor(fulfillmentId: String): Boolean {
+        val assignment = this.assignment
+        return readiness.subjectKind == "PREPARED_FULFILLMENT" &&
             readiness.fulfillmentId == fulfillmentId &&
             candidates.map { it.membershipId.lowercase() }.distinct().size == candidates.size &&
             (
@@ -471,6 +483,7 @@ class DispatchPlanChangeViewModel(
                 history.count { it.current } == 1 &&
                     history.any { it.current && it.id == assignment.id }
             }
+    }
 
     private fun PreparedFulfillmentDriverAssignment.matches(intent: DispatchPlanChangeIntent) =
         fulfillmentId == intent.fulfillmentId &&

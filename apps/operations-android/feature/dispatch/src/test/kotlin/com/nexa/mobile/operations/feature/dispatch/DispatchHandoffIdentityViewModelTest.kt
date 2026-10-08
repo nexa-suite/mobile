@@ -1,5 +1,16 @@
 package com.nexa.mobile.operations.feature.dispatch
 
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchHandoffIdentityGateway
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchHandoffIdentityMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityContext
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoffIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoffIdentityCommand
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoffIssueResult
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoffMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoffMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchHandoffValidationResult
+import com.nexa.mobile.operations.feature.dispatch.model.dispatchHandoffIssueBody
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi

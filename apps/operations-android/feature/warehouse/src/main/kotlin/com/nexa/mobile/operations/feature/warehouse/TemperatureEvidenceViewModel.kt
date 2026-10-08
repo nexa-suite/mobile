@@ -2,6 +2,25 @@ package com.nexa.mobile.operations.feature.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.feature.warehouse.application.TemperatureEvidenceGateway
+import com.nexa.mobile.operations.feature.warehouse.application.TemperatureEvidenceMetadataStore
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureEvidenceAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureEvidenceDraft
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureEvidenceFacts
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureEvidenceIntent
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureEvidencePayload
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureEvidencePhoto
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureEvidencePhotoCandidate
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureEvidencePhotoSelection
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureEvidenceSubject
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureEvidenceSubjectType
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureEvidenceUnit
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureIntentStatus
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureLookupResult
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureMetadataRead
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureMetadataWrite
+import com.nexa.mobile.operations.feature.warehouse.model.TemperaturePhotoResult
+import com.nexa.mobile.operations.feature.warehouse.model.TemperatureSubmitResult
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.OffsetDateTime

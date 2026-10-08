@@ -1,5 +1,9 @@
 package com.nexa.mobile.operations.feature.dispatch
 
+import com.nexa.mobile.operations.feature.dispatch.model.BusinessOperationalException
+import com.nexa.mobile.operations.feature.dispatch.model.BusinessOperationalExceptionAction
+import com.nexa.mobile.operations.feature.dispatch.model.BusinessOperationalExceptionsSnapshot
+import com.nexa.mobile.operations.feature.dispatch.model.businessOperationalExceptionRequestBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

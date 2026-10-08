@@ -3,7 +3,26 @@ package com.nexa.mobile.operations.feature.warehouse
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyValidationError as DiscrepancyValidationError
-import java.math.BigDecimal
+import com.nexa.mobile.operations.feature.warehouse.application.InboundDiscrepancyDraftStore
+import com.nexa.mobile.operations.feature.warehouse.application.InboundDiscrepancyEvidenceArtifactStore
+import com.nexa.mobile.operations.feature.warehouse.application.InboundDiscrepancyGateway
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyArtifactIdentity
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyArtifactRead
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyArtifactWrite
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyCreateCommand
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyDraft
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyDraftRead
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyDraftWrite
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyEvidenceCandidate
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyEvidenceStatusResult
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyKind
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyMutationResult
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyPendingAction
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancySelectionContext
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyStartContext
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancySubmitCommand
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyUploadCommand
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,17 +92,19 @@ class InboundDiscrepancyViewModel(
                         active = true,
                         authorityEpoch = currentAuthority.authorityEpoch
                     )
-                    if (draft != null && draft.caseId != null) {
-                        reloadStagedEvidence(
-                            InboundDiscrepancySelectionContext(
-                                currentAuthority.authorityEpoch,
-                                currentAuthority.scope,
-                                draft.warehouseId,
-                                draft.caseId
-                            ),
-                            requestGeneration,
-                            currentAuthority
-                        )
+                    draft?.let { storedDraft ->
+                        storedDraft.caseId?.let { caseId ->
+                            reloadStagedEvidence(
+                                InboundDiscrepancySelectionContext(
+                                    currentAuthority.authorityEpoch,
+                                    currentAuthority.scope,
+                                    storedDraft.warehouseId,
+                                    caseId
+                                ),
+                                requestGeneration,
+                                currentAuthority
+                            )
+                        }
                     }
                 }
             }
@@ -619,14 +640,15 @@ class InboundDiscrepancyViewModel(
 
     private fun performCreate(frozen: InboundDiscrepancyDraft, retry: Boolean) {
         val currentAuthority = authority ?: return
-        if (frozen.createIdempotencyKey == null || frozen.createBody == null) return
+        val createIdempotencyKey = frozen.createIdempotencyKey ?: return
+        val createBody = frozen.createBody ?: return
         if (retry && frozen.pendingAction != InboundDiscrepancyPendingAction.CreateCase) return
         if (!retry && frozen.pendingAction != InboundDiscrepancyPendingAction.CreateCase) return
         val requestGeneration = generation
         mutableState.update {
             it.copy(
-                createIdempotencyKey = frozen.createIdempotencyKey,
-                createBody = frozen.createBody,
+                createIdempotencyKey = createIdempotencyKey,
+                createBody = createBody,
                 pendingAction = frozen.pendingAction,
                 isSaving = true,
                 flow = InboundDiscrepancyFlowStatus.CreatingCase,
@@ -647,8 +669,8 @@ class InboundDiscrepancyViewModel(
                 val result = try {
                     gateway.createCase(
                         InboundDiscrepancyCreateCommand(
-                            frozen.createIdempotencyKey,
-                            frozen.createBody
+                            createIdempotencyKey,
+                            createBody
                         ),
                         currentAuthority
                     )
@@ -1012,48 +1034,58 @@ class InboundDiscrepancyViewModel(
         pendingAction = pendingAction
     )
 
-    private fun InboundDiscrepancyDraft.toUiState(epoch: Long) = InboundDiscrepancyUiState(
-        authorityEpoch = epoch,
-        active = true,
-        metadata = InboundDiscrepancyMetadataStatus.Available,
-        draftId = id,
-        warehouseId = warehouseId,
-        expectedSkuId = expectedSkuId,
-        observedSkuId = observedSkuId,
-        observedSkuLabel = observedSkuLabel,
-        expectedBatchReference = expectedBatchReference,
-        observedBatchReference = observedBatchReference,
-        expectedQuantityText = expectedQuantityText,
-        observedQuantityText = observedQuantityText,
-        unit = unit,
-        kind = kind,
-        reasonDetails = reasonDetails,
-        observationNotes = observationNotes,
-        capturedAtDeviceMillis = capturedAtDeviceMillis,
-        flow = when {
-            pendingAction != null -> InboundDiscrepancyFlowStatus.UnknownOutcome
-            caseStatus == "READY_FOR_REVIEW" -> InboundDiscrepancyFlowStatus.ReadyForReview
-            evidenceStatus == "AVAILABLE" -> InboundDiscrepancyFlowStatus.EvidenceAvailable
-            evidenceStatus != null -> evidenceStatus.toEvidenceFlow()
-            caseId != null -> InboundDiscrepancyFlowStatus.PendingEvidence
-            else -> InboundDiscrepancyFlowStatus.Editing
-        },
-        caseId = caseId,
-        caseVersion = caseVersion,
-        caseStatus = caseStatus,
-        evidenceId = evidenceId,
-        evidenceStatus = evidenceStatus,
-        hasSavedDraft = true,
-        hasUnsavedChanges = false,
-        createIdempotencyKey = createIdempotencyKey,
-        createBody = createBody,
-        evidenceUploadKey = evidenceUploadKey,
-        submitIdempotencyKey = submitIdempotencyKey,
-        submitBody = submitBody,
-        pendingAction = pendingAction
-    )
+    private fun InboundDiscrepancyDraft.toUiState(epoch: Long): InboundDiscrepancyUiState {
+        val storedEvidenceStatus = this.evidenceStatus
+        return InboundDiscrepancyUiState(
+            authorityEpoch = epoch,
+            active = true,
+            metadata = InboundDiscrepancyMetadataStatus.Available,
+            draftId = id,
+            warehouseId = warehouseId,
+            expectedSkuId = expectedSkuId,
+            observedSkuId = observedSkuId,
+            observedSkuLabel = observedSkuLabel,
+            expectedBatchReference = expectedBatchReference,
+            observedBatchReference = observedBatchReference,
+            expectedQuantityText = expectedQuantityText,
+            observedQuantityText = observedQuantityText,
+            unit = unit,
+            kind = kind,
+            reasonDetails = reasonDetails,
+            observationNotes = observationNotes,
+            capturedAtDeviceMillis = capturedAtDeviceMillis,
+            flow = when {
+                pendingAction != null -> InboundDiscrepancyFlowStatus.UnknownOutcome
+
+                caseStatus == "READY_FOR_REVIEW" -> InboundDiscrepancyFlowStatus.ReadyForReview
+
+                storedEvidenceStatus == "AVAILABLE" ->
+                    InboundDiscrepancyFlowStatus.EvidenceAvailable
+
+                storedEvidenceStatus != null -> storedEvidenceStatus.toEvidenceFlow()
+
+                caseId != null -> InboundDiscrepancyFlowStatus.PendingEvidence
+
+                else -> InboundDiscrepancyFlowStatus.Editing
+            },
+            caseId = caseId,
+            caseVersion = caseVersion,
+            caseStatus = caseStatus,
+            evidenceId = evidenceId,
+            evidenceStatus = evidenceStatus,
+            hasSavedDraft = true,
+            hasUnsavedChanges = false,
+            createIdempotencyKey = createIdempotencyKey,
+            createBody = createBody,
+            evidenceUploadKey = evidenceUploadKey,
+            submitIdempotencyKey = submitIdempotencyKey,
+            submitBody = submitBody,
+            pendingAction = pendingAction
+        )
+    }
 
     private fun InboundDiscrepancyDraft.isValidStored(): Boolean = try {
+        val storedCaseVersion = this.caseVersion
         id.isNotBlank() && id.length <= MAX_REFERENCE_LENGTH &&
             warehouseId.length <= MAX_REFERENCE_LENGTH &&
             expectedSkuId.length <= MAX_REFERENCE_LENGTH &&
@@ -1067,7 +1099,7 @@ class InboundDiscrepancyViewModel(
             observationNotes.length <= MAX_NOTE_LENGTH &&
             capturedAtDeviceMillis > 0 && (createBody?.length ?: 0) <= MAX_COMMAND_LENGTH &&
             (submitBody?.length ?: 0) <= MAX_COMMAND_LENGTH &&
-            (caseVersion == null || caseVersion >= 0)
+            (storedCaseVersion == null || storedCaseVersion >= 0)
     } catch (_: Exception) {
         false
     }

@@ -2,6 +2,20 @@ package com.nexa.mobile.operations.feature.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.feature.warehouse.application.StockTransferGateway
+import com.nexa.mobile.operations.feature.warehouse.application.StockTransferMetadataStore
+import com.nexa.mobile.operations.feature.warehouse.model.ConfirmedStockTransfer
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferIntent
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferRequest
+import com.nexa.mobile.operations.feature.warehouse.model.TransferIntentStatus
+import com.nexa.mobile.operations.feature.warehouse.model.TransferLookupResult
+import com.nexa.mobile.operations.feature.warehouse.model.TransferMetadataRead
+import com.nexa.mobile.operations.feature.warehouse.model.TransferMetadataWrite
+import com.nexa.mobile.operations.feature.warehouse.model.TransferSourceLotChoice
+import com.nexa.mobile.operations.feature.warehouse.model.TransferSubmitResult
+import com.nexa.mobile.operations.feature.warehouse.model.TransferWarehouseChoice
+import com.nexa.mobile.operations.feature.warehouse.model.TransferZoneChoice
 import java.math.BigDecimal
 import java.util.UUID
 import kotlinx.coroutines.CancellationException

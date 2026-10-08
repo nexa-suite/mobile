@@ -2,7 +2,27 @@
 
 package com.nexa.mobile.operations.feature.warehouse
 
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyMutationResult as DiscrepancyMutationResult
+import com.nexa.mobile.operations.feature.warehouse.application.InboundDiscrepancyDraftStore
+import com.nexa.mobile.operations.feature.warehouse.application.InboundDiscrepancyEvidenceArtifactStore
+import com.nexa.mobile.operations.feature.warehouse.application.InboundDiscrepancyGateway
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyArtifactIdentity
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyArtifactRead
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyArtifactWrite
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyCase
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyCreateCommand
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyDraft
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyDraftRead
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyDraftWrite
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyEvidenceCandidate
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyEvidenceStatusResult
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyKind
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyMutationResult as DiscrepancyMutationResult
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyPendingAction
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyScope
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancySelectionContext
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancySubmitCommand
+import com.nexa.mobile.operations.feature.warehouse.model.InboundDiscrepancyUploadCommand
 import java.time.Instant
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest

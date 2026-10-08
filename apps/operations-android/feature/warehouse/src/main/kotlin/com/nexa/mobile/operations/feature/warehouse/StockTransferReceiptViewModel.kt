@@ -2,13 +2,27 @@ package com.nexa.mobile.operations.feature.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptLookupResult as ReceiptLookupResult
-import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservationMetadataRead as ObservationMetadataRead
-import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservationMetadataStore as ObservationMetadataStore
 import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservationNotice as ReceiptObservationNotice
-import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservationResult as ReceiptObservationResult
 import com.nexa.mobile.operations.feature.warehouse.UnavailableReceiptObservationMetadataStore as MetadataStore
-import java.math.BigDecimal
+import com.nexa.mobile.operations.feature.warehouse.application.StockTransferReceiptGateway
+import com.nexa.mobile.operations.feature.warehouse.application.StockTransferReceiptMetadataStore
+import com.nexa.mobile.operations.feature.warehouse.application.StockTransferReceiptObservationMetadataStore as ObservationMetadataStore
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferAuthority
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptIntent
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptIntentStatus
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptLookupResult as ReceiptLookupResult
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptMetadataRead
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptMetadataWrite
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptObservation
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptObservationIntent
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptObservationIntentStatus
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptObservationMetadataRead as ObservationMetadataRead
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptObservationMetadataWrite
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptObservationResult as ReceiptObservationResult
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptResult
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferReceiptTransfer
+import com.nexa.mobile.operations.feature.warehouse.model.StockTransferScope
+import com.nexa.mobile.operations.feature.warehouse.model.TransferWarehouseChoice
 import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.CancellationException

@@ -1,5 +1,11 @@
 package com.nexa.mobile.operations.feature.warehouse
 
+import com.nexa.mobile.operations.feature.warehouse.application.StockConditionGateway
+import com.nexa.mobile.operations.feature.warehouse.model.ActiveOperationsContext
+import com.nexa.mobile.operations.feature.warehouse.model.StockConditionAvailability
+import com.nexa.mobile.operations.feature.warehouse.model.StockConditionGatewayResult
+import com.nexa.mobile.operations.feature.warehouse.model.StockConditionLot
+import com.nexa.mobile.operations.feature.warehouse.model.VerifiedOperationsIdentity
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate

@@ -2,9 +2,20 @@ package com.nexa.mobile.operations.feature.dispatch
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionScopeIdentity as InstructionScopeIdentity
-import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionsGatewayResult as InstructionsGatewayResult
 import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionsStatus as DeliveryInstructionsStatus
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchDeliveryInstructionMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchDeliveryInstructionsGateway
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityContext
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchDeliveryInstructionIntent
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchDeliveryInstructionIntentStatus
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchDeliveryInstructionKind
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchDeliveryInstructionMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchDeliveryInstructionMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchDeliveryInstructionReceipt
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchDeliveryInstructionScopeIdentity as InstructionScopeIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchDeliveryInstructionsGatewayResult as InstructionsGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchDeliveryInstructionsSnapshot
+import com.nexa.mobile.operations.feature.dispatch.model.dispatchDeliveryInstructionRequestBody
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow

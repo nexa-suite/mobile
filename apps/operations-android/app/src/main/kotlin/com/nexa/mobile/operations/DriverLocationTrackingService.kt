@@ -18,10 +18,10 @@ import android.location.LocationManager
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
-import com.nexa.mobile.operations.feature.delivery.DriverWorkdayLocationEvent
-import com.nexa.mobile.operations.feature.delivery.DriverWorkdayLocationEventStream as WorkdayLocationEventStream
-import com.nexa.mobile.operations.feature.delivery.DriverWorkdayLocationSample as WorkdayLocationSample
 import com.nexa.mobile.operations.feature.delivery.R as DeliveryR
+import com.nexa.mobile.operations.feature.delivery.application.DriverWorkdayLocationEventStream as WorkdayLocationEventStream
+import com.nexa.mobile.operations.feature.delivery.model.DriverWorkdayLocationEvent
+import com.nexa.mobile.operations.feature.delivery.model.DriverWorkdayLocationSample as WorkdayLocationSample
 import java.time.Instant
 import java.util.UUID
 

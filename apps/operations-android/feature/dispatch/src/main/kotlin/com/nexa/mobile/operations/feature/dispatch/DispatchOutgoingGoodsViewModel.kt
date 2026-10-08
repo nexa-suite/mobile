@@ -2,7 +2,21 @@ package com.nexa.mobile.operations.feature.dispatch
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import java.math.BigDecimal
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchOutgoingGoodsGateway
+import com.nexa.mobile.operations.feature.dispatch.application.DispatchOutgoingGoodsMetadataStore
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchAuthorityContext
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsAllocation
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsCommand
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsCommandType
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsGatewayResult
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsIntent
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsLine
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsMetadataRead
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsMetadataWrite
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsObservation
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsScopeIdentity
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchOutgoingGoodsSnapshot
+import com.nexa.mobile.operations.feature.dispatch.model.DispatchReadiness
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException

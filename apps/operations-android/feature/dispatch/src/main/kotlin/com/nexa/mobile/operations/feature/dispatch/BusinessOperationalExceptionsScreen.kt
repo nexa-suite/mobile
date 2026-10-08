@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.feature.dispatch.BusinessOperationalExceptionCommandStatus as ExceptionCommandStatus
 import com.nexa.mobile.operations.feature.dispatch.BusinessOperationalExceptionsStatus as OperationalExceptionsStatus
+import com.nexa.mobile.operations.feature.dispatch.model.BusinessOperationalException
 
 @Composable
 fun BusinessOperationalExceptionsScreen(

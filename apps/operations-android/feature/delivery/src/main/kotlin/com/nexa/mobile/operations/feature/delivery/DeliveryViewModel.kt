@@ -2,6 +2,56 @@ package com.nexa.mobile.operations.feature.delivery
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.feature.delivery.application.DriverArrivalMetadataStore
+import com.nexa.mobile.operations.feature.delivery.application.DriverAttemptMetadataStore
+import com.nexa.mobile.operations.feature.delivery.application.DriverDeliveryGateway
+import com.nexa.mobile.operations.feature.delivery.application.DriverOutcomeMetadataStore
+import com.nexa.mobile.operations.feature.delivery.application.DriverProofMetadataStore
+import com.nexa.mobile.operations.feature.delivery.model.DriverArrivalCommand
+import com.nexa.mobile.operations.feature.delivery.model.DriverArrivalIntentMetadata
+import com.nexa.mobile.operations.feature.delivery.model.DriverArrivalIntentStatus
+import com.nexa.mobile.operations.feature.delivery.model.DriverArrivalMetadataRead
+import com.nexa.mobile.operations.feature.delivery.model.DriverArrivalMetadataWrite
+import com.nexa.mobile.operations.feature.delivery.model.DriverArrivalResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverArrivalSummary
+import com.nexa.mobile.operations.feature.delivery.model.DriverAttemptIntentMetadata
+import com.nexa.mobile.operations.feature.delivery.model.DriverAttemptMetadataRead
+import com.nexa.mobile.operations.feature.delivery.model.DriverAttemptMetadataStatus
+import com.nexa.mobile.operations.feature.delivery.model.DriverAttemptMetadataWrite
+import com.nexa.mobile.operations.feature.delivery.model.DriverAttemptScopeIdentity
+import com.nexa.mobile.operations.feature.delivery.model.DriverAttemptStartCommand
+import com.nexa.mobile.operations.feature.delivery.model.DriverAttemptStartResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryArrivalFact
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryAuthority
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryLoadResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliveryOutcomeLine
+import com.nexa.mobile.operations.feature.delivery.model.DriverDeliverySnapshot
+import com.nexa.mobile.operations.feature.delivery.model.DriverOutcomeCommand
+import com.nexa.mobile.operations.feature.delivery.model.DriverOutcomeIntentMetadata
+import com.nexa.mobile.operations.feature.delivery.model.DriverOutcomeIntentStatus
+import com.nexa.mobile.operations.feature.delivery.model.DriverOutcomeKind
+import com.nexa.mobile.operations.feature.delivery.model.DriverOutcomeLineDecision
+import com.nexa.mobile.operations.feature.delivery.model.DriverOutcomeMetadataRead
+import com.nexa.mobile.operations.feature.delivery.model.DriverOutcomeMetadataWrite
+import com.nexa.mobile.operations.feature.delivery.model.DriverOutcomeResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverOutcomeSummary
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofAttachCommand
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofAttachResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofCreateCommand
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofCreateResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofEvidenceKind
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofEvidenceStatusResult
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofEvidenceSummary
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofFileCandidate
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofIntentMetadata
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofIntentStage
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofIntentStatus
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofMetadataRead
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofMetadataWrite
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofSelectionContext
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofSummary
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofUploadCommand
+import com.nexa.mobile.operations.feature.delivery.model.DriverProofUploadResult
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
@@ -575,8 +625,9 @@ class DriverDeliveryViewModel(
             }
             replaceDelivery(current)
             val expectedAttemptId = selected.activeAttempt?.id
-            if (current.activeAttempt == null || expectedAttemptId == null ||
-                current.activeAttempt.id != expectedAttemptId
+            val currentAttempt = current.activeAttempt
+            if (currentAttempt == null || expectedAttemptId == null ||
+                currentAttempt.id != expectedAttemptId
             ) {
                 mutableState.update {
                     it.copy(
@@ -612,7 +663,7 @@ class DriverDeliveryViewModel(
             val attemptedAt = timeFactory()
             val command = DriverOutcomeCommand(
                 current.id,
-                current.activeAttempt.id,
+                currentAttempt.id,
                 current.version,
                 key,
                 outcome,
@@ -1270,7 +1321,8 @@ class DriverDeliveryViewModel(
                 proofStateRejected("IDEMPOTENCY_KEY_INVALID")
                 return@launch
             }
-            val body = frozenProofAttachBody(intent.evidenceKind, evidence.evidenceId)
+            val evidenceKind = intent.evidenceKind ?: return@launch
+            val body = frozenProofAttachBody(evidenceKind, evidence.evidenceId)
             val attachIntent = intent.copy(
                 stage = DriverProofIntentStage.AttachingEvidence,
                 status = DriverProofIntentStatus.Pending,

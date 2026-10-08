@@ -28,19 +28,19 @@ import com.nexa.mobile.operations.feature.access.ContextChooserMode
 import com.nexa.mobile.operations.feature.access.ContextChooserPhase
 import com.nexa.mobile.operations.feature.access.ContextChooserScreen
 import com.nexa.mobile.operations.feature.access.ContextChooserUiState
-import com.nexa.mobile.operations.feature.access.PermissionHint
-import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
-import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
+import com.nexa.mobile.operations.feature.access.model.PermissionHint
+import com.nexa.mobile.operations.feature.access.model.WorkforceContextSummary
 import com.nexa.mobile.operations.feature.warehouse.ConfirmedSkuScreen
-import com.nexa.mobile.operations.feature.warehouse.ConfirmedSkuUiState
 import com.nexa.mobile.operations.feature.warehouse.OperationsWorkEntryScreen
-import com.nexa.mobile.operations.feature.warehouse.ProductCandidate
 import com.nexa.mobile.operations.feature.warehouse.ProductSearchScreen
 import com.nexa.mobile.operations.feature.warehouse.ProductSearchStatus
 import com.nexa.mobile.operations.feature.warehouse.ProductSearchUiState
 import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
 import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
 import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
+import com.nexa.mobile.operations.feature.warehouse.model.ActiveOperationsContext
+import com.nexa.mobile.operations.feature.warehouse.model.ConfirmedSkuProjection
+import com.nexa.mobile.operations.feature.warehouse.model.ProductCandidate
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -350,7 +350,7 @@ class ProductScreensUiTest {
             sku = "SKU-DEMO-001",
             imageFileName = "agriform-queso-grana-padano-dop-150g.png"
         )
-        val confirmedSku = ConfirmedSkuUiState(
+        val confirmedSku = ConfirmedSkuProjection(
             candidateKey = candidate.key,
             productDisplayName = candidate.productDisplayName,
             variant = candidate.brandOrVariant,

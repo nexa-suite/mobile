@@ -6,7 +6,7 @@ import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.designsystem.NexaTaskRow
 import com.nexa.mobile.operations.feature.access.AccessStage
 import com.nexa.mobile.operations.feature.access.AccessUiState
-import com.nexa.mobile.operations.feature.access.VerifiedContextAuthority
+import com.nexa.mobile.operations.feature.access.model.VerifiedContextAuthority
 import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
 
 /** Reachable capability entries, including explicit unavailable states, use current authority. */
