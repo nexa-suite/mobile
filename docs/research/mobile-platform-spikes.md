@@ -1,21 +1,180 @@
-# Mobile platform spikes: scanner baseline and contract parity
+# Mobile spike research and evidence
 
-**Observed:** 2026-10-08. These are engineering research artifacts and a
-fixture-only Dart CLI PoC. They add no runtime Buyer or Operations capability,
-API route, authorization rule, or business decision.
+**Observed:** 2026-10-08. This record separates the original Mobile Report
+spike IDs from the supporting research artifacts. The resumed static/JVM gates
+passed. Connected Android instrumentation also passed on API 37 and API 29
+AVDs: each run recorded 64 tests with zero failures, errors, or skips across
+13 module XML reports (eight reports contained tests; the others were empty).
+These runs do not establish physical-device behavior, live integrations, or
+Product/System acceptance. See [the verification
+record](../ddd-client-verification.md). These notes add no runtime Buyer or
+Operations capability, API route, authorization rule, or business decision.
 
-## SPIKE-001 — Android barcode decoder choice
+## SPIKE-001 — autonomous-learning feature investigation
+
+The original Mobile Report defines SPIKE-001 as technical R&D about an
+autonomous-learning feature for a representative Mobile flow. Its acceptance
+criteria require a bounded question and data/business-rule limits, comparison
+of at least two alternatives, a reproducible experiment using synthetic or
+non-sensitive inputs, failure isolation, and a conclusion with backlog
+refinement. The story is not evidence of human training, a model feature, or
+Product acceptance. See the [original story and acceptance
+criteria](https://github.com/nexa-suite/mobile-report/blob/55f959441fb4d5422519db31c380631e95ed72e3/report/02-requirements-and-software-solution-design/2.4-requirements-specification/2.4.1-user-stories/spike-stories.md).
+
+The current accepted [Mobile projection in Blueprint commit
+`3574accc8962346a824a043ef8ea5564600c08b0`](https://github.com/nexa-suite/blueprint/blob/3574accc8962346a824a043ef8ea5564600c08b0/01-shared/domain/strategic-ddd/mobile-projection.md)
+preserves server authority and states that Mobile projects existing domain
+capabilities rather than creating business authority. That is a relevant
+guardrail, not a selection of a learning feature, permitted learner data, or
+expected learning outcome.
+
+The representative flow is the existing manual SKU search in Operations
+Android. [`ProductSearchStatus`](../../apps/operations-android/contexts/catalogcommercialpolicy/presentation/src/main/kotlin/com/nexa/mobile/operations/catalogcommercialpolicy/presentation/warehouse/ProductSearchUiState.kt)
+already has typed states and the screen already references localized guidance
+resources and explicit search, retry, context-change, and candidate-selection
+actions. The [bounded experiment](../../experiments/mobile-autonomous-learning/README.md)
+maps only synthetic enum values to those existing resource keys and actions.
+It does not add text, execute a model, persist learning data, or change app
+behavior.
+
+Two alternatives were compared: a deterministic mapping to existing
+resource/action identifiers, and Google's ML Kit GenAI Prompt API with Gemini
+Nano. The Prompt API is beta, supports custom text/structured generation, and
+needs app-specific prompt evaluation; it relies on AICore and a supported
+device. Its documented minimum API level is 26, which is below the app's
+`minSdk 29`, but SDK eligibility does not establish AICore availability. The
+current API 37 emulator (`sdk_gphone64_arm64`) returned no package path for
+`com.google.android.aicore`; the later API 29 promotion emulator also returned
+no package path. Neither image executed the Prompt API. The published supported-device list does not
+name the emulator. No Prompt API dependency or call was added. These details
+and the comparison limits are recorded in the experiment README and its
+[official ML Kit sources](https://developers.google.com/ml-kit/genai).
+
+The local standard-library runner produced 20 structured outcomes: one for
+each of the 17 current status enum values plus three synthetic fault-condition
+cases (`ERRONEOUS_OUTPUT`, `INCOMPLETE_OUTPUT`, and `UNAVAILABLE`). All retain
+the deterministic baseline and its server-authority invariants. Six Python
+unit tests passed, including enum/resource coverage, allowed-action checks,
+strict input shape, and fault fallback. Fault labels are not observed model
+outputs, and the test does not establish model isolation or rollback.
+
+| Original acceptance criterion | Evidence located | Assessment |
+|---|---|---|
+| Pregunta y límites documentados | The experiment bounds its input to an existing search-status enum, its resource keys and its existing next-step identifiers. Server confirmation remains authoritative; query, candidate, tenant/workspace and learning-history data are excluded. | Partial: the technical question and non-delegable authority boundary are explicit. Owner interpretation of “learning” and permitted adaptive data remains open. |
+| Fuentes y alternativas comparadas | The README compares deterministic resource/action mapping with the official ML Kit Prompt API across utility, privacy, operational cost, compatibility, accessibility, and dependencies. It distinguishes documented capability from unmeasured quality and cost. | Comparison documented; utility, generated-output quality, performance, accessibility, and monetary cost are not measured. |
+| Experimento mínimo reproducible | Python standard-library runner plus JSON fixture covers all 17 current status enum values and three fault labels. The test checks enum and existing-resource coverage and the runner's deterministic results. | Reproducible technical experiment executed: 20 cases; 6 tests passed. No model, app runtime, human participant, or learning outcome was tested. |
+| Fallo y aislamiento | The three synthetic fault labels retain the same status-based baseline; unknown statuses, fault labels, and unexpected fields fail closed. No external provider is called. | Partial containment evidence for the standalone runner only; actual erroneous/incomplete model output and feature rollback were not exercised. |
+| Conclusión y backlog | The research disposition defers runtime/model adoption and proposes an Owner clarification plus a bounded supported-device Prompt API evaluation as follow-up. | Technical recommendation and backlog refinement are recorded. They are not Owner acceptance, a Product decision, or spike closure. |
+
+**Evidence status: PARTIAL TECHNICAL INVESTIGATION — NOT CLOSED.** The bounded
+question, alternatives, reproducible synthetic experiment, failure labels,
+recommendation, and follow-up are recorded. The meaning of learning and
+permitted data remain open; model execution, human learning, Product
+acceptance, and system acceptance are not evidenced. Do not close SPIKE-001
+from this artifact alone.
+
+## SPIKE-002 — Android/Flutter toolchain and fixture parity
+
+### Observed toolchain matrix
+
+Local versions were queried on 2026-10-08. Repository values are distinguished
+from tools installed on this workstation.
+
+Installed tool versions were captured with `java -version`, the configured
+Flutter binary's `--version --machine`, the configured Dart binary's
+`--version`, `android --version`,
+`sdkmanager --list_installed`,
+and `adb version`.
+Repository plugin, SDK, and wrapper values were read from the evidence files in
+the table.
+
+| Area | Repository / installed value | Evidence |
+|---|---|---|
+| Android app SDK | `minSdk 29`, `compileSdk 37`, `targetSdk 37` | `apps/operations-android/app/build.gradle.kts` |
+| Android build plugins | AGP `9.4.1`; Kotlin `2.4.20`; Compose BOM `2026.09.00` | `apps/operations-android/gradle/libs.versions.toml` |
+| Gradle wrapper | `9.7.1` | `apps/operations-android/gradle/wrapper/gradle-wrapper.properties` |
+| Java target and local runtime | Repository Java source/target compatibility `17`; local Temurin OpenJDK runtime `25.0.4.1` | `app/build.gradle.kts`; `java -version` |
+| Android SDK platforms | Installed `android-29` and `android-37.0` | `sdkmanager --list_installed` |
+| Android SDK build tools | Installed `29.0.3` and `36.0.0` | `sdkmanager --list_installed` |
+| Android SDK tools | Android CLI `1.0.16500706`; SDK platform-tools / `adb` `37.0.1`; emulator `37.2.12`; Google APIs ARM64 system image `android-37.0`, revision `6.0.0` | `android --version`; `adb version`; `sdkmanager --list_installed` |
+| Flutter | Stable `3.47.2`, framework revision `d3b14c876900e553bc736ca19295fc09e3853e8e` | configured Flutter binary `--version --machine` |
+| Dart | Stable `3.13.2` (`macos_arm64`) | configured Dart binary `--version` |
+
+The repository's Java target and the installed Java runtime are separate facts.
+The static/JVM gate recorded later on 2026-10-08 passed; no SPIKE-002-specific
+Android device test was run.
+
+### Dart and Kotlin contract-parity artifacts
+
+[`experiments/mobile-contract-parity`](../../experiments/mobile-contract-parity)
+contains a pure Dart CLI fixture runner with no `pubspec.yaml`, Flutter
+dependency, network call, credential, or external package. The synthetic
+fixtures exercise the current Android `/api/v1/skus/resolve` projection and
+typed outcome names: `Resolved`, `NotFound`, `Ambiguous`, `InvalidIdentifier`,
+`NetworkUnavailable`, `ServiceUnavailable`, `PermissionDenied`,
+`ContextInvalidated`, and `SessionExpired`. The projection fields are `skuId`,
+`skuCode`, nullable `gtin`, `presentation`, nullable `unitOfMeasure`, `status`,
+and `identifierType`.
+
+The HTTP status mapping mirrors
+[`NexaSkuIdentifierGateway.kt`](../../apps/operations-android/contexts/catalogcommercialpolicy/infrastructure/src/main/kotlin/com/nexa/mobile/operations/catalogcommercialpolicy/infrastructure/transport/NexaSkuIdentifierGateway.kt):
+401 becomes `SessionExpired`; 403 with `ACCESS_CONTEXT_INVALID` becomes
+`ContextInvalidated`; other 403 authorization failures become
+`PermissionDenied`; and 409 currently falls through to `ServiceUnavailable`.
+There is no typed `Conflict` outcome in that gateway today. The 409 fixture
+preserves that observed client mapping rather than defining a new server or
+Product rule.
+
+The Kotlin
+[`NexaSkuIdentifierGatewayTest`](../../apps/operations-android/contexts/catalogcommercialpolicy/infrastructure/src/test/kotlin/com/nexa/mobile/operations/catalogcommercialpolicy/infrastructure/transport/NexaSkuIdentifierGatewayTest.kt)
+also reads the same
+[`sku-resolver-contract.json`](../../experiments/mobile-contract-parity/fixtures/sku-resolver-contract.json)
+fixture. The Kotlin counterpart is present in the current source tree and was
+included in the resumed aggregate JVM gate, which passed 524 tests with zero
+failures, errors, or skips across 114 XML suites in configured modules. This
+does not establish API conformance, authentication, Product behavior, or
+Android/Dart semantic parity.
+
+Run the Dart experiment from the repository root with the installed SDK:
+
+```sh
+dart format --set-exit-if-changed experiments/mobile-contract-parity/bin/verify_contract_parity.dart
+dart analyze experiments/mobile-contract-parity/bin/verify_contract_parity.dart
+dart experiments/mobile-contract-parity/bin/verify_contract_parity.dart
+```
+
+The recorded Dart output was:
+
+```text
+Analyzing verify_contract_parity.dart...
+No issues found!
+PASS: 12 synthetic SKU resolver contract fixtures
+```
+
+That Dart result establishes only that the standalone parser matches these
+synthetic expected outcomes. Separately, the Kotlin test passed in the
+aggregate JVM gate as noted above. Neither result establishes API conformance,
+authentication, Product behavior, or device behavior.
+
+## SPIKE-003 — Android barcode decoder choice (supporting evidence)
 
 ### Scope and authority
 
-The live Nexa Blueprint checkout was `main` at
-`9034f4857b45224832f61af3e088f8a29143b187`,
-`03-mobile/requirements/mobile-v1-catalog.md` (`MOB-US-011`). The story is
-**PLANNED**, with research **PENDING**. It requires an authoritative
-server resolution before a stock action, rejects unknown or ambiguous codes,
-and retains manual product search if scanning is unavailable. The spike's
-engineering recommendation does not change that Product state or claim
-Product acceptance.
+The original Mobile Report SPIKE-003 delimits barcode, QR and GS1 product
+identifiers, ambiguity, and manual fallback. This decoder-choice comparison is
+supporting technical evidence for that spike, not its full acceptance or
+Product acceptance. The current accepted Blueprint source is `main` at
+`3574accc8962346a824a043ef8ea5564600c08b0`,
+[`03-mobile/requirements/mobile-v1-catalog.md`](https://github.com/nexa-suite/blueprint/blob/3574accc8962346a824a043ef8ea5564600c08b0/03-mobile/requirements/mobile-v1-catalog.md)
+(`MOB-US-011`). That story remains **PLANNED**, with research **PENDING**. It
+requires authoritative server resolution before a stock action, rejection of
+unknown or ambiguous codes, and manual product search when scanning is
+unavailable. The research recommendation does not change those states.
+
+The companion [identifier and local-recovery evidence pack](mobile-identifiers-and-local-recovery.md)
+contains the format/GS1 analysis and decoder-only bitmap PoC, also under
+SPIKE-003. Together, these files are research artifacts; they do not close the
+original spike's full set of criteria.
 
 The Android source currently pins CameraX `1.6.2` and bundled ML Kit barcode
 scanning `17.3.0`. The adapter uses CameraX `MlKitAnalyzer`, a back camera,
@@ -53,7 +212,8 @@ Scanning remains identification only. A candidate is not a Catalog fact and
 does not create a receipt or picking action. The protected SKU resolver remains
 the authority for resolution; an unrecognized, ambiguous, unavailable, or
 out-of-scope result must stay explicit, and manual search remains available.
-The Android gateway's typed mapping is recorded in SPIKE-002 below.
+The Android gateway's typed mapping and parity fixtures are recorded under
+SPIKE-002 above.
 
 ### Device evidence and follow-up
 
@@ -72,9 +232,12 @@ The proposed command was run on 2026-10-08:
 cd apps/operations-android && ./gradlew :core:device:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.nexa.mobile.operations.core.device.scanner.BarcodeDecodingPoCTest --dependency-verification strict --console=plain
 ```
 
-It passed on the `Nexa_DDD_API37(AVD)` emulator (API 37), with 2 tests,
-0 failures, and 0 skipped. This covers synthetic bitmap decoding and a blank
-image only; it is not CameraX, camera-hardware, or physical-label validation.
+The targeted command passed on the `Nexa_DDD_API37(AVD)` emulator (API 37),
+with 2 tests, 0 failures, and 0 skipped. Later connected-instrumentation runs
+also exercised this same decoder test class on API 29 and API 37 AVDs; each
+report recorded 2 tests, 0 failures, and 0 skips. This covers synthetic bitmap
+decoding and a blank image only; it is not CameraX, camera-hardware, or
+physical-label validation.
 
 Follow-up backlog:
 
@@ -86,79 +249,6 @@ Follow-up backlog:
    size is a decision criterion.
 4. Test representative physical package/label formats and lighting on approved
    devices before making any recognition or readiness claim.
-
-## SPIKE-002 — Android/Flutter toolchain and fixture parity
-
-### Observed toolchain matrix
-
-Local versions were queried on 2026-10-08. Repository values are distinguished
-from tools installed on this workstation.
-
-Installed tool versions were captured with `java -version`, the configured
-Flutter binary's `--version --machine`, the configured Dart binary's
-`--version`, `/Users/diegosandoval284/Library/Android/sdk/cmdline-tools/latest/bin/android --version`,
-`/Users/diegosandoval284/Library/Android/sdk/cmdline-tools/latest/bin/sdkmanager --list_installed`,
-and `/Users/diegosandoval284/Library/Android/sdk/platform-tools/adb version`.
-Repository plugin, SDK, and wrapper values were read from the evidence files in
-the table.
-
-| Area | Repository / installed value | Evidence |
-|---|---|---|
-| Android app SDK | `minSdk 29`, `compileSdk 37`, `targetSdk 37` | `apps/operations-android/app/build.gradle.kts` |
-| Android build plugins | AGP `9.4.1`; Kotlin `2.4.20`; Compose BOM `2026.09.00` | `apps/operations-android/gradle/libs.versions.toml` |
-| Gradle wrapper | `9.7.1` | `apps/operations-android/gradle/wrapper/gradle-wrapper.properties` |
-| Java target and local runtime | Repository Java source/target compatibility `17`; local Temurin OpenJDK runtime `25.0.4.1` | `app/build.gradle.kts`; `java -version` |
-| Android SDK platforms | Installed `android-29` and `android-37.0` | `sdkmanager --list_installed` |
-| Android SDK build tools | Installed `29.0.3` and `36.0.0` | `sdkmanager --list_installed` |
-| Android SDK tools | Android CLI `1.0.16500706`; SDK platform-tools / `adb` `37.0.1`; emulator `37.2.12`; Google APIs ARM64 system image `android-37.0`, revision `6.0.0` | `android --version`; `adb version`; `sdkmanager --list_installed` |
-| Flutter | Stable `3.47.2`, framework revision `d3b14c876900e553bc736ca19295fc09e3853e8e` | configured Flutter binary `--version --machine` |
-| Dart | Stable `3.13.2` (`macos_arm64`) | configured Dart binary `--version` |
-
-The repository's Java target and the installed Java runtime are separate facts.
-No Gradle task or Android device test was run for this spike.
-
-### Dart contract-parity PoC
-
-[`experiments/mobile-contract-parity`](../../experiments/mobile-contract-parity)
-contains a pure Dart CLI fixture runner with no `pubspec.yaml`, Flutter
-dependency, network call, credential, or external package. The synthetic
-fixtures exercise the current Android `/api/v1/skus/resolve` projection and
-typed outcome names: `Resolved`, `NotFound`, `Ambiguous`, `InvalidIdentifier`,
-`NetworkUnavailable`, `ServiceUnavailable`, `PermissionDenied`,
-`ContextInvalidated`, and `SessionExpired`. The projection fields are `skuId`,
-`skuCode`, nullable `gtin`, `presentation`, nullable `unitOfMeasure`, `status`,
-and `identifierType`.
-
-The HTTP status mapping mirrors
-[`NexaSkuIdentifierGateway.kt`](../../apps/operations-android/contexts/catalogcommercialpolicy/infrastructure/src/main/kotlin/com/nexa/mobile/operations/catalogcommercialpolicy/infrastructure/transport/NexaSkuIdentifierGateway.kt):
-401 becomes `SessionExpired`; 403 with `ACCESS_CONTEXT_INVALID` becomes
-`ContextInvalidated`; other 403 authorization failures become
-`PermissionDenied`; and 409 currently falls through to `ServiceUnavailable`.
-There is no typed `Conflict` outcome in that gateway today. The 409 fixture
-preserves that observed client mapping rather than defining a new server or
-Product rule.
-
-Run from the repository root with the installed SDK:
-
-```sh
-/Users/diegosandoval284/Library/Developer/Flutter/flutter/bin/dart format --set-exit-if-changed experiments/mobile-contract-parity/bin/verify_contract_parity.dart
-/Users/diegosandoval284/Library/Developer/Flutter/flutter/bin/dart analyze experiments/mobile-contract-parity/bin/verify_contract_parity.dart
-/Users/diegosandoval284/Library/Developer/Flutter/flutter/bin/dart experiments/mobile-contract-parity/bin/verify_contract_parity.dart
-```
-
-Observed output:
-
-```text
-Analyzing verify_contract_parity.dart...
-No issues found!
-PASS: 12 synthetic SKU resolver contract fixtures
-```
-
-The Kotlin `MockWebServer` counterpart using the same JSON file remains a
-parent integration task and has not been run. The Dart result establishes only
-that the standalone parser matches these synthetic expected outcomes; it does
-not establish Android parity, API conformance, authentication, Product
-behavior, or device behavior.
 
 ## Primary sources
 
