@@ -20,11 +20,15 @@ import 'contexts/credit_receivables/infrastructure/buyer_credit_exposure_reposit
 import 'contexts/credit_receivables/presentation/buyer_credit_exposure_page.dart';
 import 'contexts/credit_receivables/presentation/buyer_credit_exposure_view_model.dart';
 import 'contexts/payments/application/buyer_payments_repository.dart';
+import 'contexts/payments/application/buyer_wallet_repository.dart';
 import 'contexts/payments/application/payment_report_idempotency_store.dart';
 import 'contexts/payments/infrastructure/buyer_payments_repository_impl.dart';
+import 'contexts/payments/infrastructure/buyer_wallet_repository_impl.dart';
 import 'contexts/payments/infrastructure/file_payment_report_idempotency_store.dart';
 import 'contexts/payments/presentation/buyer_payment_activity_page.dart';
 import 'contexts/payments/presentation/buyer_payment_activity_view_model.dart';
+import 'contexts/payments/presentation/buyer_wallet_page.dart';
+import 'contexts/payments/presentation/buyer_wallet_view_model.dart';
 import 'contexts/fulfillment_delivery/infrastructure/buyer_deliveries_repository_impl.dart';
 import 'contexts/fulfillment_delivery/application/buyer_deliveries_repository.dart';
 import 'contexts/fulfillment_delivery/presentation/buyer_deliveries_page.dart';
@@ -80,6 +84,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
   CatalogRepositoryImpl? _catalogRepository;
   BuyerCreditExposureRepositoryImpl? _creditExposureRepository;
   BuyerPaymentsRepositoryImpl? _paymentsRepository;
+  BuyerWalletRepositoryImpl? _walletRepository;
   FilePaymentReportIdempotencyStore? _paymentIdempotencyStore;
   BuyerDeliveriesRepositoryImpl? _deliveriesRepository;
   BuyerOrdersRepositoryImpl? _ordersRepository;
@@ -104,6 +109,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
       _catalogRepository = CatalogRepositoryImpl(api);
       _creditExposureRepository = BuyerCreditExposureRepositoryImpl(api);
       _paymentsRepository = BuyerPaymentsRepositoryImpl(api);
+      _walletRepository = BuyerWalletRepositoryImpl(api);
       _paymentIdempotencyStore = FilePaymentReportIdempotencyStore();
       _deliveriesRepository = BuyerDeliveriesRepositoryImpl(api);
       _ordersRepository = BuyerOrdersRepositoryImpl(api);
@@ -138,6 +144,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
     final catalog = _catalogRepository;
     final creditExposure = _creditExposureRepository;
     final payments = _paymentsRepository;
+    final wallet = _walletRepository;
     final paymentIdempotencyStore = _paymentIdempotencyStore;
     final deliveries = _deliveriesRepository;
     final orders = _ordersRepository;
@@ -150,6 +157,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         catalog == null ||
         creditExposure == null ||
         payments == null ||
+        wallet == null ||
         paymentIdempotencyStore == null ||
         deliveries == null ||
         orders == null ||
@@ -165,6 +173,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         Provider<CatalogRepository>.value(value: catalog),
         Provider<BuyerCreditExposureRepository>.value(value: creditExposure),
         Provider<BuyerPaymentsRepository>.value(value: payments),
+        Provider<BuyerWalletRepository>.value(value: wallet),
         Provider<PaymentReportIdempotencyStore>.value(
           value: paymentIdempotencyStore,
         ),
@@ -196,6 +205,12 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         ChangeNotifierProvider<BuyerCreditExposureViewModel>(
           create: (context) => BuyerCreditExposureViewModel(
             context.read<BuyerCreditExposureRepository>(),
+            context.read<BuyerAccessRepository>(),
+          ),
+        ),
+        ChangeNotifierProvider<BuyerWalletViewModel>(
+          create: (context) => BuyerWalletViewModel(
+            context.read<BuyerWalletRepository>(),
             context.read<BuyerAccessRepository>(),
           ),
         ),
@@ -261,6 +276,18 @@ GoRouter _createRouter(
               BuyerPaymentActivityViewModel.createPermission,
             ) ??
             false)) {
+      return '/credit';
+    }
+    if (status == BuyerAccessStatus.signedIn &&
+        path == '/wallet' &&
+        (!(access.snapshot.currentContext?.roles.contains(
+                  BuyerWalletViewModel.buyerRole,
+                ) ??
+                false) ||
+            !(access.snapshot.currentContext?.permissions.contains(
+                  BuyerWalletViewModel.readPermission,
+                ) ??
+                false))) {
       return '/credit';
     }
     return null;
@@ -417,6 +444,14 @@ GoRouter _createRouter(
         StatefulShellBranch(
           routes: [
             GoRoute(
+              path: '/wallet',
+              builder: (context, state) => const BuyerWalletPage(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
               path: '/deliveries',
               builder: (context, state) => const BuyerDeliveriesPage(),
               routes: [
@@ -479,6 +514,19 @@ final class _BuyerNavigationShell extends StatelessWidget {
         label: 'Documentos',
       ),
     ];
+    final branchIndices = <int>[0, 1, 2, 3];
+    if (current?.roles.contains(BuyerWalletViewModel.buyerRole) == true &&
+        current?.permissions.contains(BuyerWalletViewModel.readPermission) ==
+            true) {
+      destinations.add(
+        const NavigationDestination(
+          icon: Icon(Icons.account_balance_wallet_outlined),
+          selectedIcon: Icon(Icons.account_balance_wallet),
+          label: 'Billetera',
+        ),
+      );
+      branchIndices.add(4);
+    }
     if (current?.permissions.contains(
           BuyerDeliveriesViewModel.readPermission,
         ) ??
@@ -490,10 +538,12 @@ final class _BuyerNavigationShell extends StatelessWidget {
           label: 'Mis entregas',
         ),
       );
+      branchIndices.add(5);
     }
-    final selectedIndex = navigationShell.currentIndex < destinations.length
-        ? navigationShell.currentIndex
-        : 0;
+    final visibleSelectedIndex = branchIndices.indexOf(
+      navigationShell.currentIndex,
+    );
+    final selectedIndex = visibleSelectedIndex >= 0 ? visibleSelectedIndex : 0;
     return Scaffold(
       appBar: AppBar(
         title: Column(
@@ -519,10 +569,13 @@ final class _BuyerNavigationShell extends StatelessWidget {
       body: navigationShell,
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
-        onDestinationSelected: (index) => navigationShell.goBranch(
-          index,
-          initialLocation: index == navigationShell.currentIndex,
-        ),
+        onDestinationSelected: (index) {
+          final branchIndex = branchIndices[index];
+          navigationShell.goBranch(
+            branchIndex,
+            initialLocation: branchIndex == navigationShell.currentIndex,
+          );
+        },
         destinations: destinations,
       ),
     );

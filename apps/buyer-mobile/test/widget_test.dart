@@ -65,6 +65,7 @@ void main() {
               'membership-north',
               'tenant-north',
               includeTracking: false,
+              includeWalletRead: false,
             ),
           ),
           200,
@@ -106,6 +107,7 @@ void main() {
 
     expect(find.text('Catálogo'), findsOneWidget);
     expect(find.text('Mis entregas'), findsNothing);
+    expect(find.text('Billetera'), findsNothing);
     expect(paths, isNot(contains('/api/v1/buyer/deliveries')));
   });
 
@@ -114,6 +116,7 @@ void main() {
     (tester) async {
       final requests = <http.Request>[];
       var documentDownloads = 0;
+      var walletReads = 0;
       final documentChecksum = sha256Of(_documentBytes);
       final httpClient = MockClient((request) async {
         requests.add(request);
@@ -306,6 +309,38 @@ void main() {
               'availableCredit': 260,
               'active': true,
               'asOf': '2026-10-09T12:00:00Z',
+            }),
+            200,
+          );
+        }
+        if (path == '/api/v1/buyer/wallet') {
+          walletReads++;
+          expect(request.method, 'GET');
+          expect(headers['authorization'], 'Bearer access-secret');
+          expect(request.url.queryParameters, {'page': '0', 'size': '25'});
+          expect(
+            request.url.queryParameters.containsKey('clientAccountId'),
+            isFalse,
+          );
+          return http.Response(
+            jsonEncode({
+              'status': 'ACTIVE',
+              'currency': 'PEN',
+              'postedBalance': '120.50',
+              'reservedBalance': '30.00',
+              'availableBalance': '90.50',
+              'movements': {
+                'items': [
+                  {
+                    'type': 'ORDER_CONSUMPTION',
+                    'amountDelta': '-12.50',
+                    'occurredAt': '2026-10-09T12:00:00Z',
+                  },
+                ],
+                'page': 0,
+                'size': 25,
+                'total': 1,
+              },
             }),
             200,
           );
@@ -512,6 +547,15 @@ void main() {
       expect(find.textContaining('PRIVATE ACTOR'), findsNothing);
       expect(find.textContaining('PRIVATE INTERNAL REASON'), findsNothing);
 
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Billetera'));
+      await tester.pumpAndSettle();
+      expect(find.text('90.50 PEN'), findsOneWidget);
+      expect(find.text('120.50 PEN'), findsOneWidget);
+      expect(find.text('ORDER CONSUMPTION'), findsOneWidget);
+      expect(walletReads, 1);
+
       expect(
         requests.map((request) => request.url.path),
         containsAll([
@@ -529,6 +573,7 @@ void main() {
           '/api/v1/business-documents',
           '/api/v1/business-documents/$_documentId',
           '/api/v1/business-documents/$_documentId/downloads',
+          '/api/v1/buyer/wallet',
         ]),
       );
     },
@@ -557,6 +602,7 @@ Map<String, Object?> _authenticationResponse(
   String membershipId,
   String tenantId, {
   bool includeTracking = true,
+  bool includeWalletRead = true,
 }) => {
   'accessToken': 'access-secret',
   'tokenType': 'Bearer',
@@ -576,7 +622,7 @@ Map<String, Object?> _authenticationResponse(
       'buyer.order.read',
       'document.read',
       'document.download',
-      'payment.read',
+      if (includeWalletRead) 'payment.read',
       if (includeTracking) 'buyer.tracking.read',
     ],
     'authorizationVersion': 7,
