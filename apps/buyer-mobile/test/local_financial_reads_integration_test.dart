@@ -78,7 +78,70 @@ void main() {
         );
 
         var paymentHistoryCount = 0;
-        if (receivables.items.isNotEmpty) {
+        final salesOrderId = environment['NEXA_LOCAL_SALES_ORDER_ID'];
+        if (salesOrderId != null && salesOrderId.trim().isNotEmpty) {
+          expect(
+            RegExp(
+              r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+              caseSensitive: false,
+            ).hasMatch(salesOrderId),
+            isTrue,
+          );
+          final linkedReceivables = <(int, Map<String, Object?>)>[];
+          for (
+            var pageIndex = 0;
+            pageIndex * 25 < receivables.total;
+            pageIndex++
+          ) {
+            final response = await api.get(
+              '/receivables',
+              query: {'page': '$pageIndex', 'size': '25'},
+              refreshAfterUnauthorized: true,
+            );
+            final rawItems = response.body['items'];
+            expect(rawItems, isA<List<Object?>>());
+            for (final value in rawItems as List<Object?>) {
+              if (value is Map<String, Object?> &&
+                  value['subjectType'] == 'SALES_ORDER' &&
+                  value['subjectId'] == salesOrderId) {
+                linkedReceivables.add((pageIndex, value));
+              }
+            }
+          }
+          expect(linkedReceivables, hasLength(1));
+          final (receivablePageIndex, linkedReceivable) =
+              linkedReceivables.single;
+          final receivableId = linkedReceivable['id'];
+          expect(receivableId, isA<String>());
+
+          final selectedPage = await creditRepository.listBuyerReceivables(
+            page: receivablePageIndex,
+          );
+          final selected = selectedPage.items.singleWhere(
+            (receivable) => receivable.id == receivableId,
+          );
+          expect(selected.clientAccountId, exposure.clientAccountId);
+          expect(selected.status, 'OPEN');
+          final detail = await api.get(
+            '/receivables/$receivableId',
+            refreshAfterUnauthorized: true,
+          );
+          expect(detail.body['subjectType'], 'SALES_ORDER');
+          expect(detail.body['subjectId'], salesOrderId);
+          expect(detail.body['clientAccountId'], exposure.clientAccountId);
+          expect(detail.body['version'], selected.version);
+
+          final history = await BuyerPaymentsRepositoryImpl(api)
+              .listForReceivable(
+                receivableId: selected.id,
+                page: 0,
+                expectedClientAccountId: exposure.clientAccountId,
+              );
+          expect(history.total, 0);
+          paymentHistoryCount = history.total;
+          stdout.writeln('LOCAL_API_BUYER_SALES_ORDER_LINK=PASS');
+          stdout.writeln('LOCAL_API_BUYER_SALES_ORDER_ID=$salesOrderId');
+        } else if (receivables.items.isNotEmpty) {
           final selected = receivables.items.first;
           final history = await BuyerPaymentsRepositoryImpl(api)
               .listForReceivable(
