@@ -33,7 +33,6 @@ jobs:
               - '.github/**'
               - '.editorconfig'
               - '.gitignore'
-              - 'AGENTS.md'
               - 'gradle/**'
               - 'build.gradle.kts'
               - 'settings.gradle.kts'
