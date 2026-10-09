@@ -20,6 +20,9 @@ final class BuyerWalletRepositoryImpl implements BuyerWalletRepository {
       'NOT_INITIALIZED' => BuyerWalletState.notInitialized,
       _ => _invalidResponse(),
     };
+    final orderPaymentSupported = _orderPaymentSupported(
+      response.body['capabilities'],
+    );
     final currency = _string(response.body['currency']);
     final postedBalance = _amount(response.body['postedBalance']);
     final reservedBalance = _amount(response.body['reservedBalance']);
@@ -67,7 +70,17 @@ final class BuyerWalletRepositoryImpl implements BuyerWalletRepository {
         size: size,
         total: total,
       ),
+      orderPaymentSupported: orderPaymentSupported,
     );
+  }
+
+  bool _orderPaymentSupported(Object? value) {
+    if (value == null) return false;
+    if (value is! Map<String, Object?>) _invalidResponse();
+    final supported = value['orderPaymentSupported'];
+    if (supported == null) return false;
+    if (supported is! bool) _invalidResponse();
+    return supported;
   }
 
   BuyerWalletMovementProjection _parseMovement(Object? value) {

@@ -34,9 +34,43 @@ void main() {
       expect(wallet.availableBalance, '90.50');
       expect(wallet.movements.items.single.amountDelta, '-30.00');
       expect(wallet.movements.items.single.type, 'PURCHASE_RESERVED');
+      expect(wallet.orderPaymentSupported, isFalse);
       api.close();
     },
   );
+
+  test('reads server-reported order payment support capability', () async {
+    final api = _api((_) async {
+      return http.Response(
+        jsonEncode({
+          ..._activeWallet(),
+          'capabilities': {'orderPaymentSupported': true},
+        }),
+        200,
+      );
+    });
+
+    final wallet = await BuyerWalletRepositoryImpl(api)
+        .readCurrentWallet(page: 0);
+
+    expect(wallet.orderPaymentSupported, isTrue);
+    api.close();
+  });
+
+  test('defaults omitted wallet capability to false', () async {
+    final api = _api((_) async {
+      return http.Response(
+        jsonEncode({..._activeWallet(), 'capabilities': {}}),
+        200,
+      );
+    });
+
+    final wallet = await BuyerWalletRepositoryImpl(api)
+        .readCurrentWallet(page: 0);
+
+    expect(wallet.orderPaymentSupported, isFalse);
+    api.close();
+  });
 
   test('keeps uninitialized balances null instead of inventing zero', () async {
     final api = _api((_) async {

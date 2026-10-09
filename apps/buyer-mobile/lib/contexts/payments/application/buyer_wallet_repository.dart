@@ -34,6 +34,7 @@ final class BuyerWalletProjection {
     required this.reservedBalance,
     required this.availableBalance,
     required this.movements,
+    this.orderPaymentSupported = false,
   });
 
   final BuyerWalletState state;
@@ -42,6 +43,9 @@ final class BuyerWalletProjection {
   final String? reservedBalance;
   final String? availableBalance;
   final BuyerWalletMovementsPageProjection movements;
+
+  /// Server support only; does not imply funds, authorization, or purchase approval.
+  final bool orderPaymentSupported;
 }
 
 abstract interface class BuyerWalletRepository {
