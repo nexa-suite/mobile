@@ -42,6 +42,34 @@ class BusinessDocumentsViewModelTest {
         assertNull(model.state.value.content)
     }
 
+    @Test fun readOnlyMembershipKeepsAuthorizedListAndNeverRequestsContent() = runTest {
+        var downloads = 0
+        val readOnlyAuthority = authority.copy(permissions = setOf("document.read"))
+        val model = BusinessDocumentsViewModel(object : BusinessDocumentsGateway {
+            override suspend fun list(authority: CommercialAuthority, page: Int) =
+                BusinessDocumentsResult.Page(listOf(document), 1)
+            override suspend fun content(
+                authority: CommercialAuthority,
+                id: String
+            ): BusinessDocumentsResult {
+                downloads++
+                return BusinessDocumentsResult.Unavailable
+            }
+        })
+
+        model.activate(readOnlyAuthority)
+        runCurrent()
+        model.open("doc")
+        runCurrent()
+
+        assertEquals("Current", model.state.value.status)
+        assertEquals(listOf(document), model.state.value.items)
+        assertNull(model.state.value.content)
+        assertEquals("DownloadDenied", model.state.value.contentStatus)
+        assertTrue(!model.state.value.canDownloadContent)
+        assertEquals(0, downloads)
+    }
+
     @Test fun latePrivateContentAfterRouteLossCannotReappear() = runTest {
         val pending = CompletableDeferred<BusinessDocumentsResult>()
         val model = BusinessDocumentsViewModel(object : BusinessDocumentsGateway {

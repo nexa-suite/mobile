@@ -20,21 +20,9 @@ class NexaFulfillmentDispatchGatewayTest {
         MockWebServer().use { server ->
             server.start()
             server.enqueue(
-                MockResponse().setResponseCode(200)
-                    .addHeader("Content-Type", "application/json; charset=utf-8")
-                    .addHeader("ETag", "\"13\"")
-                    .setBody(
-                        """{"id":"$EVIDENCE_ID","fulfillmentId":"$FULFILLMENT_ID","fulfillmentVersion":13,"deliveryId":"$DELIVERY_ID","warehouseActorMembershipId":"$WAREHOUSE_MEMBERSHIP_ID","driverAssignmentId":"$ASSIGNMENT_ID","driverMembershipId":"$DRIVER_MEMBERSHIP_ID","physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,"outgoingGoodsCheckId":"$CHECK_ID","occurredAt":"2026-09-30T10:15:30Z","current":true}"""
-                    )
+                evidenceResponse("\"warehouseActorMembershipId\":\"$WAREHOUSE_MEMBERSHIP_ID\"")
             )
-            val endpoint = ApiEndpoint(server.url("/").toString())
-            val gateway = NexaFulfillmentDispatchGateway(
-                ProtectedCallExecutor(
-                    endpoint,
-                    ApiHttpClient.create(endpoint),
-                    FakeAccessTokenSource()
-                )
-            )
+            val gateway = gateway(server)
 
             val result = gateway.currentHandoffEvidence(FULFILLMENT_ID) as
                 FulfillmentHandoffEvidenceNetworkOutcome.Evidence
@@ -47,9 +35,59 @@ class NexaFulfillmentDispatchGatewayTest {
             )
             assertEquals(EVIDENCE_ID, result.value.id)
             assertEquals(WAREHOUSE_MEMBERSHIP_ID, result.value.warehouseActorMembershipId)
+            assertEquals(null, result.value.dispatchActorMembershipId)
             assertEquals(DRIVER_MEMBERSHIP_ID, result.value.driverMembershipId)
             assertEquals(CHECK_ID, result.value.outgoingGoodsCheckId)
             assertEquals(true, result.value.current)
+        }
+    }
+
+    @Test
+    fun currentHandoffEvidenceAcceptsNewDispatchActorWithoutWarehouseEvidence() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(
+                evidenceResponse(
+                    "\"warehouseActorMembershipId\":null,\"dispatchActorMembershipId\":\"$DISPATCH_MEMBERSHIP_ID\""
+                )
+            )
+
+            val result = gateway(server).currentHandoffEvidence(FULFILLMENT_ID) as
+                FulfillmentHandoffEvidenceNetworkOutcome.Evidence
+
+            assertEquals(null, result.value.warehouseActorMembershipId)
+            assertEquals(DISPATCH_MEMBERSHIP_ID, result.value.dispatchActorMembershipId)
+            assertEquals(DRIVER_MEMBERSHIP_ID, result.value.driverMembershipId)
+            assertEquals(CHECK_ID, result.value.outgoingGoodsCheckId)
+        }
+    }
+
+    @Test
+    fun currentHandoffEvidenceRejectsMissingOrMalformedActorIdentity() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(
+                evidenceResponse(
+                    "\"warehouseActorMembershipId\":null,\"dispatchActorMembershipId\":null"
+                )
+            )
+            server.enqueue(
+                evidenceResponse(
+                    "\"warehouseActorMembershipId\":\"not-a-membership-id\"," +
+                        "\"dispatchActorMembershipId\":null"
+                )
+            )
+
+            val gateway = gateway(server)
+
+            assertEquals(
+                FulfillmentHandoffEvidenceNetworkOutcome.ServiceUnavailable,
+                gateway.currentHandoffEvidence(FULFILLMENT_ID)
+            )
+            assertEquals(
+                FulfillmentHandoffEvidenceNetworkOutcome.ServiceUnavailable,
+                gateway.currentHandoffEvidence(FULFILLMENT_ID)
+            )
         }
     }
 
@@ -109,11 +147,27 @@ class NexaFulfillmentDispatchGatewayTest {
         override suspend fun isEpochCurrent(epoch: Long): Boolean = epoch == 1L
     }
 
+    private fun gateway(server: MockWebServer): NexaFulfillmentDispatchGateway {
+        val endpoint = ApiEndpoint(server.url("/").toString())
+        return NexaFulfillmentDispatchGateway(
+            ProtectedCallExecutor(endpoint, ApiHttpClient.create(endpoint), FakeAccessTokenSource())
+        )
+    }
+
+    private fun evidenceResponse(actorFields: String): MockResponse = MockResponse()
+        .setResponseCode(200)
+        .addHeader("Content-Type", "application/json; charset=utf-8")
+        .addHeader("ETag", "\"13\"")
+        .setBody(
+            """{"id":"$EVIDENCE_ID","fulfillmentId":"$FULFILLMENT_ID","fulfillmentVersion":13,"deliveryId":"$DELIVERY_ID",$actorFields,"driverAssignmentId":"$ASSIGNMENT_ID","driverMembershipId":"$DRIVER_MEMBERSHIP_ID","physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,"outgoingGoodsCheckId":"$CHECK_ID","occurredAt":"2026-09-30T10:15:30Z","current":true}"""
+        )
+
     private companion object {
         const val FULFILLMENT_ID = "11111111-1111-4111-8111-111111111111"
         const val DELIVERY_ID = "88888888-8888-4888-8888-888888888888"
         const val EVIDENCE_ID = "99999999-9999-4999-8999-999999999999"
         const val WAREHOUSE_MEMBERSHIP_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        const val DISPATCH_MEMBERSHIP_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
         const val DRIVER_MEMBERSHIP_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
         const val ALLOCATION_ID = "22222222-2222-4222-8222-222222222222"
         const val ASSIGNMENT_ID = "33333333-3333-4333-8333-333333333333"

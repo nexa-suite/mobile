@@ -305,7 +305,10 @@
     <string name="dispatch_handover_context">El contexto autorizado cambió.</string>
     <string name="dispatch_handover_current">Datos actuales confirmados</string>
     <string name="dispatch_handover_current_fact">vigente</string>
-    <string name="dispatch_handover_evidence">Transferencia declarada por membresía %1$s al conductor %2$s · comprobación %3$s · %4$s · %5$s. Esto no confirma recepción por el conductor.</string>
+    <string name="dispatch_handover_dispatch_actor">Despacho confirmado por la membresía %1$s.</string>
+    <string name="dispatch_handover_legacy_warehouse_actor">La evidencia histórica del traspaso registra la membresía de almacén %1$s.</string>
+    <string name="dispatch_handover_warehouse_actor">Membresía de almacén registrada en la evidencia del traspaso: %1$s.</string>
+    <string name="dispatch_handover_delivery_facts">Conductor asignado (membresía %1$s) · revisión de salida %2$s · %3$s · %4$s. Esto no confirma la recepción por el conductor.</string>
     <string name="dispatch_handover_fulfillment">Preparación %1$s</string>
     <string name="dispatch_handover_historical_fact">registro histórico; el despacho cambió después</string>
     <string name="dispatch_handover_initial">Consulta pendiente</string>

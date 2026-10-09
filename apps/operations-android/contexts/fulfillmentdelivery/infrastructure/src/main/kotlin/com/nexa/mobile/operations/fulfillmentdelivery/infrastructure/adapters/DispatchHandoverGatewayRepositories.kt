@@ -207,14 +207,12 @@ class OperationsDispatchHandoverGateway @Inject constructor(
                     when (val evidence = dispatches.currentHandoffEvidence(command.fulfillmentId)) {
                         is HandoffEvidenceOutcome.Evidence -> {
                             val fact = evidence.value
-                            if (!fact.fulfillmentId.equals(command.fulfillmentId, true) ||
-                                fact.deliveryId != result.fulfillment.deliveryId ||
-                                fact.fulfillmentVersion != command.expectedFulfillmentVersion + 1 ||
-                                fact.physicalAllocationId != command.physicalAllocationId ||
-                                fact.physicalAllocationVersion !=
-                                command.physicalAllocationVersion ||
-                                fact.driverAssignmentId != command.driverAssignmentId ||
-                                fact.outgoingGoodsCheckId != command.outgoingGoodsCheckId
+                            val currentMembershipId = context.identity?.membershipId
+                            if (currentMembershipId == null || !fact.correlatesToDispatch(
+                                    command,
+                                    result.fulfillment.deliveryId,
+                                    currentMembershipId
+                                )
                             ) {
                                 HandoverGatewayResult.UnknownOutcome
                             } else if (!isCurrent(context, authorization.lease)) {
@@ -396,6 +394,7 @@ class OperationsDispatchHandoverGateway @Inject constructor(
         fulfillmentVersion = fulfillmentVersion,
         deliveryId = deliveryId,
         warehouseActorMembershipId = warehouseActorMembershipId,
+        dispatchActorMembershipId = dispatchActorMembershipId,
         driverAssignmentId = driverAssignmentId,
         driverMembershipId = driverMembershipId,
         physicalAllocationId = physicalAllocationId,
@@ -552,3 +551,18 @@ class OperationsDispatchHandoverGateway @Inject constructor(
         const val HANDED_OVER = "HANDED_OVER"
     }
 }
+
+internal fun HandoffEvidenceProjection.correlatesToDispatch(
+    command: DispatchHandoverCommand,
+    expectedDeliveryId: String?,
+    expectedDispatchActorMembershipId: String
+): Boolean = current && expectedDeliveryId != null &&
+    dispatchActorMembershipId?.equals(expectedDispatchActorMembershipId, ignoreCase = true) ==
+    true &&
+    fulfillmentId.equals(command.fulfillmentId, ignoreCase = true) &&
+    deliveryId.equals(expectedDeliveryId, ignoreCase = true) &&
+    fulfillmentVersion == command.expectedFulfillmentVersion + 1 &&
+    physicalAllocationId.equals(command.physicalAllocationId, ignoreCase = true) &&
+    physicalAllocationVersion == command.physicalAllocationVersion &&
+    driverAssignmentId.equals(command.driverAssignmentId, ignoreCase = true) &&
+    outgoingGoodsCheckId.equals(command.outgoingGoodsCheckId, ignoreCase = true)
