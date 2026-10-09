@@ -16,6 +16,7 @@ import com.nexa.mobile.operations.inventoryavailability.application.model.wareho
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureSubmitResult
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.TemperatureEvidenceGateway
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.TemperatureEvidenceMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseEvidenceSelectionCoordinator
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TemperatureEvidenceFacts
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TemperatureEvidencePayload
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TemperatureEvidenceSubject
@@ -123,7 +124,8 @@ class TemperatureEvidenceViewModel(
     private val gateway: TemperatureEvidenceGateway,
     private val metadataStore: TemperatureEvidenceMetadataStore,
     private val now: () -> Instant = Instant::now,
-    private val newIdempotencyKey: () -> String = { UUID.randomUUID().toString() }
+    private val newIdempotencyKey: () -> String = { UUID.randomUUID().toString() },
+    private val evidenceSelection: WarehouseEvidenceSelectionCoordinator? = null
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(TemperatureEvidenceUiState())
     val state = mutableState.asStateFlow()
@@ -563,8 +565,52 @@ class TemperatureEvidenceViewModel(
         candidate: TemperatureEvidencePhotoCandidate,
         selection: TemperatureEvidencePhotoSelection
     ) {
+        viewModelScope.launch { uploadPhotoAwait(candidate, selection) }
+    }
+
+    /** Copies and uploads a picker result only while its original typed selection remains current. */
+    suspend fun uploadReturnedPhoto(
+        selection: TemperatureEvidencePhotoSelection,
+        sourceUri: String
+    ): Boolean {
+        val coordinator = evidenceSelection ?: return false
+        if (!isCurrentPhotoSelection(selection) || photoUploadInProgress()) return false
+        val selected = try {
+            coordinator.prepareTemperatureEvidence(selection, sourceUri)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        } ?: return false
+        return try {
+            if (!isCurrentPhotoSelection(selection) || photoUploadInProgress()) return false
+            uploadPhotoAwait(
+                TemperatureEvidencePhotoCandidate(
+                    selected.file,
+                    selected.originalFilename,
+                    selected.declaredContentType,
+                    selected.byteSize,
+                    selected.checksumSha256
+                ),
+                selection
+            )
+            true
+        } finally {
+            coordinator.discard(selected)
+        }
+    }
+
+    private fun photoUploadInProgress(): Boolean = mutableState.value.photoStatus in setOf(
+        TemperaturePhotoStatus.Uploading,
+        TemperaturePhotoStatus.Checking
+    )
+
+    private suspend fun uploadPhotoAwait(
+        candidate: TemperatureEvidencePhotoCandidate,
+        selection: TemperatureEvidencePhotoSelection
+    ) {
         val currentAuthority = authority ?: return
-        if (!isCurrentPhotoSelection(selection)) {
+        if (!isCurrentPhotoSelection(selection) || photoUploadInProgress()) {
             mutableState.update {
                 it.copy(
                     photoStatus = TemperaturePhotoStatus.ContextInvalidated,
@@ -585,76 +631,74 @@ class TemperatureEvidenceViewModel(
                 photoFailureCode = null
             )
         }
-        viewModelScope.launch {
-            val result = try {
-                gateway.uploadPhoto(
-                    selection,
-                    candidate,
-                    newIdempotencyKey(),
-                    currentAuthority
-                )
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                TemperaturePhotoResult.UnknownOutcome
-            }
-            if (request != photoGeneration || !isCurrent(requestGeneration, currentAuthority) ||
-                !isCurrentPhotoSelection(selection)
-            ) {
-                return@launch
-            }
-            when (result) {
-                is TemperaturePhotoResult.Evidence -> {
-                    if (!result.photo.matchesWarehouse(selection.warehouseId)) {
-                        setPhotoFailure(
-                            TemperaturePhotoStatus.Rejected,
-                            "EVIDENCE_SUBJECT_MISMATCH"
+        val result = try {
+            gateway.uploadPhoto(
+                selection,
+                candidate,
+                newIdempotencyKey(),
+                currentAuthority
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            TemperaturePhotoResult.UnknownOutcome
+        }
+        if (request != photoGeneration || !isCurrent(requestGeneration, currentAuthority) ||
+            !isCurrentPhotoSelection(selection)
+        ) {
+            return
+        }
+        when (result) {
+            is TemperaturePhotoResult.Evidence -> {
+                if (!result.photo.matchesWarehouse(selection.warehouseId)) {
+                    setPhotoFailure(
+                        TemperaturePhotoStatus.Rejected,
+                        "EVIDENCE_SUBJECT_MISMATCH"
+                    )
+                } else {
+                    mutableState.update {
+                        it.copy(
+                            photo = result.photo,
+                            photoEvidenceObjectId = result.photo.id,
+                            photoStatus = TemperaturePhotoStatus.Checking
                         )
-                    } else {
-                        mutableState.update {
-                            it.copy(
-                                photo = result.photo,
-                                photoEvidenceObjectId = result.photo.id,
-                                photoStatus = TemperaturePhotoStatus.Checking
-                            )
-                        }
-                        persistDraft()
-                        checkPhotoStatus(selection, result.photo.id, currentAuthority, request)
                     }
+                    persistDraft()
+                    checkPhotoStatus(selection, result.photo.id, currentAuthority, request)
                 }
-
-                is TemperaturePhotoResult.Rejected -> setPhotoFailure(
-                    TemperaturePhotoStatus.Rejected,
-                    result.code
-                )
-
-                TemperaturePhotoResult.UnknownOutcome -> setPhotoFailure(
-                    TemperaturePhotoStatus.UnknownOutcome
-                )
-
-                TemperaturePhotoResult.NetworkUnavailable -> setPhotoFailure(
-                    TemperaturePhotoStatus.NetworkUnavailable
-                )
-
-                TemperaturePhotoResult.ServiceUnavailable -> setPhotoFailure(
-                    TemperaturePhotoStatus.ServiceUnavailable
-                )
-
-                TemperaturePhotoResult.PermissionDenied -> setPhotoFailure(
-                    TemperaturePhotoStatus.PermissionDenied,
-                    "PERMISSION_DENIED"
-                )
-
-                TemperaturePhotoResult.ContextInvalidated -> setPhotoFailure(
-                    TemperaturePhotoStatus.ContextInvalidated,
-                    "CONTEXT_INVALIDATED"
-                )
-
-                TemperaturePhotoResult.SessionInvalidated -> setPhotoFailure(
-                    TemperaturePhotoStatus.SessionInvalidated,
-                    "SESSION_INVALIDATED"
-                )
             }
+
+            is TemperaturePhotoResult.Rejected -> setPhotoFailure(
+                TemperaturePhotoStatus.Rejected,
+                result.code
+            )
+
+            TemperaturePhotoResult.UnknownOutcome -> setPhotoFailure(
+                TemperaturePhotoStatus.UnknownOutcome
+            )
+
+            TemperaturePhotoResult.NetworkUnavailable -> setPhotoFailure(
+                TemperaturePhotoStatus.NetworkUnavailable
+            )
+
+            TemperaturePhotoResult.ServiceUnavailable -> setPhotoFailure(
+                TemperaturePhotoStatus.ServiceUnavailable
+            )
+
+            TemperaturePhotoResult.PermissionDenied -> setPhotoFailure(
+                TemperaturePhotoStatus.PermissionDenied,
+                "PERMISSION_DENIED"
+            )
+
+            TemperaturePhotoResult.ContextInvalidated -> setPhotoFailure(
+                TemperaturePhotoStatus.ContextInvalidated,
+                "CONTEXT_INVALIDATED"
+            )
+
+            TemperaturePhotoResult.SessionInvalidated -> setPhotoFailure(
+                TemperaturePhotoStatus.SessionInvalidated,
+                "SESSION_INVALIDATED"
+            )
         }
     }
 

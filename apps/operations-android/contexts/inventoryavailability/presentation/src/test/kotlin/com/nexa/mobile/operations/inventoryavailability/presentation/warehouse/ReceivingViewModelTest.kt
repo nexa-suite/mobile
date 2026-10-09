@@ -14,6 +14,9 @@ import com.nexa.mobile.operations.inventoryavailability.application.model.wareho
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingSubmitResult
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingGateway
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseEvidenceFileCandidate
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseEvidenceFileSelectionPort
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseEvidenceSelectionCoordinator
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ConfirmedReceivingProduct
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivedLotFacts
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivingEvidenceObject
@@ -23,6 +26,7 @@ import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.R
 import java.io.File
 import java.math.BigDecimal
 import java.time.LocalDate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -176,6 +180,98 @@ class ReceivingViewModelTest {
         } finally {
             file.delete()
         }
+    }
+
+    @Test
+    fun returnedSelectionFromAnotherScopeIsRejectedBeforeCopyOrUpload() = runTest {
+        val files = MemoryWarehouseEvidenceSelection()
+        val gateway = FakeReceivingGateway()
+        val viewModel = readyViewModel(
+            gateway,
+            FakeReceivingMetadataStore(),
+            permissions = evidencePermissions,
+            files = files
+        )
+        val selection = viewModel.temperatureEvidenceSelectionContext()
+            ?: error("active warehouse should permit photo selection")
+
+        viewModel.activate(
+            authority(epoch = 2, membershipId = "membership-2", permissions = evidencePermissions),
+            ConfirmedReceivingProduct(product, 2)
+        )
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uploadReturnedTemperatureEvidence(selection, "content://picker/a"))
+        assertEquals(0, files.prepareCalls)
+        assertEquals(0, gateway.temperatureEvidenceUploadCalls)
+    }
+
+    @Test
+    fun sameScopeReactivationRequiresFreshUploadCapabilityBeforeCopy() = runTest {
+        val files = MemoryWarehouseEvidenceSelection()
+        val gateway = FakeReceivingGateway()
+        val viewModel = readyViewModel(
+            gateway,
+            FakeReceivingMetadataStore(),
+            permissions = evidencePermissions,
+            files = files
+        )
+        val selection = viewModel.temperatureEvidenceSelectionContext()
+            ?: error("active warehouse should permit photo selection")
+
+        viewModel.activate(
+            authority(epoch = 2, permissions = setOf("warehouse.read", "inventory.receive")),
+            ConfirmedReceivingProduct(product, 2)
+        )
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uploadReturnedTemperatureEvidence(selection, "content://picker/a"))
+        assertEquals(0, files.prepareCalls)
+        assertEquals(0, gateway.temperatureEvidenceUploadCalls)
+    }
+
+    @Test
+    fun failedPrivateCopyNeverUploadsEvidence() = runTest {
+        val files = MemoryWarehouseEvidenceSelection().apply { failPreparation = true }
+        val gateway = FakeReceivingGateway()
+        val viewModel = readyViewModel(
+            gateway,
+            FakeReceivingMetadataStore(),
+            permissions = evidencePermissions,
+            files = files
+        )
+        val selection = viewModel.temperatureEvidenceSelectionContext()
+            ?: error("active warehouse should permit photo selection")
+
+        assertFalse(viewModel.uploadReturnedTemperatureEvidence(selection, "content://picker/a"))
+
+        assertEquals(1, files.prepareCalls)
+        assertEquals(0, gateway.temperatureEvidenceUploadCalls)
+    }
+
+    @Test
+    fun cancellationDuringEvidenceUploadDeletesPrivatePickerCopy() = runTest {
+        val files = MemoryWarehouseEvidenceSelection()
+        val gateway = FakeReceivingGateway().apply {
+            uploadEvidenceFailure = CancellationException("cancelled")
+        }
+        val viewModel = readyViewModel(
+            gateway,
+            FakeReceivingMetadataStore(),
+            permissions = evidencePermissions,
+            files = files
+        )
+        val selection = viewModel.temperatureEvidenceSelectionContext()
+            ?: error("active warehouse should permit photo selection")
+
+        val failure = runCatching {
+            viewModel.uploadReturnedTemperatureEvidence(selection, "content://picker/a")
+        }.exceptionOrNull()
+
+        assertTrue(failure is CancellationException)
+        assertEquals(1, gateway.temperatureEvidenceUploadCalls)
+        assertTrue(files.discarded)
+        assertFalse(files.lastFile?.exists() ?: true)
     }
 
     @Test
@@ -377,9 +473,14 @@ class ReceivingViewModelTest {
     private suspend fun TestScope.readyViewModel(
         gateway: FakeReceivingGateway,
         storage: FakeReceivingMetadataStore,
-        permissions: Set<String> = setOf("warehouse.read", "inventory.receive")
+        permissions: Set<String> = setOf("warehouse.read", "inventory.receive"),
+        files: WarehouseEvidenceFileSelectionPort? = null
     ): ReceivingViewModel {
-        val viewModel = ReceivingViewModel(gateway, storage)
+        val viewModel = ReceivingViewModel(
+            gateway,
+            storage,
+            files?.let(::WarehouseEvidenceSelectionCoordinator)
+        )
         viewModel.activate(
             authority(permissions = permissions),
             ConfirmedReceivingProduct(product, 1)
@@ -398,12 +499,13 @@ class ReceivingViewModelTest {
 
     private fun authority(
         epoch: Long = 1,
-        permissions: Set<String> = setOf("warehouse.read", "inventory.receive")
+        permissions: Set<String> = setOf("warehouse.read", "inventory.receive"),
+        membershipId: String = "membership-1"
     ) = ReceivingAuthority(
         userId = "user-1",
         tenantId = "tenant-1",
         workspaceId = "workspace-1",
-        membershipId = "membership-1",
+        membershipId = membershipId,
         permissions = permissions,
         authorityEpoch = epoch
     )
@@ -447,6 +549,8 @@ class ReceivingViewModelTest {
         var evidenceStatusResult: ReceivingEvidenceResult =
             ReceivingEvidenceResult.ServiceUnavailable
         var uploadedWarehouseId: String? = null
+        var temperatureEvidenceUploadCalls = 0
+        var uploadEvidenceFailure: Throwable? = null
         val submitResults = mutableListOf<ReceivingSubmitResult>()
         val requests = mutableListOf<InboundReceiptRequest>()
         val keys = mutableListOf<String>()
@@ -481,7 +585,9 @@ class ReceivingViewModelTest {
             idempotencyKey: String,
             authority: ReceivingAuthority
         ): ReceivingEvidenceResult {
+            temperatureEvidenceUploadCalls++
             uploadedWarehouseId = warehouseId
+            uploadEvidenceFailure?.let { throw it }
             return uploadEvidenceResult
         }
 
@@ -490,6 +596,36 @@ class ReceivingViewModelTest {
             warehouseId: String,
             authority: ReceivingAuthority
         ): ReceivingEvidenceResult = evidenceStatusResult
+    }
+
+    private class MemoryWarehouseEvidenceSelection : WarehouseEvidenceFileSelectionPort {
+        var prepareCalls = 0
+        var failPreparation = false
+        var discarded = false
+        var lastFile: File? = null
+
+        override suspend fun prepare(
+            sourceUri: String,
+            scopeKey: String
+        ): WarehouseEvidenceFileCandidate? {
+            prepareCalls++
+            if (failPreparation) return null
+            val file = File.createTempFile("receiving-picker", ".jpg")
+            file.writeBytes(byteArrayOf(1, 2, 3, 4))
+            lastFile = file
+            return WarehouseEvidenceFileCandidate(
+                file,
+                "temperature.jpg",
+                "image/jpeg",
+                file.length(),
+                "a".repeat(64)
+            )
+        }
+
+        override fun discard(candidate: WarehouseEvidenceFileCandidate) {
+            discarded = true
+            candidate.file.delete()
+        }
     }
 
     private class FakeReceivingMetadataStore(private val available: Boolean = true) :
@@ -558,6 +694,12 @@ class ReceivingViewModelTest {
     }
 
     private companion object {
+        val evidencePermissions = setOf(
+            "warehouse.read",
+            "inventory.receive",
+            "document.upload",
+            "document.read"
+        )
         val product = ReceivingProductReference(
             catalogItemId = "CAT-0017",
             skuId = "8f060338-9547-4c09-9fa1-2e048bbc2a03",

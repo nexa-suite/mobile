@@ -9,9 +9,9 @@ import com.nexa.mobile.operations.core.local.scoped.AndroidScopedMetadataStore
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataPurpose
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataRead
 import com.nexa.mobile.operations.core.local.scoped.ScopedMetadataScope
-import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingAuthority
 import com.nexa.mobile.operations.fulfillmentdelivery.application.publicapi.CurrentPickingAllocationQuery
 import com.nexa.mobile.operations.fulfillmentdelivery.application.publicapi.CurrentPickingAllocationResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.publicapi.PickingAllocationScope
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionAuthority
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionCurrentResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionIntent
@@ -383,7 +383,7 @@ class OperationsLotSubstitutionGateway @Inject constructor(
         val before = authorize(authority, FULFILLMENT_READ_PERMISSIONS)
         if (before !is Authorization.Current) return before.toCurrentFailure()
         val loaded = try {
-            pickingAllocation.current(work.fulfillmentId, authority.toPickingAuthority())
+            pickingAllocation.current(work.fulfillmentId, authority.toPickingAllocationScope())
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -446,12 +446,12 @@ class OperationsLotSubstitutionGateway @Inject constructor(
         }
     }
 
-    private fun LotSubstitutionAuthority.toPickingAuthority() = PickingAuthority(
+    private fun LotSubstitutionAuthority.toPickingAllocationScope() = PickingAllocationScope(
         userId = userId,
         tenantId = tenantId,
         workspaceId = workspaceId,
         membershipId = membershipId,
-        permissions = permissions,
+        permissions = permissions.toSet(),
         authorityEpoch = authorityEpoch
     )
 

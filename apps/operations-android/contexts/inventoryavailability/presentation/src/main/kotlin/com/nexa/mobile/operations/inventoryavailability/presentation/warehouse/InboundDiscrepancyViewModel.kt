@@ -22,6 +22,7 @@ import com.nexa.mobile.operations.inventoryavailability.application.warehouse.In
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyEvidenceArtifactStore
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyGateway
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyPayloadCodec
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseEvidenceSelectionCoordinator
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.InboundDiscrepancyKind
 import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.InboundDiscrepancyValidationError as DiscrepancyValidationError
 import java.util.UUID
@@ -41,7 +42,8 @@ class InboundDiscrepancyViewModel(
     private val payloadCodec: InboundDiscrepancyPayloadCodec,
     private val newDraftId: () -> String = { UUID.randomUUID().toString() },
     private val newCommandKey: () -> String = { UUID.randomUUID().toString() },
-    private val deviceClockMillis: () -> Long = System::currentTimeMillis
+    private val deviceClockMillis: () -> Long = System::currentTimeMillis,
+    private val evidenceSelection: WarehouseEvidenceSelectionCoordinator? = null
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(InboundDiscrepancyUiState())
     val state = mutableState.asStateFlow()
@@ -210,13 +212,52 @@ class InboundDiscrepancyViewModel(
     /** Retains a returned native selection under its original identity for later authorized review. */
     suspend fun stageReturnedSelection(
         context: InboundDiscrepancySelectionContext,
-        candidate: InboundDiscrepancyEvidenceCandidate
-    ): InboundDiscrepancyArtifactWrite = try {
-        artifacts.stageReturnedSelection(context, candidate)
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (_: Exception) {
-        InboundDiscrepancyArtifactWrite.Unavailable
+        sourceUri: String
+    ): InboundDiscrepancyArtifactWrite {
+        val selection = evidenceSelection ?: return InboundDiscrepancyArtifactWrite.Unavailable
+        if (!isCurrentEvidenceSelection(context)) return InboundDiscrepancyArtifactWrite.Conflict
+        val selected = try {
+            selection.prepareInboundDiscrepancy(context, sourceUri)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        } ?: return InboundDiscrepancyArtifactWrite.Unavailable
+        return try {
+            if (!isCurrentEvidenceSelection(context)) {
+                InboundDiscrepancyArtifactWrite.Conflict
+            } else {
+                val candidate = InboundDiscrepancyEvidenceCandidate(
+                    selected.file,
+                    selected.originalFilename,
+                    selected.declaredContentType,
+                    selected.byteSize,
+                    selected.checksumSha256
+                )
+                val result = artifacts.stageReturnedSelection(context, candidate)
+                if (result == InboundDiscrepancyArtifactWrite.Saved &&
+                    isCurrentEvidenceSelection(context)
+                ) {
+                    reloadStagedEvidence(context)
+                }
+                result
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            InboundDiscrepancyArtifactWrite.Unavailable
+        } finally {
+            selection.discard(selected)
+        }
+    }
+
+    private fun isCurrentEvidenceSelection(context: InboundDiscrepancySelectionContext): Boolean {
+        val currentAuthority = authority ?: return false
+        val current = mutableState.value
+        return current.active && currentAuthority.authorityEpoch == context.authorityEpoch &&
+            currentAuthority.scope == context.scope && current.canSelectEvidence &&
+            current.metadata == InboundDiscrepancyMetadataStatus.Available &&
+            current.warehouseId == context.warehouseId && current.caseId == context.caseId
     }
 
     suspend fun reloadStagedEvidence(context: InboundDiscrepancySelectionContext): Boolean {
@@ -230,6 +271,7 @@ class InboundDiscrepancyViewModel(
         currentAuthority: InboundDiscrepancyAuthority
     ): Boolean {
         if (!isCurrent(requestGeneration, currentAuthority) ||
+            context.authorityEpoch != currentAuthority.authorityEpoch ||
             context.scope != currentAuthority.scope
         ) {
             return false

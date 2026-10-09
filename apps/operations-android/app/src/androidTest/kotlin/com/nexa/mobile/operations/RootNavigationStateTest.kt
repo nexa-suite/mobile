@@ -21,6 +21,10 @@ import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R as CatalogR
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchStatus
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.TaskVisibilityHint
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseRoute
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WorkEntryStatus
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
 import com.nexa.mobile.operations.core.designsystem.R as DesignSystemR
@@ -32,10 +36,6 @@ import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.Wor
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.R as AccessR
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
-import com.nexa.mobile.operations.workentry.TaskVisibilityHint
-import com.nexa.mobile.operations.workentry.WarehouseRoute
-import com.nexa.mobile.operations.workentry.WarehouseUiState
-import com.nexa.mobile.operations.workentry.WorkEntryStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -358,7 +358,7 @@ class RootNavigationStateTest {
         composeRule.onNodeWithText("Connected route: commercial.catalog").assertIsDisplayed()
         dispatchNavigationBack()
         composeRule.onNodeWithText(
-            composeRule.activity.getString(R.string.warehouse_identify_product)
+            composeRule.activity.getString(CatalogR.string.warehouse_identify_product)
         ).assertIsDisplayed()
 
         composeRule.onNodeWithText("Preparar solicitud")
@@ -367,7 +367,7 @@ class RootNavigationStateTest {
         composeRule.onNodeWithText("Connected route: commercial.request").assertIsDisplayed()
         dispatchNavigationBack()
         composeRule.onNodeWithText(
-            composeRule.activity.getString(R.string.warehouse_identify_product)
+            composeRule.activity.getString(CatalogR.string.warehouse_identify_product)
         ).assertIsDisplayed()
     }
 

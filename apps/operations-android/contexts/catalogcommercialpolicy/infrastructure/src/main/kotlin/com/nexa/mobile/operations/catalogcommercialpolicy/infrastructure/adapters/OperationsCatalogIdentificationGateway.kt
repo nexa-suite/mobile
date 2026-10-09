@@ -13,8 +13,8 @@ import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transpo
 import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transport.OperationsCatalogSearchOutcome
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.contextIsCurrent
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.PermissionHint
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.catalogReadHint
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.map

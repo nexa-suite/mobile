@@ -34,6 +34,10 @@ import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchScreen
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchStatus
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.OperationsWorkEntryScreen
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.TaskVisibilityHint
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WorkEntryStatus
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
 import com.nexa.mobile.operations.core.designsystem.R as CoreR
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
@@ -46,10 +50,6 @@ import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.Con
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserPhase
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserScreen
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserUiState
-import com.nexa.mobile.operations.workentry.OperationsWorkEntryScreen
-import com.nexa.mobile.operations.workentry.TaskVisibilityHint
-import com.nexa.mobile.operations.workentry.WarehouseUiState
-import com.nexa.mobile.operations.workentry.WorkEntryStatus
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -202,14 +202,14 @@ class ProductScreensAccessibilityTest {
             )
         )
         contextAction.performScrollTo().assertIsDisplayed().assert(hasClickAction()).performClick()
-        composeRule.onNodeWithText(localizedString(R.string.warehouse_work_available))
+        composeRule.onNodeWithText(localizedString(CatalogR.string.warehouse_work_available))
             .performScrollTo()
             .assertIsDisplayed()
         composeRule.onNodeWithContentDescription(
             localizedString(
                 CoreR.string.nexa_task_row_action_description,
-                localizedString(R.string.warehouse_identify_product),
-                localizedString(R.string.warehouse_identify_product_support)
+                localizedString(CatalogR.string.warehouse_identify_product),
+                localizedString(CatalogR.string.warehouse_identify_product_support)
             )
         ).performScrollTo().assertIsDisplayed().assert(hasClickAction()).performClick()
         composeRule.runOnIdle {

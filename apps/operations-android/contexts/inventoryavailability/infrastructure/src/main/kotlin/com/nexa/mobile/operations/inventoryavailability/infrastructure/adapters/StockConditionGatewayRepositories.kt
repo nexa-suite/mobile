@@ -13,8 +13,8 @@ import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.StockConditionLotProjection
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.transport.StockConditionNetworkOutcome as StockConditionOutcome
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.PermissionHint
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.VerifiedOperationsIdentity
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

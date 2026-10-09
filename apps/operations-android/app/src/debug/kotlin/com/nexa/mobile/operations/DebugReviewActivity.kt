@@ -33,6 +33,11 @@ import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchScreen
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchStatus
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.OperationsWorkEntryScreen
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.TaskVisibilityHint
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseRoute
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WorkEntryStatus
 import com.nexa.mobile.operations.core.designsystem.NexaColors
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackBanner
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackTone
@@ -51,11 +56,6 @@ import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.Con
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserScreen
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserUiState
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextUnavailableReason
-import com.nexa.mobile.operations.workentry.OperationsWorkEntryScreen
-import com.nexa.mobile.operations.workentry.TaskVisibilityHint
-import com.nexa.mobile.operations.workentry.WarehouseRoute
-import com.nexa.mobile.operations.workentry.WarehouseUiState
-import com.nexa.mobile.operations.workentry.WorkEntryStatus
 
 class DebugReviewActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -3,6 +3,7 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureEvidenceSelectionCoordinator
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureIntent
@@ -12,9 +13,11 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.Dispa
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperaturePhotoCandidate
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperaturePhotoGatewayResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperaturePhotoSelectionPort
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperaturePhotoUploadIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperaturePhotoUploadMetadataRead
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureSelectedPhoto
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperatureEvidence
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperatureLot
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchTemperaturePhotoEvidence
@@ -24,6 +27,7 @@ import java.io.File
 import java.math.BigDecimal
 import java.security.MessageDigest
 import java.time.Instant
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -144,6 +148,88 @@ class DispatchTemperatureViewModelTest {
     }
 
     @Test
+    fun returnedSelectionFromAIsRejectedAfterScopeChangesToBBeforeCopy() = runTest {
+        val metadata = FakeMetadataStore()
+        val gateway = FakeGateway(metadata)
+        val files = FakePhotoSelectionPort()
+        val viewModel = returnedSelectionViewModel(gateway, metadata, files)
+        viewModel.activate(FULFILLMENT_ID, context())
+        runCurrent()
+        val selectionA = requireNotNull(viewModel.excursionEvidenceSelectionContext(LOT_ID))
+
+        viewModel.activate(FULFILLMENT_ID, context(epoch = 3, userId = "other-user"))
+        runCurrent()
+        val uploaded = viewModel.uploadReturnedEvidence(
+            selectionA,
+            "9.5",
+            "content://picker/photo"
+        )
+
+        assertEquals(false, uploaded)
+        assertEquals(0, files.prepareCalls)
+        assertTrue(gateway.photoKeys.isEmpty())
+    }
+
+    @Test
+    fun sameScopeReactivationRebindsOnlyAfterFreshCurrentRead() = runTest {
+        val metadata = FakeMetadataStore()
+        val gateway = FakeGateway(metadata)
+        val files = FakePhotoSelectionPort()
+        val viewModel = returnedSelectionViewModel(gateway, metadata, files)
+        viewModel.activate(FULFILLMENT_ID, context())
+        runCurrent()
+        val captured = requireNotNull(viewModel.excursionEvidenceSelectionContext(LOT_ID))
+
+        viewModel.activate(FULFILLMENT_ID, context(epoch = 3))
+        runCurrent()
+        assertTrue(viewModel.uploadReturnedEvidence(captured, "9.5", "content://picker/photo"))
+
+        assertEquals(1, gateway.photoKeys.size)
+        assertEquals(listOf(3L), gateway.photoEpochs)
+        assertTrue(gateway.currentCalls >= 3)
+    }
+
+    @Test
+    fun returnedSelectionDoesNotUploadWhenPrivateCopyStagingFails() = runTest {
+        val metadata = FakeMetadataStore()
+        val gateway = FakeGateway(metadata)
+        val files = FakePhotoSelectionPort().apply { failPreparation = true }
+        val viewModel = returnedSelectionViewModel(gateway, metadata, files)
+        viewModel.activate(FULFILLMENT_ID, context())
+        runCurrent()
+        val selection = requireNotNull(viewModel.excursionEvidenceSelectionContext(LOT_ID))
+
+        assertEquals(
+            false,
+            viewModel.uploadReturnedEvidence(selection, "9.5", "content://picker/photo")
+        )
+        assertTrue(gateway.photoKeys.isEmpty())
+        assertEquals(1, files.prepareCalls)
+    }
+
+    @Test
+    fun cancellationDuringProtectedUploadDeletesThePrivatePickerCopy() = runTest {
+        val metadata = FakeMetadataStore()
+        val gateway = FakeGateway(metadata)
+        val files = FakePhotoSelectionPort()
+        val viewModel = returnedSelectionViewModel(gateway, metadata, files)
+        viewModel.activate(FULFILLMENT_ID, context())
+        runCurrent()
+        val selection = requireNotNull(viewModel.excursionEvidenceSelectionContext(LOT_ID))
+        gateway.cancelCurrentCall = gateway.currentCalls + 1
+
+        try {
+            viewModel.uploadReturnedEvidence(selection, "9.5", "content://picker/photo")
+            throw AssertionError("expected cancellation")
+        } catch (_: CancellationException) {
+            // Expected; the owning action must still release the temporary copy.
+        }
+
+        assertEquals(false, requireNotNull(files.lastCandidate).file.exists())
+        assertTrue(gateway.photoKeys.isEmpty())
+    }
+
+    @Test
     fun inRangeManualCelsiusEvidenceUsesCurrentFulfillmentVersion() = runTest {
         val metadata = FakeMetadataStore()
         val gateway = FakeGateway(metadata)
@@ -231,6 +317,27 @@ class DispatchTemperatureViewModelTest {
         )
     )
 
+    private fun context(epoch: Long, userId: String = USER_ID): DispatchAuthorityContext {
+        val captured = context()
+        val capturedIdentity = requireNotNull(captured.identity)
+        return captured.copy(
+            authorityEpoch = epoch,
+            identity = capturedIdentity.copy(userId = userId)
+        )
+    }
+
+    private fun returnedSelectionViewModel(
+        gateway: FakeGateway,
+        metadata: FakeMetadataStore,
+        files: FakePhotoSelectionPort
+    ) = DispatchTemperatureViewModel(
+        gateway,
+        metadata,
+        now = { OBSERVED_AT },
+        requestBodyCodec = TestDispatchRequestBodyCodec(),
+        evidenceSelection = DispatchTemperatureEvidenceSelectionCoordinator(files)
+    )
+
     private class FakeGateway(private val metadata: FakeMetadataStore) :
         DispatchTemperatureGateway {
         val commands = mutableListOf<DispatchTemperatureCommand>()
@@ -240,36 +347,43 @@ class DispatchTemperatureViewModelTest {
         var returnPhotoUnknownOnce = false
         var photoStatus = "AVAILABLE"
         var currentWarehouseId = WAREHOUSE_ID
+        var currentCalls = 0
+        var cancelCurrentCall: Int? = null
+        val photoEpochs = mutableListOf<Long>()
 
         override suspend fun current(
             fulfillmentId: String,
             context: DispatchAuthorityContext
-        ): DispatchTemperatureGatewayResult = DispatchTemperatureGatewayResult.Current(
-            DispatchTemperatureReadiness(
-                fulfillmentId = fulfillmentId,
-                fulfillmentStatus = "READY_FOR_DISPATCH",
-                fulfillmentVersion = 8,
-                physicalAllocationId = ALLOCATION_ID,
-                physicalAllocationVersion = 4,
-                temperatureRequiredForFulfillment = false,
-                asOf = OBSERVED_AT,
-                lots = listOf(
-                    DispatchTemperatureLot(
-                        skuId = SKU_ID,
-                        lotId = LOT_ID,
-                        warehouseId = currentWarehouseId,
-                        zoneId = ZONE_ID,
-                        skuColdChainRequired = true,
-                        requiredForFulfillment = false,
-                        minimumCelsius = BigDecimal("2"),
-                        maximumCelsius = BigDecimal("8"),
-                        status = "OPTIONAL_NOT_RECORDED",
-                        latestEvidence = null,
-                        version = 4
+        ): DispatchTemperatureGatewayResult {
+            currentCalls++
+            if (currentCalls == cancelCurrentCall) throw CancellationException()
+            return DispatchTemperatureGatewayResult.Current(
+                DispatchTemperatureReadiness(
+                    fulfillmentId = fulfillmentId,
+                    fulfillmentStatus = "READY_FOR_DISPATCH",
+                    fulfillmentVersion = 8,
+                    physicalAllocationId = ALLOCATION_ID,
+                    physicalAllocationVersion = 4,
+                    temperatureRequiredForFulfillment = false,
+                    asOf = OBSERVED_AT,
+                    lots = listOf(
+                        DispatchTemperatureLot(
+                            skuId = SKU_ID,
+                            lotId = LOT_ID,
+                            warehouseId = currentWarehouseId,
+                            zoneId = ZONE_ID,
+                            skuColdChainRequired = true,
+                            requiredForFulfillment = false,
+                            minimumCelsius = BigDecimal("2"),
+                            maximumCelsius = BigDecimal("8"),
+                            status = "OPTIONAL_NOT_RECORDED",
+                            latestEvidence = null,
+                            version = 4
+                        )
                     )
                 )
             )
-        )
+        }
 
         override suspend fun record(
             command: DispatchTemperatureCommand,
@@ -321,6 +435,7 @@ class DispatchTemperatureViewModelTest {
         ): DispatchTemperaturePhotoGatewayResult {
             photoKeys += idempotencyKey
             photoNames += candidate.originalFilename
+            photoEpochs += context.authorityEpoch
             if (returnPhotoUnknownOnce) {
                 returnPhotoUnknownOnce = false
                 return DispatchTemperaturePhotoGatewayResult.UnknownOutcome
@@ -342,6 +457,32 @@ class DispatchTemperatureViewModelTest {
                 photoStatus
             )
         )
+    }
+
+    private inner class FakePhotoSelectionPort : DispatchTemperaturePhotoSelectionPort {
+        var failPreparation = false
+        var prepareCalls = 0
+        var lastCandidate: DispatchTemperatureSelectedPhoto? = null
+
+        override suspend fun prepare(
+            sourceUri: String,
+            scopeKey: String
+        ): DispatchTemperatureSelectedPhoto? {
+            prepareCalls++
+            if (failPreparation) return null
+            val candidate = photoCandidate("returned-$prepareCalls.jpg")
+            return DispatchTemperatureSelectedPhoto(
+                candidate.file,
+                candidate.originalFilename,
+                candidate.declaredContentType,
+                candidate.byteSize,
+                candidate.checksumSha256
+            ).also { lastCandidate = it }
+        }
+
+        override fun discard(candidate: DispatchTemperatureSelectedPhoto) {
+            candidate.file.delete()
+        }
     }
 
     private class FakeMetadataStore : DispatchTemperatureMetadataStore {

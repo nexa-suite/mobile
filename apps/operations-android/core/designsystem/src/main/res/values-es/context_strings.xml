@@ -8,7 +8,7 @@
     <string name="customer_previous">Anterior</string>
     <string name="customer_search">Buscar</string>
     <string name="customer_version">Versión: %1$d</string>
-    <string name="field_request_retry">Resolver mismo envío</string>
+    <string name="same_submission_retry">Resolver mismo envío</string>
     <string name="progress_current">Datos del servidor.</string>
     <string name="progress_customer_reference">Referencia del cliente autorizado</string>
     <string name="progress_denied">Acceso o relación no vigente. Datos protegidos no disponibles.</string>

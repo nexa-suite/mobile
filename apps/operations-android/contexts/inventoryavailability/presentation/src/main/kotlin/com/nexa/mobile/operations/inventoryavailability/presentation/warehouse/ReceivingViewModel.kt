@@ -18,6 +18,7 @@ import com.nexa.mobile.operations.inventoryavailability.application.warehouse.Re
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingIntentCoordinator
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingIntentExecution
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseEvidenceSelectionCoordinator
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ConfirmedReceivingProduct
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivedLotFacts
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivingEvidenceObject
@@ -147,7 +148,8 @@ enum class ReceivingSubmitNotice {
 /** Connected Receiving controller. It never treats a locally prepared draft as stock. */
 class ReceivingViewModel(
     private val gateway: ReceivingGateway,
-    private val metadataStore: ReceivingMetadataStore
+    private val metadataStore: ReceivingMetadataStore,
+    private val evidenceSelection: WarehouseEvidenceSelectionCoordinator? = null
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(ReceivingUiState())
     val state = mutableState.asStateFlow()
@@ -469,7 +471,60 @@ class ReceivingViewModel(
         ) {
             return null
         }
-        return ReceivingEvidenceSelectionContext(currentAuthority.scope, warehouseId)
+        return ReceivingEvidenceSelectionContext(
+            currentAuthority.scope,
+            warehouseId,
+            currentAuthority.authorityEpoch
+        )
+    }
+
+    /** Captures and uploads a returned image through the active receiving context. */
+    suspend fun uploadReturnedTemperatureEvidence(
+        selection: ReceivingEvidenceSelectionContext,
+        sourceUri: String
+    ): Boolean {
+        val coordinator = evidenceSelection ?: return false
+        if (!isCurrentTemperatureEvidenceSelection(selection)) return false
+        val selected = try {
+            coordinator.prepareReceivingTemperature(selection, sourceUri)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        } ?: return false
+        return try {
+            if (!isCurrentTemperatureEvidenceSelection(selection)) return false
+            uploadTemperatureEvidence(
+                ReceivingEvidenceCandidate(
+                    selected.file,
+                    selected.originalFilename,
+                    selected.declaredContentType,
+                    selected.byteSize,
+                    selected.checksumSha256
+                ),
+                selection
+            )
+            true
+        } finally {
+            coordinator.discard(selected)
+        }
+    }
+
+    private fun isCurrentTemperatureEvidenceSelection(
+        selection: ReceivingEvidenceSelectionContext
+    ): Boolean {
+        val currentAuthority = authority ?: return false
+        val current = mutableState.value
+        return selection.scope == currentAuthority.scope &&
+            selection.warehouseId == current.selectedWarehouseId &&
+            selection.authorityEpoch <= currentAuthority.authorityEpoch &&
+            current.authorityEpoch == currentAuthority.authorityEpoch &&
+            canEdit() && current.metadata == ReceivingMetadataStatus.Available &&
+            current.warehouseLookup != ReceivingLookupStatus.Loading && current.canReceive &&
+            current.canUploadTemperatureEvidence &&
+            current.warehouses.any {
+                it.id == selection.warehouseId && it.isSelectable
+            } && !current.isIntentFrozen
     }
 
     /** Uploads a selected image against the exact active warehouse, then reads back its status. */

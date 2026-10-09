@@ -6,8 +6,8 @@ import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.network.ApiEndpoint
 import com.nexa.mobile.operations.core.network.ApiHttpClient
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.salescommitment.application.commercial.FieldRequestSubmission
-import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestIntent
+import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderSubmission
+import com.nexa.mobile.operations.salescommitment.application.model.commercial.DirectOrderIntent
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,8 +25,8 @@ class NexaDirectOrderGatewayTest {
             server.start()
             server.enqueue(response(201, order()))
             val result = gateway(server).submit(authority, intent(), CUSTOMER)
-            assertTrue(result is FieldRequestSubmission.Confirmed)
-            val receipt = (result as FieldRequestSubmission.Confirmed).receipt
+            assertTrue(result is DirectOrderSubmission.Confirmed)
+            val receipt = (result as DirectOrderSubmission.Confirmed).receipt
             assertEquals(ORDER, receipt.id)
             assertEquals("SO-SYNTHETIC-42", receipt.number)
             assertEquals("CONFIRMED", receipt.status)
@@ -50,10 +50,10 @@ class NexaDirectOrderGatewayTest {
             val intent = intent("PREPAID")
             repeat(2) {
                 val result = gateway.submit(authority, intent, CUSTOMER)
-                assertTrue(result is FieldRequestSubmission.PrepaidPending)
+                assertTrue(result is DirectOrderSubmission.PrepaidPending)
                 assertEquals(
                     "PENDING",
-                    (result as FieldRequestSubmission.PrepaidPending).receipt.status
+                    (result as DirectOrderSubmission.PrepaidPending).receipt.status
                 )
             }
             val first = server.takeRequest()
@@ -121,28 +121,28 @@ class NexaDirectOrderGatewayTest {
             invalid.forEach { body ->
                 server.enqueue(response(201, body))
                 assertEquals(
-                    FieldRequestSubmission.UnknownOutcome,
+                    DirectOrderSubmission.UnknownOutcome,
                     gateway.submit(authority, intent(), CUSTOMER)
                 )
             }
             server.enqueue(response(201, order(), "2"))
             assertEquals(
-                FieldRequestSubmission.UnknownOutcome,
+                DirectOrderSubmission.UnknownOutcome,
                 gateway.submit(authority, intent(), CUSTOMER)
             )
             server.enqueue(response(201, order(version = 0), "0"))
             assertEquals(
-                FieldRequestSubmission.UnknownOutcome,
+                DirectOrderSubmission.UnknownOutcome,
                 gateway.submit(authority, intent(), CUSTOMER)
             )
             server.enqueue(response(202, order("PREPAID", "PENDING", 1), "1"))
             assertEquals(
-                FieldRequestSubmission.UnknownOutcome,
+                DirectOrderSubmission.UnknownOutcome,
                 gateway.submit(authority, intent("PREPAID"), CUSTOMER)
             )
             server.enqueue(response(202, order()))
             assertEquals(
-                FieldRequestSubmission.UnknownOutcome,
+                DirectOrderSubmission.UnknownOutcome,
                 gateway.submit(authority, intent(), CUSTOMER)
             )
         }
@@ -154,12 +154,12 @@ class NexaDirectOrderGatewayTest {
             server.start()
             val gateway = gateway(server)
             listOf(
-                401 to FieldRequestSubmission.PermissionDenied,
-                403 to FieldRequestSubmission.PermissionDenied,
-                409 to FieldRequestSubmission.Conflict,
-                412 to FieldRequestSubmission.Conflict,
-                422 to FieldRequestSubmission.Rejected,
-                500 to FieldRequestSubmission.UnknownOutcome
+                401 to DirectOrderSubmission.PermissionDenied,
+                403 to DirectOrderSubmission.PermissionDenied,
+                409 to DirectOrderSubmission.Conflict,
+                412 to DirectOrderSubmission.Conflict,
+                422 to DirectOrderSubmission.Rejected,
+                500 to DirectOrderSubmission.UnknownOutcome
             ).forEach { (status, expected) ->
                 server.enqueue(
                     MockResponse().setResponseCode(
@@ -180,18 +180,18 @@ class NexaDirectOrderGatewayTest {
             server.start()
             val gateway = gateway(server)
             assertEquals(
-                FieldRequestSubmission.LegacyIntent,
+                DirectOrderSubmission.LegacyIntent,
                 gateway.submit(
                     authority,
                     intent().copy(
                         exactBody = legacyPurchaseRequestBody(),
-                        operation = FieldRequestIntent.LEGACY_FIELD_REQUEST_OPERATION
+                        operation = DirectOrderIntent.LEGACY_FIELD_REQUEST_OPERATION
                     ),
                     CUSTOMER
                 )
             )
             assertEquals(
-                FieldRequestSubmission.Rejected,
+                DirectOrderSubmission.Rejected,
                 gateway.submit(
                     authority,
                     intent().copy(exactBody = "{}"),
@@ -199,7 +199,7 @@ class NexaDirectOrderGatewayTest {
                 )
             )
             assertEquals(
-                FieldRequestSubmission.Rejected,
+                DirectOrderSubmission.Rejected,
                 gateway.submit(
                     authority,
                     intent().copy(exactBody = intent().exactBody.replace("2.500", "0")),
@@ -207,7 +207,7 @@ class NexaDirectOrderGatewayTest {
                 )
             )
             assertEquals(
-                FieldRequestSubmission.PermissionDenied,
+                DirectOrderSubmission.PermissionDenied,
                 gateway.submit(
                     authority,
                     intent().copy(key = ""),
@@ -225,7 +225,7 @@ class NexaDirectOrderGatewayTest {
         )
     }
 
-    private fun intent(payment: String = "CASH_ON_DELIVERY") = FieldRequestIntent(
+    private fun intent(payment: String = "CASH_ON_DELIVERY") = DirectOrderIntent(
         "stable-key",
         """{"clientAccountId":"$CUSTOMER","priority":"NORMAL","requestedDeliveryDate":"2026-10-09","deliveryProfileSnapshot":"Door","paymentOption":"$payment","comment":"Synthetic","lines":[{"catalogItemId":"CAT-1","quantity":2.500,"unit":"KG"}]}"""
     )

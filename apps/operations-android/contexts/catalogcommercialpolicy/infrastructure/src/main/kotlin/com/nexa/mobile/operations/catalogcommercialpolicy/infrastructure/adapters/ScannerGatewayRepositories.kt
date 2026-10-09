@@ -13,7 +13,7 @@ import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.PermissionHint
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

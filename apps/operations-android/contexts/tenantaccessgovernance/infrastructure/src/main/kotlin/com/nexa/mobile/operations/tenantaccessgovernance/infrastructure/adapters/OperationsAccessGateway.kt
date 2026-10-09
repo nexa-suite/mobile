@@ -9,6 +9,7 @@ import com.nexa.mobile.operations.tenantaccessgovernance.application.access.Cont
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.ContextSelectionResult
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.CurrentSessionContextResult
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.SignInResult
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.PermissionHint as PublicPermissionHint
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.catalogReadHint
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.VerifiedContextAuthority
@@ -162,7 +163,11 @@ fun VerifiedSession.toWorkforceContext(): WorkforceContextSummary? {
     val workspaceId = workspaceId?.takeIf(String::isNotBlank) ?: return null
     val tenant = tenantName?.takeIf(String::isNotBlank) ?: return null
     val workspace = workspaceName?.takeIf(String::isNotBlank) ?: return null
-    val permissionHint = catalogReadHint(permissions)
+    val permissionHint = when (catalogReadHint(permissions)) {
+        PublicPermissionHint.Available -> PermissionHint.Available
+        PublicPermissionHint.Unavailable -> PermissionHint.Unavailable
+        PublicPermissionHint.Unknown -> PermissionHint.Unknown
+    }
     return WorkforceContextSummary(
         key = membership,
         companyName = tenant,

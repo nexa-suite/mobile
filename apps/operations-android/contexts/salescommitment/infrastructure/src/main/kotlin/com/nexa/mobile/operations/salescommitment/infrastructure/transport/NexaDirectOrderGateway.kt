@@ -5,9 +5,9 @@ import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.core.network.ProtectedMethod
 import com.nexa.mobile.operations.core.network.ProtectedRequest
 import com.nexa.mobile.operations.core.network.ProtectedResult
-import com.nexa.mobile.operations.salescommitment.application.commercial.FieldRequestSubmission
-import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestIntent
-import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestReceipt
+import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderSubmission
+import com.nexa.mobile.operations.salescommitment.application.model.commercial.DirectOrderIntent
+import com.nexa.mobile.operations.salescommitment.application.model.commercial.DirectOrderReceipt
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -38,21 +38,21 @@ private val directOrderPaymentOptions =
 class NexaDirectOrderGateway(private val calls: ProtectedCallExecutor) {
     suspend fun submit(
         authority: CommercialAuthority,
-        intent: FieldRequestIntent,
+        intent: DirectOrderIntent,
         expectedCustomerId: String
-    ): FieldRequestSubmission {
-        if (intent.operation != FieldRequestIntent.DIRECT_ORDER_OPERATION) {
-            return FieldRequestSubmission.LegacyIntent
+    ): DirectOrderSubmission {
+        if (intent.operation != DirectOrderIntent.DIRECT_ORDER_OPERATION) {
+            return DirectOrderSubmission.LegacyIntent
         }
         if (intent.key.isBlank() || intent.key.length > 160 ||
             !authority.tenantId.isUuid() || !authority.workspaceId.isUuid() ||
             !authority.membershipId.isUuid()
         ) {
-            return FieldRequestSubmission.PermissionDenied
+            return DirectOrderSubmission.PermissionDenied
         }
-        val request = intent.exactBody.toFrozenRequest() ?: return FieldRequestSubmission.Rejected
+        val request = intent.exactBody.toFrozenRequest() ?: return DirectOrderSubmission.Rejected
         if (!request.clientAccountId.sameUuid(expectedCustomerId)) {
-            return FieldRequestSubmission.Rejected
+            return DirectOrderSubmission.Rejected
         }
 
         return when (
@@ -69,14 +69,14 @@ class NexaDirectOrderGateway(private val calls: ProtectedCallExecutor) {
 
             is ProtectedResult.Failure -> when (result.error.kind) {
                 FailureKind.AuthenticationRequired,
-                FailureKind.AuthorizationFailure -> FieldRequestSubmission.PermissionDenied
+                FailureKind.AuthorizationFailure -> DirectOrderSubmission.PermissionDenied
 
                 else -> when (result.error.httpStatus) {
-                    401, 403 -> FieldRequestSubmission.PermissionDenied
-                    404 -> FieldRequestSubmission.Unavailable
-                    409, 412 -> FieldRequestSubmission.Conflict
-                    400, 422 -> FieldRequestSubmission.Rejected
-                    else -> FieldRequestSubmission.UnknownOutcome
+                    401, 403 -> DirectOrderSubmission.PermissionDenied
+                    404 -> DirectOrderSubmission.Unavailable
+                    409, 412 -> DirectOrderSubmission.Conflict
+                    400, 422 -> DirectOrderSubmission.Rejected
+                    else -> DirectOrderSubmission.UnknownOutcome
                 }
             }
         }
@@ -85,26 +85,26 @@ class NexaDirectOrderGateway(private val calls: ProtectedCallExecutor) {
     private fun ProtectedResult.Success.toSubmission(
         authority: CommercialAuthority,
         request: FrozenDirectOrderRequest
-    ): FieldRequestSubmission {
+    ): DirectOrderSubmission {
         val response = runCatching {
             directOrderJson.decodeFromString<DirectOrderResponseWire>(body ?: "")
-        }.getOrNull() ?: return FieldRequestSubmission.UnknownOutcome
+        }.getOrNull() ?: return DirectOrderSubmission.UnknownOutcome
         if (!response.isEnclosedBy(authority, request) ||
             etag?.trim()?.removeSurrounding("\"")?.toLongOrNull() != response.version
         ) {
-            return FieldRequestSubmission.UnknownOutcome
+            return DirectOrderSubmission.UnknownOutcome
         }
-        val receipt = response.toReceipt() ?: return FieldRequestSubmission.UnknownOutcome
+        val receipt = response.toReceipt() ?: return DirectOrderSubmission.UnknownOutcome
         return when {
             status == 201 && response.status == "CONFIRMED" &&
                 response.paymentOption != "PREPAID" && response.version == 1L ->
-                FieldRequestSubmission.Confirmed(receipt)
+                DirectOrderSubmission.Confirmed(receipt)
 
             status == 202 && response.status == "PENDING" &&
                 response.paymentOption == "PREPAID" && response.version == 0L ->
-                FieldRequestSubmission.PrepaidPending(receipt)
+                DirectOrderSubmission.PrepaidPending(receipt)
 
-            else -> FieldRequestSubmission.UnknownOutcome
+            else -> DirectOrderSubmission.UnknownOutcome
         }
     }
 
@@ -243,7 +243,7 @@ class NexaDirectOrderGateway(private val calls: ProtectedCallExecutor) {
         Currency.getInstance(this).currencyCode == this
     }.getOrDefault(false)
 
-    private fun DirectOrderResponseWire.toReceipt(): FieldRequestReceipt? {
+    private fun DirectOrderResponseWire.toReceipt(): DirectOrderReceipt? {
         val id = id ?: return null
         val number = number ?: return null
         val status = status ?: return null
@@ -251,7 +251,7 @@ class NexaDirectOrderGateway(private val calls: ProtectedCallExecutor) {
         val currency = currency ?: return null
         val total = total ?: return null
         val version = version ?: return null
-        return FieldRequestReceipt(
+        return DirectOrderReceipt(
             id,
             number,
             status,

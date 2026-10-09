@@ -139,7 +139,7 @@ class AppTemperatureEvidencePhotoArtifactStore(context: Context) {
     }
 
     private fun isOwnedStagedCandidate(file: File): Boolean = try {
-        val stagedRoot = File(appContext.noBackupFilesDir, "driver-proof-selection")
+        val stagedRoot = File(appContext.noBackupFilesDir, "private-image-selection")
             .canonicalFile
         val selected = file.canonicalFile
         selected.isFile && selected != stagedRoot &&

@@ -16,6 +16,11 @@ import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
 import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.CatalogOperationsContextAdapter
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.TaskVisibilityHint
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseRoute
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseViewModel
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WorkEntryStatus
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
@@ -23,11 +28,6 @@ import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.Per
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
-import com.nexa.mobile.operations.workentry.TaskVisibilityHint
-import com.nexa.mobile.operations.workentry.WarehouseRoute
-import com.nexa.mobile.operations.workentry.WarehouseUiState
-import com.nexa.mobile.operations.workentry.WarehouseViewModel
-import com.nexa.mobile.operations.workentry.WorkEntryStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -57,6 +57,7 @@ class RootCapabilityInvalidationTest {
         )
         val warehouse = WarehouseViewModel(
             gateway = NoRemoteCalls,
+            catalogContextProjector = CatalogOperationsContextAdapter,
             initialState = WarehouseUiState(
                 route = WarehouseRoute.ConfirmedSku,
                 workEntryStatus = WorkEntryStatus.TaskAvailable,

@@ -128,7 +128,7 @@ fun FieldVisitScreen(
         if (state.status == "UnknownOutcome") {
             Text(stringResource(R.string.field_visit_unknown_detail))
             Button(onClick = viewModel::retryUnknownOutcome) {
-                Text(stringResource(SharedR.string.field_request_retry))
+                Text(stringResource(SharedR.string.same_submission_retry))
             }
         }
         if (state.status == "Recorded") {
