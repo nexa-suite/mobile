@@ -1,5 +1,9 @@
 # Technical verification
 
+The current DDD client refactor has a separate
+[execution record](ddd-client-verification.md). This earlier checkpoint remains
+historical evidence for its cited source and API fixture.
+
 ## Protected entry and manual identification checkpoint — 2026-09-30
 
 Tested Android source: `9e6c212659fe91b24205180faa4968b999e0236d`.

@@ -1,6 +1,7 @@
 package com.nexa.mobile.operations
 
-import com.nexa.mobile.operations.feature.access.PermissionHint
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.PermissionHint
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.catalogReadHint
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

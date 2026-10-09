@@ -7,11 +7,11 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.CatalogOperationsContext
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductScannerScreen
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductScannerUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ScannerUnverifiedReason
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
-import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
-import com.nexa.mobile.operations.feature.warehouse.ProductScannerScreen
-import com.nexa.mobile.operations.feature.warehouse.ProductScannerUiState
-import com.nexa.mobile.operations.feature.warehouse.ScannerUnverifiedReason
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -28,7 +28,7 @@ class ScannerScreensUiTest {
             OperationsTheme {
                 ProductScannerScreen(
                     state = ProductScannerUiState.PermissionPermanentlyDenied(7),
-                    activeContext = ActiveOperationsContext("Company", "Workspace", 7),
+                    activeContext = CatalogOperationsContext("Company", "Workspace", 7),
                     cameraPreview = { error("Denied permission must not bind camera") },
                     onBack = {},
                     onChangeContext = {},
@@ -55,7 +55,7 @@ class ScannerScreensUiTest {
             OperationsTheme {
                 ProductScannerScreen(
                     state = ProductScannerUiState.CameraUnavailable(7),
-                    activeContext = ActiveOperationsContext("Company", "Workspace", 7),
+                    activeContext = CatalogOperationsContext("Company", "Workspace", 7),
                     cameraPreview = { error("Unavailable camera must release preview") },
                     onBack = {},
                     onChangeContext = {},
@@ -81,7 +81,7 @@ class ScannerScreensUiTest {
             OperationsTheme {
                 ProductScannerScreen(
                     state = state.value,
-                    activeContext = ActiveOperationsContext("Company", "Workspace", 7),
+                    activeContext = CatalogOperationsContext("Company", "Workspace", 7),
                     cameraPreview = { error("Resolution must release preview") },
                     onBack = {},
                     onChangeContext = {},

@@ -37,12 +37,7 @@ class ProtectedRequest(
         )
         require(ifMatch == null || ifMatch.isNotBlank())
         require(method != ProtectedMethod.GET || payload == null)
-        require(
-            !binaryResponse || (
-                method == ProtectedMethod.GET &&
-                    Regex("/api/v1/business-documents/[0-9a-fA-F-]{36}/downloads").matches(path)
-                )
-        )
+        require(!binaryResponse || method == ProtectedMethod.GET)
         require(payload == null || requestBody == null)
         require(requestBody == null || method != ProtectedMethod.GET)
     }

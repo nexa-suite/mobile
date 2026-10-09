@@ -28,151 +28,152 @@ import androidx.compose.ui.res.stringResource
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
-import com.nexa.mobile.operations.commercial.BusinessDocumentsScreen
-import com.nexa.mobile.operations.commercial.BusinessDocumentsViewModel
-import com.nexa.mobile.operations.commercial.CommercialAuthority
-import com.nexa.mobile.operations.commercial.CommercialCatalogScreen
-import com.nexa.mobile.operations.commercial.CommercialCatalogViewModel
-import com.nexa.mobile.operations.commercial.CustomerDeliveryInstructionsScreen
-import com.nexa.mobile.operations.commercial.CustomerDeliveryInstructionsViewModel
-import com.nexa.mobile.operations.commercial.CustomerProgressScreen
-import com.nexa.mobile.operations.commercial.CustomerProgressViewModel
-import com.nexa.mobile.operations.commercial.CustomerSearchScreen
-import com.nexa.mobile.operations.commercial.CustomerSearchViewModel
-import com.nexa.mobile.operations.commercial.FieldRequestScreen
-import com.nexa.mobile.operations.commercial.FieldRequestViewModel
-import com.nexa.mobile.operations.commercial.FieldVisitScreen
-import com.nexa.mobile.operations.commercial.FieldVisitViewModel
+import com.nexa.mobile.operations.businessdocuments.presentation.commercial.BusinessDocumentsScreen
+import com.nexa.mobile.operations.businessdocuments.presentation.commercial.BusinessDocumentsViewModel
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.CatalogOperationsContextAdapter
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.OperationsCatalogIdentificationGateway
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.ScannerOperationsGateway
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.commercial.CommercialCatalogScreen
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.commercial.CommercialCatalogViewModel
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductScannerUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductScannerViewModel
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.TaskVisibilityHint
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseRoute
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseViewModel
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WorkEntryStatus
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
 import com.nexa.mobile.operations.core.device.scanner.CameraXProductCodeScanner
-import com.nexa.mobile.operations.feature.access.AccessNotice
-import com.nexa.mobile.operations.feature.access.AccessStage
-import com.nexa.mobile.operations.feature.access.AccessUiState
-import com.nexa.mobile.operations.feature.access.AccessViewModel
-import com.nexa.mobile.operations.feature.access.PermissionHint
-import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryAuthority
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryIncidentScreen as IncidentScreen
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryIncidentViewModel as IncidentViewModel
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionsScreen as InstructionsScreen
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryInstructionsViewModel
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryLoadStatus
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsScreen as ExceptionsScreen
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryOperationalExceptionsViewModel as OperationalExceptionsViewModel
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryScreen
-import com.nexa.mobile.operations.feature.delivery.DriverDeliveryViewModel
-import com.nexa.mobile.operations.feature.delivery.DriverExecutionTemperatureMode as TemperatureMode
-import com.nexa.mobile.operations.feature.delivery.DriverExecutionTemperatureScreen as TemperatureScreen
-import com.nexa.mobile.operations.feature.delivery.DriverExecutionTemperatureViewModel as TemperatureViewModel
-import com.nexa.mobile.operations.feature.delivery.DriverHandoffTokenScreen
-import com.nexa.mobile.operations.feature.delivery.DriverHandoffTokenViewModel as HandoffTokenViewModel
-import com.nexa.mobile.operations.feature.delivery.DriverIncidentMetadataWrite as IncidentMetadataWrite
-import com.nexa.mobile.operations.feature.delivery.DriverIncidentSelectionContext as IncidentSelectionContext
-import com.nexa.mobile.operations.feature.delivery.DriverIncidentType
-import com.nexa.mobile.operations.feature.delivery.DriverProofFileCandidate
-import com.nexa.mobile.operations.feature.delivery.DriverProofMetadataStore
-import com.nexa.mobile.operations.feature.delivery.DriverProofSelectionContext as ProofSelectionContext
-import com.nexa.mobile.operations.feature.delivery.DriverWorkdayScreen
-import com.nexa.mobile.operations.feature.delivery.DriverWorkdayViewModel
-import com.nexa.mobile.operations.feature.dispatch.BusinessOperationalExceptionAuthority as ExceptionAuthority
-import com.nexa.mobile.operations.feature.dispatch.BusinessOperationalExceptionScopeIdentity as ExceptionScopeIdentity
-import com.nexa.mobile.operations.feature.dispatch.BusinessOperationalExceptionsScreen
-import com.nexa.mobile.operations.feature.dispatch.BusinessOperationalExceptionsViewModel as ExceptionsViewModel
-import com.nexa.mobile.operations.feature.dispatch.DeliveryLoadScreen
-import com.nexa.mobile.operations.feature.dispatch.DeliveryLoadViewModel
-import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentScreen
-import com.nexa.mobile.operations.feature.dispatch.DispatchAssignmentViewModel as AssignmentViewModel
-import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityContext
-import com.nexa.mobile.operations.feature.dispatch.DispatchAuthorityIdentity
-import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionsScreen
-import com.nexa.mobile.operations.feature.dispatch.DispatchDeliveryInstructionsViewModel as InstructionsViewModel
-import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIdentityScreen as HandoffIdentityScreen
-import com.nexa.mobile.operations.feature.dispatch.DispatchHandoffIdentityViewModel as HandoffIdentityViewModel
-import com.nexa.mobile.operations.feature.dispatch.DispatchHandoverScreen
-import com.nexa.mobile.operations.feature.dispatch.DispatchHandoverViewModel
-import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsGateway as OutgoingGoodsGateway
-import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsMetadataStore as OutgoingGoodsMetadataStore
-import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsScreen as OutgoingGoodsScreen
-import com.nexa.mobile.operations.feature.dispatch.DispatchOutgoingGoodsViewModel as OutgoingGoodsViewModel
-import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeScreen
-import com.nexa.mobile.operations.feature.dispatch.DispatchPlanChangeViewModel as PlanChangeViewModel
-import com.nexa.mobile.operations.feature.dispatch.DispatchReadinessDetailStatus as ReadinessDetailStatus
-import com.nexa.mobile.operations.feature.dispatch.DispatchReadinessScreen
-import com.nexa.mobile.operations.feature.dispatch.DispatchReadinessViewModel
-import com.nexa.mobile.operations.feature.dispatch.DispatchTemperatureEvidenceSelectionContext as TemperatureEvidenceSelectionContext
-import com.nexa.mobile.operations.feature.dispatch.DispatchTemperaturePhotoCandidate as TemperaturePhotoCandidate
-import com.nexa.mobile.operations.feature.dispatch.DispatchTemperatureScreen
-import com.nexa.mobile.operations.feature.dispatch.DispatchTemperatureStatus
-import com.nexa.mobile.operations.feature.dispatch.DispatchTemperatureViewModel
-import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
-import com.nexa.mobile.operations.feature.warehouse.ConfirmedReceivingProduct
-import com.nexa.mobile.operations.feature.warehouse.CycleCountAuthority
-import com.nexa.mobile.operations.feature.warehouse.CycleCountGateway
-import com.nexa.mobile.operations.feature.warehouse.CycleCountMetadataStore
-import com.nexa.mobile.operations.feature.warehouse.CycleCountScope
-import com.nexa.mobile.operations.feature.warehouse.CycleCountScreen
-import com.nexa.mobile.operations.feature.warehouse.CycleCountViewModel
-import com.nexa.mobile.operations.feature.warehouse.DispositionAuthority
-import com.nexa.mobile.operations.feature.warehouse.DispositionMetadataStatus
-import com.nexa.mobile.operations.feature.warehouse.DispositionScreen
-import com.nexa.mobile.operations.feature.warehouse.DispositionViewModel
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyArtifactWrite
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyAuthority
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyDraftStore
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyEvidenceArtifactStore
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyEvidenceCandidate
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyGateway
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyScope
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyScreen
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancySelectionContext
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyStartContext
-import com.nexa.mobile.operations.feature.warehouse.InboundDiscrepancyViewModel
-import com.nexa.mobile.operations.feature.warehouse.LotSubstitutionGateway
-import com.nexa.mobile.operations.feature.warehouse.LotSubstitutionMetadataStore
-import com.nexa.mobile.operations.feature.warehouse.LotSubstitutionScreen
-import com.nexa.mobile.operations.feature.warehouse.LotSubstitutionViewModel
-import com.nexa.mobile.operations.feature.warehouse.LotSubstitutionWork
-import com.nexa.mobile.operations.feature.warehouse.PickingAuthority
-import com.nexa.mobile.operations.feature.warehouse.PickingEntryScreen
-import com.nexa.mobile.operations.feature.warehouse.PickingScreen
-import com.nexa.mobile.operations.feature.warehouse.PickingViewModel
-import com.nexa.mobile.operations.feature.warehouse.PickingWorkListScreen
-import com.nexa.mobile.operations.feature.warehouse.PickingWorkListViewModel
-import com.nexa.mobile.operations.feature.warehouse.ProductScannerUiState
-import com.nexa.mobile.operations.feature.warehouse.ProductScannerViewModel
-import com.nexa.mobile.operations.feature.warehouse.ReceivingAuthority
-import com.nexa.mobile.operations.feature.warehouse.ReceivingEvidenceCandidate
-import com.nexa.mobile.operations.feature.warehouse.ReceivingEvidenceSelectionContext
-import com.nexa.mobile.operations.feature.warehouse.ReceivingLookupStatus
-import com.nexa.mobile.operations.feature.warehouse.ReceivingMetadataStatus
-import com.nexa.mobile.operations.feature.warehouse.ReceivingProductReference
-import com.nexa.mobile.operations.feature.warehouse.ReceivingScreen
-import com.nexa.mobile.operations.feature.warehouse.ReceivingViewModel
-import com.nexa.mobile.operations.feature.warehouse.StockConditionScreen
-import com.nexa.mobile.operations.feature.warehouse.StockConditionViewModel
-import com.nexa.mobile.operations.feature.warehouse.StockTransferAuthority
-import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptGateway
-import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptMetadataStore
-import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptObservationMetadataStore
-import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptScreen
-import com.nexa.mobile.operations.feature.warehouse.StockTransferReceiptViewModel
-import com.nexa.mobile.operations.feature.warehouse.StockTransferScreen
-import com.nexa.mobile.operations.feature.warehouse.StockTransferViewModel
-import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
-import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidenceAuthority
-import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidencePhotoCandidate
-import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidencePhotoSelection
-import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidenceScreen
-import com.nexa.mobile.operations.feature.warehouse.TemperatureEvidenceViewModel
-import com.nexa.mobile.operations.feature.warehouse.TemperaturePhotoStatus
-import com.nexa.mobile.operations.feature.warehouse.VerifiedOperationsIdentity
-import com.nexa.mobile.operations.feature.warehouse.WarehouseAutomationScreen
-import com.nexa.mobile.operations.feature.warehouse.WarehouseBatchScreen
-import com.nexa.mobile.operations.feature.warehouse.WarehouseBatchViewModel
-import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute
-import com.nexa.mobile.operations.feature.warehouse.WarehouseViewModel
-import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
+import com.nexa.mobile.operations.core.local.files.AndroidPrivateImageFileSelection
+import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.CustomerSearchScreen
+import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.CustomerSearchViewModel
+import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.FieldVisitScreen
+import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.FieldVisitViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentMetadataWrite as IncidentMetadataWrite
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentSelectionContext as IncidentSelectionContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofSelectionContext as ProofSelectionContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.ReturnedDriverIncidentEvidenceSelectionCoordinator
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.ReturnedDriverProofSelectionCoordinator
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.BusinessOperationalExceptionAuthority as ExceptionAuthority
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.BusinessOperationalExceptionScopeIdentity as ExceptionScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsGateway as OutgoingGoodsGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsMetadataStore as OutgoingGoodsMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureEvidenceSelectionContext as TemperatureEvidenceSelectionContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingAuthority
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverExecutionTemperatureMode as TemperatureMode
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverIncidentType
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.commercial.CustomerDeliveryInstructionsScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.commercial.CustomerDeliveryInstructionsViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryIncidentScreen as IncidentScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryIncidentViewModel as IncidentViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryInstructionsScreen as InstructionsScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryInstructionsViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryLoadStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryOperationalExceptionsScreen as ExceptionsScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryOperationalExceptionsViewModel as OperationalExceptionsViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureScreen as TemperatureScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureViewModel as TemperatureViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverHandoffTokenScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverHandoffTokenViewModel as HandoffTokenViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverWorkdayScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverWorkdayViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.BusinessOperationalExceptionsScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.BusinessOperationalExceptionsViewModel as ExceptionsViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DeliveryLoadScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DeliveryLoadViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchAssignmentScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchAssignmentViewModel as AssignmentViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchDeliveryInstructionsScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchDeliveryInstructionsViewModel as InstructionsViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchHandoffIdentityScreen as HandoffIdentityScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchHandoffIdentityViewModel as HandoffIdentityViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchHandoverScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchHandoverViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchOutgoingGoodsScreen as OutgoingGoodsScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchOutgoingGoodsViewModel as OutgoingGoodsViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchPlanChangeScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchPlanChangeViewModel as PlanChangeViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchReadinessDetailStatus as ReadinessDetailStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchReadinessScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchReadinessViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchTemperatureScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchTemperatureViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse.PickingEntryScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse.PickingScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse.PickingViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse.PickingWorkListScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse.PickingWorkListViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse.WarehouseBatchScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse.WarehouseBatchViewModel
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountAuthority
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.CycleCountScope
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.DispositionAuthority
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyArtifactWrite
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyAuthority
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyScope
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancySelectionContext
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundDiscrepancyStartContext
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.LotSubstitutionAuthority
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingAuthority
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingEvidenceSelectionContext
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockTransferAuthority
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureEvidenceAuthority
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureEvidencePhotoSelection
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.CycleCountGateway
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.CycleCountMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyDraftStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyEvidenceArtifactStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyGateway
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.LotSubstitutionGateway
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.LotSubstitutionMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferReceiptGateway
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferReceiptMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferReceiptObservationMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseEvidenceSelectionCoordinator
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ConfirmedReceivingProduct
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionWork
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivingProductReference
+import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.AppTemperatureEvidencePhotoArtifactStore
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.CycleCountScreen
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.CycleCountViewModel
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.DispositionMetadataStatus
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.DispositionScreen
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.DispositionViewModel
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.InboundDiscrepancyScreen
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.InboundDiscrepancyViewModel
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.LotSubstitutionScreen
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.LotSubstitutionViewModel
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.ReceivingScreen
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.ReceivingViewModel
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.StockConditionScreen
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.StockConditionViewModel
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.StockTransferReceiptScreen
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.StockTransferReceiptViewModel
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.StockTransferScreen
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.StockTransferViewModel
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.TemperatureEvidenceScreen
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.TemperatureEvidenceViewModel
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.WarehouseAutomationScreen
+import com.nexa.mobile.operations.salescommitment.presentation.commercial.CustomerProgressScreen
+import com.nexa.mobile.operations.salescommitment.presentation.commercial.CustomerProgressViewModel
+import com.nexa.mobile.operations.salescommitment.presentation.commercial.DirectOrderScreen
+import com.nexa.mobile.operations.salescommitment.presentation.commercial.DirectOrderViewModel
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.PermissionHint
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.VerifiedOperationsIdentity
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.permissionHintProjection
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
+import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.adapters.OperationsAccessGateway
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessNotice
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessViewModel
 import com.nexa.mobile.operations.visibility.OperationsOverviewScreen
 import dagger.hilt.android.AndroidEntryPoint
 import java.math.BigDecimal
@@ -382,8 +383,8 @@ class MainActivity : ComponentActivity() {
         driverWorkdayBindings.viewModelFactory()
     }
 
-    @Inject internal lateinit var fieldRequestFactory: FieldRequestViewModelFactory
-    private val fieldRequestViewModel: FieldRequestViewModel by viewModels { fieldRequestFactory }
+    @Inject internal lateinit var directOrderFactory: DirectOrderViewModelFactory
+    private val directOrderViewModel: DirectOrderViewModel by viewModels { directOrderFactory }
 
     @Inject internal lateinit var businessDocumentsFactory: BusinessDocumentsViewModelFactory
     private val businessDocumentsViewModel: BusinessDocumentsViewModel by viewModels {
@@ -399,11 +400,15 @@ class MainActivity : ComponentActivity() {
         InboundDiscrepancyEvidenceArtifactStore
 
     @Inject internal lateinit var inboundDiscrepancyStore: InboundDiscrepancyDraftStore
+
+    @Inject internal lateinit var warehouseEvidenceSelectionCoordinator:
+        WarehouseEvidenceSelectionCoordinator
     private val inboundCaseViewModel: InboundDiscrepancyViewModel by viewModels {
         InboundDiscrepancyViewModelBindings.viewModelFactory(
             inboundDiscrepancyGateway,
             inboundDiscrepancyStore,
-            inboundDiscrepancyArtifacts
+            inboundDiscrepancyArtifacts,
+            warehouseEvidenceSelectionCoordinator
         )
     }
 
@@ -484,6 +489,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject internal lateinit var operationsGateway: OperationsAccessGateway
 
+    @Inject internal lateinit var catalogIdentificationGateway:
+        OperationsCatalogIdentificationGateway
+
     @Inject internal lateinit var scannerOperationsGateway: ScannerOperationsGateway
 
     private val viewModel: RootViewModel by viewModels()
@@ -491,7 +499,7 @@ class MainActivity : ComponentActivity() {
         AccessViewModelFactory(operationsGateway)
     }
     private val warehouseViewModel: WarehouseViewModel by viewModels {
-        WarehouseViewModelFactory(operationsGateway)
+        WarehouseViewModelFactory(catalogIdentificationGateway, CatalogOperationsContextAdapter)
     }
     private val scannerViewModel: ProductScannerViewModel by viewModels {
         ProductScannerViewModelFactory(scannerOperationsGateway)
@@ -505,20 +513,13 @@ class MainActivity : ComponentActivity() {
         >(
         null
     )
-    private var pendingDispatchTemperaturePhoto by mutableStateOf<DispatchTemperaturePhoto?>(null)
     private var pendingReceivingTemperaturePicker by
         mutableStateOf<ReceivingEvidenceSelectionContext?>(
             null
         )
-    private var pendingReceivingTemperaturePhoto by mutableStateOf<ReceivingTemperaturePhoto?>(null)
     private var pendingTemperatureEvidencePhotoPicker by
         mutableStateOf<TemperatureEvidencePhotoSelection?>(null)
-    private var pendingTemperatureEvidencePhoto by
-        mutableStateOf<PendingTemperatureEvidencePhoto?>(null)
     private var pendingInboundEvidencePicker by mutableStateOf<InboundDiscrepancySelectionContext?>(
-        null
-    )
-    private var pendingInboundEvidenceFile by mutableStateOf<InboundDiscrepancySelectionContext?>(
         null
     )
     private var pendingDriverIncidentPicker by mutableStateOf<IncidentSelectionContext?>(null)
@@ -526,9 +527,15 @@ class MainActivity : ComponentActivity() {
     private var pendingDriverIncidentExceptionDeliveryId by mutableStateOf<String?>(null)
     private var pendingDriverProofPicker by mutableStateOf<ProofSelectionContext?>(null)
 
-    @Inject internal lateinit var driverProofMetadataStore: DriverProofMetadataStore
+    @Inject internal lateinit var returnedDriverProofSelectionCoordinator:
+        ReturnedDriverProofSelectionCoordinator
+
+    @Inject internal lateinit var returnedDriverIncidentEvidenceSelectionCoordinator:
+        ReturnedDriverIncidentEvidenceSelectionCoordinator
     private var pendingDriverProofFile by mutableStateOf<ProofSelectionContext?>(null)
-    private val driverProofFileSelection by lazy { AppDriverProofFileSelection(applicationContext) }
+    private val privateImageFileSelection by lazy {
+        AndroidPrivateImageFileSelection(applicationContext)
+    }
 
     private var pendingScannerPermissionReturn by mutableStateOf<PendingScannerPermissionReturn?>(
         null
@@ -543,16 +550,9 @@ class MainActivity : ComponentActivity() {
         pendingDriverIncidentFile = null
         pendingDriverIncidentExceptionDeliveryId = null
         pendingInboundEvidencePicker = null
-        pendingInboundEvidenceFile = null
         pendingDispatchTemperaturePicker = null
-        pendingDispatchTemperaturePhoto?.let { driverProofFileSelection.discard(it.candidate) }
-        pendingDispatchTemperaturePhoto = null
         pendingReceivingTemperaturePicker = null
-        pendingReceivingTemperaturePhoto?.let { driverProofFileSelection.discard(it.candidate) }
-        pendingReceivingTemperaturePhoto = null
         pendingTemperatureEvidencePhotoPicker = null
-        pendingTemperatureEvidencePhoto?.let { driverProofFileSelection.discard(it.candidate) }
-        pendingTemperatureEvidencePhoto = null
         pendingTemperatureDispositionSeed = null
         super.onDestroy()
     }
@@ -589,7 +589,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        driverProofFileSelection.discardAbandonedSelections()
+        privateImageFileSelection.discardAbandonedSelections()
         AppTemperatureEvidencePhotoArtifactStore(applicationContext).discardAbandonedArtifacts()
         enableEdgeToEdge()
         setContent {
@@ -624,23 +624,9 @@ class MainActivity : ComponentActivity() {
                         pendingDriverProofPicker = null
                         if (uri != null && selection != null) {
                             lifecycleScope.launch {
-                                val scope = selection.scope
-                                val scopeKey = listOf(
-                                    scope.userId,
-                                    scope.tenantId,
-                                    scope.workspaceId,
-                                    scope.membershipId,
-                                    selection.deliveryId,
-                                    selection.attemptId,
-                                    selection.proofId
-                                ).joinToString("") {
-                                    "${it.length}:$it"
-                                }
-                                val candidate = driverProofFileSelection.prepare(uri, scopeKey)
-                                if (candidate != null &&
-                                    driverProofMetadataStore.stageReturnedProofSelection(
+                                if (returnedDriverProofSelectionCoordinator.stageReturnedSelection(
                                         selection,
-                                        candidate
+                                        uri.toString()
                                     )
                                 ) {
                                     pendingDriverProofFile = selection
@@ -660,22 +646,9 @@ class MainActivity : ComponentActivity() {
                         pendingDriverIncidentPicker = null
                         if (uri != null && selection != null) {
                             lifecycleScope.launch {
-                                val scope = selection.scope
-                                val scopeKey = listOf(
-                                    scope.userId,
-                                    scope.tenantId,
-                                    scope.workspaceId,
-                                    scope.membershipId,
-                                    selection.deliveryId,
-                                    selection.attemptId,
-                                    selection.draftId
-                                ).joinToString("") {
-                                    "${it.length}:$it"
-                                }
-                                val candidate = driverProofFileSelection.prepare(uri, scopeKey)
-                                val staged = candidate?.let {
-                                    driverIncidentBindings.stageReturnedEvidence(selection, it)
-                                }
+                                val staged =
+                                    returnedDriverIncidentEvidenceSelectionCoordinator
+                                        .stageReturnedEvidence(selection, uri.toString())
                                 if (staged == IncidentMetadataWrite.Saved) {
                                     pendingDriverIncidentFile = selection
                                 } else {
@@ -694,39 +667,11 @@ class MainActivity : ComponentActivity() {
                         pendingInboundEvidencePicker = null
                         if (uri != null && selection != null) {
                             lifecycleScope.launch {
-                                val scope = selection.scope
-                                val scopeKey = listOf(
-                                    scope.userId,
-                                    scope.tenantId,
-                                    scope.workspaceId,
-                                    scope.membershipId,
-                                    selection.warehouseId,
-                                    selection.caseId
-                                ).joinToString("") {
-                                    "${it.length}:$it"
-                                }
-                                val candidate = driverProofFileSelection.prepare(uri, scopeKey)
-                                val staged = if (candidate == null) {
-                                    null
-                                } else {
-                                    try {
-                                        inboundCaseViewModel.stageReturnedSelection(
-                                            selection,
-                                            InboundDiscrepancyEvidenceCandidate(
-                                                candidate.file,
-                                                candidate.originalFilename,
-                                                candidate.declaredContentType,
-                                                candidate.byteSize,
-                                                candidate.checksumSha256
-                                            )
-                                        )
-                                    } finally {
-                                        driverProofFileSelection.discard(candidate)
-                                    }
-                                }
-                                if (staged == InboundDiscrepancyArtifactWrite.Saved) {
-                                    pendingInboundEvidenceFile = selection
-                                } else {
+                                val staged = inboundCaseViewModel.stageReturnedSelection(
+                                    selection,
+                                    uri.toString()
+                                )
+                                if (staged != InboundDiscrepancyArtifactWrite.Saved) {
                                     android.widget.Toast.makeText(
                                         this@MainActivity,
                                         "No se pudo conservar la imagen de recepción.",
@@ -743,30 +688,12 @@ class MainActivity : ComponentActivity() {
                         if (uri != null && pending != null) {
                             lifecycleScope.launch {
                                 val selection = pending.first
-                                val scope = selection.scope
-                                val scopeKey = listOf(
-                                    scope.userId,
-                                    scope.tenantId,
-                                    scope.workspaceId,
-                                    scope.membershipId,
-                                    selection.fulfillmentId,
-                                    selection.lotId,
-                                    selection.warehouseId
-                                ).joinToString("") {
-                                    "${it.length}:$it"
-                                }
-                                val candidate = driverProofFileSelection.prepare(uri, scopeKey)
-                                if (candidate != null) {
-                                    pendingDispatchTemperaturePhoto?.let {
-                                        driverProofFileSelection.discard(it.candidate)
-                                    }
-                                    pendingDispatchTemperaturePhoto =
-                                        DispatchTemperaturePhoto(
-                                            selection,
-                                            pending.second,
-                                            candidate
-                                        )
-                                } else {
+                                val accepted = dispatchTemperatureViewModel.uploadReturnedEvidence(
+                                    selection,
+                                    pending.second,
+                                    uri.toString()
+                                )
+                                if (!accepted) {
                                     android.widget.Toast.makeText(
                                         this@MainActivity,
                                         "Selecciona una imagen válida del termómetro.",
@@ -782,22 +709,11 @@ class MainActivity : ComponentActivity() {
                         pendingReceivingTemperaturePicker = null
                         if (uri != null && selection != null) {
                             lifecycleScope.launch {
-                                val scope = selection.scope
-                                val scopeKey = listOf(
-                                    scope.userId,
-                                    scope.tenantId,
-                                    scope.workspaceId,
-                                    scope.membershipId,
-                                    selection.warehouseId
-                                ).joinToString("") { "${it.length}:$it" }
-                                val candidate = driverProofFileSelection.prepare(uri, scopeKey)
-                                if (candidate != null) {
-                                    pendingReceivingTemperaturePhoto?.let {
-                                        driverProofFileSelection.discard(it.candidate)
-                                    }
-                                    pendingReceivingTemperaturePhoto =
-                                        ReceivingTemperaturePhoto(selection, candidate)
-                                } else {
+                                val accepted = receivingViewModel.uploadReturnedTemperatureEvidence(
+                                    selection,
+                                    uri.toString()
+                                )
+                                if (!accepted) {
                                     android.widget.Toast.makeText(
                                         this@MainActivity,
                                         "Selecciona una imagen válida del termómetro.",
@@ -813,36 +729,16 @@ class MainActivity : ComponentActivity() {
                         pendingTemperatureEvidencePhotoPicker = null
                         if (uri != null && selection != null) {
                             lifecycleScope.launch {
-                                val scope = selection.scope
-                                val scopeKey = listOf(
-                                    scope.userId,
-                                    scope.tenantId,
-                                    scope.workspaceId,
-                                    scope.membershipId,
-                                    selection.authorityEpoch.toString(),
-                                    selection.subjectType.name,
-                                    selection.subjectId,
-                                    selection.warehouseId,
-                                    selection.expectedLotVersion?.toString().orEmpty()
-                                ).joinToString("") { "${it.length}:$it" }
-                                val candidate = driverProofFileSelection.prepare(uri, scopeKey)
-                                if (candidate != null &&
-                                    temperatureEvidenceViewModel.isCurrentPhotoSelection(selection)
-                                ) {
-                                    pendingTemperatureEvidencePhoto?.let {
-                                        driverProofFileSelection.discard(it.candidate)
-                                    }
-                                    pendingTemperatureEvidencePhoto =
-                                        PendingTemperatureEvidencePhoto(selection, candidate)
-                                } else {
-                                    candidate?.let(driverProofFileSelection::discard)
-                                    if (candidate == null) {
-                                        android.widget.Toast.makeText(
-                                            this@MainActivity,
-                                            "Selecciona una imagen válida del termómetro.",
-                                            android.widget.Toast.LENGTH_LONG
-                                        ).show()
-                                    }
+                                val accepted = temperatureEvidenceViewModel.uploadReturnedPhoto(
+                                    selection,
+                                    uri.toString()
+                                )
+                                if (!accepted) {
+                                    android.widget.Toast.makeText(
+                                        this@MainActivity,
+                                        "Selecciona una imagen válida del termómetro.",
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
                                 }
                             }
                         }
@@ -921,7 +817,7 @@ class MainActivity : ComponentActivity() {
                 val fieldVisitState by fieldVisitViewModel.state.collectAsStateWithLifecycle()
                 val businessDocumentsState by
                     businessDocumentsViewModel.state.collectAsStateWithLifecycle()
-                val fieldRequestState by fieldRequestViewModel.state.collectAsStateWithLifecycle()
+                val directOrderState by directOrderViewModel.state.collectAsStateWithLifecycle()
                 val dispatchHandoffIdentityState by
                     dispatchHandoffIdentityViewModel.state.collectAsStateWithLifecycle()
                 val dispatchTemperatureState by
@@ -1018,352 +914,6 @@ class MainActivity : ComponentActivity() {
                 var previousSessionState by remember { mutableStateOf<SessionState?>(null) }
                 var logoutRequested by remember { mutableStateOf(false) }
 
-                LaunchedEffect(
-                    pendingDispatchTemperaturePhoto,
-                    state,
-                    accessState.stage,
-                    accessState.authorityEpoch,
-                    warehouseState.authorityEpoch,
-                    dispatchTemperatureState,
-                    connectedRoute
-                ) {
-                    val pending = pendingDispatchTemperaturePhoto ?: return@LaunchedEffect
-                    fun discard() {
-                        driverProofFileSelection.discard(pending.candidate)
-                        pendingDispatchTemperaturePhoto = null
-                    }
-                    if (state != SessionState.Active) {
-                        if (state in
-                            setOf(
-                                SessionState.SignedOut,
-                                SessionState.ReauthenticationRequired,
-                                SessionState.LocalProtectionError
-                            )
-                        ) {
-                            discard()
-                        }
-                        return@LaunchedEffect
-                    }
-                    val proof =
-                        ConnectedOperationsNavigation.currentAuthority(
-                            state,
-                            accessState,
-                            warehouseState
-                        )
-                            ?: return@LaunchedEffect
-                    val scope = pending.selection.scope
-                    if (proof.userId != scope.userId || proof.tenantId != scope.tenantId ||
-                        proof.workspaceId != scope.workspaceId ||
-                        proof.membershipId != scope.membershipId ||
-                        !proof.permissions.containsAll(
-                            setOf("fulfillment.manage", "document.upload", "document.read")
-                        )
-                    ) {
-                        discard()
-                        return@LaunchedEffect
-                    }
-                    val currentRoute = connectedRoute
-                    val route = if (currentRoute?.entryKey != "dispatch.temperature" ||
-                        !ConnectedOperationsNavigation.permits(
-                            currentRoute,
-                            CONNECTED_OPERATIONS,
-                            state,
-                            accessState,
-                            warehouseState
-                        )
-                    ) {
-                        val entry = CONNECTED_OPERATIONS.single { it.key == "dispatch.temperature" }
-                        val freshRoute =
-                            ConnectedOperationsNavigation.open(
-                                entry,
-                                state,
-                                accessState,
-                                warehouseState
-                            )
-                                ?: return@LaunchedEffect
-                        closeConnectedOperation()
-                        connectedRoute = freshRoute
-                        freshRoute
-                    } else {
-                        currentRoute
-                    }
-                    if (dispatchTemperatureState.authorityEpoch != route.authorityEpoch ||
-                        dispatchTemperatureState.fulfillmentId != pending.selection.fulfillmentId
-                    ) {
-                        dispatchTemperatureViewModel.activate(
-                            pending.selection.fulfillmentId,
-                            DispatchAuthorityContext(
-                                route.authorityEpoch,
-                                DispatchAuthorityIdentity(
-                                    proof.userId,
-                                    proof.tenantId,
-                                    proof.workspaceId,
-                                    proof.membershipId,
-                                    proof.permissions
-                                )
-                            )
-                        )
-                        return@LaunchedEffect
-                    }
-                    if (dispatchTemperatureState.status in
-                        setOf(
-                            DispatchTemperatureStatus.Initial,
-                            DispatchTemperatureStatus.Loading
-                        ) ||
-                        !dispatchTemperatureState.metadataReady
-                    ) {
-                        return@LaunchedEffect
-                    }
-                    // Rebind only the renewed access epoch after exact identity and server readiness revalidation.
-                    val selection = pending.selection.copy(authorityEpoch = route.authorityEpoch)
-                    if (!dispatchTemperatureViewModel.isCurrentEvidenceSelection(selection)) {
-                        discard()
-                        return@LaunchedEffect
-                    }
-                    pendingDispatchTemperaturePhoto = null
-                    dispatchTemperatureViewModel.updateValue(selection.lotId, pending.valueCelsius)
-                    lifecycleScope.launch {
-                        try {
-                            val candidate = pending.candidate
-                            dispatchTemperatureViewModel.uploadExcursionEvidence(
-                                TemperaturePhotoCandidate(
-                                    candidate.file,
-                                    candidate.originalFilename,
-                                    candidate.declaredContentType,
-                                    candidate.byteSize,
-                                    candidate.checksumSha256
-                                ),
-                                selection
-                            )
-                        } finally {
-                            driverProofFileSelection.discard(pending.candidate)
-                        }
-                    }
-                }
-                LaunchedEffect(
-                    pendingReceivingTemperaturePhoto,
-                    state,
-                    accessState.stage,
-                    accessState.authorityEpoch,
-                    warehouseState.authorityEpoch,
-                    receivingState
-                ) {
-                    val pending = pendingReceivingTemperaturePhoto ?: return@LaunchedEffect
-                    fun discard() {
-                        driverProofFileSelection.discard(pending.candidate)
-                        pendingReceivingTemperaturePhoto = null
-                    }
-                    if (state != SessionState.Active) {
-                        if (state in
-                            setOf(
-                                SessionState.SignedOut,
-                                SessionState.ReauthenticationRequired,
-                                SessionState.LocalProtectionError
-                            )
-                        ) {
-                            discard()
-                        }
-                        return@LaunchedEffect
-                    }
-                    val proof =
-                        ConnectedOperationsNavigation.currentAuthority(
-                            state,
-                            accessState,
-                            warehouseState
-                        )
-                            ?: return@LaunchedEffect
-                    val scope = pending.selection.scope
-                    if (proof.userId != scope.userId || proof.tenantId != scope.tenantId ||
-                        proof.workspaceId != scope.workspaceId ||
-                        proof.membershipId != scope.membershipId ||
-                        !proof.permissions.containsAll(
-                            setOf("document.upload", "document.read")
-                        ) ||
-                        proof.permissions.none {
-                            it == "inventory.receive" ||
-                                it == "warehouse:write"
-                        }
-                    ) {
-                        discard()
-                        return@LaunchedEffect
-                    }
-                    if (receivingState.authorityEpoch != accessState.authorityEpoch) {
-                        closeConnectedOperation()
-                        receivingViewModel.activate(
-                            ReceivingAuthority(
-                                proof.userId,
-                                proof.tenantId,
-                                proof.workspaceId,
-                                proof.membershipId,
-                                proof.permissions,
-                                accessState.authorityEpoch
-                            )
-                        )
-                        warehouseViewModel.openReceiving()
-                        return@LaunchedEffect
-                    }
-                    if (receivingState.metadata == ReceivingMetadataStatus.Loading ||
-                        receivingState.warehouseLookup == ReceivingLookupStatus.Loading
-                    ) {
-                        return@LaunchedEffect
-                    }
-                    if (receivingState.metadata != ReceivingMetadataStatus.Available ||
-                        receivingState.selectedWarehouseId != pending.selection.warehouseId ||
-                        receivingState.warehouses.none {
-                            it.id == pending.selection.warehouseId &&
-                                it.isSelectable
-                        } ||
-                        receivingState.isIntentFrozen
-                    ) {
-                        discard()
-                        return@LaunchedEffect
-                    }
-                    pendingReceivingTemperaturePhoto = null
-                    lifecycleScope.launch {
-                        try {
-                            val candidate = pending.candidate
-                            receivingViewModel.uploadTemperatureEvidence(
-                                ReceivingEvidenceCandidate(
-                                    candidate.file,
-                                    candidate.originalFilename,
-                                    candidate.declaredContentType,
-                                    candidate.byteSize,
-                                    candidate.checksumSha256
-                                ),
-                                pending.selection
-                            )
-                        } finally {
-                            driverProofFileSelection.discard(pending.candidate)
-                        }
-                    }
-                }
-                LaunchedEffect(
-                    pendingTemperatureEvidencePhoto,
-                    state,
-                    accessState.stage,
-                    accessState.authorityEpoch,
-                    warehouseState.authorityEpoch,
-                    temperatureEvidenceState,
-                    connectedRoute
-                ) {
-                    val pending = pendingTemperatureEvidencePhoto ?: return@LaunchedEffect
-                    fun discard() {
-                        driverProofFileSelection.discard(pending.candidate)
-                        pendingTemperatureEvidencePhoto = null
-                    }
-                    if (state != SessionState.Active) {
-                        if (state in setOf(
-                                SessionState.SignedOut,
-                                SessionState.ReauthenticationRequired,
-                                SessionState.LocalProtectionError
-                            )
-                        ) {
-                            discard()
-                        }
-                        return@LaunchedEffect
-                    }
-                    val route = connectedRoute
-                    if (route?.entryKey != "warehouse.temperature" ||
-                        !ConnectedOperationsNavigation.permits(
-                            route,
-                            CONNECTED_OPERATIONS,
-                            state,
-                            accessState,
-                            warehouseState
-                        ) ||
-                        !temperatureEvidenceViewModel.isCurrentPhotoSelection(pending.selection) ||
-                        temperatureEvidenceState.photoStatus in setOf(
-                            TemperaturePhotoStatus.Uploading,
-                            TemperaturePhotoStatus.Checking
-                        )
-                    ) {
-                        discard()
-                        return@LaunchedEffect
-                    }
-                    pendingTemperatureEvidencePhoto = null
-                    val candidate = pending.candidate
-                    temperatureEvidenceViewModel.uploadPhoto(
-                        TemperatureEvidencePhotoCandidate(
-                            candidate.file,
-                            candidate.originalFilename,
-                            candidate.declaredContentType,
-                            candidate.byteSize,
-                            candidate.checksumSha256
-                        ),
-                        pending.selection
-                    )
-                }
-                LaunchedEffect(
-                    pendingInboundEvidenceFile,
-                    state,
-                    accessState.stage,
-                    accessState.authorityEpoch,
-                    warehouseState.authorityEpoch,
-                    inboundDiscrepancyState
-                ) {
-                    val pending = pendingInboundEvidenceFile ?: return@LaunchedEffect
-                    if (state != SessionState.Active) {
-                        if (state in
-                            setOf(
-                                SessionState.SignedOut,
-                                SessionState.ReauthenticationRequired,
-                                SessionState.LocalProtectionError
-                            )
-                        ) {
-                            pendingInboundEvidenceFile = null
-                        }
-                        return@LaunchedEffect
-                    }
-                    val proof =
-                        ConnectedOperationsNavigation.currentAuthority(
-                            state,
-                            accessState,
-                            warehouseState
-                        )
-                            ?: return@LaunchedEffect
-                    val scope = pending.scope
-                    if (proof.userId != scope.userId || proof.tenantId != scope.tenantId ||
-                        proof.workspaceId != scope.workspaceId ||
-                        proof.membershipId != scope.membershipId ||
-                        "document.upload" !in proof.permissions ||
-                        "inventory.receive" !in proof.permissions
-                    ) {
-                        pendingInboundEvidenceFile = null
-                        return@LaunchedEffect
-                    }
-                    if (connectedRoute?.entryKey != "warehouse.inbound-discrepancy") {
-                        val entry = CONNECTED_OPERATIONS.single {
-                            it.key ==
-                                "warehouse.inbound-discrepancy"
-                        }
-                        ConnectedOperationsNavigation.open(
-                            entry,
-                            state,
-                            accessState,
-                            warehouseState
-                        )?.let { route ->
-                            closeConnectedOperation()
-                            connectedRoute = route
-                            inboundCaseViewModel.activate(
-                                InboundDiscrepancyAuthority(
-                                    InboundDiscrepancyScope(
-                                        proof.userId,
-                                        proof.tenantId,
-                                        proof.workspaceId,
-                                        proof.membershipId
-                                    ),
-                                    route.authorityEpoch
-                                ),
-                                InboundDiscrepancyStartContext(pending.warehouseId)
-                            )
-                        }
-                        return@LaunchedEffect
-                    }
-                    if (inboundCaseViewModel.reloadStagedEvidence(pending)) {
-                        pendingInboundEvidenceFile =
-                            null
-                    }
-                }
                 LaunchedEffect(
                     pendingDriverIncidentFile,
                     state,
@@ -1631,13 +1181,15 @@ class MainActivity : ComponentActivity() {
                             )
                             warehouseViewModel.enterOperations(
                                 context,
-                                when (active.permissionHint) {
+                                when (active.permissionHintProjection()) {
                                     PermissionHint.Available -> TaskVisibilityHint.Available
                                     PermissionHint.Unavailable -> TaskVisibilityHint.Unavailable
                                     PermissionHint.Unknown -> TaskVisibilityHint.Unknown
                                 }
                             )
-                            scannerViewModel.enterOperations(context)
+                            scannerViewModel.enterOperations(
+                                CatalogOperationsContextAdapter.from(context)
+                            )
                             scannerViewModel.scannerRouteOpened(
                                 permissionGranted = decision.permissionGranted,
                                 permanentlyDenied = decision.permanentlyDenied
@@ -1968,7 +1520,7 @@ class MainActivity : ComponentActivity() {
                             connectedRoute = route
                             val authority = route.authority
                             lotSubstitutionViewModel.activate(
-                                PickingAuthority(
+                                LotSubstitutionAuthority(
                                     authority.userId,
                                     authority.tenantId,
                                     authority.workspaceId,
@@ -2093,7 +1645,7 @@ class MainActivity : ComponentActivity() {
                                         )
                                     )
 
-                                    "commercial.request" -> fieldRequestViewModel.activate(
+                                    "commercial.request" -> directOrderViewModel.activate(
                                         CommercialAuthority(
                                             authority.userId,
                                             authority.tenantId,
@@ -2814,13 +2366,14 @@ class MainActivity : ComponentActivity() {
                                 businessDocumentsViewModel::previousPage,
                                 businessDocumentsViewModel::nextPage,
                                 businessDocumentsViewModel::open,
-                                businessDocumentsViewModel::closeContent
+                                businessDocumentsViewModel::closeContent,
+                                businessDocumentsFactory.pdfPageRenderer
                             )
 
-                            "commercial.request" -> FieldRequestScreen(
-                                fieldRequestState,
+                            "commercial.request" -> DirectOrderScreen(
+                                directOrderState,
                                 ::closeConnectedOperation,
-                                fieldRequestViewModel
+                                directOrderViewModel
                             )
 
                             "driver.deliveries" -> if (showDriverOperationalExceptions) {
@@ -3369,7 +2922,7 @@ class MainActivity : ComponentActivity() {
                                         closeConnectedOperation()
                                         connectedRoute = route
                                         val authority = route.authority
-                                        fieldRequestViewModel.activate(
+                                        directOrderViewModel.activate(
                                             CommercialAuthority(
                                                 authority.userId,
                                                 authority.tenantId,
@@ -3452,7 +3005,7 @@ class MainActivity : ComponentActivity() {
                                         closeConnectedOperation()
                                         connectedRoute = route
                                         val authority = route.authority
-                                        fieldRequestViewModel.activate(
+                                        directOrderViewModel.activate(
                                             CommercialAuthority(
                                                 authority.userId,
                                                 authority.tenantId,
@@ -4243,7 +3796,9 @@ class MainActivity : ComponentActivity() {
                             val context = active.toActiveOperationsContext(
                                 accessState.authorityEpoch
                             )
-                            scannerViewModel.enterOperations(context)
+                            scannerViewModel.enterOperations(
+                                CatalogOperationsContextAdapter.from(context)
+                            )
                             scannerViewModel.scannerRouteOpened(cameraPermissionGranted())
                             warehouseViewModel.openScanner()
                         }
@@ -4358,7 +3913,7 @@ class MainActivity : ComponentActivity() {
         stockTransferViewModel.deactivate()
         fieldVisitViewModel.deactivate()
         businessDocumentsViewModel.deactivate()
-        fieldRequestViewModel.deactivate()
+        directOrderViewModel.deactivate()
         driverViewModel.invalidate()
         dispatchHandoffIdentityViewModel.deactivate()
         dispatchTemperatureViewModel.deactivate()
@@ -4444,7 +3999,7 @@ private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHi
     ) {
         TaskVisibilityHint.Available
     } else {
-        when (permissionHint) {
+        when (permissionHintProjection()) {
             PermissionHint.Available -> TaskVisibilityHint.Available
             PermissionHint.Unavailable -> TaskVisibilityHint.Unavailable
             PermissionHint.Unknown -> TaskVisibilityHint.Unknown
@@ -4632,31 +4187,6 @@ private val CONNECTED_OPERATIONS = listOf(
         setOf("warehouse.read", "inventory.read", "warehouse:read")
     )
 )
-
-/** Returned private image remains non-authoritative until current scope and warehouse are revalidated. */
-private data class ReceivingTemperaturePhoto(
-    val selection: ReceivingEvidenceSelectionContext,
-    val candidate: DriverProofFileCandidate
-) {
-    override fun toString(): String = "ReceivingTemperaturePhoto(REDACTED)"
-}
-
-/** Validated private thermometer image; never an authoritative temperature result. */
-private data class DispatchTemperaturePhoto(
-    val selection: TemperatureEvidenceSelectionContext,
-    val valueCelsius: String,
-    val candidate: DriverProofFileCandidate
-) {
-    override fun toString(): String = "DispatchTemperaturePhoto(REDACTED)"
-}
-
-/** Private staged photo candidate bound to one current warehouse or lot selection. */
-private data class PendingTemperatureEvidencePhoto(
-    val selection: TemperatureEvidencePhotoSelection,
-    val candidate: DriverProofFileCandidate
-) {
-    override fun toString(): String = "PendingTemperatureEvidencePhoto(REDACTED)"
-}
 
 /** Draft navigation context only; route identity prevents stale seed reuse after authority change. */
 private data class PendingTemperatureDispositionSeed(

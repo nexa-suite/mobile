@@ -1,9 +1,10 @@
 package com.nexa.mobile.operations
 
-import com.nexa.mobile.operations.core.network.CatalogDetailProjection
-import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
-import com.nexa.mobile.operations.feature.warehouse.CandidateConfirmationResult
-import com.nexa.mobile.operations.feature.warehouse.ProductCandidate
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.CandidateConfirmationResult
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.CatalogOperationsContext
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.mapConfirmedCatalogDetail
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transport.CatalogDetailProjection
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -114,7 +115,7 @@ class ManualCatalogConfirmationMappingTest {
             presentation = "Search result pack",
             sku = "SKU-0001"
         )
-        val context = ActiveOperationsContext(
+        val context = CatalogOperationsContext(
             companyName = "Company",
             workspaceName = "Warehouse",
             authorityEpoch = 7

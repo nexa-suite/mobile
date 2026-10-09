@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {"id": "initial", "status": "Initial", "faultInjection": "NONE"},
+    {"id": "typing", "status": "Typing", "faultInjection": "NONE"},
+    {"id": "invalid-query", "status": "InvalidQuery", "faultInjection": "NONE"},
+    {"id": "loading", "status": "Loading", "faultInjection": "NONE"},
+    {"id": "one-candidate", "status": "OneCandidate", "faultInjection": "NONE"},
+    {"id": "multiple-candidates", "status": "MultipleCandidates", "faultInjection": "NONE"},
+    {"id": "empty", "status": "Empty", "faultInjection": "NONE"},
+    {"id": "loading-more", "status": "LoadingMore", "faultInjection": "NONE"},
+    {"id": "load-more-failed", "status": "LoadMoreFailed", "faultInjection": "NONE"},
+    {"id": "confirmation-pending", "status": "ConfirmationPending", "faultInjection": "NONE"},
+    {"id": "candidate-unavailable", "status": "CandidateUnavailable", "faultInjection": "NONE"},
+    {"id": "network-unavailable", "status": "NetworkUnavailable", "faultInjection": "NONE"},
+    {"id": "service-unavailable", "status": "ServiceUnavailable", "faultInjection": "NONE"},
+    {"id": "permission-denied", "status": "PermissionDenied", "faultInjection": "NONE"},
+    {"id": "context-invalidated", "status": "ContextInvalidated", "faultInjection": "NONE"},
+    {"id": "session-invalidated", "status": "SessionInvalidated", "faultInjection": "NONE"},
+    {"id": "integration-unavailable", "status": "IntegrationUnavailable", "faultInjection": "NONE"},
+    {"id": "fault-erroneous-output", "status": "NetworkUnavailable", "faultInjection": "ERRONEOUS_OUTPUT"},
+    {"id": "fault-incomplete-output", "status": "MultipleCandidates", "faultInjection": "INCOMPLETE_OUTPUT"},
+    {"id": "fault-unavailable", "status": "ServiceUnavailable", "faultInjection": "UNAVAILABLE"}
+  ]
+}

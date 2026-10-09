@@ -38,7 +38,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: operations-android-v0.6.0-academic-debug
+          name: operations-android-v1.1.0-academic-debug
           path: apps/operations-android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7

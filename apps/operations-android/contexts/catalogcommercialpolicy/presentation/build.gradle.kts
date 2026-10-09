@@ -1,0 +1,40 @@
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ktlint)
+}
+
+android {
+    namespace = "com.nexa.mobile.operations.catalogcommercialpolicy.presentation"
+    compileSdk = 37
+    defaultConfig {
+        minSdk = 29
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+    buildFeatures { compose = true }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    lint {
+        warningsAsErrors = true
+        abortOnError = true
+    }
+}
+
+ktlint { version.set("1.8.0") }
+
+dependencies {
+    api(project(":contexts:catalogcommercialpolicy:application"))
+    api(project(":contexts:catalogcommercialpolicy:domain"))
+    api(project(":contexts:tenantaccessgovernance:application"))
+    implementation(project(":core:designsystem"))
+    implementation(project(":core:device"))
+    implementation(libs.coroutines.core)
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.ui)
+    implementation(libs.compose.material3)
+    implementation(libs.lifecycle.viewmodel.ktx)
+    testImplementation(libs.junit)
+    testImplementation(libs.coroutines.test)
+}

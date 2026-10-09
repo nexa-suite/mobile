@@ -26,35 +26,36 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.CatalogOperationsContextAdapter
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ConfirmedSkuScreen
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchScreen
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchStatus
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.OperationsWorkEntryScreen
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.TaskVisibilityHint
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseRoute
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WorkEntryStatus
 import com.nexa.mobile.operations.core.designsystem.NexaColors
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackBanner
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackTone
 import com.nexa.mobile.operations.core.designsystem.NexaPrimaryButton
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
-import com.nexa.mobile.operations.feature.access.AccessNotice
-import com.nexa.mobile.operations.feature.access.AccessScreen
-import com.nexa.mobile.operations.feature.access.AccessStage
-import com.nexa.mobile.operations.feature.access.AccessUiState
-import com.nexa.mobile.operations.feature.access.ContextChooserMode
-import com.nexa.mobile.operations.feature.access.ContextChooserPhase
-import com.nexa.mobile.operations.feature.access.ContextChooserScreen
-import com.nexa.mobile.operations.feature.access.ContextChooserUiState
-import com.nexa.mobile.operations.feature.access.ContextUnavailableReason
-import com.nexa.mobile.operations.feature.access.PermissionHint
-import com.nexa.mobile.operations.feature.access.R as AccessR
-import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
-import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
-import com.nexa.mobile.operations.feature.warehouse.ConfirmedSkuScreen
-import com.nexa.mobile.operations.feature.warehouse.ConfirmedSkuUiState
-import com.nexa.mobile.operations.feature.warehouse.OperationsWorkEntryScreen
-import com.nexa.mobile.operations.feature.warehouse.ProductCandidate
-import com.nexa.mobile.operations.feature.warehouse.ProductSearchScreen
-import com.nexa.mobile.operations.feature.warehouse.ProductSearchStatus
-import com.nexa.mobile.operations.feature.warehouse.ProductSearchUiState
-import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
-import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute
-import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
-import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.R as AccessR
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessNotice
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessScreen
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserMode
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserPhase
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserScreen
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserUiState
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextUnavailableReason
 
 class DebugReviewActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -216,7 +217,9 @@ private fun DebugReviewExperience(initialScenario: ReviewScenario, cleanCapture:
                         ReviewNotice(current.notice)
                         ProductSearchScreen(
                             state = search,
-                            activeContext = warehouseState.activeContext,
+                            activeContext = warehouseState.activeContext?.let(
+                                CatalogOperationsContextAdapter::from
+                            ),
                             onChangeContext = { scenario = ReviewScenario.ChangeContexts },
                             onBack = { scenario = ReviewScenario.WorkAvailable },
                             onQueryChanged = { query ->
@@ -508,7 +511,7 @@ private class ReviewScenarioProvider(private val context: Context) {
                 candidates = listOf(gouda),
                 authorityEpoch = 1
             ),
-            confirmedSku = ConfirmedSkuUiState(
+            confirmedSku = ConfirmedSkuProjection(
                 candidateKey = gouda.key,
                 productDisplayName = productName,
                 variant = context.getString(R.string.review_demo_variant)
@@ -523,7 +526,7 @@ private class ReviewScenarioProvider(private val context: Context) {
                     .takeUnless { missingOptionalFields },
                 coldChain = context.getString(R.string.review_demo_cold_chain)
                     .takeUnless { missingOptionalFields },
-                context = activePrimary,
+                context = CatalogOperationsContextAdapter.from(activePrimary),
                 authorityEpoch = 1
             ),
             authorityEpoch = 1

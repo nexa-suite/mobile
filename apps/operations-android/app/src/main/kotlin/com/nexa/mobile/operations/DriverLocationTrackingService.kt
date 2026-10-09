@@ -18,10 +18,10 @@ import android.location.LocationManager
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
-import com.nexa.mobile.operations.feature.delivery.DriverWorkdayLocationEvent
-import com.nexa.mobile.operations.feature.delivery.DriverWorkdayLocationEventStream as WorkdayLocationEventStream
-import com.nexa.mobile.operations.feature.delivery.DriverWorkdayLocationSample as WorkdayLocationSample
-import com.nexa.mobile.operations.feature.delivery.R as DeliveryR
+import com.nexa.mobile.operations.R
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayLocationEventStream as WorkdayLocationEventStream
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkdayLocationEvent
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkdayLocationSample as WorkdayLocationSample
 import java.time.Instant
 import java.util.UUID
 
@@ -77,7 +77,7 @@ class DriverLocationTrackingService : Service() {
         notifications.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_ID,
-                getString(DeliveryR.string.driver_workday_notification_channel),
+                getString(R.string.driver_workday_notification_channel),
                 NotificationManager.IMPORTANCE_LOW
             )
         )
@@ -90,8 +90,8 @@ class DriverLocationTrackingService : Service() {
         val builder = Notification.Builder(this, CHANNEL_ID)
         val notification = builder
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-            .setContentTitle(getString(DeliveryR.string.driver_workday_notification_title))
-            .setContentText(getString(DeliveryR.string.driver_workday_notification_text))
+            .setContentTitle(getString(R.string.driver_workday_notification_title))
+            .setContentText(getString(R.string.driver_workday_notification_text))
             .setContentIntent(openApp)
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE)

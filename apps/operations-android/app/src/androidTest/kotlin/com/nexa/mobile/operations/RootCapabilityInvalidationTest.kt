@@ -8,24 +8,26 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.CandidateConfirmationResult
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductSearchResult
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.warehouse.WarehouseGateway
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.CatalogOperationsContext
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.CatalogOperationsContextAdapter
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.TaskVisibilityHint
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseRoute
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseViewModel
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WorkEntryStatus
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
-import com.nexa.mobile.operations.feature.access.AccessStage
-import com.nexa.mobile.operations.feature.access.AccessUiState
-import com.nexa.mobile.operations.feature.access.PermissionHint
-import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
-import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
-import com.nexa.mobile.operations.feature.warehouse.CandidateConfirmationResult
-import com.nexa.mobile.operations.feature.warehouse.ConfirmedSkuUiState
-import com.nexa.mobile.operations.feature.warehouse.ProductCandidate
-import com.nexa.mobile.operations.feature.warehouse.ProductSearchResult
-import com.nexa.mobile.operations.feature.warehouse.ProductSearchUiState
-import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
-import com.nexa.mobile.operations.feature.warehouse.WarehouseGateway
-import com.nexa.mobile.operations.feature.warehouse.WarehouseRoute
-import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
-import com.nexa.mobile.operations.feature.warehouse.WarehouseViewModel
-import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -55,6 +57,7 @@ class RootCapabilityInvalidationTest {
         )
         val warehouse = WarehouseViewModel(
             gateway = NoRemoteCalls,
+            catalogContextProjector = CatalogOperationsContextAdapter,
             initialState = WarehouseUiState(
                 route = WarehouseRoute.ConfirmedSku,
                 workEntryStatus = WorkEntryStatus.TaskAvailable,
@@ -62,7 +65,7 @@ class RootCapabilityInvalidationTest {
                 activeContext = context,
                 authorityEpoch = 4,
                 search = ProductSearchUiState(query = "old selection", authorityEpoch = 4),
-                confirmedSku = ConfirmedSkuUiState(
+                confirmedSku = ConfirmedSkuProjection(
                     candidateKey = "test-candidate",
                     productDisplayName = "Test Product",
                     variant = null,
@@ -72,7 +75,7 @@ class RootCapabilityInvalidationTest {
                     unit = null,
                     packaging = null,
                     coldChain = null,
-                    context = context,
+                    context = CatalogOperationsContextAdapter.from(context),
                     authorityEpoch = 4
                 )
             )
@@ -122,7 +125,7 @@ class RootCapabilityInvalidationTest {
         override suspend fun confirm(
             candidate: ProductCandidate,
             authorityEpoch: Long,
-            context: ActiveOperationsContext
+            context: CatalogOperationsContext
         ): CandidateConfirmationResult = error("Navigation must not confirm a candidate")
     }
 }

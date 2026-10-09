@@ -10,8 +10,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackBanner
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackTone
-import com.nexa.mobile.operations.feature.access.AccessNotice
-import com.nexa.mobile.operations.feature.access.R as AccessR
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.R as AccessR
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessNotice
 
 /** Screen-level notice composition; route and authority decisions remain in RootNavigation. */
 @Composable

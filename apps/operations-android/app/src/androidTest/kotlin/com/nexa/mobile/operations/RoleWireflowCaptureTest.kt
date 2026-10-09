@@ -24,9 +24,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nexa.mobile.operations.core.auth.session.SessionState
-import com.nexa.mobile.operations.feature.access.AccessStage
-import com.nexa.mobile.operations.feature.access.AccessViewModel
-import com.nexa.mobile.operations.feature.dispatch.R as DispatchR
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R as FulfillmentR
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessViewModel
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assert.assertEquals
@@ -36,6 +36,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+@RequiresPrivateFixture
 @RunWith(AndroidJUnit4::class)
 class RoleWireflowCaptureTest {
     @get:Rule val composeRule = createAndroidComposeRule<MainActivity>()
@@ -79,15 +80,6 @@ class RoleWireflowCaptureTest {
         } else if (roleSlug == BOM_ROLE_SLUG) {
             returnViaBusinessExceptionsBack(entry1)
         }
-    }
-
-    @Test
-    fun captureFlagDefaultsToEnabledAndOnlyExplicitFalseDisables() {
-        assertTrue(roleWireflowCaptureEnabled(null))
-        assertTrue(roleWireflowCaptureEnabled(""))
-        assertTrue(roleWireflowCaptureEnabled("true"))
-        assertTrue(roleWireflowCaptureEnabled("TRUE"))
-        assertEquals(false, roleWireflowCaptureEnabled("false"))
     }
 
     private fun signIn(identifier: String, password: String) {
@@ -195,10 +187,10 @@ class RoleWireflowCaptureTest {
             .fetchSemanticsNodes().isNotEmpty()
 
     private fun businessExceptionsTitle(): String =
-        composeRule.activity.getString(DispatchR.string.bom_exceptions_title)
+        composeRule.activity.getString(FulfillmentR.string.bom_exceptions_title)
 
     private fun businessExceptionsBackLabel(): String =
-        composeRule.activity.getString(DispatchR.string.bom_exceptions_back)
+        composeRule.activity.getString(FulfillmentR.string.bom_exceptions_back)
 
     private fun hasConnectedBackAction(): Boolean {
         val backIcon = composeRule.onAllNodes(
@@ -272,8 +264,6 @@ class RoleWireflowCaptureTest {
     }
 
     private fun entryAction(label: String) = hasText(label, substring = false) and hasClickAction()
-
-    private fun roleWireflowCaptureEnabled(argument: String?): Boolean = argument != "false"
 
     private companion object {
         const val WAIT_MILLIS = 15_000L

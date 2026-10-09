@@ -4,23 +4,27 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R as CatalogR
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.TaskVisibilityHint
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WorkEntryStatus
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
-import com.nexa.mobile.operations.feature.access.AccessStage
-import com.nexa.mobile.operations.feature.access.AccessUiState
-import com.nexa.mobile.operations.feature.access.PermissionHint
-import com.nexa.mobile.operations.feature.access.VerifiedContextAuthority
-import com.nexa.mobile.operations.feature.access.WorkforceContextSummary
-import com.nexa.mobile.operations.feature.warehouse.ActiveOperationsContext
-import com.nexa.mobile.operations.feature.warehouse.TaskVisibilityHint
-import com.nexa.mobile.operations.feature.warehouse.VerifiedOperationsIdentity
-import com.nexa.mobile.operations.feature.warehouse.WarehouseUiState
-import com.nexa.mobile.operations.feature.warehouse.WorkEntryStatus
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.VerifiedOperationsIdentity
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.VerifiedContextAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.R as AccessR
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -43,8 +47,10 @@ class RootNavigationSecurityTest {
             }
         }
 
-        composeRule.onNodeWithText("Comprobando tu sesión").assertIsDisplayed()
-        composeRule.onNodeWithText("Identificar producto").assertDoesNotExist()
+        composeRule.onNodeWithText(targetString(AccessR.string.access_session_restoring_title))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(targetString(CatalogR.string.warehouse_identify_product))
+            .assertDoesNotExist()
         composeRule.onNodeWithText("Nexa Demo Distribución").assertDoesNotExist()
     }
 
@@ -64,8 +70,12 @@ class RootNavigationSecurityTest {
             }
         }
 
-        composeRule.onNodeWithText("Inicia sesión").assertIsDisplayed()
-        composeRule.onNodeWithText("Identificar producto").assertDoesNotExist()
+        composeRule.onNode(
+            hasText(targetString(AccessR.string.access_sign_in_title)) and !hasClickAction()
+        )
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(targetString(CatalogR.string.warehouse_identify_product))
+            .assertDoesNotExist()
         composeRule.onNodeWithText("Nexa Demo Distribución").assertDoesNotExist()
     }
 
@@ -85,9 +95,11 @@ class RootNavigationSecurityTest {
             }
         }
 
-        composeRule.onNodeWithText("Identificar producto").assertIsDisplayed()
+        composeRule.onNodeWithText(targetString(CatalogR.string.warehouse_identify_product))
+            .assertIsDisplayed()
         composeRule.onNodeWithText("Almacén Principal").assertIsDisplayed()
-        composeRule.onNodeWithText("Inicia sesión").assertDoesNotExist()
+        composeRule.onNodeWithText(targetString(AccessR.string.access_sign_in_title))
+            .assertDoesNotExist()
     }
 
     @Test
@@ -185,14 +197,18 @@ class RootNavigationSecurityTest {
         composeRule.onNodeWithText("Visita al cliente").assertDoesNotExist()
         composeRule.onNodeWithText("Privacidad y coordinación: límites actuales")
             .assertDoesNotExist()
-        composeRule.onNodeWithText("Cerrar sesión")
+        composeRule.onNodeWithText(targetString(CatalogR.string.warehouse_logout))
             .performScrollTo()
             .assertIsDisplayed()
             .performClick()
 
-        composeRule.onNodeWithText("Inicia sesión").assertIsDisplayed()
+        composeRule.onNode(
+            hasText(targetString(AccessR.string.access_sign_in_title)) and !hasClickAction()
+        )
+            .assertIsDisplayed()
         composeRule.onNodeWithText("Cargas y paradas").assertDoesNotExist()
-        composeRule.onNodeWithText("Identificar producto").assertDoesNotExist()
+        composeRule.onNodeWithText(targetString(CatalogR.string.warehouse_identify_product))
+            .assertDoesNotExist()
         composeRule.onNodeWithText("Demo Tenant").assertDoesNotExist()
         composeRule.runOnIdle {
             assertEquals(1, logoutCalls)
@@ -202,6 +218,9 @@ class RootNavigationSecurityTest {
             assertNull(warehouseState.value.activeContext)
         }
     }
+
+    private fun targetString(resourceId: Int): String =
+        InstrumentationRegistry.getInstrumentation().targetContext.getString(resourceId)
 
     private companion object {
         val primaryContext = WorkforceContextSummary(

@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="driver_workday_notification_channel">Ubicación del conductor</string>
+    <string name="driver_workday_notification_text">La ubicación se comparte con Nexa durante la jornada activa.</string>
+    <string name="driver_workday_notification_title">Ubicación de jornada activa</string>
+</resources>

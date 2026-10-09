@@ -1,7 +1,0 @@
-<resources>
-    <string name="disposition_partial_title">Partial temperature disposition</string>
-    <string name="disposition_partial_description">This command sends the affected quantity and temperature evaluation. Lot status, quantities, and version shown here come from the latest lot read.</string>
-    <string name="disposition_partial_affected_quantity">Affected quantity</string>
-    <string name="disposition_partial_evaluation_id">Temperature evaluation</string>
-    <string name="disposition_error_partial_evaluation">Temperature evaluation or affected quantity is invalid. Reopen the temperature result and try again.</string>
-</resources>

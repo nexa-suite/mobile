@@ -1,5 +1,39 @@
 # Changelog
 
+## [Unreleased]
+
+- Publish verified workforce scope and commercial permission hints through BC-01
+  application APIs; translate Catalog scope at its adapter boundary and reject
+  dependencies between context domains.
+- Allow a new Direct Order decision after recovered permission or unavailable
+  terminal outcomes while retaining same-key replay for uncertain outcomes.
+- Update published v1.1.0 verification and distribution records.
+
+## [1.1.0] - 2026-10-08
+
+Published Operations Android release, versionCode 10. The [GitHub
+Release](https://github.com/nexa-suite/mobile/releases/tag/v1.1.0) uses tag
+`v1.1.0` at source commit
+`6cdb4318fa2e41a0268cce8900c138caffc93aec`. The attached APK SHA-256 is
+`a5e27394de8fa422599ca463dd1d6ee3f6f80d8a06c157303234dd1b4e91f769`; see the
+[release notes](docs/releases/v1.1.0.md) and [execution
+record](docs/ddd-client-verification.md) for verification and limits. PR #41
+contains follow-up changes outside the published tag; its local technical
+validation passed, while updated-head CI, review and integration remain pending.
+
+- Organize client code by the eleven canonical bounded contexts, with explicit
+  JVM domain/application and Android infrastructure/presentation modules.
+- Move workflow metadata and payload encoding into their owning contexts and
+  remove legacy feature/data source roots.
+- Align field ordering to the accepted Direct Order scope, preserving confirmed
+  versus pending-prepaid server outcomes and exact explicit replay.
+- Separate Inventory and Fulfillment through public read contracts; keep joins
+  outside domain and server decisions authoritative.
+- Move protected PDF platform rendering into infrastructure and bound preview
+  memory and transient-file cleanup.
+- Map the original Sprint 1/2 Mobile backlog to source and verification evidence
+  without converting implementation into Product acceptance.
+
 ## [1.0.0] - 2026-10-05
 
 Operations Android v1.0.0 source candidate, versionCode 8. A signed APK for

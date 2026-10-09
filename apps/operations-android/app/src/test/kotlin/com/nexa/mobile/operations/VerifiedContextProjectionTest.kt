@@ -1,7 +1,9 @@
 package com.nexa.mobile.operations
 
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
-import com.nexa.mobile.operations.feature.access.PermissionHint
+import com.nexa.mobile.operations.core.auth.session.contextIsCurrent
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
+import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.adapters.toWorkforceContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
