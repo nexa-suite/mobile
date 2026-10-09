@@ -25,7 +25,7 @@ android {
 ktlint { version.set("1.8.0") }
 
 dependencies {
-    api(project(":contexts:creditreceivables:domain"))
+    api(project(":contexts:creditreceivables:application"))
     api(project(":contexts:salescommitment:application"))
     api(project(":contexts:salescommitment:domain"))
     api(project(":contexts:tenantaccessgovernance:application"))

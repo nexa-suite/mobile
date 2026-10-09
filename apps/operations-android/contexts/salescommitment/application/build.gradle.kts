@@ -8,7 +8,7 @@ kotlin { jvmToolchain(17) }
 ktlint { version.set("1.8.0") }
 
 dependencies {
-    api(project(":contexts:creditreceivables:domain"))
+    api(project(":contexts:creditreceivables:application"))
     api(project(":contexts:salescommitment:domain"))
     api(project(":contexts:tenantaccessgovernance:application"))
     implementation(libs.coroutines.core)

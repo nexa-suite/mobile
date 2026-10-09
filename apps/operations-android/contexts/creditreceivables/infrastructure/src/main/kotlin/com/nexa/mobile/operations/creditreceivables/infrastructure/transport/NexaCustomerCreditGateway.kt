@@ -7,6 +7,7 @@ import com.nexa.mobile.operations.core.network.ProtectedRequest
 import com.nexa.mobile.operations.core.network.ProtectedResult
 import com.nexa.mobile.operations.creditreceivables.application.publicapi.CustomerCreditExposureQuery
 import com.nexa.mobile.operations.creditreceivables.application.publicapi.CustomerCreditExposureRead
+import com.nexa.mobile.operations.creditreceivables.application.publicapi.CustomerCreditSnapshot
 import com.nexa.mobile.operations.creditreceivables.domain.model.commercial.CustomerCredit
 import java.time.Instant
 import javax.inject.Inject
@@ -31,7 +32,7 @@ class NexaCustomerCreditGateway @Inject constructor(private val calls: Protected
             ) {
                 CustomerCreditExposureRead.Unavailable
             } else {
-                CustomerCreditExposureRead.Available(value.toProjection())
+                CustomerCreditExposureRead.Available(value.toProjection().toSnapshot())
             }
         }
     }
@@ -85,4 +86,8 @@ data class CreditExposureWire(
 private fun CreditExposureWire.toProjection() = CustomerCredit(
     currency, creditLimit.content, ledgerExposure.content, outstandingReceivables.content,
     reservedExposure.content, used.content, availableCredit.content, active, asOf
+)
+
+private fun CustomerCredit.toSnapshot() = CustomerCreditSnapshot(
+    currency, limit, ledgerExposure, outstanding, reserved, used, available, active, asOf
 )
