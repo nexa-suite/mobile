@@ -1,137 +1,91 @@
 # Nexa Operations Android
 
-This repository contains the Nexa Operations Android client. The Android
-project is in [`apps/operations-android`](apps/operations-android). The client
-projects accepted Nexa API capabilities into native workflows; the API remains
-authoritative for authentication, Tenant and Workspace authorization, and
-business outcomes. The client does not implement server aggregates or business
-authority.
+Native Android client for Nexa Operations. Open `apps/operations-android`
+in Android Studio. The API owns authorization and business decisions;
+the client renders server facts and coordinates scoped user requests.
 
-## Toolchain
+## Structure
 
-- JDK 17, Gradle 9.7.1, Android Gradle Plugin 9.4.1, Kotlin 2.4.20, KSP 2.3.12
-- Android SDK 37 for compilation and target behavior; minSdk 29
-- Compose BOM 2026.09.00, Navigation 3 1.1.7, Hilt 2.60.1
-- Retrofit 3.0.0, OkHttp 4.12.0, kotlinx serialization 1.11.0
+```text
+apps/operations-android/
+├── app/         Application entry points, dependency injection and navigation
+├── contexts/    Context-owned client code
+├── core/        Shared technical foundations
+├── gradle/      Dependency versions, verification metadata and wrapper
+├── licenses/    Third-party font licenses
+└── scripts/     Architecture and connected-device checks
+```
 
-Install JDK 17, Android SDK package `platforms;android-37.0`, and
-`build-tools;36.0.0`. The checked-in Gradle wrapper downloads Gradle 9.7.1.
-Use an API 37 emulator for feature verification and an API 29 emulator for
-promotion verification. See the [verification guide](docs/verification.md) for
-commands and evidence locations.
+| Context | Directory | Runtime layers |
+| --- | --- | --- |
+| BC-01 Tenant & Access Governance | `tenantaccessgovernance` | All four |
+| BC-02 Customer & Buyer Relationships | `customerbuyerrelationships` | All four |
+| BC-03 Catalog & Commercial Policy | `catalogcommercialpolicy` | All four |
+| BC-04 Sales Commitment | `salescommitment` | All four |
+| BC-05 Inventory Availability | `inventoryavailability` | All four |
+| BC-06 Fulfillment & Delivery | `fulfillmentdelivery` | All four |
+| BC-07 Credit & Receivables | `creditreceivables` | Domain, application, infrastructure |
+| BC-08 Payments | `payments` | None |
+| BC-09 Business Documents | `businessdocuments` | All four |
+| BC-10 Notifications | `notifications` | None |
+| BC-11 Business Traceability | `businesstraceability` | None |
 
-## Module layout
+Each implemented layer is a Gradle module with its own `src`:
 
-| Area | Responsibility |
-| --- | --- |
-| `:app` | Hilt composition, ViewModel factories, Navigation 3 root, Android entry points and manifests |
-| `:core:*` | Shared auth, generic scoped local storage, network, device and design-system foundations |
-| `:contexts:<root>:<layer>` | Code aligned to a canonical Bounded Context and one of its implemented client layers |
+- `domain`: immutable client projections and local value constraints.
+- `application`: ports, typed outcomes and workflow coordination.
+- `infrastructure`: HTTP, serialization, protected storage and platform adapters.
+- `presentation`: Compose screens, UI state and ViewModels.
 
-The Android source has 11 canonical context roots and 31 runtime layer modules.
-The four layer names are `domain`, `application`, `infrastructure` and
-`presentation`; a module exists only where this client has code. BC-08 Payments,
-BC-10 Notifications and BC-11 Business Traceability currently have ownership
-documentation but no runtime module. The [DDD alignment](docs/client-ddd-alignment.md)
-lists every root and implemented layer. Context roots, Gradle modules and screens
-do not create business Bounded Contexts or transfer server authority.
+Cross-context dependencies use `application.publicapi`. Contexts without
+runtime code retain only their ownership note. `core` contains `auth`,
+`network`, `local`, `device` and `designsystem` technical modules.
 
-In these client modules, `domain` contains non-authoritative projections and
-local value constraints; `application` contains ports and selective workflow
-coordination; `infrastructure` adapts network, serialization, context-owned
-encrypted metadata and platform capabilities; and `presentation` owns Compose
-UI state and screens. `:core:local` supplies generic scoped-storage mechanics;
-receiving, disposition, temperature and picking metadata are owned by BC-05 and
-BC-06 infrastructure.
-The conceptual layering follows Blueprint ADR-0020. `:app` is the composition
-root, and `:core:*` modules provide technical capabilities rather than business
-ownership.
+## Build and test
 
-The API owns Tenant and Workspace authorization, catalog and commercial
-decisions, inventory, credit, payments, fulfillment and delivery outcomes.
-Permission hints only shape navigation. A successful current server response is
-required before a client projection can be treated as confirmed. See [product
-boundaries](docs/operations-product-boundaries.md), [foundation
-architecture](docs/android-foundation.md) and [native session
-security](docs/native-session.md).
+Use JDK 17, Android SDK `platforms;android-37.0` and
+`build-tools;36.0.0`. The Gradle wrapper and dependency catalog define the
+remaining toolchain. Minimum Android API is 29; target API is 37.
 
-## Build and verify
-
-From `apps/operations-android` with `JAVA_HOME` pointing to JDK 17:
+From `apps/operations-android`:
 
 ```sh
 python3 scripts/verify-context-architecture.py
+python3 scripts/test-context-architecture.py
 ./gradlew verifyAndroidArchitecture ktlintCheck lintDebug testDebugUnitTest \
   :app:assembleDebug --dependency-verification strict --console=plain
 ```
 
-The Python check enforces the 11 canonical roots and context-layer source
-boundaries. The Gradle gates cover Android module architecture, formatting,
-lint, JVM tests and debug assembly. The aggregate `testDebugUnitTest` covers
-configured Android modules and Kotlin/JVM domain/application modules. See the
-[verification guide](docs/verification.md) for test-result locations and
-connected-device commands.
-
-Release assembly requires an explicitly supplied non-local HTTPS API origin:
+JVM results are under each module's `build/test-results/`. For native tests,
+connect exactly one emulator or device and run:
 
 ```sh
-./gradlew :app:assembleRelease -PnexaReleaseApiBaseUrl="$APPROVED_NEXA_API_ORIGIN" \
+scripts/verify-connected-local.sh <serial> \
+  -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.nexa.mobile.operations.RequiresPrivateFixture \
+  --console=plain
+```
+
+Run the ordinary suite on API 29 and API 37. Private-fixture integration
+requires separately provisioned accounts; never commit credentials.
+
+Release assembly requires an approved non-local HTTPS API root:
+
+```sh
+./gradlew :app:assembleRelease \
+  -PnexaReleaseApiBaseUrl="$APPROVED_NEXA_API_ORIGIN" \
   --dependency-verification strict
 ```
 
-The variable must contain an approved non-local HTTPS root origin; none is
-configured in this repository. A verification build can use a separate HTTPS
-origin to exercise R8 and resource shrinking; that artifact is not a production
-distribution. Do not publish or install it as a production client.
+Distribution signing is configured outside the repository. Build success
+does not establish functional acceptance or production readiness.
 
-The CI workflow in [android-verify.yml](.github/workflows/android-verify.yml)
-runs applicable Android checks and publishes the stable `verify` status. Feature
-verification includes API 37 instrumentation. Promotion verification also
-includes API 29 instrumentation and release shrinking. The manually triggered
-[academic APK workflow](.github/workflows/android-academic-apk.yml) builds a
-debug artifact against the approved Render HTTPS origin and retains it for
-seven days.
+## Working conventions
 
-## v1.1.0 release status — 2026-10-08
+Keep business authority in the API. Preserve Tenant, Workspace, membership
+and session-epoch scope; missing scope fails closed. Keep access tokens in
+memory and refresh credentials in protected local storage. Mutation replay
+must preserve the original idempotency key and frozen payload.
 
-Operations Mobile v1.1.0 was published as the [GitHub
-Release](https://github.com/nexa-suite/mobile/releases/tag/v1.1.0) from tag
-`v1.1.0`, pointing to `main` commit
-`6cdb4318fa2e41a0268cce8900c138caffc93aec`. Candidate CI run
-[37817216074](https://github.com/nexa-suite/mobile/actions/runs/37817216074)
-passed. Local verification recorded 524 JVM tests and 64 instrumentation
-tests on each API 29 and API 37 AVD, with no failures, errors or skips. The
-published APK SHA-256 is
-`a5e27394de8fa422599ca463dd1d6ee3f6f80d8a06c157303234dd1b4e91f769`; see the
-[release notes](docs/releases/v1.1.0.md) for the asset and full evidence.
-
-PR [#41](https://github.com/nexa-suite/mobile/pull/41) remains open with
-follow-up changes outside the published tag. Corrective source commit
-`b18337e63accdbd56906ad73b5294345b1727ac0` passed local architecture, format,
-lint, debug/release assembly, 528 JVM cases and 65 native cases on each API
-29/37 with no failures, errors or skips. Updated-head GitHub CI, review and
-integration remain pending. These technical checks do not establish
-Product/UX Acceptance, System Acceptance or production readiness. See the [DDD
-execution record](docs/ddd-client-verification.md).
-
-## Current limits
-
-Automatic IoT and advanced routing remain outside approved V1 scope. The app
-uses existing API contracts and does not contain live account credentials, a
-production API endpoint, or distribution signing configuration. No
-physical-device acceptance is claimed. Local sign-out clears protected state
-even when server revocation cannot be confirmed. Product Acceptance, System
-Acceptance and production readiness remain separate gates.
-
-## Historical release checkpoint — 2026-10-05
-
-The following evidence belongs only to the earlier `release/v1.0.0` candidate;
-it is not validation of the current DDD refactor. That source candidate set the
-Operations Android app to version `1.0.0` (`versionCode 8`). The recorded local
-gates covered its then-current feature/data module layout. GitHub Actions run
-[37394456318](https://github.com/nexa-suite/mobile/actions/runs/37394456318)
-passed on candidate commit
-`2508b2f18a52ccbad55e50c96c5ce0aca2f474e1`. The signed APK and smoke-test
-scope are recorded in the [v1.0.0 release notes](docs/releases/v1.0.0.md).
-That record did not establish Product Acceptance, System Acceptance or
-production readiness and must not be treated as evidence for v1.1.0.
+Preserve unrelated local changes. Use signed commits and pull requests;
+required checks and review must pass before integration. Keep documentation
+archives, screenshots, experiments, credentials and build outputs local.

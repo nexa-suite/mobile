@@ -13,3 +13,10 @@
 *.log
 *.hprof
 .DS_Store
+
+# Local documentation, evidence and working instructions
+/docs/
+/experiments/
+/AGENTS.md
+/AGENTS.override.md
+/apps/operations-android/docs/
