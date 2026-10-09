@@ -302,7 +302,10 @@
     <string name="dispatch_handover_context">El contexto autorizado cambió.</string>
     <string name="dispatch_handover_current">Datos actuales confirmados</string>
     <string name="dispatch_handover_current_fact">vigente</string>
-    <string name="dispatch_handover_evidence">Transferencia declarada por membresía %1$s al conductor %2$s · comprobación %3$s · %4$s · %5$s. Esto no confirma recepción por el conductor.</string>
+    <string name="dispatch_handover_dispatch_actor">Dispatch confirmed by membership %1$s.</string>
+    <string name="dispatch_handover_legacy_warehouse_actor">Legacy handoff evidence records warehouse membership %1$s.</string>
+    <string name="dispatch_handover_warehouse_actor">Warehouse membership recorded in handoff evidence: %1$s.</string>
+    <string name="dispatch_handover_delivery_facts">Assigned driver membership %1$s · outgoing check %2$s · %3$s · %4$s. This does not confirm receipt by the driver.</string>
     <string name="dispatch_handover_fulfillment">Preparación %1$s</string>
     <string name="dispatch_handover_historical_fact">registro histórico; el despacho cambió después</string>
     <string name="dispatch_handover_initial">Consulta pendiente</string>
