@@ -106,7 +106,7 @@ filesystem checks and IO execute in infrastructure, not in the application
 model constructors. The architecture check also runs isolated negative probes
 for forbidden context dependencies, framework imports and file IO.
 
-The generic `:core:local` module now supplies scoped-storage mechanics only.
+The generic `:core:local` module now supplies scoped-storage mechanics and bounded private-image selection only.
 Receiving, disposition and temperature metadata are stored by BC-05 adapters
 under `contexts/inventoryavailability/infrastructure/src/main/.../storage/`;
 picking metadata is stored by BC-06 under
@@ -139,7 +139,7 @@ result to current UI. A late successful clear restores uncertainty for the
 original scoped command. The coordinator stages client intent; the API remains
 authoritative for receipt and inventory outcomes.
 
-`FieldRequestSubmissionCoordinator` in BC-04 application persists a frozen
+`DirectOrderSubmissionCoordinator` in BC-04 application persists a frozen
 request before transport, checks that the caller still owns the context, and
 persists the observed resolution even if the originating route loses its
 context during transport. The ViewModel renders that result only while its
@@ -183,33 +183,49 @@ scope fails closed.
 
 ## Verification and acceptance
 
-Corrective source `b18337e63accdbd56906ad73b5294345b1727ac0` passed the
+The earlier corrective source `b18337e63accdbd56906ad73b5294345b1727ac0` passed the
 context-boundary checks, Gradle architecture, ktlint, lint, JVM, assembly and
 API 29/API 37 emulator gates. See [the DDD execution record](ddd-client-verification.md)
-for exact commands, results and the separate Android Studio verification, and
+for exact commands, results, the subsequent audit correction at `dd148be`,
+and the separate Android Studio verification, and
 [the verification guide](verification.md) for reproducible commands.
 
-## Remaining architectural refinement
+## Audit-driven ownership refinements
 
-The context module graph is checked, but the composition root still needs
-refinement. `MainActivity.kt` currently has 4,683 lines and mixes route wiring,
-platform launchers and local workflow coordination. For example, the returned
-driver-proof callback constructs its scoped key and calls file preparation and
-protected intent staging directly. The `ReturnedDriverProofSelection.kt`
-helper also owns intent matching, the transition to evidence review and
-temporary-file cleanup in the app module.
+BC-03 presentation owns warehouse work entry, including its ViewModel and
+selection state. Its application projector port is implemented by the Catalog
+scope adapter; the composition root injects the adapter and navigation labels.
+BC-07 publishes `CustomerCreditSnapshot`, and BC-06 publishes
+`PickingAllocationScope`, through application public APIs. Consumers no longer
+import those contexts' internal domain models. BC-01 permission hints are
+independent public API values rather than aliases of domain types.
 
-That sequence belongs behind a BC-06 application coordinator and platform/file
-ports; Android activity-result launchers belong in presentation. Extraction
-must preserve scope matching, cancellation, staging-before-review and cleanup.
-Moving the same code to another app file would not resolve this ownership
-problem. The existing structural guard does not detect it.
+Returned proof and incident selections are coordinated by BC-06 application.
+BC-05 warehouse and BC-06 dispatch selections use context-owned ports and
+ViewModel actions. The activity launches platform pickers and routes results;
+it does not construct evidence storage keys, prepare temporary candidates,
+stage protected metadata or upload returned files. Infrastructure implements
+bounded private copying; coordinators preserve scope matching, cancellation,
+staging order and cleanup. Route orchestration remains substantial in
+`MainActivity`, and some existing presentation integrity checks still inspect
+file handles. These are explicit remaining maintainability limitations.
 
-BC-04 also retains legacy `FieldRequest` names in client types while the
-accepted operation is Direct Order. A terminology refinement must distinguish
-client names from compatibility-sensitive persisted keys and legacy payloads.
-Neither module count nor successful compilation establishes completion of
-these refinements.
+BC-04 source types and resource identifiers now use Direct Order terminology.
+Compatibility-sensitive schema version, encryption purpose, legacy operation
+marker, frozen body and idempotency key remain unchanged. Codec regression
+tests exercise legacy records and unknown-outcome round trips.
+
+Only a current-session HTTP 403 with `ACCESS_CONTEXT_INVALID` invalidates the
+customer access context. An epoch fence prevents a late response from A from
+clearing B; a token refresh within the same epoch does not suppress revocation.
+Customer state clears on current invalidation. Ordinary permission denial
+remains a different outcome.
+
+The structural guard now rejects every foreign domain dependency/import,
+foreign application imports outside `application.publicapi`, own-context
+presentation imports of infrastructure, and feature ViewModels in the app
+composition root. Thirteen negative probes exercise these checks. Structural
+checks complement behavioral tests; they cannot establish all domain semantics.
 
 Implementation and technical verification do not establish Product/UX
 Acceptance, System Acceptance or production readiness. Blueprint's current
