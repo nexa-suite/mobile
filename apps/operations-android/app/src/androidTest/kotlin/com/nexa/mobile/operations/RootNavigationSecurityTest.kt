@@ -11,19 +11,20 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R as CatalogR
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.TaskVisibilityHint
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WorkEntryStatus
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.VerifiedOperationsIdentity
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.VerifiedContextAuthority
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.VerifiedOperationsIdentity
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.R as AccessR
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
-import com.nexa.mobile.operations.workentry.TaskVisibilityHint
-import com.nexa.mobile.operations.workentry.WarehouseUiState
-import com.nexa.mobile.operations.workentry.WorkEntryStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -48,7 +49,7 @@ class RootNavigationSecurityTest {
 
         composeRule.onNodeWithText(targetString(AccessR.string.access_session_restoring_title))
             .assertIsDisplayed()
-        composeRule.onNodeWithText(targetString(R.string.warehouse_identify_product))
+        composeRule.onNodeWithText(targetString(CatalogR.string.warehouse_identify_product))
             .assertDoesNotExist()
         composeRule.onNodeWithText("Nexa Demo Distribución").assertDoesNotExist()
     }
@@ -73,7 +74,7 @@ class RootNavigationSecurityTest {
             hasText(targetString(AccessR.string.access_sign_in_title)) and !hasClickAction()
         )
             .assertIsDisplayed()
-        composeRule.onNodeWithText(targetString(R.string.warehouse_identify_product))
+        composeRule.onNodeWithText(targetString(CatalogR.string.warehouse_identify_product))
             .assertDoesNotExist()
         composeRule.onNodeWithText("Nexa Demo Distribución").assertDoesNotExist()
     }
@@ -94,7 +95,7 @@ class RootNavigationSecurityTest {
             }
         }
 
-        composeRule.onNodeWithText(targetString(R.string.warehouse_identify_product))
+        composeRule.onNodeWithText(targetString(CatalogR.string.warehouse_identify_product))
             .assertIsDisplayed()
         composeRule.onNodeWithText("Almacén Principal").assertIsDisplayed()
         composeRule.onNodeWithText(targetString(AccessR.string.access_sign_in_title))
@@ -196,7 +197,7 @@ class RootNavigationSecurityTest {
         composeRule.onNodeWithText("Visita al cliente").assertDoesNotExist()
         composeRule.onNodeWithText("Privacidad y coordinación: límites actuales")
             .assertDoesNotExist()
-        composeRule.onNodeWithText(targetString(R.string.warehouse_logout))
+        composeRule.onNodeWithText(targetString(CatalogR.string.warehouse_logout))
             .performScrollTo()
             .assertIsDisplayed()
             .performClick()
@@ -206,7 +207,7 @@ class RootNavigationSecurityTest {
         )
             .assertIsDisplayed()
         composeRule.onNodeWithText("Cargas y paradas").assertDoesNotExist()
-        composeRule.onNodeWithText(targetString(R.string.warehouse_identify_product))
+        composeRule.onNodeWithText(targetString(CatalogR.string.warehouse_identify_product))
             .assertDoesNotExist()
         composeRule.onNodeWithText("Demo Tenant").assertDoesNotExist()
         composeRule.runOnIdle {

@@ -5,6 +5,7 @@ data class CommercialCustomerFacts(val businessName: String, val status: String,
 
 sealed interface CommercialCustomerRead {
     data class Detail(val value: CommercialCustomerFacts) : CommercialCustomerRead
+    data object ContextInvalidated : CommercialCustomerRead
     data object Unavailable : CommercialCustomerRead
 }
 

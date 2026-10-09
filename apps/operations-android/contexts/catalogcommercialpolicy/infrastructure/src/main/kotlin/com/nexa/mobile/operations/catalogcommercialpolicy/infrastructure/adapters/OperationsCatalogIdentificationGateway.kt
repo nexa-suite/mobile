@@ -3,6 +3,7 @@ package com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapte
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.CandidateConfirmationResult
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductSearchResult
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.warehouse.WarehouseGateway
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.CatalogOperationsContext
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
 import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transport.CatalogDetailProjection
@@ -12,9 +13,8 @@ import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transpo
 import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transport.OperationsCatalogSearchOutcome
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.contextIsCurrent
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.PermissionHint
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.catalogReadHint
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.map
@@ -80,7 +80,7 @@ class OperationsCatalogIdentificationGateway @Inject constructor(
     override suspend fun confirm(
         candidate: ProductCandidate,
         authorityEpoch: Long,
-        context: ActiveOperationsContext
+        context: CatalogOperationsContext
     ): CandidateConfirmationResult {
         val access = sessions.currentAccess()
             ?: return CandidateConfirmationResult.SessionInvalidated
@@ -155,7 +155,7 @@ private fun OperationsCatalogDetailProjection.toCatalogDetailProjection(): Catal
 fun mapConfirmedCatalogDetail(
     candidate: ProductCandidate,
     detail: CatalogDetailProjection,
-    context: ActiveOperationsContext,
+    context: CatalogOperationsContext,
     authorityEpoch: Long
 ): CandidateConfirmationResult {
     if (detail.catalogItemId != candidate.key || detail.skuCode != candidate.sku) {

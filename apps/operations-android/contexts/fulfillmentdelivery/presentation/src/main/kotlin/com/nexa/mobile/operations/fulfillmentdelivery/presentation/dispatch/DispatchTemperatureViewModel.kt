@@ -6,6 +6,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.Dispa
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchRequestBodyCodec
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureEvidenceSelectionContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureEvidenceSelectionCoordinator
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureIntent
@@ -33,7 +34,8 @@ class DispatchTemperatureViewModel(
     private val metadata: DispatchTemperatureMetadataStore,
     private val now: () -> Instant = Instant::now,
     private val newCommandKey: () -> String = { UUID.randomUUID().toString() },
-    private val requestBodyCodec: DispatchRequestBodyCodec
+    private val requestBodyCodec: DispatchRequestBodyCodec,
+    private val evidenceSelection: DispatchTemperatureEvidenceSelectionCoordinator? = null
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(DispatchTemperatureUiState())
     val state = mutableState.asStateFlow()
@@ -242,6 +244,56 @@ class DispatchTemperatureViewModel(
             state.canUploadPhoto && !state.hasPendingCommand &&
             lot.warehouseId == selection.warehouseId &&
             lot.supportsInRangeEvidence
+    }
+
+    /** Owns the returned picker copy, epoch revalidation, protected upload, and temp cleanup. */
+    suspend fun uploadReturnedEvidence(
+        selection: DispatchTemperatureEvidenceSelectionContext,
+        valueCelsius: String,
+        sourceUri: String
+    ): Boolean {
+        val coordinator = evidenceSelection ?: return false
+        val capturedContext = activeContext ?: return false
+        if (!selectionMatchesIdentity(selection, capturedContext)) return false
+        val selected = try {
+            coordinator.prepare(selection, sourceUri)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        } ?: return false
+        return try {
+            val currentContext = activeContext ?: return false
+            if (!selectionMatchesIdentity(selection, currentContext)) return false
+            val currentState = mutableState.value
+            val currentSelection = when {
+                selection.authorityEpoch == currentContext.authorityEpoch -> selection
+
+                selection.authorityEpoch < currentContext.authorityEpoch &&
+                    currentState.authorityEpoch == currentContext.authorityEpoch &&
+                    currentState.status == DispatchTemperatureStatus.Current &&
+                    currentState.metadataReady -> selection.copy(
+                    authorityEpoch = currentContext.authorityEpoch
+                )
+
+                else -> return false
+            }
+            if (!isCurrentEvidenceSelection(currentSelection)) return false
+            updateValue(currentSelection.lotId, valueCelsius)
+            uploadExcursionEvidence(
+                DispatchTemperaturePhotoCandidate(
+                    selected.file,
+                    selected.originalFilename,
+                    selected.declaredContentType,
+                    selected.byteSize,
+                    selected.checksumSha256
+                ),
+                currentSelection
+            )
+            true
+        } finally {
+            coordinator.discard(selected)
+        }
     }
 
     /** Re-read after the external picker returns,
@@ -1001,6 +1053,14 @@ class DispatchTemperatureViewModel(
         selection.scope == context.scopeIdentity() &&
         selection.fulfillmentId == activeFulfillmentId &&
         selection.warehouseId.isNotBlank() && selection.lotId.isNotBlank()
+
+    private fun selectionMatchesIdentity(
+        selection: DispatchTemperatureEvidenceSelectionContext,
+        context: DispatchAuthorityContext
+    ): Boolean = selection.scope == context.scopeIdentity() &&
+        selection.fulfillmentId == activeFulfillmentId &&
+        selection.warehouseId.isNotBlank() && selection.lotId.isNotBlank() &&
+        context.hasPhotoEvidencePermissions()
 
     private fun DispatchTemperaturePhotoEvidence.matchesWarehouse(warehouseId: String): Boolean =
         id.isNotBlank() && subjectType == "WAREHOUSE" && subjectId == warehouseId

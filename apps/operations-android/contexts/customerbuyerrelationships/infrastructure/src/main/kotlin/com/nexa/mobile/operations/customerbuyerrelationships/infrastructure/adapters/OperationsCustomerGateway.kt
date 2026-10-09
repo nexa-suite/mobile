@@ -9,7 +9,8 @@ import com.nexa.mobile.operations.customerbuyerrelationships.domain.model.commer
 import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.transport.CustomerNetworkResult
 import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.transport.CustomerWire
 import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.transport.NexaCustomerGateway
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.canReadCustomers
 import javax.inject.Inject
 
 class OperationsCustomerGateway @Inject constructor(
@@ -32,9 +33,17 @@ class OperationsCustomerGateway @Inject constructor(
         if (!current(authority)) return CustomerResult.PermissionDenied
         val lease = sessions.currentAccess() ?: return CustomerResult.PermissionDenied
         val result = action()
-        if (!sessions.isEpochCurrent(lease.epoch) ||
-            !current(authority)
-        ) {
+
+        if (result == CustomerNetworkResult.ContextInvalidated) {
+            if (!current(authority)) return CustomerResult.PermissionDenied
+            return if (sessions.invalidateContextIfCurrent(lease)) {
+                CustomerResult.ContextInvalidated
+            } else {
+                CustomerResult.PermissionDenied
+            }
+        }
+
+        if (!sessions.isEpochCurrent(lease.epoch) || !current(authority)) {
             return CustomerResult.PermissionDenied
         }
         return when (result) {
@@ -51,12 +60,14 @@ class OperationsCustomerGateway @Inject constructor(
             CustomerNetworkResult.PermissionDenied, CustomerNetworkResult.SessionInvalidated ->
                 CustomerResult.PermissionDenied
 
+            CustomerNetworkResult.ContextInvalidated -> CustomerResult.PermissionDenied
+
             CustomerNetworkResult.Unavailable -> CustomerResult.Unavailable
         }
     }
     private fun current(authority: CommercialAuthority): Boolean {
         val verified = sessions.verifiedSession.value ?: return false
-        return sessions.sessionState.value == SessionState.Active && authority.canReadCustomers &&
+        return sessions.sessionState.value == SessionState.Active && authority.canReadCustomers() &&
             verified.hasAuthorizedContext && verified.userId == authority.userId &&
             verified.tenantId == authority.tenantId &&
             verified.workspaceId == authority.workspaceId &&

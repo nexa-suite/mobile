@@ -7,6 +7,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehous
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingLoadResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingMutationResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.publicapi.CurrentPickingAllocationResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.publicapi.PickingAllocationScope
 import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.FulfillmentPickingSnapshot
 import com.nexa.mobile.operations.inventoryavailability.application.publicapi.PhysicalAllocationProjection
@@ -41,7 +42,17 @@ class CurrentPickingAllocationQueryAdapterTest {
 
         assertEquals(CurrentPickingAllocationResult.Loaded(allocation), result)
         assertEquals("fulfillment-1", gateway.loadedFulfillmentId)
-        assertEquals(authority, gateway.loadedAuthority)
+        assertEquals(
+            PickingAuthority(
+                authority.userId,
+                authority.tenantId,
+                authority.workspaceId,
+                authority.membershipId,
+                authority.permissions,
+                authority.authorityEpoch
+            ),
+            gateway.loadedAuthority
+        )
     }
 
     @Test
@@ -62,7 +73,7 @@ class CurrentPickingAllocationQueryAdapterTest {
         )
     }
 
-    private val authority = PickingAuthority(
+    private val authority = PickingAllocationScope(
         userId = "user-1",
         tenantId = "tenant-1",
         workspaceId = "workspace-1",

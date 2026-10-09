@@ -2,12 +2,12 @@ package com.nexa.mobile.operations.salescommitment.presentation.commercial
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexa.mobile.operations.creditreceivables.domain.model.commercial.CustomerCredit
+import com.nexa.mobile.operations.creditreceivables.application.publicapi.CustomerCreditSnapshot
 import com.nexa.mobile.operations.salescommitment.application.commercial.CustomerProgressGateway
 import com.nexa.mobile.operations.salescommitment.application.commercial.CustomerProgressResult
 import com.nexa.mobile.operations.salescommitment.application.commercial.ProgressStatus
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.CustomerCommitment
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 import java.time.Instant
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,7 +18,7 @@ data class CustomerProgressState(
     val currency: String = "PEN",
     val customerName: String? = null,
     val commitments: List<CustomerCommitment> = emptyList(),
-    val credit: CustomerCredit? = null,
+    val credit: CustomerCreditSnapshot? = null,
     val commitmentsStatus: ProgressStatus = ProgressStatus.Idle,
     val creditStatus: ProgressStatus = ProgressStatus.Idle,
     val page: Int = 0,

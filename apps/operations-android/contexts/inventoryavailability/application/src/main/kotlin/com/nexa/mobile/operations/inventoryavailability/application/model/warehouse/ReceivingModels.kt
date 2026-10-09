@@ -59,14 +59,16 @@ data class ReceivingScopeIdentity(
 
 data class ReceivingEvidenceSelectionContext(
     val scope: ReceivingScopeIdentity,
-    val warehouseId: String
+    val warehouseId: String,
+    val authorityEpoch: Long
 ) {
     init {
-        require(warehouseId.isNotBlank())
+        require(warehouseId.isNotBlank() && authorityEpoch > 0)
     }
 
     override fun toString(): String =
-        "ReceivingEvidenceSelectionContext(scope=REDACTED, warehouse=REDACTED)"
+        "ReceivingEvidenceSelectionContext(scope=REDACTED, warehouse=REDACTED, " +
+            "epoch=$authorityEpoch)"
 }
 
 /** Catalog id and modern SKU UUID remain distinct server identifiers. */

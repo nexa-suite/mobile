@@ -7,6 +7,7 @@
     <string name="customer_contact_person">Contact: %1$s</string>
     <string name="customer_current">Information received. Refresh before continuing commercial work.</string>
     <string name="customer_denied">Access is no longer valid. Protected information is unavailable.</string>
+    <string name="customer_context_invalidated">Access context changed. Select a workspace again.</string>
     <string name="customer_email">Email: %1$s</string>
     <string name="customer_empty">No authorized results.</string>
     <string name="customer_idle">Search for an authorized relationship.</string>

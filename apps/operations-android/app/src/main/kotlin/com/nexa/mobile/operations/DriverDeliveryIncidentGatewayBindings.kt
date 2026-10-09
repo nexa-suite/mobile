@@ -3,9 +3,6 @@ package com.nexa.mobile.operations
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentMetadataStore as IncidentMetadataStore
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentMetadataWrite as IncidentMetadataWrite
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentSelectionContext as IncidentSelectionContext
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofFileCandidate
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.OperationsDriverIncidentGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.JsonDeliveryRequestBodyCodec
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryIncidentViewModel as IncidentViewModel
@@ -18,11 +15,6 @@ internal class DriverDeliveryIncidentGatewayBindings @Inject constructor(
     private val gateway: OperationsDriverIncidentGateway,
     private val metadataStore: IncidentMetadataStore
 ) {
-    suspend fun stageReturnedEvidence(
-        context: IncidentSelectionContext,
-        candidate: DriverProofFileCandidate
-    ): IncidentMetadataWrite = metadataStore.stageReturnedEvidence(context, candidate)
-
     fun viewModelFactory(): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {

@@ -92,15 +92,27 @@ includes API 29 instrumentation and release shrinking. The manually triggered
 debug artifact against the approved Render HTTPS origin and retains it for
 seven days.
 
-## Current refactor status — 2026-10-08
+## v1.1.0 release status — 2026-10-08
 
-The current working tree passed the 11-root architecture check, six negative
-boundary probes, ktlint, debug lint, debug assembly and 524 JVM tests. Complete API 37 and API 29 instrumentation each passed 64 tests without
-failures, errors or skips; R8 release assembly also passed. Final signing,
-integration and publication remain pending.
-This is implementation and technical-verification status only; it is not
-Product/UX Acceptance, System Acceptance, a published release or production
-readiness. See the [DDD execution record](docs/ddd-client-verification.md).
+Operations Mobile v1.1.0 was published as the [GitHub
+Release](https://github.com/nexa-suite/mobile/releases/tag/v1.1.0) from tag
+`v1.1.0`, pointing to `main` commit
+`6cdb4318fa2e41a0268cce8900c138caffc93aec`. Candidate CI run
+[37817216074](https://github.com/nexa-suite/mobile/actions/runs/37817216074)
+passed. Local verification recorded 524 JVM tests and 64 instrumentation
+tests on each API 29 and API 37 AVD, with no failures, errors or skips. The
+published APK SHA-256 is
+`a5e27394de8fa422599ca463dd1d6ee3f6f80d8a06c157303234dd1b4e91f769`; see the
+[release notes](docs/releases/v1.1.0.md) for the asset and full evidence.
+
+PR [#41](https://github.com/nexa-suite/mobile/pull/41) remains open with
+follow-up changes outside the published tag. Corrective source commit
+`b18337e63accdbd56906ad73b5294345b1727ac0` passed local architecture, format,
+lint, debug/release assembly, 528 JVM cases and 65 native cases on each API
+29/37 with no failures, errors or skips. Updated-head GitHub CI, review and
+integration remain pending. These technical checks do not establish
+Product/UX Acceptance, System Acceptance or production readiness. See the [DDD
+execution record](docs/ddd-client-verification.md).
 
 ## Current limits
 

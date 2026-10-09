@@ -5,21 +5,31 @@ package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureEvidenceAuthority
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureEvidenceDraft
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureEvidenceIntent
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureEvidencePhoto
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureEvidencePhotoCandidate
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureEvidencePhotoSelection
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureEvidenceScope
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureIntentStatus
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureLookupResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureMetadataRead
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureMetadataWrite
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperaturePhotoResult
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.TemperatureSubmitResult
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.TemperatureEvidenceGateway
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.TemperatureEvidenceMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseEvidenceFileCandidate
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseEvidenceFileSelectionPort
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseEvidenceSelectionCoordinator
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TemperatureEvidenceFacts
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TemperatureEvidencePayload
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TemperatureEvidenceSubject
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TemperatureEvidenceSubjectType
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.TemperatureEvidenceUnit
+import java.io.File
 import java.math.BigDecimal
+import java.security.MessageDigest
 import java.time.Instant
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -177,13 +187,60 @@ class TemperatureEvidenceViewModelTest {
             assertEquals(0, delayed.state.value.authorityEpoch)
         }
 
-    private fun viewModel(gateway: FakeGateway, store: MemoryMetadataStore) =
-        TemperatureEvidenceViewModel(
-            gateway,
-            store,
-            now = { Instant.parse("2026-09-30T15:22:33Z") },
-            newIdempotencyKey = { "temperature-key-1" }
-        )
+    @Test
+    fun returnedWarehousePhotoFromAIsRejectedAfterScopeChangesToBBeforeCopy() = runTest {
+        val store = MemoryMetadataStore()
+        val gateway = FakeGateway()
+        val files = FakeWarehouseSelectionPort()
+        val viewModel = viewModel(gateway, store, files)
+        viewModel.activate(authority())
+        advanceUntilIdle()
+        viewModel.selectSubject(viewModel.state.value.subjects.single())
+        advanceUntilIdle()
+        val selectionA = requireNotNull(viewModel.photoSelectionContext())
+
+        viewModel.activate(authority(epoch = 10, userId = "user-b"))
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uploadReturnedPhoto(selectionA, "content://picker/photo"))
+        assertEquals(0, files.prepareCalls)
+        assertEquals(0, gateway.photoUploadCalls)
+    }
+
+    @Test
+    fun cancellationDuringWarehousePhotoUploadDeletesItsPrivateCopy() = runTest {
+        val store = MemoryMetadataStore()
+        val gateway = FakeGateway().apply { cancelPhotoUpload = true }
+        val files = FakeWarehouseSelectionPort()
+        val viewModel = viewModel(gateway, store, files)
+        viewModel.activate(authority())
+        advanceUntilIdle()
+        viewModel.selectSubject(viewModel.state.value.subjects.single())
+        advanceUntilIdle()
+        val selection = requireNotNull(viewModel.photoSelectionContext())
+
+        try {
+            viewModel.uploadReturnedPhoto(selection, "content://picker/photo")
+            throw AssertionError("expected cancellation")
+        } catch (_: CancellationException) {
+            // The selection action must release its private copy before propagating cancellation.
+        }
+
+        assertEquals(false, requireNotNull(files.lastCandidate).file.exists())
+        assertEquals(1, gateway.photoUploadCalls)
+    }
+
+    private fun viewModel(
+        gateway: FakeGateway,
+        store: MemoryMetadataStore,
+        files: FakeWarehouseSelectionPort? = null
+    ) = TemperatureEvidenceViewModel(
+        gateway,
+        store,
+        now = { Instant.parse("2026-09-30T15:22:33Z") },
+        newIdempotencyKey = { "temperature-key-1" },
+        evidenceSelection = files?.let(::WarehouseEvidenceSelectionCoordinator)
+    )
 
     private suspend fun TestScope.fill(viewModel: TemperatureEvidenceViewModel) {
         viewModel.selectSubject(viewModel.state.value.subjects.single())
@@ -192,15 +249,18 @@ class TemperatureEvidenceViewModelTest {
         viewModel.occurredAtChanged("2026-09-30T15:22:33Z")
     }
 
-    private fun authority(permissions: Set<String> = setOf("inventory.receive", "inventory.read")) =
-        TemperatureEvidenceAuthority(
-            USER_ID,
-            TENANT_ID,
-            WORKSPACE_ID,
-            MEMBERSHIP_ID,
-            permissions,
-            authorityEpoch = 9
-        )
+    private fun authority(
+        permissions: Set<String> = setOf("inventory.receive", "inventory.read"),
+        epoch: Long = 9,
+        userId: String = USER_ID
+    ) = TemperatureEvidenceAuthority(
+        userId,
+        TENANT_ID,
+        WORKSPACE_ID,
+        MEMBERSHIP_ID,
+        permissions,
+        authorityEpoch = epoch
+    )
 
     private fun payload() = TemperatureEvidencePayload(
         subjectType = TemperatureEvidenceSubjectType.LOT,
@@ -236,6 +296,26 @@ class TemperatureEvidenceViewModelTest {
         val submitResults = mutableListOf<TemperatureSubmitResult>()
         var lifecycleEvents: MutableList<String> = mutableListOf()
         var pendingResponse: CompletableDeferred<TemperatureSubmitResult>? = null
+        var photoUploadCalls = 0
+        var cancelPhotoUpload = false
+
+        override suspend fun uploadPhoto(
+            selection: TemperatureEvidencePhotoSelection,
+            candidate: TemperatureEvidencePhotoCandidate,
+            idempotencyKey: String,
+            authority: TemperatureEvidenceAuthority
+        ): TemperaturePhotoResult {
+            photoUploadCalls++
+            if (cancelPhotoUpload) throw CancellationException()
+            return TemperaturePhotoResult.Evidence(
+                TemperatureEvidencePhoto(
+                    "photo-id",
+                    "WAREHOUSE",
+                    selection.warehouseId,
+                    "AVAILABLE"
+                )
+            )
+        }
 
         override suspend fun subjects(
             type: TemperatureEvidenceSubjectType,
@@ -288,6 +368,35 @@ class TemperatureEvidenceViewModelTest {
             pendingResponse?.let { return it.await() }
             return submitResults.removeFirstOrNull()
                 ?: TemperatureSubmitResult.Confirmed(facts(status = "WITHIN_RANGE"))
+        }
+    }
+
+    private inner class FakeWarehouseSelectionPort : WarehouseEvidenceFileSelectionPort {
+        var prepareCalls = 0
+        var lastCandidate: WarehouseEvidenceFileCandidate? = null
+
+        override suspend fun prepare(
+            sourceUri: String,
+            scopeKey: String
+        ): WarehouseEvidenceFileCandidate {
+            prepareCalls++
+            val file = File.createTempFile("warehouse-photo-", ".jpg")
+            val bytes = byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte())
+            file.writeBytes(bytes)
+            val candidate = WarehouseEvidenceFileCandidate(
+                file = file,
+                originalFilename = file.name,
+                declaredContentType = "image/jpeg",
+                byteSize = file.length(),
+                checksumSha256 = MessageDigest.getInstance("SHA-256").digest(bytes)
+                    .joinToString("") { "%02x".format(it) }
+            )
+            lastCandidate = candidate
+            return candidate
+        }
+
+        override fun discard(candidate: WarehouseEvidenceFileCandidate) {
+            candidate.file.delete()
         }
     }
 

@@ -2,7 +2,7 @@ package com.nexa.mobile.operations.businessdocuments.application.commercial
 
 import com.nexa.mobile.operations.businessdocuments.domain.model.commercial.BusinessDocumentContent
 import com.nexa.mobile.operations.businessdocuments.domain.model.commercial.BusinessDocumentIdentity
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 
 sealed interface BusinessDocumentsResult {
     data class Page(val items: List<BusinessDocumentIdentity>, val totalItems: Long) :

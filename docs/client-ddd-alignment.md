@@ -96,21 +96,26 @@ infrastructure; presentation receives a bounded pixel result. This is a local
 preview of already-authorized bytes, not a durable document cache or a new
 source of authorization.
 
-The shared BC-01 identity projections are the explicitly checked exception to
-domain isolation. Application evidence ports may carry a JDK file handle;
+Domain modules do not depend on another context. BC-03 owns its catalog scope
+projection; its adapter translates BC-01 identity evidence from the narrow
+application public API at the boundary. BC-01 application publishes verified
+scope projections and client permission hints; domain projections do not
+interpret API permission strings. The API remains authoritative for access.
+Application evidence ports may carry a JDK file handle;
 filesystem checks and IO execute in infrastructure, not in the application
 model constructors. The architecture check also runs isolated negative probes
 for forbidden context dependencies, framework imports and file IO.
 
-The generic `:core:local` module now supplies scoped-storage mechanics only.
+The generic `:core:local` module now supplies scoped-storage mechanics and bounded private-image selection only.
 Receiving, disposition and temperature metadata are stored by BC-05 adapters
 under `contexts/inventoryavailability/infrastructure/src/main/.../storage/`;
 picking metadata is stored by BC-06 under
 `contexts/fulfillmentdelivery/infrastructure/src/main/.../storage/picking/`.
 The context-owned store and codec files were migrated while preserving their
-existing filenames and key aliases. The new BC-05/BC-06 unit and Android
-instrumentation tests have not yet passed on the migrated source; their current
-status is recorded below as pending.
+existing filenames and key aliases. The moved BC-05/BC-06 JVM tests passed in
+the aggregate gate; their Android instrumentation passed on API 29 and API 37.
+The [execution record](ddd-client-verification.md) distinguishes the published
+baseline from the post-release corrective verification.
 
 The commercial module from the former feature layout is now BC-03
 Catalog & Commercial Policy, BC-02 Customer & Buyer Relationships, or BC-04
@@ -134,7 +139,7 @@ result to current UI. A late successful clear restores uncertainty for the
 original scoped command. The coordinator stages client intent; the API remains
 authoritative for receipt and inventory outcomes.
 
-`FieldRequestSubmissionCoordinator` in BC-04 application persists a frozen
+`DirectOrderSubmissionCoordinator` in BC-04 application persists a frozen
 request before transport, checks that the caller still owns the context, and
 persists the observed resolution even if the originating route loses its
 context during transport. The ViewModel renders that result only while its
@@ -157,7 +162,9 @@ wording in that story. The route to capture is `POST /api/v1/direct-orders`,
 including the `201` outcome and the `202` pending-prepaid outcome. It is a
 current Owner decision, not evidence that the API contract update, client
 implementation, technical verification or Product Acceptance is complete.
-Those implementation and contract changes remain with their owning agents.
+The subsequent implementation and technical checks are recorded in the
+[execution record](ddd-client-verification.md); they do not establish Product
+Acceptance.
 
 ## Preserved authority and security
 
@@ -176,12 +183,49 @@ scope fails closed.
 
 ## Verification and acceptance
 
-From `apps/operations-android`,
-`python3 scripts/verify-context-architecture.py` passed on the current
-uncommitted working tree. This is a structural check only. The Gradle
-architecture, ktlint, lint, JVM, assembly and emulator checks remain pending;
-see [the DDD execution record](ddd-client-verification.md) for current status
-and [the verification guide](verification.md) for commands.
+The earlier corrective source `b18337e63accdbd56906ad73b5294345b1727ac0` passed the
+context-boundary checks, Gradle architecture, ktlint, lint, JVM, assembly and
+API 29/API 37 emulator gates. See [the DDD execution record](ddd-client-verification.md)
+for exact commands, results, the subsequent audit correction at `dd148be`,
+and the separate Android Studio verification, and
+[the verification guide](verification.md) for reproducible commands.
+
+## Audit-driven ownership refinements
+
+BC-03 presentation owns warehouse work entry, including its ViewModel and
+selection state. Its application projector port is implemented by the Catalog
+scope adapter; the composition root injects the adapter and navigation labels.
+BC-07 publishes `CustomerCreditSnapshot`, and BC-06 publishes
+`PickingAllocationScope`, through application public APIs. Consumers no longer
+import those contexts' internal domain models. BC-01 permission hints are
+independent public API values rather than aliases of domain types.
+
+Returned proof and incident selections are coordinated by BC-06 application.
+BC-05 warehouse and BC-06 dispatch selections use context-owned ports and
+ViewModel actions. The activity launches platform pickers and routes results;
+it does not construct evidence storage keys, prepare temporary candidates,
+stage protected metadata or upload returned files. Infrastructure implements
+bounded private copying; coordinators preserve scope matching, cancellation,
+staging order and cleanup. Route orchestration remains substantial in
+`MainActivity`, and some existing presentation integrity checks still inspect
+file handles. These are explicit remaining maintainability limitations.
+
+BC-04 source types and resource identifiers now use Direct Order terminology.
+Compatibility-sensitive schema version, encryption purpose, legacy operation
+marker, frozen body and idempotency key remain unchanged. Codec regression
+tests exercise legacy records and unknown-outcome round trips.
+
+Only a current-session HTTP 403 with `ACCESS_CONTEXT_INVALID` invalidates the
+customer access context. An epoch fence prevents a late response from A from
+clearing B; a token refresh within the same epoch does not suppress revocation.
+Customer state clears on current invalidation. Ordinary permission denial
+remains a different outcome.
+
+The structural guard now rejects every foreign domain dependency/import,
+foreign application imports outside `application.publicapi`, own-context
+presentation imports of infrastructure, and feature ViewModels in the app
+composition root. Thirteen negative probes exercise these checks. Structural
+checks complement behavioral tests; they cannot establish all domain semantics.
 
 Implementation and technical verification do not establish Product/UX
 Acceptance, System Acceptance or production readiness. Blueprint's current

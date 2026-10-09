@@ -30,7 +30,6 @@ dependencies {
     api(project(":contexts:catalogcommercialpolicy:domain"))
     api(project(":contexts:customerbuyerrelationships:application"))
     api(project(":contexts:tenantaccessgovernance:application"))
-    api(project(":contexts:tenantaccessgovernance:domain"))
     implementation(project(":core:auth"))
     implementation(project(":core:network"))
     implementation(libs.coroutines.core)

@@ -24,16 +24,21 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.CatalogOperationsContextAdapter
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R as CatalogR
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ConfirmedSkuScreen
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchScreen
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchStatus
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.OperationsWorkEntryScreen
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.TaskVisibilityHint
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WorkEntryStatus
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
 import com.nexa.mobile.operations.core.designsystem.R as CoreR
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.R as AccessR
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessScreen
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
@@ -41,10 +46,6 @@ import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.Con
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserPhase
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserScreen
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserUiState
-import com.nexa.mobile.operations.workentry.OperationsWorkEntryScreen
-import com.nexa.mobile.operations.workentry.TaskVisibilityHint
-import com.nexa.mobile.operations.workentry.WarehouseUiState
-import com.nexa.mobile.operations.workentry.WorkEntryStatus
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -235,9 +236,9 @@ class ProductScreensUiTest {
         composeRule.onAllNodesWithText(
             localizedString(CatalogR.string.warehouse_operations_title)
         ).assertCountEquals(1)
-        composeRule.onNodeWithText(localizedString(R.string.warehouse_work_available))
+        composeRule.onNodeWithText(localizedString(CatalogR.string.warehouse_work_available))
             .assertIsDisplayed()
-        composeRule.onNodeWithText(localizedString(R.string.warehouse_identify_product))
+        composeRule.onNodeWithText(localizedString(CatalogR.string.warehouse_identify_product))
             .assertIsDisplayed()
         composeRule.onNodeWithText("Recibir", substring = true).assertDoesNotExist()
         composeRule.onNodeWithText("Picking", substring = true).assertDoesNotExist()
@@ -260,7 +261,7 @@ class ProductScreensUiTest {
                         },
                         authorityEpoch = 4
                     ),
-                    activeContext = warehouseContext,
+                    activeContext = CatalogOperationsContextAdapter.from(warehouseContext),
                     onChangeContext = {},
                     onBack = {},
                     onQueryChanged = { query = it },
@@ -294,7 +295,7 @@ class ProductScreensUiTest {
                         status = ProductSearchStatus.Empty,
                         authorityEpoch = 4
                     ),
-                    activeContext = warehouseContext,
+                    activeContext = CatalogOperationsContextAdapter.from(warehouseContext),
                     onChangeContext = {},
                     onBack = {},
                     onQueryChanged = {},
@@ -354,14 +355,14 @@ class ProductScreensUiTest {
             }
         }
 
-        composeRule.onNodeWithText(localizedString(R.string.warehouse_permission_title))
+        composeRule.onNodeWithText(localizedString(CatalogR.string.warehouse_permission_title))
             .assertIsDisplayed()
         composeRule.onNodeWithText(
-            localizedString(R.string.warehouse_permission_body),
+            localizedString(CatalogR.string.warehouse_permission_body),
             substring = true
         ).assertIsDisplayed()
         composeRule.onNodeWithText(
-            localizedString(R.string.warehouse_identify_product)
+            localizedString(CatalogR.string.warehouse_identify_product)
         ).assertDoesNotExist()
     }
 
@@ -376,7 +377,7 @@ class ProductScreensUiTest {
                         candidates = listOf(candidate),
                         authorityEpoch = 4
                     ),
-                    activeContext = warehouseContext,
+                    activeContext = CatalogOperationsContextAdapter.from(warehouseContext),
                     onChangeContext = {},
                     onBack = {},
                     onQueryChanged = {},
@@ -439,7 +440,7 @@ class ProductScreensUiTest {
             unit = "unidad",
             packaging = "Caja de 12",
             coldChain = "Refrigerado",
-            context = warehouseContext,
+            context = CatalogOperationsContextAdapter.from(warehouseContext),
             authorityEpoch = warehouseContext.authorityEpoch,
             imageFileName = "agriform-queso-grana-padano-dop-150g.png"
         )

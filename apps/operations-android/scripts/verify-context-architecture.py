@@ -36,10 +36,12 @@ for context in CONTEXTS:
                 require(owner in CONTEXTS and target in LAYERS,
                         f'{context}/{layer}: unknown context module {dep}')
                 if owner != context:
-                    require(target in ('domain', 'application'),
+                    require(target == 'application',
+                            f'{context}/{layer}: foreign domain dependency {dep}'
+                            if target == 'domain' else
                             f'{context}/{layer}: foreign implementation dependency {dep}')
                     if layer == 'domain':
-                        require(owner == 'tenantaccessgovernance' and target == 'domain',
+                        require(False,
                                 f'{context}/domain: foreign domain dependency {dep}')
                 if layer == 'infrastructure':
                     require(target in ('domain', 'application'),
@@ -58,6 +60,12 @@ for context in CONTEXTS:
             require(package and package.group(1).startswith(f'{PREFIX}{context}.{layer}.'),
                     f'{source.relative_to(ROOT)}: package outside owning layer')
             for imported in re.findall(r'^import (\S+)', body, re.M):
+                parts = imported.removeprefix(PREFIX).split('.')
+                if imported.startswith(PREFIX) and parts[0] in CONTEXTS and parts[0] != context:
+                    require(len(parts) > 2 and parts[1:3] == ['application', 'publicapi'],
+                            f'{source.name}: foreign domain model {imported}'
+                            if parts[1] == 'domain' else
+                            f'{source.name}: foreign non-public contract import {imported}')
                 if jvm:
                     require(not imported.startswith(('android.', 'androidx.', 'dagger.', 'javax.inject.',
                             'retrofit2.', 'okhttp3.', 'kotlinx.serialization.', 'org.json.',
@@ -79,9 +87,7 @@ for context in CONTEXTS:
                         if layer == 'domain':
                             require(parts[1] == 'domain', f'{source.name}: domain imports application')
                             if parts[0] != context:
-                                shared_identity = f'{PREFIX}tenantaccessgovernance.domain.model.operations.'
-                                require(imported in (shared_identity + 'ActiveOperationsContext',
-                                                     shared_identity + 'VerifiedOperationsIdentity'),
+                                require(False,
                                         f'{source.name}: foreign domain model {imported}')
                 if layer == 'presentation':
                     require(not imported.startswith(('kotlinx.serialization.', 'org.json.', 'retrofit2.', 'okhttp3.')),
@@ -100,7 +106,7 @@ for context in CONTEXTS:
                 require(re.search(r'\bfile\.(?:isFile|length\(|readBytes\(|writeBytes\(|delete\()', body) is None,
                         f'{source.name}: file IO in {layer}')
 
-require(not any(p.is_dir() and p.name != 'scoped' for p in (ROOT / 'core/local/src/main/kotlin/com/nexa/mobile/operations/core/local').iterdir()),
+require(not any(p.is_dir() and p.name not in ('scoped', 'files') for p in (ROOT / 'core/local/src/main/kotlin/com/nexa/mobile/operations/core/local').iterdir()),
         'Workflow-specific persistence remains in generic core/local')
 
 for foundation in ('network', 'local', 'auth', 'device', 'designsystem'):
@@ -115,6 +121,11 @@ for foundation in ('network', 'local', 'auth', 'device', 'designsystem'):
         if foundation == 'network':
             require(re.search(r'/api/v1/[a-z][a-z-]+', body) is None, f'{source.name}: business route in generic transport')
 for source in (ROOT / 'app/src/main').rglob('*.kt'):
+    body = source.read_text()
+    controllers = re.findall(
+        r'\bclass\s+(\w+)(?:(?!\b(?:class|object)\s).)*?:\s*ViewModel\s*\(', body, re.S)
+    require(all(name == 'RootViewModel' and source.name == 'RootViewModel.kt' for name in controllers),
+            f'{source.name}: feature ViewModel in composition root')
     require('DebugReviewActivity' not in source.read_text() and 'ReviewScenarioProvider' not in source.read_text(),
             f'{source.name}: debug tooling in release source')
 for path in ('app/src/main/AndroidManifest.xml', 'app/src/release/AndroidManifest.xml'):

@@ -32,6 +32,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.CatalogOperationsContext
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ScannerIdentifierType
@@ -49,12 +50,11 @@ import com.nexa.mobile.operations.core.designsystem.NexaStatePanel
 import com.nexa.mobile.operations.core.designsystem.NexaTaskRow
 import com.nexa.mobile.operations.core.designsystem.NexaTopAppBar
 import com.nexa.mobile.operations.core.designsystem.R as DesignR
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
 
 @Composable
 fun ProductSearchScreen(
     state: ProductSearchUiState,
-    activeContext: ActiveOperationsContext?,
+    activeContext: CatalogOperationsContext?,
     modifier: Modifier = Modifier,
     onChangeContext: () -> Unit,
     onBack: () -> Unit,
@@ -133,7 +133,7 @@ fun ConfirmedSkuScreen(
 @Composable
 fun ProductScannerScreen(
     state: ProductScannerUiState,
-    activeContext: ActiveOperationsContext?,
+    activeContext: CatalogOperationsContext?,
     modifier: Modifier = Modifier,
     cameraPreview: @Composable (Modifier) -> Unit,
     onBack: () -> Unit,
@@ -399,7 +399,7 @@ private fun ScannerValue(label: String, value: String) {
 @Composable
 private fun WarehouseSurfaceHeader(
     title: String,
-    activeContext: ActiveOperationsContext?,
+    activeContext: CatalogOperationsContext?,
     onChangeContext: () -> Unit,
     onBack: (() -> Unit)? = null
 ) {

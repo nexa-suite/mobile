@@ -1,15 +1,16 @@
 package com.nexa.mobile.operations
 
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductScannerUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.TaskVisibilityHint
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseRoute
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WorkEntryCapability
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WorkEntryStatus
 import com.nexa.mobile.operations.core.auth.session.SessionState
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.PermissionHint
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.permissionHintProjection
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
-import com.nexa.mobile.operations.workentry.TaskVisibilityHint
-import com.nexa.mobile.operations.workentry.WarehouseRoute
-import com.nexa.mobile.operations.workentry.WarehouseUiState
-import com.nexa.mobile.operations.workentry.WorkEntryCapability
-import com.nexa.mobile.operations.workentry.WorkEntryStatus
 
 internal enum class OperationsRouteIdentity(val stableId: String) {
     CatalogSearch("operations.warehouse.catalog-search"),
@@ -203,7 +204,7 @@ internal object OperationsCapabilities {
                     CapabilityGuardBehavior.StockConditionInCurrentAuthorityEpoch &&
                     capability.guardBehavior !=
                     CapabilityGuardBehavior.PickingInCurrentAuthorityEpoch &&
-                    context.permissionHint != capability.requiredContextPermissionHint
+                    context.permissionHintProjection() != capability.requiredContextPermissionHint
                 )
         ) {
             return false

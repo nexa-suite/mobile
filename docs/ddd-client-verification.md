@@ -76,7 +76,8 @@ The following table separates completed local gates from remaining gates:
 | BC-05/BC-06 moved storage Android instrumentation tests | PASS on API 37 and API 29 as part of each complete connected gate |
 | Release-origin rejection | PASS: six expected rejections |
 | `:app:assembleRelease -PnexaReleaseApiBaseUrl=https://nexa-api-69bj.onrender.com/ --dependency-verification strict` | PASS after final Direct Order response validation refinements |
-| CI result for an immutable candidate | PENDING |
+| CI result for the published candidate | PASS: [run 37817216074](https://github.com/nexa-suite/mobile/actions/runs/37817216074), all five jobs passed on candidate commit `044006c1acebbe006a62dd9360686d3b258dfbda`; published tag `v1.1.0` points to `main` commit `6cdb4318fa2e41a0268cce8900c138caffc93aec` |
+| PR #41 initial synchronization checkpoint (superseded below) | Historical: at the GitHub PR head observed on 2026-10-08, `f5427857c74fafa041685e22d082bf3af45b8183`, static and API 37 checks passed in [run 37822759683](https://github.com/nexa-suite/mobile/actions/runs/37822759683); API 29 promotion was skipped. At that checkpoint corrective validation had not run; the post-release section below supersedes this status. |
 
 The storage tests now belong to the context infrastructure modules. BC-05 JVM
 tests are `ReceivingMetadataStoreCoreTest`,
@@ -92,7 +93,8 @@ instrumentation passed on API 37 and API 29.
 The reproducible commands and XML report locations are in the
 [verification guide](verification.md). The owner decision dated 2026-10-08 for
 MOB-US-009 (direct order) is recorded in the [alignment](client-ddd-alignment.md);
-no check in this record verifies that API or client implementation.
+the Direct Order client checks are recorded in the resumed and corrective
+sections. These checks do not establish end-to-end Product acceptance.
 
 ## Authority references
 
@@ -109,7 +111,7 @@ current implementation contracts. Mobile Report is academic evidence only.
 Implementation status does not become Product Acceptance, System Acceptance
 or production readiness.
 
-## Completion and remaining integration
+## Published v1.1.0 and follow-up work
 
 The resumed execution verified publisher artifacts under strict dependency
 verification, corrected source filenames and formatting, tested Direct Order
@@ -119,18 +121,25 @@ scope is mapped separately from the expanded Jira projection. Release-origin
 rejections and R8 assembly also passed.
 
 The APK was signed with the existing official certificate and passed signature
-and 16 KB alignment checks; its checksum is recorded in the candidate notes.
-The corrective implementation and research commits are signed locally.
-Remaining work is to require GitHub CI for the immutable candidate,
-integrate the corrective branch and publish v1.1.0 with the same official
-Android certificate. Close the task's branches only after integration. Signing
-secrets remain outside this repository.
+and 16 KB alignment checks. Its published asset SHA-256 is
+`a5e27394de8fa422599ca463dd1d6ee3f6f80d8a06c157303234dd1b4e91f769`; the
+[v1.1.0 GitHub Release](https://github.com/nexa-suite/mobile/releases/tag/v1.1.0)
+was published on 2026-10-08. Tag `v1.1.0` points to `main` commit
+`6cdb4318fa2e41a0268cce8900c138caffc93aec`. Candidate CI run 37817216074
+passed; signing secrets remain outside this repository.
 
-The prior invalid Mobile PR #38 is closed. This corrective Mobile branch remains
-open for completion. Android version values target 1.1.0 (code 10), but no tag,
-release, completed Sprint acceptance or current production gate is claimed.
-The locally signed APK is recorded in the [candidate notes](releases/v1.1.0.md). Blueprint PR #33 is merged, its Diego-authored commit is GitHub
-Verified, and its branch has been removed.
+PR [#41](https://github.com/nexa-suite/mobile/pull/41) remains open to
+synchronize v1.1.0 into `develop` and contains follow-up changes after the
+published tag. Those changes are not part of v1.1.0. The latest reported PR
+checkpoint `e091be0eb737a37ecfe28e44b7b776c96d5dca92` passed
+[PR #42 CI run 37852789349](https://github.com/nexa-suite/mobile/actions/runs/37852789349).
+The corrective source at `b18337e63accdbd56906ad73b5294345b1727ac0`
+passed local static/JVM, API 29/API 37 and release-build gates. The Android
+Studio follow-up below changes dependency trust metadata and documentation;
+its updated-head CI, review and integration remain pending. The
+release is controlled direct distribution against the validation API, not a
+production deployment. Blueprint PR #33 is merged and remains the accepted
+Direct Order scope source.
 
 ## Historical baseline — not current validation
 
@@ -169,8 +178,136 @@ emulator, integration, DDD-boundary or acceptance evidence.
 
 ## Acceptance and release limits
 
-No Product/UX Acceptance, System Acceptance, production readiness, physical
-device acceptance or release result is claimed for the current refactor. The
-Owner has authorized the v1.1.0 refactor release scope; that authorization is
-not evidence that an artifact was built, published, accepted or deployed. This
-record does not mark the release complete.
+No Product/UX Acceptance, System Acceptance, production readiness or physical
+device acceptance is claimed for the current refactor. The v1.1.0 GitHub
+Release is published as controlled direct distribution against a validation
+API origin. Publication is not evidence of Product acceptance, System
+Acceptance, production readiness or deployment. The post-release changes in
+PR #41 and PR #42 remain outside the tag. Local technical validation and CI at
+`e091be0` passed; the subsequent Android Studio follow-up still requires
+updated-head CI, review and integration.
+
+## Post-release corrective verification — 2026-10-08
+
+Source commit `b18337e63accdbd56906ad73b5294345b1727ac0` moves verified
+workforce scope and commercial permission hints to BC-01 application public
+APIs, maps BC-03 Catalog scope in its adapter, removes the foreign-domain
+exception and restores the new-decision action for terminal Direct Order
+failures. Unknown outcomes retain the original idempotency key and body.
+These changes are not in the published `v1.1.0` tag.
+
+Executed from `apps/operations-android` with JDK 17 and strict dependency
+verification:
+
+- `python3 scripts/verify-context-architecture.py`: PASS, 11 roots.
+- `python3 scripts/test-context-architecture.py`: PASS, baseline and eight
+  negative probes, including BC-01 domain dependency/import rejection.
+- `./gradlew verifyAndroidArchitecture ktlintCheck lintDebug testDebugUnitTest
+  :app:assembleDebug assembleDebugAndroidTest --dependency-verification strict
+  --console=plain --continue`: PASS; 528 JVM cases in 116 XML suites, zero
+  failures, errors or skips. `ktlintFormat` ran before verification.
+- `scripts/verify-connected-local.sh <serial>
+  -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.nexa.mobile.operations.RequiresPrivateFixture
+  --console=plain`: PASS separately on API 37 and API 29; each recorded 65
+  cases in 13 XML suites with zero failures, errors or skips. Serial was
+  `emulator-5554` for API 37 and `emulator-5556` for API 29. The BC-04 Compose
+  recovery case clicks the new-decision action for both terminal failures and
+  checks same-key replay for an unknown outcome. Private-fixture tests remain
+  outside the ordinary suite.
+- `./gradlew :app:assembleRelease
+  -PnexaReleaseApiBaseUrl=https://nexa-api-69bj.onrender.com/
+  --dependency-verification strict --console=plain`: PASS, including R8 and
+  release lint. This build was not signed or published as another release.
+- Documentation scan: 294 relative links, zero broken; `git diff --check`: PASS.
+
+Three earlier aggregate attempts failed on call sites and test fixtures that
+still passed BC-01 scope to Catalog, plus an invalid Compose assertion import.
+The affected composition calls and fixtures now explicitly map or construct
+Catalog-owned scope; the import was removed. The final aggregate above passed.
+Remote CI subsequently passed at `e091be0`; required review and integration
+remain separate gates.
+
+## Android Studio verification — 2026-10-08
+
+Android Studio Rabbit 1 (2026.2.1) opened the corrective Android project in a
+separate window at branch checkpoint `e091be0`, preserving the original
+checkout. The first two IDE syncs failed because strict dependency verification
+had no trusted hashes for six source/sample JARs requested by the IDE. The
+cached bytes were compared with official Google Maven artifacts and published
+SHA1 values before adding SHA256 entries. No dependency version changed and
+strict verification was not disabled.
+
+- Gradle Sync: finished successfully after the six source hashes were added.
+- IDE **Assemble 'app' Run Configuration**, executing `:app:assembleDebug`:
+  `BUILD SUCCESSFUL in 7s`.
+- IDE **Run 'app'**: `:app:assembleDebug` passed in 6s, installation succeeded,
+  and the embedded `Nexa_DDD_API29` emulator displayed the Nexa Operations
+  sign-in screen. No account credentials or protected business flows were
+  exercised in this manual startup check.
+- `python3 scripts/verify-context-architecture.py`: PASS, 11 roots.
+- `python3 scripts/test-context-architecture.py`: PASS, baseline and eight
+  negative probes.
+
+This IDE check verifies import, debug assembly, installation and startup. It
+does not establish architectural completion or Product acceptance. The accompanying source review found composition-root workflow ownership
+and Direct Order terminology issues. The later
+[audit-driven refinements](client-ddd-alignment.md#audit-driven-ownership-refinements)
+record their corrective implementation. Updated-head CI is
+required for this dependency-metadata/documentation follow-up.
+
+## Audit correction verification — 2026-10-08
+
+Source commit `dd148bebd0153bbbd2150e1cd2d4d2211869ae4a` includes the
+current-context invalidation fence, immutable Credit and Picking public
+contracts, BC-03 work entry, BC-05/BC-06 returned evidence ownership, Direct
+Order terminology and persisted-record compatibility, and stronger boundary
+fitness checks. These corrections remain outside published `v1.1.0`.
+
+Executed with JDK 17 and strict dependency verification:
+
+- `python3 scripts/verify-context-architecture.py`: PASS, 11 canonical roots.
+- `python3 scripts/test-context-architecture.py`: PASS, baseline and 13
+  negative probes.
+- `./gradlew ktlintFormat verifyAndroidArchitecture ktlintCheck lintDebug
+  testDebugUnitTest :app:assembleDebug assembleDebugAndroidTest
+  --dependency-verification strict --console=plain --continue`: PASS,
+  `BUILD SUCCESSFUL in 46s`; 555 JVM cases in 120 XML suites, zero failures,
+  errors or skips. Cached unchanged tasks are included in the aggregate.
+
+- `scripts/verify-connected-local.sh emulator-5554
+  -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.nexa.mobile.operations.RequiresPrivateFixture
+  --console=plain`: PASS separately on API 29 (`1m 30s`) and API 37
+  (`1m 33s`). Each recorded 65 cases in 13 XML suites, zero failures, errors
+  or skips. Only the named AVD was connected for each run. Private-fixture
+  tests were excluded from this ordinary suite.
+
+- `./gradlew :app:assembleRelease
+  -PnexaReleaseApiBaseUrl=https://nexa-api-69bj.onrender.com/
+  --dependency-verification strict --console=plain`: PASS in 2m 25s,
+  including R8, resource shrinking and release lint. The APK is unsigned;
+  this is build evidence, not another published release.
+- Documentation scan: 265 relative file links, zero broken;
+  `git diff --check`: PASS.
+
+Android Studio opened the corrective project and completed Gradle Sync in 4s.
+IDE **Run 'app'** completed `:app:assembleDebug` in 9s, installed successfully
+in 4s 88ms, and displayed the Nexa Operations sign-in screen on
+`Nexa_DDD_API29`. This manual check exercised startup without credentials.
+
+Earlier targeted runs failed on an extracted codec function reference, a
+cross-module test smart cast, fixture line length, and a refresh/replay HTTP
+fixture. They were corrected before the aggregate. The first aggregate found
+a renamed shared resource reference, a nullable dispatch test reference and
+an incorrect expected length-prefixed key. The second aggregate passed its
+behavioral tests but failed lint on three `Uri.parse` calls in new adapters.
+Those calls now use the required KTX extension; the final aggregate above
+passed. No validation or dependency-verification control was disabled.
+
+API `origin/main` at `78a3060cb56796520fcf8e9be36c63f88b4f9f51` already
+returns the required `403 ACCESS_CONTEXT_INVALID` contract, so no API code
+change was needed. Blueprint implementation status is proposed separately in
+[PR #34](https://github.com/nexa-suite/blueprint/pull/34); it distinguishes
+published Operations from missing Buyer runtime and pending acceptance.
+
+Product/UX Acceptance, System Acceptance, physical-device verification,
+private-fixture integration and production readiness remain separate gates.

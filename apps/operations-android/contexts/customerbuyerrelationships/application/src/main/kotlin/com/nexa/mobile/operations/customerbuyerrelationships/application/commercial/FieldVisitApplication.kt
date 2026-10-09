@@ -3,7 +3,7 @@ package com.nexa.mobile.operations.customerbuyerrelationships.application.commer
 import com.nexa.mobile.operations.customerbuyerrelationships.domain.model.commercial.CustomerRelationship
 import com.nexa.mobile.operations.customerbuyerrelationships.domain.model.commercial.FieldVisitIntent
 import com.nexa.mobile.operations.customerbuyerrelationships.domain.model.commercial.FieldVisitRecord
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 import java.time.Instant
 
 interface FieldVisitStore {

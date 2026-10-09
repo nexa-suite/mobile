@@ -7,6 +7,7 @@
     <string name="customer_contact_person">Contacto: %1$s</string>
     <string name="customer_current">Datos consultados. Actualiza antes de continuar trabajo comercial.</string>
     <string name="customer_denied">Acceso no vigente. No hay información protegida disponible.</string>
+    <string name="customer_context_invalidated">El contexto de acceso cambió. Selecciona un espacio de trabajo nuevamente.</string>
     <string name="customer_email">Correo electrónico: %1$s</string>
     <string name="customer_empty">Sin resultados autorizados.</string>
     <string name="customer_idle">Busca una relación autorizada.</string>

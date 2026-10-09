@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyDraftStore
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyEvidenceArtifactStore
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.InboundDiscrepancyGateway
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseEvidenceSelectionCoordinator
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.serialization.warehouse.CanonicalInboundDiscrepancyPayloadCodec
 import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.InboundDiscrepancyViewModel
 
@@ -12,7 +13,8 @@ internal object InboundDiscrepancyViewModelBindings {
     fun viewModelFactory(
         gateway: InboundDiscrepancyGateway,
         drafts: InboundDiscrepancyDraftStore,
-        artifacts: InboundDiscrepancyEvidenceArtifactStore
+        artifacts: InboundDiscrepancyEvidenceArtifactStore,
+        evidenceSelection: WarehouseEvidenceSelectionCoordinator
     ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -21,7 +23,8 @@ internal object InboundDiscrepancyViewModelBindings {
                 gateway,
                 drafts,
                 artifacts,
-                CanonicalInboundDiscrepancyPayloadCodec()
+                CanonicalInboundDiscrepancyPayloadCodec(),
+                evidenceSelection = evidenceSelection
             ) as T
         }
     }

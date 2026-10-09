@@ -2,6 +2,8 @@ package com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapte
 
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductScannerResolution
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.warehouse.ProductScannerGateway
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.CatalogOperationsContext
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.CatalogOperationsIdentity
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedScannedSku
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ScannerIdentifierType
 import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transport.NexaSkuIdentifierGateway
@@ -11,9 +13,7 @@ import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.VerifiedOperationsIdentity
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.PermissionHint
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -39,7 +39,7 @@ class ScannerOperationsGateway @Inject constructor(
     override suspend fun resolve(
         candidate: String,
         authorityEpoch: Long,
-        context: ActiveOperationsContext
+        context: CatalogOperationsContext
     ): ProductScannerResolution {
         val expectedIdentity = context.verifiedIdentity
             ?: return ProductScannerResolution.ContextInvalidated
@@ -121,7 +121,7 @@ class ScannerOperationsGateway @Inject constructor(
     }
 }
 
-private fun VerifiedSession.matches(identity: VerifiedOperationsIdentity): Boolean =
+private fun VerifiedSession.matches(identity: CatalogOperationsIdentity): Boolean =
     hasAuthorizedContext && userId == identity.userId && tenantId == identity.tenantId &&
         workspaceId == identity.workspaceId && membershipId == identity.membershipId &&
         permissions == identity.permissions

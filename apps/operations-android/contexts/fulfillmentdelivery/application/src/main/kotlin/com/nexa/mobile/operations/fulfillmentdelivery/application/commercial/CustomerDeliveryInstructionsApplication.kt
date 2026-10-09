@@ -2,7 +2,7 @@ package com.nexa.mobile.operations.fulfillmentdelivery.application.commercial
 
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.commercial.CustomerInstructionCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.commercial.CustomerInstructionSnapshot
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.commercial.CommercialAuthority
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 
 sealed interface CustomerInstructionResult {
     data class Current(val snapshot: CustomerInstructionSnapshot) : CustomerInstructionResult

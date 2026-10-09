@@ -83,4 +83,18 @@
     <string name="warehouse_value_cold_chain_refrigerated">Refrigerado</string>
     <string name="warehouse_value_packaging_unspecified">Sin especificar</string>
     <string name="warehouse_value_unit">Unidad</string>
+    <string name="warehouse_catalog_context_invalid_body">Vuelve a elegir un contexto antes de continuar.</string>
+    <string name="warehouse_identify_product">Identificar producto</string>
+    <string name="warehouse_identify_product_support">Buscar por nombre, SKU o presentación</string>
+    <string name="warehouse_logout">Cerrar sesión</string>
+    <string name="warehouse_no_task_body">No hay una tarea de Operations permitida en este contexto.</string>
+    <string name="warehouse_no_task_title">No hay tareas disponibles</string>
+    <string name="warehouse_permission_body">Tu sesión sigue activa. Si cambió tu acceso, vuelve a comprobarlo.</string>
+    <string name="warehouse_permission_title">No tienes permiso para esta tarea</string>
+    <string name="warehouse_permission_unknown_body">Se requiere confirmar el permiso actual antes de abrir esta tarea. Vuelve a comprobar tu contexto.</string>
+    <string name="warehouse_permission_unknown_title">No pudimos comprobar tus tareas</string>
+    <string name="warehouse_scan_product_code">Escanear código</string>
+    <string name="warehouse_scan_product_code_support">Leer un código de producto y comprobarlo en el contexto actual</string>
+    <string name="warehouse_catalog_session_invalid_body">Inicia sesión otra vez para continuar.</string>
+    <string name="warehouse_work_available">Trabajo disponible</string>
 </resources>

@@ -44,6 +44,33 @@ class NexaCustomerGatewayTest {
             assertEquals(1, server.requestCount)
         }
     }
+
+    @Test
+    fun distinguishesInvalidAccessContextFromAnOrdinaryAuthorizationDenial() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(problemResponse(403, "ACCESS_CONTEXT_INVALID"))
+            server.enqueue(problemResponse(403, "PERMISSION_DENIED"))
+            val endpoint = ApiEndpoint(server.url("/").toString())
+            val gateway = NexaCustomerGateway(
+                ProtectedCallExecutor(
+                    endpoint,
+                    ApiHttpClient.create(endpoint),
+                    FakeAccessTokenSource()
+                )
+            )
+
+            assertEquals(CustomerNetworkResult.ContextInvalidated, gateway.search("A", 0))
+            assertEquals(CustomerNetworkResult.PermissionDenied, gateway.search("B", 0))
+            assertEquals(2, server.requestCount)
+        }
+    }
+
+    private fun problemResponse(status: Int, code: String) = MockResponse()
+        .setResponseCode(status)
+        .addHeader("Content-Type", "application/problem+json")
+        .setBody("""{"status":$status,"code":"$code","category":"CLIENT_ERROR"}""")
+
     private class FakeAccessTokenSource : AccessTokenSource {
         override val sessionState: StateFlow<SessionState> = MutableStateFlow(SessionState.Active)
         private val lease = AccessTokenLease("access-1", generation = 1, epoch = 1)

@@ -62,17 +62,28 @@ fun CustomerSearchScreen(
                 },
                 modifier = Modifier.fillMaxWidth()
             )
-            Button(onClick = onSearch, enabled = state.status != CustomerSearchStatus.Loading) {
+            Button(
+                onClick = onSearch,
+                enabled = state.status != CustomerSearchStatus.Loading &&
+                    state.status != CustomerSearchStatus.ContextInvalidated
+            ) {
                 Text(stringResource(SharedR.string.customer_search))
             }
             Text(
                 stringResource(
                     when (state.status) {
                         CustomerSearchStatus.Idle -> R.string.customer_idle
+
                         CustomerSearchStatus.Loading -> R.string.customer_loading
+
                         CustomerSearchStatus.Current -> R.string.customer_current
+
                         CustomerSearchStatus.Unavailable -> R.string.customer_unavailable
+
                         CustomerSearchStatus.PermissionDenied -> R.string.customer_denied
+
+                        CustomerSearchStatus.ContextInvalidated ->
+                            R.string.customer_context_invalidated
                     }
                 ),
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }

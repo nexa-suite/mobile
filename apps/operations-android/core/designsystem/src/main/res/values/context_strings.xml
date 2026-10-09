@@ -8,7 +8,7 @@
     <string name="customer_previous">Previous</string>
     <string name="customer_search">Search</string>
     <string name="customer_version">Version: %1$d</string>
-    <string name="field_request_retry">Resolve the same submission</string>
+    <string name="same_submission_retry">Resolve the same submission</string>
     <string name="progress_current">Server information.</string>
     <string name="progress_customer_reference">Authorized customer reference</string>
     <string name="progress_denied">Access or relationship is no longer valid. Protected information is unavailable.</string>

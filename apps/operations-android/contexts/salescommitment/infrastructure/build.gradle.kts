@@ -31,7 +31,7 @@ dependencies {
     api(project(":contexts:customerbuyerrelationships:application"))
     api(project(":contexts:salescommitment:application"))
     api(project(":contexts:salescommitment:domain"))
-    api(project(":contexts:tenantaccessgovernance:domain"))
+    api(project(":contexts:tenantaccessgovernance:application"))
     implementation(project(":core:auth"))
     implementation(project(":core:local"))
     implementation(project(":core:network"))

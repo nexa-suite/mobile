@@ -1,21 +1,23 @@
 package com.nexa.mobile.operations
 
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.CatalogOperationsContext
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductScannerUiState
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.TaskVisibilityHint
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseRoute
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseUiState
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WorkEntryCapability
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WorkEntryStatus
 import com.nexa.mobile.operations.core.auth.session.SessionState
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.PermissionHint as PublicPermissionHint
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.VerifiedOperationsIdentity
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.VerifiedContextAuthority
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.VerifiedOperationsIdentity
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
-import com.nexa.mobile.operations.workentry.TaskVisibilityHint
-import com.nexa.mobile.operations.workentry.WarehouseRoute
-import com.nexa.mobile.operations.workentry.WarehouseUiState
-import com.nexa.mobile.operations.workentry.WorkEntryCapability
-import com.nexa.mobile.operations.workentry.WorkEntryStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -281,7 +283,7 @@ class OperationsCapabilitiesTest {
         )
         assertTrue(
             OperationsCapabilities.registered.all {
-                it.requiredContextPermissionHint == PermissionHint.Available &&
+                it.requiredContextPermissionHint == PublicPermissionHint.Available &&
                     it.requiredTaskVisibilityHint == TaskVisibilityHint.Available &&
                     it.featureOwner == OperationsFeatureOwner.Warehouse &&
                     it.deepRouteInvalidationBehavior ==
@@ -441,7 +443,7 @@ class OperationsCapabilitiesTest {
             unit = null,
             packaging = null,
             coldChain = null,
-            context = ActiveOperationsContext("Company", "Workspace", 3),
+            context = CatalogOperationsContext("Company", "Workspace", 3),
             authorityEpoch = 3
         )
         assertTrue(

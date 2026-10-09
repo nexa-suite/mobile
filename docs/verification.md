@@ -1,10 +1,19 @@
 # Android foundation verification
 
 The [DDD client execution record](ddd-client-verification.md) contains the
-current refactor status. As of 2026-10-08, only the Python check for 11 context
-roots has passed; all Gradle and device gates for the current refactor remain
-pending. Earlier observations below retain their original candidate scope and
-do not describe the current refactor.
+current refactor status. Operations Mobile v1.1.0 was published on 2026-10-08
+from tag `v1.1.0` at source commit
+`6cdb4318fa2e41a0268cce8900c138caffc93aec`; its attached APK and digest are in
+the [release notes](releases/v1.1.0.md). Candidate CI [run
+37817216074](https://github.com/nexa-suite/mobile/actions/runs/37817216074)
+passed. Local static/JVM verification passed with 524 tests; API 29 and API 37
+AVD instrumentation passed 64 tests each, as recorded in the execution record.
+PR [#41](https://github.com/nexa-suite/mobile/pull/41) holds
+follow-up changes that are not part of the published tag. The corrective source at
+`b18337e63accdbd56906ad73b5294345b1727ac0` passed local static/JVM, API 29/API
+37 and release-build gates. Updated-head GitHub CI, review and integration
+remain pending. Earlier observations below retain their original
+candidate scope and do not describe the current follow-up branch.
 
 Run Gradle commands from `apps/operations-android` with JDK 17. Install Android SDK packages `platforms;android-37.0`, `build-tools;36.0.0`, and `platform-tools`. Keep the Gradle wrapper and dependency verification metadata in the repository; review the bytes and source of a new dependency artifact before accepting its checksum. The wrapper pins the official SHA-256 for the Gradle 9.7.1 binary distribution.
 

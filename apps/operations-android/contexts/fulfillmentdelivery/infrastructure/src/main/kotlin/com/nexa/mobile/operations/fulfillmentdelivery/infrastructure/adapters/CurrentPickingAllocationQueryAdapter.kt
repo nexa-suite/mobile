@@ -4,6 +4,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehous
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingLoadResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.publicapi.CurrentPickingAllocationQuery
 import com.nexa.mobile.operations.fulfillmentdelivery.application.publicapi.CurrentPickingAllocationResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.publicapi.PickingAllocationScope
 import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingGateway
 import dagger.Module
 import dagger.Provides
@@ -19,9 +20,9 @@ class OperationsCurrentPickingAllocationQuery @Inject constructor(
 ) : CurrentPickingAllocationQuery {
     override suspend fun current(
         fulfillmentId: String,
-        authority: PickingAuthority
+        authority: PickingAllocationScope
     ): CurrentPickingAllocationResult = when (
-        val result = pickingGateway.load(fulfillmentId, authority)
+        val result = pickingGateway.load(fulfillmentId, authority.toPickingAuthority())
     ) {
         is PickingLoadResult.Loaded -> CurrentPickingAllocationResult.Loaded(
             result.snapshot.allocation
@@ -53,3 +54,12 @@ object CurrentPickingAllocationQueryModule {
         implementation: OperationsCurrentPickingAllocationQuery
     ): CurrentPickingAllocationQuery = implementation
 }
+
+private fun PickingAllocationScope.toPickingAuthority() = PickingAuthority(
+    userId,
+    tenantId,
+    workspaceId,
+    membershipId,
+    permissions.toSet(),
+    authorityEpoch
+)

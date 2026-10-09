@@ -9,10 +9,14 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.ui.NavDisplay
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.CatalogOperationsContextAdapter
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ConfirmedSkuScreen
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductScannerScreen
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductScannerUiState
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchScreen
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.OperationsWorkEntryScreen
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseRoute
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseUiState
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessNotice
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessScreen
@@ -22,9 +26,6 @@ import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.Con
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserPhase
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserScreen
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserUiState
-import com.nexa.mobile.operations.workentry.OperationsWorkEntryScreen
-import com.nexa.mobile.operations.workentry.WarehouseRoute
-import com.nexa.mobile.operations.workentry.WarehouseUiState
 
 internal enum class RootDestination {
     Bootstrapping,
@@ -329,6 +330,8 @@ internal fun RootNavigation(
                                 } else {
                                     warehouseState.copy(activeContext = null)
                                 },
+                                additionalCapabilityLabels =
+                                    operationsWorkEntryAdditionalCapabilityLabels(),
                                 onLogout = onLogout,
                                 additionalWorkContent = {
                                     ConnectedOperationsEntries(
@@ -414,7 +417,9 @@ internal fun RootNavigation(
                             WarehouseContentNotice(accessState.notice) {
                                 ProductSearchScreen(
                                     state = search,
-                                    activeContext = warehouseState.activeContext,
+                                    activeContext = warehouseState.activeContext?.let(
+                                        CatalogOperationsContextAdapter::from
+                                    ),
                                     onChangeContext = onChangeContext,
                                     onBack = onWarehouseBack,
                                     onQueryChanged = { query ->
@@ -508,7 +513,9 @@ internal fun RootNavigation(
                         if (scannerAllowed) {
                             ProductScannerScreen(
                                 state = scannerState,
-                                activeContext = warehouseState.activeContext,
+                                activeContext = warehouseState.activeContext?.let(
+                                    CatalogOperationsContextAdapter::from
+                                ),
                                 cameraPreview = scannerCameraPreview,
                                 onBack = onWarehouseBack,
                                 onChangeContext = onChangeContext,

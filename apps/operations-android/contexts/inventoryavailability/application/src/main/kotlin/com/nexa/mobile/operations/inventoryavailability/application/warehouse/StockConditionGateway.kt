@@ -1,7 +1,7 @@
 package com.nexa.mobile.operations.inventoryavailability.application.warehouse
 
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.StockConditionGatewayResult
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
 
 /** Read-only gateway; each request is bound by the app adapter to current verified identity. */
 interface StockConditionGateway {

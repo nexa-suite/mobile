@@ -4,9 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductScannerResolution
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.warehouse.ProductScannerGateway
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.CatalogOperationsContext
 import com.nexa.mobile.operations.core.device.scanner.ProductCodeCandidate
 import com.nexa.mobile.operations.core.device.scanner.ProductCodeScannerEvent
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,10 +19,10 @@ class ProductScannerViewModel(
     private val mutableState = MutableStateFlow(initialState)
     val state = mutableState.asStateFlow()
 
-    private var activeContext: ActiveOperationsContext? = null
+    private var activeContext: CatalogOperationsContext? = null
     private var requestGeneration = 0L
 
-    fun enterOperations(context: ActiveOperationsContext) {
+    fun enterOperations(context: CatalogOperationsContext) {
         if (activeContext == context &&
             mutableState.value.authorityEpoch == context.authorityEpoch
         ) {

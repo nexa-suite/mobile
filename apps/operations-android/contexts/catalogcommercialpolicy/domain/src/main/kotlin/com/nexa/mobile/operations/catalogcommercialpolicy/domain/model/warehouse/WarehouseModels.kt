@@ -1,7 +1,5 @@
 package com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse
 
-import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.operations.ActiveOperationsContext
-
 data class ProductCandidate(
     val key: String,
     val productDisplayName: String,
@@ -26,7 +24,7 @@ data class ConfirmedSkuProjection(
     val unit: String?,
     val packaging: String?,
     val coldChain: String?,
-    val context: ActiveOperationsContext,
+    val context: CatalogOperationsContext,
     val authorityEpoch: Long,
     val imageFileName: String? = null
 ) {
