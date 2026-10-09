@@ -19,6 +19,12 @@ import 'contexts/credit_receivables/application/credit_exposure_repository.dart'
 import 'contexts/credit_receivables/infrastructure/buyer_credit_exposure_repository_impl.dart';
 import 'contexts/credit_receivables/presentation/buyer_credit_exposure_page.dart';
 import 'contexts/credit_receivables/presentation/buyer_credit_exposure_view_model.dart';
+import 'contexts/payments/application/buyer_payments_repository.dart';
+import 'contexts/payments/application/payment_report_idempotency_store.dart';
+import 'contexts/payments/infrastructure/buyer_payments_repository_impl.dart';
+import 'contexts/payments/infrastructure/file_payment_report_idempotency_store.dart';
+import 'contexts/payments/presentation/buyer_payment_activity_page.dart';
+import 'contexts/payments/presentation/buyer_payment_activity_view_model.dart';
 import 'contexts/fulfillment_delivery/infrastructure/buyer_deliveries_repository_impl.dart';
 import 'contexts/fulfillment_delivery/application/buyer_deliveries_repository.dart';
 import 'contexts/fulfillment_delivery/presentation/buyer_deliveries_page.dart';
@@ -73,6 +79,8 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
   BuyerAccessViewModel? _accessViewModel;
   CatalogRepositoryImpl? _catalogRepository;
   BuyerCreditExposureRepositoryImpl? _creditExposureRepository;
+  BuyerPaymentsRepositoryImpl? _paymentsRepository;
+  FilePaymentReportIdempotencyStore? _paymentIdempotencyStore;
   BuyerDeliveriesRepositoryImpl? _deliveriesRepository;
   BuyerOrdersRepositoryImpl? _ordersRepository;
   PurchaseRequestRepositoryImpl? _purchaseRequestRepository;
@@ -95,6 +103,8 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
       _accessViewModel = BuyerAccessViewModel(_accessRepository!);
       _catalogRepository = CatalogRepositoryImpl(api);
       _creditExposureRepository = BuyerCreditExposureRepositoryImpl(api);
+      _paymentsRepository = BuyerPaymentsRepositoryImpl(api);
+      _paymentIdempotencyStore = FilePaymentReportIdempotencyStore();
       _deliveriesRepository = BuyerDeliveriesRepositoryImpl(api);
       _ordersRepository = BuyerOrdersRepositoryImpl(api);
       _purchaseRequestRepository = PurchaseRequestRepositoryImpl(
@@ -102,7 +112,11 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         FilePurchaseRequestIdempotencyStore(),
       );
       _businessDocumentsRepository = BusinessDocumentsRepositoryImpl(api);
-      _router = _createRouter(_accessViewModel!);
+      _router = _createRouter(
+        _accessViewModel!,
+        _paymentsRepository!,
+        _paymentIdempotencyStore!,
+      );
     } on FormatException {
       _configurationInvalid = true;
     }
@@ -123,6 +137,8 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
     final accessViewModel = _accessViewModel;
     final catalog = _catalogRepository;
     final creditExposure = _creditExposureRepository;
+    final payments = _paymentsRepository;
+    final paymentIdempotencyStore = _paymentIdempotencyStore;
     final deliveries = _deliveriesRepository;
     final orders = _ordersRepository;
     final purchaseRequests = _purchaseRequestRepository;
@@ -133,6 +149,8 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         accessViewModel == null ||
         catalog == null ||
         creditExposure == null ||
+        payments == null ||
+        paymentIdempotencyStore == null ||
         deliveries == null ||
         orders == null ||
         purchaseRequests == null ||
@@ -146,6 +164,10 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         Provider<BuyerAccessRepository>.value(value: access),
         Provider<CatalogRepository>.value(value: catalog),
         Provider<BuyerCreditExposureRepository>.value(value: creditExposure),
+        Provider<BuyerPaymentsRepository>.value(value: payments),
+        Provider<PaymentReportIdempotencyStore>.value(
+          value: paymentIdempotencyStore,
+        ),
         Provider<BuyerDeliveriesRepository>.value(value: deliveries),
         Provider<BuyerOrdersRepository>.value(value: orders),
         Provider<PurchaseRequestRepository>.value(value: purchaseRequests),
@@ -199,7 +221,11 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
   }
 }
 
-GoRouter _createRouter(BuyerAccessViewModel access) => GoRouter(
+GoRouter _createRouter(
+  BuyerAccessViewModel access,
+  BuyerPaymentsRepository payments,
+  PaymentReportIdempotencyStore paymentIdempotencyStore,
+) => GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/catalog',
   refreshListenable: access,
@@ -224,6 +250,18 @@ GoRouter _createRouter(BuyerAccessViewModel access) => GoRouter(
             ) ??
             false)) {
       return '/orders';
+    }
+    if (status == BuyerAccessStatus.signedIn &&
+        path.startsWith('/credit/receivables/') &&
+        !(access.snapshot.currentContext?.permissions.contains(
+              BuyerPaymentActivityViewModel.readPermission,
+            ) ??
+            false) &&
+        !(access.snapshot.currentContext?.permissions.contains(
+              BuyerPaymentActivityViewModel.createPermission,
+            ) ??
+            false)) {
+      return '/credit';
     }
     return null;
   },
@@ -314,6 +352,38 @@ GoRouter _createRouter(BuyerAccessViewModel access) => GoRouter(
             GoRoute(
               path: '/credit',
               builder: (context, state) => const BuyerCreditExposurePage(),
+              routes: [
+                GoRoute(
+                  path: 'receivables/:receivableId/payments',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) {
+                    final receivableId = state.pathParameters['receivableId']!;
+                    final selected = state.extra;
+                    final expectedAccountId =
+                        selected is BuyerReceivableProjection
+                        ? selected.clientAccountId
+                        : null;
+                    final receivableNumber =
+                        selected is BuyerReceivableProjection
+                        ? selected.number
+                        : null;
+                    return ChangeNotifierProvider<
+                      BuyerPaymentActivityViewModel
+                    >(
+                      create: (context) => BuyerPaymentActivityViewModel(
+                        payments,
+                        context.read<BuyerAccessRepository>(),
+                        paymentIdempotencyStore,
+                        receivableId,
+                        expectedClientAccountId: expectedAccountId,
+                      ),
+                      child: BuyerPaymentActivityPage(
+                        receivableNumber: receivableNumber,
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
           ],
         ),
@@ -401,7 +471,7 @@ final class _BuyerNavigationShell extends StatelessWidget {
       const NavigationDestination(
         icon: Icon(Icons.account_balance_wallet_outlined),
         selectedIcon: Icon(Icons.account_balance_wallet),
-        label: 'Crédito',
+        label: 'Crédito y pagos',
       ),
       const NavigationDestination(
         icon: Icon(Icons.description_outlined),

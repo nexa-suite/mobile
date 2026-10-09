@@ -310,6 +310,52 @@ void main() {
             200,
           );
         }
+        if (path == '/api/v1/receivables') {
+          expect(request.method, 'GET');
+          expect(request.url.queryParameters, {'page': '0', 'size': '25'});
+          expect(
+            request.url.queryParameters.containsKey('clientAccountId'),
+            isFalse,
+          );
+          return http.Response(
+            jsonEncode({
+              'items': [
+                {
+                  'id': '00000000-0000-4000-8000-000000000010',
+                  'clientAccountId': '00000000-0000-4000-8000-000000000002',
+                  'subjectType': 'SALES_ORDER',
+                  'subjectId': '00000000-0000-4000-8000-000000000001',
+                  'number': 'REC-0001',
+                  'currency': 'PEN',
+                  'amount': 80,
+                  'amountPaid': 0,
+                  'remaining': 80,
+                  'status': 'OPEN',
+                  'dueAt': null,
+                  'version': 1,
+                },
+              ],
+              'page': 0,
+              'size': 25,
+              'total': 1,
+            }),
+            200,
+          );
+        }
+        if (path ==
+            '/api/v1/receivables/00000000-0000-4000-8000-000000000010/payments') {
+          expect(request.method, 'GET');
+          expect(request.url.queryParameters, {'page': '0', 'size': '25'});
+          return http.Response(
+            jsonEncode({
+              'items': <Object?>[],
+              'page': 0,
+              'size': 25,
+              'total': 0,
+            }),
+            200,
+          );
+        }
         if (path == '/api/v1/business-documents') {
           expect(request.url.queryParameters, {'page': '0', 'size': '25'});
           expect(
@@ -392,10 +438,24 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Crédito'));
+      await tester.tap(find.text('Crédito y pagos'));
       await tester.pumpAndSettle();
       expect(find.text('260 PEN'), findsOneWidget);
       expect(find.text('Exposición usada'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('REC-0001'), 400);
+      expect(find.text('REC-0001'), findsOneWidget);
+      await tester.tap(find.text('REC-0001'));
+      await tester.pumpAndSettle();
+      expect(find.text('Cuenta REC-0001'), findsOneWidget);
+      const paymentHistoryTitle = Key('buyer-payment-history-title');
+      await tester.drag(
+        find.byKey(const Key('buyer-payment-activity-list')),
+        const Offset(0, -500),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(paymentHistoryTitle), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('Documentos'));
       await tester.pumpAndSettle();
