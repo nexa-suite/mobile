@@ -351,15 +351,15 @@ GoRouter _createRouter(BuyerAccessViewModel access) => GoRouter(
               builder: (context, state) => const BuyerDeliveriesPage(),
               routes: [
                 GoRoute(
-                  path: ':dispatchId',
+                  path: ':deliveryId',
                   parentNavigatorKey: _rootNavigatorKey,
                   builder: (context, state) {
-                    final dispatchId = state.pathParameters['dispatchId']!;
+                    final deliveryId = state.pathParameters['deliveryId']!;
                     return ChangeNotifierProvider<BuyerDeliveryDetailViewModel>(
                       create: (context) => BuyerDeliveryDetailViewModel(
                         context.read<BuyerDeliveriesRepository>(),
                         context.read<BuyerAccessRepository>(),
-                        dispatchId,
+                        deliveryId,
                       )..load(),
                       child: const BuyerDeliveryDetailPage(),
                     );

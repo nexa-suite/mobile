@@ -30,7 +30,7 @@ void main() {
       expect(viewModel.total, 0);
       expect(viewModel.status, BuyerDeliveriesStatus.idle);
 
-      pendingNextPage.complete(_page(1, 26, dispatchNumber: 'OLD-CONTEXT'));
+      pendingNextPage.complete(_page(1, 26, salesOrderNumber: 'OLD-CONTEXT'));
       await pending;
       expect(viewModel.items, isEmpty);
       expect(viewModel.status, BuyerDeliveriesStatus.idle);
@@ -309,33 +309,31 @@ void main() {
 BuyerDeliveryPageProjection _page(
   int page,
   int total, {
-  String dispatchNumber = 'DO-0001',
+  String salesOrderNumber = 'SO-0001',
 }) => BuyerDeliveryPageProjection(
-  items: [_delivery(dispatchNumber)],
+  items: [_delivery(salesOrderNumber)],
   page: page,
   size: 25,
   total: total,
 );
 
-BuyerDeliveryProjection _delivery(String dispatchNumber) =>
+BuyerDeliveryProjection _delivery(String salesOrderNumber) =>
     BuyerDeliveryProjection(
       id: _deliveryId,
-      dispatchNumber: dispatchNumber,
-      salesOrderNumber: 'SO-0001',
-      status: 'IN_TRANSIT',
-      destination: 'Sucursal principal',
+      salesOrderNumber: salesOrderNumber,
+      status: 'DISPATCHED',
+      version: 1,
+      createdAt: DateTime.utc(2026, 10, 9),
       updatedAt: DateTime.utc(2026, 10, 9),
-      alerts: const [],
+      destination: 'Sucursal principal',
     );
 
 BuyerDeliveryDetailProjection _detail() => BuyerDeliveryDetailProjection(
-  delivery: _delivery('DO-0001'),
+  delivery: _delivery('SO-0001'),
   events: [
     BuyerDeliveryEventProjection(
-      id: '00000000-0000-4000-8000-000000000002',
-      type: 'IN_TRANSIT',
+      type: 'HANDED_OVER',
       occurredAt: DateTime.utc(2026, 10, 9),
-      summary: 'En tránsito.',
     ),
   ],
 );
@@ -376,7 +374,7 @@ final class _Repository implements BuyerDeliveriesRepository {
   }
 
   @override
-  Future<BuyerDeliveryDetailProjection> detail(String dispatchId) {
+  Future<BuyerDeliveryDetailProjection> detail(String deliveryId) {
     detailCalls++;
     return detailResult ?? Future.value(_detail());
   }

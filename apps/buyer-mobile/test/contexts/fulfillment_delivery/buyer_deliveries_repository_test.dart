@@ -7,11 +7,10 @@ import 'package:nexa_buyer_mobile/contexts/fulfillment_delivery/infrastructure/b
 import 'package:nexa_buyer_mobile/core/network/nexa_api_client.dart';
 
 const _deliveryId = '00000000-0000-4000-8000-000000000001';
-const _eventId = '00000000-0000-4000-8000-000000000002';
 
 void main() {
   test(
-    'lists Buyer deliveries without selecting an account or exposing PII',
+    'lists the server-scoped Buyer delivery page without account selectors',
     () async {
       http.Request? request;
       final api = _api((value) async {
@@ -22,7 +21,7 @@ void main() {
             'page': 1,
             'size': 25,
             'total': 26,
-            'clientAccountId': 'PRIVATE ACCOUNT ID',
+            'clientAccountId': 'IGNORED ACCOUNT SELECTOR',
           }),
           200,
         );
@@ -31,7 +30,7 @@ void main() {
       final page = await BuyerDeliveriesRepositoryImpl(api).list(page: 1);
 
       expect(request!.method, 'GET');
-      expect(request!.url.path, '/api/v1/dispatch-orders');
+      expect(request!.url.path, '/api/v1/buyer/deliveries');
       expect(request!.url.queryParameters, {'page': '1', 'size': '25'});
       expect(request!.headers['authorization'], 'Bearer access-secret');
       expect(request!.headers['x-nexa-client'], 'NATIVE');
@@ -39,88 +38,89 @@ void main() {
       expect(page.page, 1);
       expect(page.size, 25);
       expect(page.total, 26);
-      expect(page.items.single.dispatchNumber, 'DO-0001');
+      expect(page.items.single.id, _deliveryId);
+      expect(page.items.single.salesOrderNumber, 'SO-0001');
+      expect(page.items.single.status, 'DISPATCHED');
       expect(page.items.single.destination, 'Sucursal principal');
-      expect(
-        page.items.single.dispatchNumber,
-        isNot(contains('PRIVATE DRIVER')),
-      );
+      expect(page.items.single.dispatchedAt, DateTime.utc(2026, 10, 9, 12));
+      expect(page.items.single.proofOfDeliveryStatus, isNull);
       api.close();
     },
   );
 
-  test(
-    'loads only safe detail fields and Buyer-visible event summaries',
-    () async {
-      final requests = <http.Request>[];
-      final api = _api((request) async {
-        requests.add(request);
-        if (request.url.path.endsWith('/events')) {
-          return http.Response(
-            jsonEncode([
-              {
-                'id': _eventId,
-                'type': 'IN_TRANSIT',
-                'occurredAt': '2026-10-09T12:00:00Z',
-                'summary': 'La entrega está en tránsito.',
-                'fromStatus': 'PRIVATE',
-                'toStatus': 'PRIVATE',
-                'driverName': 'PRIVATE DRIVER NAME',
-              },
-            ]),
-            200,
-          );
-        }
-        return http.Response(jsonEncode(_delivery()), 200);
-      });
-
-      final detail = await BuyerDeliveriesRepositoryImpl(api)
-          .detail(_deliveryId);
-
-      expect(
-        requests.map((request) => request.url.path),
-        containsAll([
-          '/api/v1/dispatch-orders/$_deliveryId',
-          '/api/v1/dispatch-orders/$_deliveryId/events',
-        ]),
-      );
-      expect(requests.every((request) => request.method == 'GET'), isTrue);
-      expect(
-        requests.every((request) => request.url.queryParameters.isEmpty),
-        isTrue,
-      );
-      expect(detail.delivery.id, _deliveryId);
-      expect(detail.delivery.eta, DateTime.utc(2026, 10, 9, 13));
-      expect(detail.events.single.summary, 'La entrega está en tránsito.');
-      expect(
-        detail.events.single.toString(),
-        isNot(contains('PRIVATE DRIVER')),
-      );
-      api.close();
-    },
-  );
-
-  test('rejects invalid non-null delivery timestamps', () async {
-    final api = _api((_) async {
-      return http.Response(
-        jsonEncode({
-          'items': [
-            {..._delivery(), 'eta': 'not-a-date'},
-          ],
-          'page': 0,
-          'size': 25,
-          'total': 1,
-        }),
-        200,
-      );
+  test('loads only the Buyer delivery detail and event contract', () async {
+    final requests = <http.Request>[];
+    final api = _api((request) async {
+      requests.add(request);
+      if (request.url.path.endsWith('/events')) {
+        return http.Response(
+          jsonEncode([
+            {
+              'type': 'HANDED_OVER',
+              'occurredAt': '2026-10-09T12:00:00Z',
+              'actorMembershipId': 'PRIVATE ACTOR',
+              'reason': 'PRIVATE INTERNAL REASON',
+            },
+          ]),
+          200,
+        );
+      }
+      return http.Response(jsonEncode(_delivery()), 200);
     });
 
-    await expectLater(
-      BuyerDeliveriesRepositoryImpl(api).list(page: 0),
-      throwsA(isA<NexaApiFailure>()),
+    final detail = await BuyerDeliveriesRepositoryImpl(api).detail(_deliveryId);
+
+    expect(
+      requests.map((request) => request.url.path),
+      containsAll([
+        '/api/v1/buyer/deliveries/$_deliveryId',
+        '/api/v1/buyer/deliveries/$_deliveryId/events',
+      ]),
     );
+    expect(requests.every((request) => request.method == 'GET'), isTrue);
+    expect(
+      requests.every((request) => request.url.queryParameters.isEmpty),
+      isTrue,
+    );
+    expect(detail.delivery.id, _deliveryId);
+    expect(detail.delivery.salesOrderNumber, 'SO-0001');
+    expect(detail.delivery.status, 'DISPATCHED');
+    expect(detail.delivery.scheduledAt, isNull);
+    expect(detail.delivery.deliveredAt, isNull);
+    expect(detail.delivery.proofOfDeliveryStatus, isNull);
+    expect(detail.events.single.type, 'HANDED_OVER');
+    expect(detail.events.single.occurredAt, DateTime.utc(2026, 10, 9, 12));
     api.close();
   });
+
+  test(
+    'rejects malformed required timestamps and unknown delivery identifiers',
+    () async {
+      final api = _api((_) async {
+        return http.Response(
+          jsonEncode({
+            'items': [
+              {..._delivery(), 'updatedAt': 'not-a-date'},
+            ],
+            'page': 0,
+            'size': 25,
+            'total': 1,
+          }),
+          200,
+        );
+      });
+
+      await expectLater(
+        BuyerDeliveriesRepositoryImpl(api).list(page: 0),
+        throwsA(isA<NexaApiFailure>()),
+      );
+      await expectLater(
+        BuyerDeliveriesRepositoryImpl(api).detail('not-a-uuid'),
+        throwsA(isA<NexaApiFailure>()),
+      );
+      api.close();
+    },
+  );
 }
 
 NexaApiClient _api(Future<http.Response> Function(http.Request) handler) =>
@@ -134,17 +134,16 @@ NexaApiClient _api(Future<http.Response> Function(http.Request) handler) =>
 
 Map<String, Object?> _delivery() => {
   'id': _deliveryId,
-  'dispatchNumber': 'DO-0001',
   'salesOrderNumber': 'SO-0001',
-  'status': 'IN_TRANSIT',
+  'status': 'DISPATCHED',
   'destination': 'Sucursal principal',
-  'deliveryWindowStart': '2026-10-09T12:00:00Z',
-  'deliveryWindowEnd': '2026-10-09T14:00:00Z',
-  'eta': '2026-10-09T13:00:00Z',
-  'podStatus': 'PENDING',
+  'scheduledAt': null,
+  'dispatchedAt': '2026-10-09T12:00:00Z',
+  'deliveredAt': null,
+  'proofOfDeliveryStatus': null,
+  'version': 3,
+  'createdAt': '2026-10-09T11:00:00Z',
   'updatedAt': '2026-10-09T12:05:00Z',
-  'alerts': ['ARRIVAL_WINDOW'],
-  'continuationDeliveryStatus': null,
   'driverName': 'PRIVATE DRIVER NAME',
   'assignedDriver': 'PRIVATE ASSIGNMENT',
   'vehiclePlate': 'PRIVATE VEHICLE',

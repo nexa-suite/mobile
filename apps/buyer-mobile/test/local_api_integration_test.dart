@@ -74,8 +74,16 @@ void main() {
           final selected = page.items.first;
           final detail = await repository.detail(selected.id);
           expect(detail.delivery.id, selected.id);
+          expect(detail.delivery.salesOrderNumber, isNotEmpty);
+          expect(detail.delivery.status, isNotEmpty);
+          expect(
+            detail.events.every(
+              (event) => event.type.isNotEmpty && event.occurredAt.isUtc,
+            ),
+            isTrue,
+          );
           stdout.writeln(
-            'LOCAL_API_BUYER_DELIVERIES=${page.items.length}; DETAIL_EVENTS=PASS',
+            'LOCAL_API_BUYER_DELIVERIES=${page.items.length}; DETAIL_EVENTS=${detail.events.length}',
           );
         }
       } finally {

@@ -12,8 +12,7 @@ import 'package:nexa_buyer_mobile/main.dart';
 
 const _documentId = '00000000-0000-4000-8000-000000000001';
 const _documentBytes = [37, 80, 68, 70, 45, 49, 46, 55];
-const _dispatchId = '00000000-0000-4000-8000-000000000004';
-const _deliveryEventId = '00000000-0000-4000-8000-000000000005';
+const _deliveryId = '00000000-0000-4000-8000-000000000004';
 
 void main() {
   testWidgets('shows safe configuration guidance without an API origin', (
@@ -107,7 +106,7 @@ void main() {
 
     expect(find.text('Catálogo'), findsOneWidget);
     expect(find.text('Mis entregas'), findsNothing);
-    expect(paths, isNot(contains('/api/v1/dispatch-orders')));
+    expect(paths, isNot(contains('/api/v1/buyer/deliveries')));
   });
 
   testWidgets(
@@ -246,7 +245,7 @@ void main() {
             200,
           );
         }
-        if (path == '/api/v1/dispatch-orders') {
+        if (path == '/api/v1/buyer/deliveries') {
           expect(headers['authorization'], 'Bearer access-secret');
           expect(request.url.queryParameters, {'page': '0', 'size': '25'});
           expect(
@@ -263,17 +262,17 @@ void main() {
             200,
           );
         }
-        if (path == '/api/v1/dispatch-orders/$_dispatchId') {
+        if (path == '/api/v1/buyer/deliveries/$_deliveryId') {
           return http.Response(jsonEncode(_delivery()), 200);
         }
-        if (path == '/api/v1/dispatch-orders/$_dispatchId/events') {
+        if (path == '/api/v1/buyer/deliveries/$_deliveryId/events') {
           return http.Response(
             jsonEncode([
               {
-                'id': _deliveryEventId,
-                'type': 'IN_TRANSIT',
+                'type': 'HANDED_OVER',
                 'occurredAt': '2026-10-09T12:00:00Z',
-                'summary': 'La entrega está en tránsito.',
+                'actorMembershipId': 'PRIVATE ACTOR',
+                'reason': 'PRIVATE INTERNAL REASON',
                 'assignedDriver': 'PRIVATE ASSIGNMENT',
                 'fromStatus': 'PRIVATE STATUS DETAIL',
               },
@@ -442,14 +441,16 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Mis entregas'));
       await tester.pumpAndSettle();
-      expect(find.text('DO-0001'), findsOneWidget);
-      expect(find.text('Estado: En tránsito'), findsOneWidget);
-      await tester.tap(find.text('DO-0001'));
+      expect(find.text('Pedido SO-0001'), findsOneWidget);
+      expect(find.text('Estado: Dispatched'), findsOneWidget);
+      await tester.tap(find.text('Pedido SO-0001'));
       await tester.pumpAndSettle();
       expect(find.text('Historial de entrega'), findsOneWidget);
-      expect(find.text('La entrega está en tránsito.'), findsOneWidget);
+      expect(find.text('Handed Over'), findsOneWidget);
       expect(find.textContaining('PRIVATE ASSIGNMENT'), findsNothing);
       expect(find.textContaining('PRIVATE STATUS DETAIL'), findsNothing);
+      expect(find.textContaining('PRIVATE ACTOR'), findsNothing);
+      expect(find.textContaining('PRIVATE INTERNAL REASON'), findsNothing);
 
       expect(
         requests.map((request) => request.url.path),
@@ -461,9 +462,9 @@ void main() {
           '/api/v1/catalog-items/CAT-0001',
           '/api/v1/sales-orders',
           '/api/v1/sales-orders/00000000-0000-0000-0000-000000000001',
-          '/api/v1/dispatch-orders',
-          '/api/v1/dispatch-orders/$_dispatchId',
-          '/api/v1/dispatch-orders/$_dispatchId/events',
+          '/api/v1/buyer/deliveries',
+          '/api/v1/buyer/deliveries/$_deliveryId',
+          '/api/v1/buyer/deliveries/$_deliveryId/events',
           '/api/v1/client-accounts/me/credit-exposure',
           '/api/v1/business-documents',
           '/api/v1/business-documents/$_documentId',
@@ -546,18 +547,17 @@ Map<String, Object?> _order() => {
 };
 
 Map<String, Object?> _delivery() => {
-  'id': _dispatchId,
-  'dispatchNumber': 'DO-0001',
+  'id': _deliveryId,
   'salesOrderNumber': 'SO-0001',
-  'status': 'IN_TRANSIT',
+  'status': 'DISPATCHED',
   'destination': 'Sucursal principal',
-  'deliveryWindowStart': '2026-10-09T12:00:00Z',
-  'deliveryWindowEnd': '2026-10-09T14:00:00Z',
-  'eta': '2026-10-09T13:00:00Z',
-  'podStatus': 'PENDING',
+  'scheduledAt': null,
+  'dispatchedAt': '2026-10-09T12:00:00Z',
+  'deliveredAt': null,
+  'proofOfDeliveryStatus': null,
+  'version': 3,
+  'createdAt': '2026-10-09T11:00:00Z',
   'updatedAt': '2026-10-09T12:05:00Z',
-  'alerts': ['ARRIVAL_WINDOW'],
-  'continuationDeliveryStatus': null,
   'assignedDriver': 'PRIVATE ASSIGNMENT',
   'driverName': 'PRIVATE DRIVER',
   'vehiclePlate': 'PRIVATE VEHICLE',

@@ -13,7 +13,7 @@ final class BuyerDeliveriesRepositoryImpl implements BuyerDeliveriesRepository {
   Future<BuyerDeliveryPageProjection> list({required int page}) async {
     if (page < 0) _invalidResponse();
     final response = await _api.get(
-      '/dispatch-orders',
+      '/buyer/deliveries',
       query: {'page': '$page', 'size': '$pageSize'},
       refreshAfterUnauthorized: true,
     );
@@ -42,23 +42,20 @@ final class BuyerDeliveriesRepositoryImpl implements BuyerDeliveriesRepository {
   }
 
   @override
-  Future<BuyerDeliveryDetailProjection> detail(String dispatchId) async {
-    if (!_isUuid(dispatchId)) _invalidResponse();
-    final encodedId = Uri.encodeComponent(dispatchId);
+  Future<BuyerDeliveryDetailProjection> detail(String deliveryId) async {
+    if (!_isUuid(deliveryId)) _invalidResponse();
+    final encodedId = Uri.encodeComponent(deliveryId);
     final responses = await Future.wait([
-      _api.get('/dispatch-orders/$encodedId', refreshAfterUnauthorized: true),
+      _api.get('/buyer/deliveries/$encodedId', refreshAfterUnauthorized: true),
       _api.get(
-        '/dispatch-orders/$encodedId/events',
+        '/buyer/deliveries/$encodedId/events',
         refreshAfterUnauthorized: true,
       ),
     ]);
     final delivery = _parseDelivery(responses[0].body);
     final rawEvents = responses[1].data;
-    if (delivery.id != dispatchId || rawEvents is! List) _invalidResponse();
+    if (delivery.id != deliveryId || rawEvents is! List) _invalidResponse();
     final events = rawEvents.map(_parseEvent).toList(growable: false);
-    if (events.map((event) => event.id).toSet().length != events.length) {
-      _invalidResponse();
-    }
     return BuyerDeliveryDetailProjection(delivery: delivery, events: events);
   }
 
@@ -66,58 +63,45 @@ final class BuyerDeliveriesRepositoryImpl implements BuyerDeliveriesRepository {
     final delivery = _map(value);
     if (delivery == null) _invalidResponse();
     final id = _string(delivery['id']);
-    final dispatchNumber = _string(delivery['dispatchNumber']);
+    final salesOrderNumber = _string(delivery['salesOrderNumber']);
     final status = _string(delivery['status']);
+    final version = _int(delivery['version']);
+    final createdAt = _dateTime(delivery['createdAt']);
     final updatedAt = _dateTime(delivery['updatedAt']);
-    final rawAlerts = delivery['alerts'];
     if (id == null ||
         !_isUuid(id) ||
-        dispatchNumber == null ||
+        salesOrderNumber == null ||
         status == null ||
-        updatedAt == null ||
-        rawAlerts is! List ||
-        rawAlerts.any((value) => value is! String || value.trim().isEmpty)) {
+        version == null ||
+        version < 0 ||
+        createdAt == null ||
+        updatedAt == null) {
       _invalidResponse();
     }
     return BuyerDeliveryProjection(
       id: id,
-      dispatchNumber: dispatchNumber,
-      salesOrderNumber: _optionalString(delivery, 'salesOrderNumber'),
+      salesOrderNumber: salesOrderNumber,
       status: status,
-      destination: _optionalString(delivery, 'destination'),
-      deliveryWindowStart: _optionalDateTime(delivery, 'deliveryWindowStart'),
-      deliveryWindowEnd: _optionalDateTime(delivery, 'deliveryWindowEnd'),
-      eta: _optionalDateTime(delivery, 'eta'),
-      podStatus: _optionalString(delivery, 'podStatus'),
+      version: version,
+      createdAt: createdAt,
       updatedAt: updatedAt,
-      alerts: List<String>.unmodifiable(rawAlerts.cast<String>()),
-      continuationDeliveryStatus: _optionalString(
-        delivery,
-        'continuationDeliveryStatus',
-      ),
+      destination: _optionalString(delivery, 'destination'),
+      scheduledAt: _optionalDateTime(delivery, 'scheduledAt'),
+      dispatchedAt: _optionalDateTime(delivery, 'dispatchedAt'),
+      deliveredAt: _optionalDateTime(delivery, 'deliveredAt'),
+      proofOfDeliveryStatus: _optionalString(delivery, 'proofOfDeliveryStatus'),
     );
   }
 
   BuyerDeliveryEventProjection _parseEvent(Object? value) {
     final event = _map(value);
     if (event == null) _invalidResponse();
-    final id = _string(event['id']);
     final type = _string(event['type']);
     final occurredAt = _dateTime(event['occurredAt']);
-    final summary = _string(event['summary']);
-    if (id == null ||
-        !_isUuid(id) ||
-        type == null ||
-        occurredAt == null ||
-        summary == null) {
+    if (type == null || occurredAt == null) {
       _invalidResponse();
     }
-    return BuyerDeliveryEventProjection(
-      id: id,
-      type: type,
-      occurredAt: occurredAt,
-      summary: summary,
-    );
+    return BuyerDeliveryEventProjection(type: type, occurredAt: occurredAt);
   }
 
   Map<String, Object?>? _map(Object? value) =>

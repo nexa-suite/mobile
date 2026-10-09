@@ -123,15 +123,16 @@ final class _DeliveryCard extends StatelessWidget {
     margin: const EdgeInsets.only(bottom: 12),
     child: ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      title: Text(delivery.dispatchNumber),
+      title: Text('Pedido ${delivery.salesOrderNumber}'),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Pedido: ${delivery.salesOrderNumber ?? 'No disponible'}'),
             Text('Estado: ${_statusLabel(delivery.status)}'),
-            Text('ETA: ${_dateTimeLabel(delivery.eta) ?? 'No programada'}'),
+            Text(
+              'Programada: ${_dateTimeLabel(delivery.scheduledAt) ?? 'Sin fecha programada'}',
+            ),
           ],
         ),
       ),
@@ -214,18 +215,14 @@ final class _DeliveryMessage extends StatelessWidget {
   );
 }
 
-String _statusLabel(String value) => switch (value) {
-  'PREPARING_DELIVERY' => 'Preparando entrega',
-  'DELIVERY_SCHEDULED' => 'Entrega programada',
-  'IN_TRANSIT' => 'En tránsito',
-  'DELIVERY_REVIEW' => 'Revisión de entrega',
-  'DELIVERY_RESCHEDULED' => 'Entrega reprogramada',
-  'PARTIAL' => 'Entrega parcial',
-  'DELIVERED' => 'Entregada',
-  'DELIVERY_CANCELLED' => 'Entrega cancelada',
-  'UNKNOWN' => 'Estado no disponible',
-  _ => value.replaceAll('_', ' ').toLowerCase(),
-};
+String _statusLabel(String value) => value
+    .split('_')
+    .map(
+      (part) => part.isEmpty
+          ? part
+          : '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+    )
+    .join(' ');
 
 String? _dateTimeLabel(DateTime? value) {
   if (value == null) return null;

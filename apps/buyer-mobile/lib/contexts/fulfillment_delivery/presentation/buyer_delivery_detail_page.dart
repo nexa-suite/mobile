@@ -26,7 +26,7 @@ final class BuyerDeliveryDetailPage extends StatelessWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text(delivery.dispatchNumber)),
+      appBar: AppBar(title: Text('Pedido ${delivery.salesOrderNumber}')),
       body: RefreshIndicator(
         onRefresh: detail.refresh,
         child: ListView(
@@ -56,7 +56,7 @@ final class BuyerDeliveryDetailPage extends StatelessWidget {
                     const SizedBox(height: 12),
                     _DetailRow(
                       label: 'Pedido',
-                      value: delivery.salesOrderNumber ?? 'No disponible',
+                      value: delivery.salesOrderNumber,
                     ),
                     if (delivery.destination != null)
                       _DetailRow(
@@ -64,44 +64,32 @@ final class BuyerDeliveryDetailPage extends StatelessWidget {
                         value: delivery.destination!,
                       ),
                     _DetailRow(
-                      label: 'Inicio de ventana',
+                      label: 'Programada',
                       value:
-                          _dateTimeLabel(delivery.deliveryWindowStart) ??
-                          'No programado',
+                          _dateTimeLabel(delivery.scheduledAt) ?? 'Sin fecha',
                     ),
                     _DetailRow(
-                      label: 'Fin de ventana',
+                      label: 'Despachada',
                       value:
-                          _dateTimeLabel(delivery.deliveryWindowEnd) ??
-                          'No programado',
+                          _dateTimeLabel(delivery.dispatchedAt) ??
+                          'No disponible',
                     ),
                     _DetailRow(
-                      label: 'ETA',
-                      value: _dateTimeLabel(delivery.eta) ?? 'No disponible',
+                      label: 'Entregada',
+                      value:
+                          _dateTimeLabel(delivery.deliveredAt) ??
+                          'No disponible',
                     ),
                     _DetailRow(
                       label: 'Comprobante de entrega',
-                      value: delivery.podStatus ?? 'No disponible',
+                      value: delivery.proofOfDeliveryStatus == null
+                          ? 'No disponible'
+                          : _statusLabel(delivery.proofOfDeliveryStatus!),
                     ),
                     _DetailRow(
                       label: 'Actualización',
                       value: _dateTimeLabel(delivery.updatedAt)!,
                     ),
-                    for (final alert in delivery.alerts)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          _statusLabel(alert),
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                    if (delivery.continuationDeliveryStatus != null)
-                      _DetailRow(
-                        label: 'Entrega restante',
-                        value: _statusLabel(
-                          delivery.continuationDeliveryStatus!,
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -120,7 +108,7 @@ final class BuyerDeliveryDetailPage extends StatelessWidget {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.circle, size: 10),
-                title: Text(event.summary),
+                title: Text(_statusLabel(event.type)),
                 subtitle: Text(_dateTimeLabel(event.occurredAt)!),
               ),
           ],
@@ -185,18 +173,14 @@ final class _DeliveryDetailMessage extends StatelessWidget {
   );
 }
 
-String _statusLabel(String value) => switch (value) {
-  'PREPARING_DELIVERY' => 'Preparando entrega',
-  'DELIVERY_SCHEDULED' => 'Entrega programada',
-  'IN_TRANSIT' => 'En tránsito',
-  'DELIVERY_REVIEW' => 'Revisión de entrega',
-  'DELIVERY_RESCHEDULED' => 'Entrega reprogramada',
-  'PARTIAL' => 'Entrega parcial',
-  'DELIVERED' => 'Entregada',
-  'DELIVERY_CANCELLED' => 'Entrega cancelada',
-  'UNKNOWN' => 'Estado no disponible',
-  _ => value.replaceAll('_', ' ').toLowerCase(),
-};
+String _statusLabel(String value) => value
+    .split('_')
+    .map(
+      (part) => part.isEmpty
+          ? part
+          : '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+    )
+    .join(' ');
 
 String? _dateTimeLabel(DateTime? value) {
   if (value == null) return null;

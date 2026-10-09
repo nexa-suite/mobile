@@ -1,45 +1,39 @@
 final class BuyerDeliveryProjection {
   const BuyerDeliveryProjection({
     required this.id,
-    required this.dispatchNumber,
+    required this.salesOrderNumber,
     required this.status,
+    required this.version,
+    required this.createdAt,
     required this.updatedAt,
-    required this.alerts,
-    this.salesOrderNumber,
     this.destination,
-    this.deliveryWindowStart,
-    this.deliveryWindowEnd,
-    this.eta,
-    this.podStatus,
-    this.continuationDeliveryStatus,
+    this.scheduledAt,
+    this.dispatchedAt,
+    this.deliveredAt,
+    this.proofOfDeliveryStatus,
   });
 
   final String id;
-  final String dispatchNumber;
-  final String? salesOrderNumber;
+  final String salesOrderNumber;
   final String status;
-  final String? destination;
-  final DateTime? deliveryWindowStart;
-  final DateTime? deliveryWindowEnd;
-  final DateTime? eta;
-  final String? podStatus;
+  final int version;
+  final DateTime createdAt;
   final DateTime updatedAt;
-  final List<String> alerts;
-  final String? continuationDeliveryStatus;
+  final String? destination;
+  final DateTime? scheduledAt;
+  final DateTime? dispatchedAt;
+  final DateTime? deliveredAt;
+  final String? proofOfDeliveryStatus;
 }
 
 final class BuyerDeliveryEventProjection {
   const BuyerDeliveryEventProjection({
-    required this.id,
     required this.type,
     required this.occurredAt,
-    required this.summary,
   });
 
-  final String id;
   final String type;
   final DateTime occurredAt;
-  final String summary;
 }
 
 final class BuyerDeliveryPageProjection {
@@ -71,5 +65,5 @@ final class BuyerDeliveryDetailProjection {
 abstract interface class BuyerDeliveriesRepository {
   Future<BuyerDeliveryPageProjection> list({required int page});
 
-  Future<BuyerDeliveryDetailProjection> detail(String dispatchId);
+  Future<BuyerDeliveryDetailProjection> detail(String deliveryId);
 }

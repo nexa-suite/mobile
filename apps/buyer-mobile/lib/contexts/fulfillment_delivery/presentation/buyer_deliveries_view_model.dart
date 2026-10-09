@@ -180,14 +180,14 @@ enum BuyerDeliveryDetailStatus {
 }
 
 final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
-  BuyerDeliveryDetailViewModel(this._repository, this._access, this.dispatchId)
+  BuyerDeliveryDetailViewModel(this._repository, this._access, this.deliveryId)
     : _leaseKey = BuyerDeliveriesViewModel._activeLease(_access.snapshot) {
     _subscription = _access.changes.listen(_onAccessChanged);
   }
 
   final BuyerDeliveriesRepository _repository;
   final BuyerAccessRepository _access;
-  final String dispatchId;
+  final String deliveryId;
   late final StreamSubscription<BuyerAccessSnapshot> _subscription;
   String? _leaseKey;
   int _requestGeneration = 0;
@@ -223,7 +223,7 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
     message = null;
     notifyListeners();
     try {
-      final result = await _repository.detail(dispatchId);
+      final result = await _repository.detail(deliveryId);
       if (!_isCurrent(generation, lease)) return;
       delivery = result.delivery;
       events = result.events;
