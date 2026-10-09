@@ -1,10 +1,19 @@
 import '../../../core/network/nexa_api_client.dart';
+import '../application/buyer_order_payment_capability_query.dart';
 import '../application/buyer_wallet_repository.dart';
 
-final class BuyerWalletRepositoryImpl implements BuyerWalletRepository {
+final class BuyerWalletRepositoryImpl
+    implements BuyerWalletRepository, BuyerOrderPaymentCapabilityQuery {
   BuyerWalletRepositoryImpl(this._api);
 
   final NexaApiClient _api;
+
+  @override
+  Future<bool> isOrderPaymentSupported() async {
+    final wallet = await readCurrentWallet(page: 0);
+    return wallet.state == BuyerWalletState.active &&
+        wallet.orderPaymentSupported;
+  }
 
   @override
   Future<BuyerWalletProjection> readCurrentWallet({required int page}) async {

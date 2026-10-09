@@ -302,6 +302,64 @@ void main() {
     api.close();
   });
 
+  test('sends WALLET as consent without client beneficiary data', () async {
+    late http.Request captured;
+    var requestCount = 0;
+    final api = NexaApiClient(
+      origin: NexaApiOrigin.parse(
+        'https://api.nexa.example',
+        allowLocalHttp: false,
+      ),
+      httpClient: MockClient((request) async {
+        requestCount++;
+        captured = request;
+        return _draftResponse(
+          version: 1,
+          etag: '"1"',
+          paymentPreference: 'WALLET',
+          requestedDeliveryDate: '2026-10-13',
+        );
+      }),
+    )..sessionCredentials = _FakeCredentials();
+    final repository = PurchaseRequestRepositoryImpl(api, _RecordingKeyStore());
+    const draft = PurchaseRequestDraftProjection(
+      id: _draftId,
+      clientAccountId: _accountId,
+      status: 'DRAFT',
+      version: 0,
+      etag: '"0"',
+      lines: [],
+    );
+
+    final updated = await repository.setPreferences(
+      draft: draft,
+      paymentPreference: 'WALLET',
+      requestedDeliveryDate: '2026-10-13',
+    );
+
+    expect(captured.method, 'PUT');
+    expect(
+      captured.url.path,
+      '/api/v1/buyer/purchase-request-drafts/$_draftId/preferences',
+    );
+    expect(captured.headers['if-match'], '"0"');
+    expect(jsonDecode(captured.body), {
+      'paymentPreference': 'WALLET',
+      'requestedDeliveryDate': '2026-10-13',
+    });
+    expect(updated.paymentPreference, 'WALLET');
+    await expectLater(
+      repository.setPreferences(
+        draft: updated,
+        paymentPreference: 'WALLET',
+        requestedDeliveryDate: '2026-10-13T00:00:00Z',
+      ),
+      throwsA(isA<NexaApiFailure>()),
+    );
+    expect(requestCount, 1);
+    api.close();
+  });
+
   test(
     'ambiguous submit retry reuses the persisted key and exact draft version',
     () async {

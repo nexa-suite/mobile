@@ -17,6 +17,7 @@ final class PurchaseRequestRepositoryImpl implements PurchaseRequestRepository {
     'CARD_STRIPE',
     'CASH',
     'CASH_ON_DELIVERY',
+    'WALLET',
   };
 
   @override
@@ -109,7 +110,7 @@ final class PurchaseRequestRepositoryImpl implements PurchaseRequestRepository {
     required String requestedDeliveryDate,
   }) async {
     if (_uuid(clientAccountId) == null ||
-        DateTime.tryParse(requestedDeliveryDate) == null) {
+        !_isCanonicalDate(requestedDeliveryDate)) {
       _invalidInput();
     }
     final response = await _api.post(
@@ -196,7 +197,7 @@ final class PurchaseRequestRepositoryImpl implements PurchaseRequestRepository {
     required String requestedDeliveryDate,
   }) async {
     if (!_paymentPreferences.contains(paymentPreference) ||
-        DateTime.tryParse(requestedDeliveryDate) == null) {
+        !_isCanonicalDate(requestedDeliveryDate)) {
       _invalidInput();
     }
     final response = await _api.put(
@@ -379,6 +380,17 @@ final class PurchaseRequestRepositoryImpl implements PurchaseRequestRepository {
 
   DateTime? _dateTime(Object? value) =>
       value is String ? DateTime.tryParse(value) : null;
+
+  bool _isCanonicalDate(String value) {
+    if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value)) return false;
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null) return false;
+    final canonical =
+        '${parsed.year.toString().padLeft(4, '0')}-'
+        '${parsed.month.toString().padLeft(2, '0')}-'
+        '${parsed.day.toString().padLeft(2, '0')}';
+    return canonical == value;
+  }
 
   Never _invalidInput() => throw const NexaApiFailure(
     code: 'invalid_purchase_request_input',

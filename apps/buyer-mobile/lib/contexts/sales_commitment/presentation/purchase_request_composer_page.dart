@@ -147,8 +147,11 @@ final class _PurchaseRequestComposerPageState
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             initialValue: model.paymentPreference,
-            decoration: const InputDecoration(labelText: 'Preferencia de pago'),
-            items: const [
+            decoration: const InputDecoration(
+              labelText: 'Preferencia de pago',
+              hintText: 'Selecciona una preferencia',
+            ),
+            items: [
               DropdownMenuItem(
                 value: 'BANK_TRANSFER',
                 child: Text('Transferencia bancaria'),
@@ -163,11 +166,22 @@ final class _PurchaseRequestComposerPageState
                 value: 'CASH_ON_DELIVERY',
                 child: Text('Efectivo contra entrega'),
               ),
+              if (model.canOfferWalletTender)
+                const DropdownMenuItem(
+                  value: 'WALLET',
+                  child: Text('Billetera'),
+                ),
             ],
             onChanged: isBusy || isSubmitted
                 ? null
                 : model.selectPaymentPreference,
           ),
+          if (model.paymentPreference == 'WALLET') ...[
+            const SizedBox(height: 8),
+            const Text(
+              'Elegir Billetera expresa una preferencia. Enviar la solicitud no reserva saldo ni confirma el pago; Nexa valida y reserva el total al confirmar el pedido.',
+            ),
+          ],
           if (model.draft case final draft?) ...[
             const SizedBox(height: 20),
             Card(
@@ -198,7 +212,7 @@ final class _PurchaseRequestComposerPageState
                         ),
                     ],
                     if (draft.paymentPreference case final payment?)
-                      Text('Pago: ${_paymentLabel(payment)}'),
+                      Text('Preferencia de pago: ${_paymentLabel(payment)}'),
                     if (draft.creditResult case final credit?)
                       Text(
                         'Resultado de crédito: ${credit.replaceAll('_', ' ')}',
@@ -426,5 +440,6 @@ String _paymentLabel(String value) => switch (value) {
   'CARD_STRIPE' => 'Tarjeta',
   'CASH' => 'Efectivo',
   'CASH_ON_DELIVERY' => 'Efectivo contra entrega',
+  'WALLET' => 'Billetera',
   _ => value,
 };

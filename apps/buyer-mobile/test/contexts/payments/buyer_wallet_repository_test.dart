@@ -57,6 +57,56 @@ void main() {
     api.close();
   });
 
+  test(
+    'capability port returns server support only for active wallet',
+    () async {
+      late http.Request captured;
+      final api = _api((request) async {
+        captured = request;
+        return http.Response(
+          jsonEncode({
+            ..._activeWallet(),
+            'capabilities': {'orderPaymentSupported': true},
+          }),
+          200,
+        );
+      });
+
+      final supported = await BuyerWalletRepositoryImpl(api)
+          .isOrderPaymentSupported();
+
+      expect(supported, isTrue);
+      expect(captured.method, 'GET');
+      expect(captured.url.path, '/api/v1/buyer/wallet');
+      expect(captured.url.queryParameters, {'page': '0', 'size': '25'});
+      expect(captured.url.queryParameters, isNot(contains('clientAccountId')));
+      api.close();
+    },
+  );
+
+  test('uninitialized wallet cannot offer order payment', () async {
+    final api = _api((_) async {
+      return http.Response(
+        jsonEncode({
+          'status': 'NOT_INITIALIZED',
+          'currency': 'PEN',
+          'postedBalance': null,
+          'reservedBalance': null,
+          'availableBalance': null,
+          'capabilities': {'orderPaymentSupported': true},
+          'movements': {'items': [], 'page': 0, 'size': 25, 'total': 0},
+        }),
+        200,
+      );
+    });
+
+    final supported = await BuyerWalletRepositoryImpl(api)
+        .isOrderPaymentSupported();
+
+    expect(supported, isFalse);
+    api.close();
+  });
+
   test('defaults omitted wallet capability to false', () async {
     final api = _api((_) async {
       return http.Response(

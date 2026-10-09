@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/network/nexa_api_client.dart';
 import '../../catalog_commercial_policy/application/catalog_repository.dart';
+import '../../payments/application/buyer_order_payment_capability_query.dart';
 import '../../tenant_access_governance/application/buyer_access_repository.dart';
 import '../application/purchase_request_repository.dart';
 
@@ -29,14 +30,17 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
     this._catalog,
     this._repository,
     this._access,
-    this.catalogItemId,
-  ) : _leaseKey = _activeLease(_access.snapshot) {
+    this.catalogItemId, {
+    BuyerOrderPaymentCapabilityQuery? orderPaymentCapabilityQuery,
+  }) : _walletCapabilityQuery = orderPaymentCapabilityQuery,
+       _leaseKey = _activeLease(_access.snapshot) {
     _subscription = _access.changes.listen(_onAccessChanged);
   }
 
   final CatalogRepository _catalog;
   final PurchaseRequestRepository _repository;
   final BuyerAccessRepository _access;
+  final BuyerOrderPaymentCapabilityQuery? _walletCapabilityQuery;
   final String catalogItemId;
   late final StreamSubscription<BuyerAccessSnapshot> _subscription;
   String? _leaseKey;
@@ -54,13 +58,20 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
   PurchaseRequestDraftProjection? draft;
   PurchaseRequestReviewProjection? review;
   String? selectedAddressId;
-  String paymentPreference = 'BANK_TRANSFER';
+  String? paymentPreference = 'BANK_TRANSFER';
+  bool _orderPaymentSupported = false;
   final DateTime minimumDeliveryDate = nextBusinessDate(3);
   late DateTime requestedDeliveryDate = minimumDeliveryDate;
   String? message;
 
   bool get canCreateRequest =>
       _hasPermission('buyer.sales.read') && _hasPermission('buyer.sales.write');
+
+  bool get canOfferWalletTender =>
+      _orderPaymentSupported &&
+      _hasRole('BUYER') &&
+      _hasPermission('payment.read') &&
+      canCreateRequest;
 
   bool get canPrepareRequest =>
       recoveryStatus == PurchaseRequestRecoveryStatus.none &&
@@ -96,7 +107,10 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
     draft = null;
     review = null;
     message = null;
+    _orderPaymentSupported = false;
     notifyListeners();
+    await _refreshOrderPaymentCapability(generation, lease);
+    if (!_isCurrent(generation, lease)) return;
     try {
       final loadedItem = await _catalog.detail(catalogItemId);
       if (!_isCurrent(generation, lease)) return;
@@ -174,6 +188,20 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
         _requireSameBuyerAccount(serverReview.draft, context.clientAccountId);
         draft = serverReview.draft;
         review = serverReview;
+        if (serverReview.draft.paymentPreference == 'WALLET') {
+          if (canOfferWalletTender) {
+            paymentPreference = 'WALLET';
+          } else {
+            paymentPreference = null;
+            review = null;
+            status = PurchaseRequestComposerStatus.ready;
+            message = _walletTenderUnavailableMessage;
+            notifyListeners();
+            return;
+          }
+        } else if (serverReview.draft.paymentPreference != null) {
+          paymentPreference = serverReview.draft.paymentPreference;
+        }
         status = serverReview.readyToSubmit
             ? PurchaseRequestComposerStatus.reviewReady
             : PurchaseRequestComposerStatus.ready;
@@ -223,7 +251,15 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
       'CASH',
       'CASH_ON_DELIVERY',
     };
-    if (value == null || !choices.contains(value)) return;
+    if (value == null) {
+      paymentPreference = null;
+      invalidateReview();
+      return;
+    }
+    if (!choices.contains(value) &&
+        !(value == 'WALLET' && canOfferWalletTender)) {
+      return;
+    }
     paymentPreference = value;
     invalidateReview();
   }
@@ -270,6 +306,12 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    final requestedPaymentPreference = paymentPreference;
+    if (requestedPaymentPreference == null) {
+      message = 'Selecciona una preferencia de pago.';
+      notifyListeners();
+      return;
+    }
     final sellableSkuId = skuId!;
     final clientAccountId = account!;
     final deliveryAddressId = addressId!;
@@ -280,6 +322,14 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
     message = null;
     notifyListeners();
     try {
+      if (requestedPaymentPreference == 'WALLET' &&
+          !await _refreshOrderPaymentCapability(generation, lease)) {
+        if (!_isCurrent(generation, lease)) return;
+        status = PurchaseRequestComposerStatus.ready;
+        message = _walletTenderUnavailableMessage;
+        notifyListeners();
+        return;
+      }
       var current = draft;
       if (current == null) {
         try {
@@ -383,11 +433,21 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
         if (!_isCurrent(generation, lease)) return;
         draft = current;
       }
-      if (current.paymentPreference != paymentPreference ||
+      if (current.paymentPreference != requestedPaymentPreference ||
           current.requestedDeliveryDate != _dateValue(requestedDeliveryDate)) {
+        if (requestedPaymentPreference == 'WALLET' &&
+            !await _refreshOrderPaymentCapability(generation, lease)) {
+          if (!_isCurrent(generation, lease)) return;
+          draft = current;
+          review = null;
+          status = PurchaseRequestComposerStatus.ready;
+          message = _walletTenderUnavailableMessage;
+          notifyListeners();
+          return;
+        }
         current = await _repository.setPreferences(
           draft: current,
-          paymentPreference: paymentPreference,
+          paymentPreference: requestedPaymentPreference,
           requestedDeliveryDate: _dateValue(requestedDeliveryDate),
         );
         if (!_isCurrent(generation, lease)) return;
@@ -473,6 +533,15 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
         notifyListeners();
         return;
       }
+      if (latest.paymentPreference == 'WALLET' &&
+          paymentPreference != 'WALLET') {
+        draft = latest;
+        review = null;
+        status = PurchaseRequestComposerStatus.ready;
+        message = _walletTenderUnavailableMessage;
+        notifyListeners();
+        return;
+      }
       final serverReview = await _repository.review(latest.id);
       if (!_isCurrent(generation, lease)) return;
       latest = serverReview.draft;
@@ -481,6 +550,16 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
         review = serverReview;
         status = PurchaseRequestComposerStatus.ready;
         message = 'El servidor requiere: ${serverReview.missing.join(', ')}.';
+        notifyListeners();
+        return;
+      }
+      if (latest.paymentPreference == 'WALLET' &&
+          !await _refreshOrderPaymentCapability(generation, lease)) {
+        if (!_isCurrent(generation, lease)) return;
+        draft = latest;
+        review = null;
+        status = PurchaseRequestComposerStatus.ready;
+        message = _walletTenderUnavailableMessage;
         notifyListeners();
         return;
       }
@@ -658,6 +737,20 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
         recoveryStatus = PurchaseRequestRecoveryStatus.none;
         draft = serverReview.draft;
         review = serverReview;
+        if (serverReview.draft.paymentPreference == 'WALLET') {
+          if (canOfferWalletTender) {
+            paymentPreference = 'WALLET';
+          } else {
+            paymentPreference = null;
+            review = null;
+            status = PurchaseRequestComposerStatus.ready;
+            message = _walletTenderUnavailableMessage;
+            notifyListeners();
+            return;
+          }
+        } else if (serverReview.draft.paymentPreference != null) {
+          paymentPreference = serverReview.draft.paymentPreference;
+        }
         status = serverReview.readyToSubmit
             ? PurchaseRequestComposerStatus.reviewReady
             : PurchaseRequestComposerStatus.ready;
@@ -799,6 +892,55 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
   bool _hasPermission(String permission) =>
       _access.snapshot.currentContext?.permissions.contains(permission) == true;
 
+  bool _hasRole(String role) =>
+      _access.snapshot.currentContext?.roles.contains(role) == true;
+
+  bool _canReadWalletCapability() =>
+      _hasRole('BUYER') && _hasPermission('payment.read') && canCreateRequest;
+
+  Future<bool> _refreshOrderPaymentCapability(
+    int generation,
+    String lease,
+  ) async {
+    if (!_isCurrent(generation, lease)) return false;
+    final query = _walletCapabilityQuery;
+    if (query == null || !_canReadWalletCapability()) {
+      _disableWalletTender();
+      return false;
+    }
+    try {
+      final supported = await query.isOrderPaymentSupported();
+      if (!_isCurrent(generation, lease)) return false;
+      _orderPaymentSupported = supported && _canReadWalletCapability();
+      if (!_orderPaymentSupported) _disableWalletTender();
+      return canOfferWalletTender;
+    } on NexaApiFailure catch (failure) {
+      if (!_isCurrent(generation, lease)) return false;
+      _disableWalletTender();
+      if (failure.statusCode == 401 ||
+          failure.code == 'ACCESS_CONTEXT_INVALID') {
+        _access.invalidateLocalSession();
+        _requestGeneration++;
+      }
+      return false;
+    } catch (_) {
+      if (!_isCurrent(generation, lease)) return false;
+      _disableWalletTender();
+      return false;
+    }
+  }
+
+  void _disableWalletTender() {
+    _orderPaymentSupported = false;
+    if (paymentPreference != 'WALLET') return;
+    paymentPreference = null;
+    review = null;
+    if (status == PurchaseRequestComposerStatus.reviewReady) {
+      status = PurchaseRequestComposerStatus.ready;
+    }
+    message = _walletTenderUnavailableMessage;
+  }
+
   void _onAccessChanged(BuyerAccessSnapshot snapshot) {
     final nextLease = _activeLease(snapshot);
     if (nextLease == _leaseKey) return;
@@ -814,6 +956,8 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
     recoveryPage = 0;
     recoveryTotalPages = 1;
     selectedAddressId = null;
+    paymentPreference = 'BANK_TRANSFER';
+    _orderPaymentSupported = false;
     status = PurchaseRequestComposerStatus.unavailable;
     message = 'El contexto de acceso cambió. Vuelve a cargar la solicitud.';
     notifyListeners();
@@ -829,6 +973,8 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
     inspectedRecoveryDraft = null;
     recoveryPage = 0;
     recoveryTotalPages = 1;
+    paymentPreference = 'BANK_TRANSFER';
+    _orderPaymentSupported = false;
     status = PurchaseRequestComposerStatus.unavailable;
     message = 'Inicia sesión para continuar.';
     notifyListeners();
@@ -857,6 +1003,8 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
       'No se confirmó la respuesta de la creación. Revisa los borradores: una lista vacía no descarta que el servidor confirme la solicitud después.';
   static const _knownDraftMismatchMessage =
       'El borrador no coincide con este producto. Revísalo desde la lista de borradores antes de iniciar otra solicitud.';
+  static const _walletTenderUnavailableMessage =
+      'Billetera ya no está disponible para esta solicitud. Elige otra preferencia y vuelve a preparar la revisión; el envío no se reintentó.';
 
   @override
   void dispose() {

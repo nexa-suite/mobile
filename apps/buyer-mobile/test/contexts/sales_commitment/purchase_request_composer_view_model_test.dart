@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:nexa_buyer_mobile/contexts/catalog_commercial_policy/application/catalog_repository.dart';
+import 'package:nexa_buyer_mobile/contexts/payments/application/buyer_order_payment_capability_query.dart';
 import 'package:nexa_buyer_mobile/contexts/sales_commitment/application/purchase_request_repository.dart';
 import 'package:nexa_buyer_mobile/contexts/sales_commitment/application/purchase_request_idempotency_store.dart';
 import 'package:nexa_buyer_mobile/contexts/sales_commitment/presentation/purchase_request_composer_view_model.dart';
@@ -20,6 +21,306 @@ const _skuId = '00000000-0000-4000-8000-000000000005';
 const _scopeKey = '$_membershipId|tenant-1|workspace-1';
 
 void main() {
+  test(
+    'requires Buyer, payment.read, and server capability for WALLET',
+    () async {
+      final cases = [
+        _snapshot(
+          roles: const {'LOGISTICS'},
+          permissions: const {
+            'buyer.sales.read',
+            'buyer.sales.write',
+            'payment.read',
+          },
+        ),
+        _snapshot(
+          roles: const {'BUYER'},
+          permissions: const {'buyer.sales.read', 'buyer.sales.write'},
+        ),
+      ];
+
+      for (final snapshot in cases) {
+        final access = _FakeAccess(snapshot);
+        final capability = _FakeWalletCapabilityQuery(supported: true);
+        final model = PurchaseRequestComposerViewModel(
+          _FakeCatalogRepository(),
+          _FakePurchaseRequestRepository(),
+          access,
+          'CAT-001',
+          orderPaymentCapabilityQuery: capability,
+        );
+
+        await model.load();
+        model.selectPaymentPreference('WALLET');
+
+        expect(capability.calls, 0);
+        expect(model.canOfferWalletTender, isFalse);
+        expect(model.paymentPreference, 'BANK_TRANSFER');
+
+        model.dispose();
+        await access.dispose();
+      }
+    },
+  );
+
+  test(
+    'wallet capability outage hides WALLET without blocking other preferences',
+    () async {
+      final access = _FakeAccess(
+        _snapshot(
+          roles: const {'BUYER'},
+          permissions: const {
+            'buyer.sales.read',
+            'buyer.sales.write',
+            'payment.read',
+          },
+        ),
+      );
+      final capability = _FakeWalletCapabilityQuery(
+        responses: [
+          Future.error(
+            const NexaApiFailure(
+              code: 'WALLET_UNAVAILABLE',
+              statusCode: 503,
+              userMessage: 'Billetera no disponible.',
+            ),
+          ),
+        ],
+      );
+      final repository = _FakePurchaseRequestRepository();
+      final model = PurchaseRequestComposerViewModel(
+        _FakeCatalogRepository(),
+        repository,
+        access,
+        'CAT-001',
+        orderPaymentCapabilityQuery: capability,
+      );
+
+      await model.load();
+      expect(model.status, PurchaseRequestComposerStatus.ready);
+      expect(model.canOfferWalletTender, isFalse);
+      await model.prepare('1');
+
+      expect(model.status, PurchaseRequestComposerStatus.reviewReady);
+      expect(repository.createCount, 1);
+      expect(access.invalidations, 0);
+
+      model.dispose();
+      await access.dispose();
+    },
+  );
+
+  test(
+    'WALLET choice persists only as draft preference before submit',
+    () async {
+      final access = _FakeAccess(
+        _snapshot(
+          roles: const {'BUYER'},
+          permissions: const {
+            'buyer.sales.read',
+            'buyer.sales.write',
+            'payment.read',
+          },
+        ),
+      );
+      final capability = _FakeWalletCapabilityQuery(supported: true);
+      final repository = _FakePurchaseRequestRepository();
+      final model = PurchaseRequestComposerViewModel(
+        _FakeCatalogRepository(),
+        repository,
+        access,
+        'CAT-001',
+        orderPaymentCapabilityQuery: capability,
+      );
+
+      await model.load();
+      expect(model.canOfferWalletTender, isTrue);
+      model.selectPaymentPreference('WALLET');
+      await model.prepare('1');
+
+      expect(model.status, PurchaseRequestComposerStatus.reviewReady);
+      expect(repository.preferenceWrites, ['WALLET']);
+      expect(repository.submittedCount, 0);
+      expect(capability.calls, 2);
+
+      model.dispose();
+      await access.dispose();
+    },
+  );
+
+  test(
+    'revoked WALLET capability blocks draft writes and clears selection',
+    () async {
+      final access = _FakeAccess(
+        _snapshot(
+          roles: const {'BUYER'},
+          permissions: const {
+            'buyer.sales.read',
+            'buyer.sales.write',
+            'payment.read',
+          },
+        ),
+      );
+      final capability = _FakeWalletCapabilityQuery(
+        responses: [Future.value(true), Future.value(false)],
+      );
+      final repository = _FakePurchaseRequestRepository();
+      final model = PurchaseRequestComposerViewModel(
+        _FakeCatalogRepository(),
+        repository,
+        access,
+        'CAT-001',
+        orderPaymentCapabilityQuery: capability,
+      );
+
+      await model.load();
+      model.selectPaymentPreference('WALLET');
+      await model.prepare('1');
+
+      expect(model.status, PurchaseRequestComposerStatus.ready);
+      expect(model.paymentPreference, isNull);
+      expect(model.review, isNull);
+      expect(repository.createCount, 0);
+      expect(repository.preferenceWrites, isEmpty);
+      expect(repository.submittedCount, 0);
+
+      model.dispose();
+      await access.dispose();
+    },
+  );
+
+  test(
+    'rechecks WALLET capability after draft setup and before preference write',
+    () async {
+      final access = _FakeAccess(
+        _snapshot(
+          roles: const {'BUYER'},
+          permissions: const {
+            'buyer.sales.read',
+            'buyer.sales.write',
+            'payment.read',
+          },
+        ),
+      );
+      final capability = _FakeWalletCapabilityQuery(
+        responses: [
+          Future.value(true),
+          Future.value(true),
+          Future.value(false),
+        ],
+      );
+      final repository = _FakePurchaseRequestRepository();
+      final model = PurchaseRequestComposerViewModel(
+        _FakeCatalogRepository(),
+        repository,
+        access,
+        'CAT-001',
+        orderPaymentCapabilityQuery: capability,
+      );
+
+      await model.load();
+      model.selectPaymentPreference('WALLET');
+      await model.prepare('1');
+
+      expect(capability.calls, 3);
+      expect(repository.createCount, 1);
+      expect(repository.replaceLineCount, 1);
+      expect(repository.destinationCount, 1);
+      expect(repository.preferenceWrites, isEmpty);
+      expect(repository.submittedCount, 0);
+      expect(model.draft?.destinationAddressId, _addressId);
+      expect(model.draft?.hasWarehouseSelection, isTrue);
+      expect(model.paymentPreference, isNull);
+      expect(model.review, isNull);
+      expect(model.status, PurchaseRequestComposerStatus.ready);
+
+      model.dispose();
+      await access.dispose();
+    },
+  );
+
+  test(
+    'revoked WALLET capability blocks submit without changing draft',
+    () async {
+      final access = _FakeAccess(
+        _snapshot(
+          roles: const {'BUYER'},
+          permissions: const {
+            'buyer.sales.read',
+            'buyer.sales.write',
+            'payment.read',
+          },
+        ),
+      );
+      final capability = _FakeWalletCapabilityQuery(
+        responses: [
+          Future.value(true),
+          Future.value(true),
+          Future.value(false),
+        ],
+      );
+      final repository = _FakePurchaseRequestRepository();
+      final model = PurchaseRequestComposerViewModel(
+        _FakeCatalogRepository(),
+        repository,
+        access,
+        'CAT-001',
+        orderPaymentCapabilityQuery: capability,
+      );
+
+      await model.load();
+      model.selectPaymentPreference('WALLET');
+      await model.prepare('1');
+      expect(repository.preferenceWrites, ['WALLET']);
+      expect(model.status, PurchaseRequestComposerStatus.reviewReady);
+
+      await model.submit();
+
+      expect(model.status, PurchaseRequestComposerStatus.ready);
+      expect(model.paymentPreference, isNull);
+      expect(model.draft?.paymentPreference, 'WALLET');
+      expect(repository.submittedCount, 0);
+      expect(repository.preferenceWrites, ['WALLET']);
+
+      model.dispose();
+      await access.dispose();
+    },
+  );
+
+  test('stale wallet capability response cannot cross access lease', () async {
+    final access = _FakeAccess(
+      _snapshot(
+        roles: const {'BUYER'},
+        permissions: const {
+          'buyer.sales.read',
+          'buyer.sales.write',
+          'payment.read',
+        },
+      ),
+    );
+    final pending = Completer<bool>();
+    final capability = _FakeWalletCapabilityQuery(responses: [pending.future]);
+    final model = PurchaseRequestComposerViewModel(
+      _FakeCatalogRepository(),
+      _FakePurchaseRequestRepository(),
+      access,
+      'CAT-001',
+      orderPaymentCapabilityQuery: capability,
+    );
+
+    final loading = model.load();
+    access.emit(_snapshot(epoch: 2, membershipId: 'membership-next'));
+    pending.complete(true);
+    await loading;
+
+    expect(model.canOfferWalletTender, isFalse);
+    expect(model.item, isNull);
+    expect(model.status, PurchaseRequestComposerStatus.unavailable);
+
+    model.dispose();
+    await access.dispose();
+  });
+
   test(
     'server review gates submit and submitted state is server returned',
     () async {
@@ -339,7 +640,50 @@ void main() {
     expect(find.text('Cuenta Buyer'), findsOneWidget);
     expect(find.text('Preparar revisión'), findsOneWidget);
     expect(find.text('Transferencia bancaria'), findsOneWidget);
+    expect(find.text('Billetera'), findsNothing);
     expect(find.text('Enviar solicitud'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    model.dispose();
+    await access.dispose();
+  });
+
+  testWidgets('WALLET copy says preference, not payment confirmation', (
+    tester,
+  ) async {
+    final access = _FakeAccess(
+      _snapshot(
+        roles: const {'BUYER'},
+        permissions: const {
+          'buyer.sales.read',
+          'buyer.sales.write',
+          'payment.read',
+        },
+      ),
+    );
+    final model = PurchaseRequestComposerViewModel(
+      _FakeCatalogRepository(),
+      _FakePurchaseRequestRepository(),
+      access,
+      'CAT-001',
+      orderPaymentCapabilityQuery: _FakeWalletCapabilityQuery(supported: true),
+    );
+    await model.load();
+    model.selectPaymentPreference('WALLET');
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<PurchaseRequestComposerViewModel>.value(
+        value: model,
+        child: const MaterialApp(home: PurchaseRequestComposerPage()),
+      ),
+    );
+
+    expect(find.text('Billetera'), findsOneWidget);
+    expect(
+      find.textContaining('no reserva saldo ni confirma el pago'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Pago exitoso'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     model.dispose();
@@ -388,6 +732,8 @@ void main() {
 BuyerAccessSnapshot _snapshot({
   int epoch = 1,
   String membershipId = _membershipId,
+  Set<String> roles = const {},
+  Set<String> permissions = const {'buyer.sales.read', 'buyer.sales.write'},
 }) => BuyerAccessSnapshot(
   status: BuyerAccessStatus.signedIn,
   authorityEpoch: epoch,
@@ -399,7 +745,8 @@ BuyerAccessSnapshot _snapshot({
     workspaceId: 'workspace-1',
     workspaceName: 'Main',
     workspaceSlug: 'main',
-    permissions: const {'buyer.sales.read', 'buyer.sales.write'},
+    roles: roles,
+    permissions: permissions,
   ),
 );
 
@@ -464,6 +811,25 @@ final class _FakeCatalogRepository implements CatalogRepository {
       );
 }
 
+final class _FakeWalletCapabilityQuery
+    implements BuyerOrderPaymentCapabilityQuery {
+  _FakeWalletCapabilityQuery({
+    this.supported = false,
+    List<Future<bool>> responses = const [],
+  }) : _responses = [...responses];
+
+  final List<Future<bool>> _responses;
+  bool supported;
+  int calls = 0;
+
+  @override
+  Future<bool> isOrderPaymentSupported() {
+    calls++;
+    if (_responses.isNotEmpty) return _responses.removeAt(0);
+    return Future.value(supported);
+  }
+}
+
 const _creationIntentKey = '$_scopeKey|purchase-request-create|$_skuId';
 
 PurchaseRequestDraftPageProjection _draftPage(
@@ -522,6 +888,7 @@ final class _FakePurchaseRequestRepository
   int destinationCount = 0;
   int submittedCount = 0;
   String? submitScopeKey;
+  final preferenceWrites = <String>[];
   PurchaseRequestDraftProjection current = _draft();
 
   @override
@@ -645,6 +1012,7 @@ final class _FakePurchaseRequestRepository
     required String paymentPreference,
     required String requestedDeliveryDate,
   }) async {
+    preferenceWrites.add(paymentPreference);
     current = _draft(
       version: draft.version + 1,
       lines: draft.lines,

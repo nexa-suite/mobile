@@ -20,6 +20,7 @@ import 'contexts/credit_receivables/infrastructure/buyer_credit_exposure_reposit
 import 'contexts/credit_receivables/presentation/buyer_credit_exposure_page.dart';
 import 'contexts/credit_receivables/presentation/buyer_credit_exposure_view_model.dart';
 import 'contexts/payments/application/buyer_payments_repository.dart';
+import 'contexts/payments/application/buyer_order_payment_capability_query.dart';
 import 'contexts/payments/application/buyer_wallet_repository.dart';
 import 'contexts/payments/application/payment_report_idempotency_store.dart';
 import 'contexts/payments/infrastructure/buyer_payments_repository_impl.dart';
@@ -174,6 +175,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         Provider<BuyerCreditExposureRepository>.value(value: creditExposure),
         Provider<BuyerPaymentsRepository>.value(value: payments),
         Provider<BuyerWalletRepository>.value(value: wallet),
+        Provider<BuyerOrderPaymentCapabilityQuery>.value(value: wallet),
         Provider<PaymentReportIdempotencyStore>.value(
           value: paymentIdempotencyStore,
         ),
@@ -338,6 +340,8 @@ GoRouter _createRouter(
                             context.read<PurchaseRequestRepository>(),
                             context.read<BuyerAccessRepository>(),
                             catalogItemId,
+                            orderPaymentCapabilityQuery: context
+                                .read<BuyerOrderPaymentCapabilityQuery>(),
                           )..load(),
                           child: const PurchaseRequestComposerPage(),
                         );
