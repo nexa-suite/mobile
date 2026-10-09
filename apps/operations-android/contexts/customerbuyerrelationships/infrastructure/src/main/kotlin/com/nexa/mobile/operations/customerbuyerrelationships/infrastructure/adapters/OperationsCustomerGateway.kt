@@ -33,9 +33,17 @@ class OperationsCustomerGateway @Inject constructor(
         if (!current(authority)) return CustomerResult.PermissionDenied
         val lease = sessions.currentAccess() ?: return CustomerResult.PermissionDenied
         val result = action()
-        if (!sessions.isEpochCurrent(lease.epoch) ||
-            !current(authority)
-        ) {
+
+        if (result == CustomerNetworkResult.ContextInvalidated) {
+            if (!current(authority)) return CustomerResult.PermissionDenied
+            return if (sessions.invalidateContextIfCurrent(lease)) {
+                CustomerResult.ContextInvalidated
+            } else {
+                CustomerResult.PermissionDenied
+            }
+        }
+
+        if (!sessions.isEpochCurrent(lease.epoch) || !current(authority)) {
             return CustomerResult.PermissionDenied
         }
         return when (result) {
@@ -51,6 +59,8 @@ class OperationsCustomerGateway @Inject constructor(
 
             CustomerNetworkResult.PermissionDenied, CustomerNetworkResult.SessionInvalidated ->
                 CustomerResult.PermissionDenied
+
+            CustomerNetworkResult.ContextInvalidated -> CustomerResult.PermissionDenied
 
             CustomerNetworkResult.Unavailable -> CustomerResult.Unavailable
         }

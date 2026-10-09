@@ -57,7 +57,12 @@ class OperationsFieldVisitGateway @Inject constructor(
     ): CustomerRelationship? {
         if (!current(authority)) return null
         val lease = sessions.currentAccess() ?: return null
-        val value = (customers.detail(id) as? CustomerNetworkResult.Detail)?.value ?: return null
+        val result = customers.detail(id)
+        if (result == CustomerNetworkResult.ContextInvalidated) {
+            if (current(authority)) sessions.invalidateContextIfCurrent(lease)
+            return null
+        }
+        val value = (result as? CustomerNetworkResult.Detail)?.value ?: return null
         if (!current(authority) || !sessions.isEpochCurrent(lease.epoch)) return null
         return CustomerRelationship(
             value.id,
@@ -105,9 +110,7 @@ class OperationsFieldVisitGateway @Inject constructor(
                 "\"${intent.version}\""
             )
         )
-        if (!current(authority) ||
-            !sessions.isEpochCurrent(lease.epoch)
-        ) {
+        if (!current(authority) || !sessions.isEpochCurrent(lease.epoch)) {
             return FieldVisitResult.UnknownOutcome
         }
         return when (result) {
@@ -125,10 +128,18 @@ class OperationsFieldVisitGateway @Inject constructor(
                 }
             }
 
-            is ProtectedResult.Failure -> when (result.error.httpStatus) {
-                400, 409, 412, 422 -> FieldVisitResult.Conflict
-                401, 403, 404 -> FieldVisitResult.Denied
-                else -> FieldVisitResult.UnknownOutcome
+            is ProtectedResult.Failure -> if (
+                result.error.httpStatus == 403 &&
+                result.error.problemCode == "ACCESS_CONTEXT_INVALID"
+            ) {
+                if (current(authority)) sessions.invalidateContextIfCurrent(lease)
+                FieldVisitResult.Denied
+            } else {
+                when (result.error.httpStatus) {
+                    400, 409, 412, 422 -> FieldVisitResult.Conflict
+                    401, 403, 404 -> FieldVisitResult.Denied
+                    else -> FieldVisitResult.UnknownOutcome
+                }
             }
         }
     }

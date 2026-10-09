@@ -9,6 +9,7 @@ sealed interface CustomerResult {
     data class Detail(val customer: CustomerRelationship) : CustomerResult
     data object Unavailable : CustomerResult
     data object PermissionDenied : CustomerResult
+    data object ContextInvalidated : CustomerResult
 }
 
 interface CustomerGateway {

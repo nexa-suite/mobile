@@ -206,6 +206,10 @@ class SessionCoordinator(
     /** Context replacement invalidates all late work from the previous epoch. */
     suspend fun invalidateContext(): Boolean = clearLocal(SessionState.ContextRequired)
 
+    /** Invalidates the context only while the access lease that observed the rejection is current. */
+    suspend fun invalidateContextIfCurrent(observed: AccessTokenLease): Boolean =
+        clearLocal(SessionState.ContextRequired, expectedLease = observed)
+
     suspend fun logout(): LocalLogoutResult {
         val oldAccess = mutex.withLock { access?.value }
         val cleared = clearLocal(SessionState.SignedOut)
@@ -228,7 +232,15 @@ class SessionCoordinator(
         return LocalLogoutResult(serverAcknowledged, true)
     }
 
-    private suspend fun clearLocal(target: SessionState): Boolean = mutex.withLock {
+    private suspend fun clearLocal(
+        target: SessionState,
+        expectedLease: AccessTokenLease? = null
+    ): Boolean = mutex.withLock {
+        if (expectedLease != null &&
+            (mutableState.value != SessionState.Active || access?.epoch != expectedLease.epoch)
+        ) {
+            return@withLock false
+        }
         epoch++
         returnFlight = null
         access = null

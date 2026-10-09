@@ -63,6 +63,10 @@ class NexaCustomerGateway(private val calls: ProtectedCallExecutor) {
                 result.error.kind == FailureKind.AuthenticationRequired ->
                     CustomerNetworkResult.SessionInvalidated
 
+                result.error.httpStatus == 403 &&
+                    result.error.problemCode == ACCESS_CONTEXT_INVALID ->
+                    CustomerNetworkResult.ContextInvalidated
+
                 result.error.kind == FailureKind.AuthorizationFailure ||
                     result.error.httpStatus == 404 -> CustomerNetworkResult.PermissionDenied
 
@@ -104,7 +108,10 @@ data class CustomerPageWire(
 sealed interface CustomerNetworkResult {
     data class Page(val value: CustomerPageWire) : CustomerNetworkResult
     data class Detail(val value: CustomerWire) : CustomerNetworkResult
+    data object ContextInvalidated : CustomerNetworkResult
     data object PermissionDenied : CustomerNetworkResult
     data object SessionInvalidated : CustomerNetworkResult
     data object Unavailable : CustomerNetworkResult
 }
+
+private const val ACCESS_CONTEXT_INVALID = "ACCESS_CONTEXT_INVALID"

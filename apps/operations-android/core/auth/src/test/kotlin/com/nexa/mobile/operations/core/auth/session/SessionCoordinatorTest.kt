@@ -305,6 +305,38 @@ class SessionCoordinatorTest {
     }
 
     @Test
+    fun contextInvalidationOnlyClearsTheLeaseThatObservedTheRejection() = runTest {
+        val store = FakeStore()
+        val coordinator = SessionCoordinator(store, FakeGateway(), backgroundScope)
+        assertTrue(coordinator.signIn(NativeSignIn("synthetic", "synthetic", "workspace-a")))
+        val leaseA = coordinator.currentAccess()!!
+
+        assertTrue(coordinator.signIn(NativeSignIn("synthetic", "synthetic", "workspace-b")))
+        val leaseB = coordinator.currentAccess()!!
+        assertFalse(coordinator.invalidateContextIfCurrent(leaseA))
+        assertEquals(SessionState.Active, coordinator.sessionState.value)
+        assertEquals(leaseB, coordinator.currentAccess())
+
+        assertTrue(coordinator.invalidateContextIfCurrent(leaseB))
+        assertEquals(SessionState.ContextRequired, coordinator.sessionState.value)
+        assertNull(coordinator.currentAccess())
+        assertEquals(StoredRefreshCredential.Missing, store.value)
+    }
+
+    @Test
+    fun contextInvalidationStillAppliesAfterSameEpochTokenRotation() = runTest {
+        val coordinator = SessionCoordinator(FakeStore(), FakeGateway(), backgroundScope)
+        assertTrue(coordinator.signIn(NativeSignIn("synthetic", "synthetic", "workspace")))
+        val observed = coordinator.currentAccess()!!
+        val replacement = coordinator.recoverAfterUnauthorized(observed)!!
+        assertEquals(observed.epoch, replacement.epoch)
+        assertTrue(observed.generation != replacement.generation)
+
+        assertTrue(coordinator.invalidateContextIfCurrent(observed))
+        assertEquals(SessionState.ContextRequired, coordinator.sessionState.value)
+    }
+
+    @Test
     fun inFlightColdStartRequiresReauthenticationWithoutDispatch() = runTest {
         val store = FakeStore(StoredRefreshCredential.InFlight)
         val gateway = FakeGateway()

@@ -14,7 +14,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-enum class CustomerSearchStatus { Idle, Loading, Current, Unavailable, PermissionDenied }
+enum class CustomerSearchStatus {
+    Idle,
+    Loading,
+    Current,
+    Unavailable,
+    PermissionDenied,
+    ContextInvalidated
+}
 
 data class CustomerSearchState(
     val query: String = "",
@@ -42,6 +49,7 @@ class CustomerSearchViewModel(private val gateway: CustomerGateway) : ViewModel(
         search()
     }
     fun queryChanged(value: String) {
+        if (state.value.status == CustomerSearchStatus.ContextInvalidated) return
         generation++
         mutableState.value = CustomerSearchState(query = value.take(200))
     }
@@ -58,6 +66,7 @@ class CustomerSearchViewModel(private val gateway: CustomerGateway) : ViewModel(
         if (state.value.page > 0) loadPage(state.value.page - 1)
     }
     private fun loadPage(page: Int) {
+        if (state.value.status == CustomerSearchStatus.ContextInvalidated) return
         val captured = authority ?: return
         val request = ++generation
         val query = state.value.query
@@ -85,6 +94,11 @@ class CustomerSearchViewModel(private val gateway: CustomerGateway) : ViewModel(
                 CustomerResult.PermissionDenied -> CustomerSearchState(
                     query,
                     status = CustomerSearchStatus.PermissionDenied
+                )
+
+                CustomerResult.ContextInvalidated -> CustomerSearchState(
+                    query,
+                    status = CustomerSearchStatus.ContextInvalidated
                 )
 
                 else -> CustomerSearchState(query, status = CustomerSearchStatus.Unavailable)
@@ -124,6 +138,11 @@ class CustomerSearchViewModel(private val gateway: CustomerGateway) : ViewModel(
                 CustomerResult.PermissionDenied -> CustomerSearchState(
                     query = state.value.query,
                     status = CustomerSearchStatus.PermissionDenied
+                )
+
+                CustomerResult.ContextInvalidated -> CustomerSearchState(
+                    query = state.value.query,
+                    status = CustomerSearchStatus.ContextInvalidated
                 )
 
                 else -> CustomerSearchState(
