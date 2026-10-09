@@ -12,6 +12,8 @@ import 'package:nexa_buyer_mobile/main.dart';
 
 const _documentId = '00000000-0000-4000-8000-000000000001';
 const _documentBytes = [37, 80, 68, 70, 45, 49, 46, 55];
+const _dispatchId = '00000000-0000-4000-8000-000000000004';
+const _deliveryEventId = '00000000-0000-4000-8000-000000000005';
 
 void main() {
   testWidgets('shows safe configuration guidance without an API origin', (
@@ -23,6 +25,89 @@ void main() {
 
     expect(find.text('Configura el origen de Nexa API'), findsOneWidget);
     expect(find.text('Nexa Buyer'), findsNothing);
+  });
+
+  testWidgets('hides delivery navigation without the exact tracking grant', (
+    tester,
+  ) async {
+    final paths = <String>[];
+    final httpClient = MockClient((request) async {
+      final path = request.url.path;
+      paths.add(path);
+      if (path.endsWith('/authentication/identity-sign-in')) {
+        return http.Response(
+          jsonEncode({'outcome': 'CONTEXT_SELECTION_REQUIRED'}),
+          200,
+          headers: {'x-nexa-context-ticket': 'context-ticket'},
+        );
+      }
+      if (path.endsWith('/me/access-contexts')) {
+        return http.Response(
+          jsonEncode({
+            'accessContexts': [
+              _contextOption(
+                membershipId: 'membership-north',
+                tenantId: 'tenant-north',
+                tenantName: 'Empresa Norte',
+                tenantSlug: 'empresa-norte',
+                workspaceId: 'workspace-north',
+                workspaceName: 'Sucursal principal',
+                workspaceSlug: 'principal',
+              ),
+            ],
+          }),
+          200,
+        );
+      }
+      if (path.endsWith('/me/access-context-selections')) {
+        return http.Response(
+          jsonEncode(
+            _authenticationResponse(
+              'membership-north',
+              'tenant-north',
+              includeTracking: false,
+            ),
+          ),
+          200,
+          headers: {'x-nexa-refresh-token': 'refresh-secret'},
+        );
+      }
+      if (path == '/api/v1/catalog-items') {
+        return http.Response(
+          jsonEncode({
+            'items': <Object?>[],
+            'page': 0,
+            'size': 20,
+            'totalItems': 0,
+            'totalPages': 0,
+          }),
+          200,
+        );
+      }
+      fail('Unexpected API request ${request.method} ${request.url}');
+    });
+
+    await tester.pumpWidget(
+      BuyerMobileApp(
+        apiBaseUrl: 'https://api.nexa.example',
+        allowLocalHttp: false,
+        httpClient: httpClient,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'buyer@example.test',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'test-password');
+    await tester.tap(find.text('Continuar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Empresa Norte'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Catálogo'), findsOneWidget);
+    expect(find.text('Mis entregas'), findsNothing);
+    expect(paths, isNot(contains('/api/v1/dispatch-orders')));
   });
 
   testWidgets(
@@ -158,6 +243,41 @@ void main() {
               'size': 25,
               'total': 1,
             }),
+            200,
+          );
+        }
+        if (path == '/api/v1/dispatch-orders') {
+          expect(headers['authorization'], 'Bearer access-secret');
+          expect(request.url.queryParameters, {'page': '0', 'size': '25'});
+          expect(
+            request.url.queryParameters.containsKey('clientAccountId'),
+            isFalse,
+          );
+          return http.Response(
+            jsonEncode({
+              'items': [_delivery()],
+              'page': 0,
+              'size': 25,
+              'total': 1,
+            }),
+            200,
+          );
+        }
+        if (path == '/api/v1/dispatch-orders/$_dispatchId') {
+          return http.Response(jsonEncode(_delivery()), 200);
+        }
+        if (path == '/api/v1/dispatch-orders/$_dispatchId/events') {
+          return http.Response(
+            jsonEncode([
+              {
+                'id': _deliveryEventId,
+                'type': 'IN_TRANSIT',
+                'occurredAt': '2026-10-09T12:00:00Z',
+                'summary': 'La entrega está en tránsito.',
+                'assignedDriver': 'PRIVATE ASSIGNMENT',
+                'fromStatus': 'PRIVATE STATUS DETAIL',
+              },
+            ]),
             200,
           );
         }
@@ -318,6 +438,19 @@ void main() {
       );
       expect(documentDownloads, 1);
 
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mis entregas'));
+      await tester.pumpAndSettle();
+      expect(find.text('DO-0001'), findsOneWidget);
+      expect(find.text('Estado: En tránsito'), findsOneWidget);
+      await tester.tap(find.text('DO-0001'));
+      await tester.pumpAndSettle();
+      expect(find.text('Historial de entrega'), findsOneWidget);
+      expect(find.text('La entrega está en tránsito.'), findsOneWidget);
+      expect(find.textContaining('PRIVATE ASSIGNMENT'), findsNothing);
+      expect(find.textContaining('PRIVATE STATUS DETAIL'), findsNothing);
+
       expect(
         requests.map((request) => request.url.path),
         containsAll([
@@ -328,6 +461,9 @@ void main() {
           '/api/v1/catalog-items/CAT-0001',
           '/api/v1/sales-orders',
           '/api/v1/sales-orders/00000000-0000-0000-0000-000000000001',
+          '/api/v1/dispatch-orders',
+          '/api/v1/dispatch-orders/$_dispatchId',
+          '/api/v1/dispatch-orders/$_dispatchId/events',
           '/api/v1/client-accounts/me/credit-exposure',
           '/api/v1/business-documents',
           '/api/v1/business-documents/$_documentId',
@@ -358,8 +494,9 @@ Map<String, Object?> _contextOption({
 
 Map<String, Object?> _authenticationResponse(
   String membershipId,
-  String tenantId,
-) => {
+  String tenantId, {
+  bool includeTracking = true,
+}) => {
   'accessToken': 'access-secret',
   'tokenType': 'Bearer',
   'expiresIn': 900,
@@ -379,6 +516,7 @@ Map<String, Object?> _authenticationResponse(
       'document.read',
       'document.download',
       'payment.read',
+      if (includeTracking) 'buyer.tracking.read',
     ],
     'authorizationVersion': 7,
     'surface': 'PORTAL',
@@ -405,6 +543,24 @@ Map<String, Object?> _order() => {
       'lineSubtotal': 25,
     },
   ],
+};
+
+Map<String, Object?> _delivery() => {
+  'id': _dispatchId,
+  'dispatchNumber': 'DO-0001',
+  'salesOrderNumber': 'SO-0001',
+  'status': 'IN_TRANSIT',
+  'destination': 'Sucursal principal',
+  'deliveryWindowStart': '2026-10-09T12:00:00Z',
+  'deliveryWindowEnd': '2026-10-09T14:00:00Z',
+  'eta': '2026-10-09T13:00:00Z',
+  'podStatus': 'PENDING',
+  'updatedAt': '2026-10-09T12:05:00Z',
+  'alerts': ['ARRIVAL_WINDOW'],
+  'continuationDeliveryStatus': null,
+  'assignedDriver': 'PRIVATE ASSIGNMENT',
+  'driverName': 'PRIVATE DRIVER',
+  'vehiclePlate': 'PRIVATE VEHICLE',
 };
 
 Map<String, Object?> _businessDocument(String checksum) => {

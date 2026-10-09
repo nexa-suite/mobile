@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:nexa_buyer_mobile/contexts/fulfillment_delivery/infrastructure/buyer_deliveries_repository_impl.dart';
 import 'package:nexa_buyer_mobile/contexts/business_documents/infrastructure/business_documents_repository_impl.dart';
 import 'package:nexa_buyer_mobile/contexts/catalog_commercial_policy/infrastructure/catalog_repository_impl.dart';
 import 'package:nexa_buyer_mobile/contexts/credit_receivables/infrastructure/buyer_credit_exposure_repository_impl.dart';
@@ -19,6 +20,73 @@ const _apiOrigin = String.fromEnvironment(
 );
 
 void main() {
+  test(
+    'reads Buyer delivery pages and one selected detail from the local API',
+    () async {
+      final environment = Platform.environment;
+      final identifier = environment['NEXA_DEV_BUYER_EMAIL'];
+      final password = environment['NEXA_DEV_BUYER_PASSWORD'];
+      final tenantSlug = environment['NEXA_DEV_TENANT_SLUG'];
+      final workspaceSlug = environment['NEXA_DEV_WORKSPACE_SLUG'];
+      expect(identifier, isNotNull);
+      expect(password, isNotNull);
+      expect(tenantSlug, isNotNull);
+      expect(workspaceSlug, isNotNull);
+      final origin = NexaApiOrigin.parse(_apiOrigin, allowLocalHttp: true);
+      expect(
+        {'localhost', '127.0.0.1', '::1'}.contains(origin.uri.host),
+        isTrue,
+        reason: 'This integration test must target the local Docker API.',
+      );
+
+      final api = NexaApiClient(origin: origin, httpClient: http.Client());
+      final access = BuyerAccessRepositoryImpl(api);
+      api.sessionCredentials = access;
+      try {
+        await access.signIn(identifier: identifier!, password: password!);
+        if (access.snapshot.status == BuyerAccessStatus.choosingContext) {
+          final contexts = access.snapshot.availableContexts
+              .where(
+                (context) =>
+                    context.roles.contains('BUYER') &&
+                    context.tenantSlug == tenantSlug &&
+                    context.workspaceSlug == workspaceSlug,
+              )
+              .toList(growable: false);
+          expect(contexts, hasLength(1));
+          await access.selectContext(contexts.single.membershipId);
+        }
+        final context = access.snapshot.currentContext;
+        expect(access.snapshot.isSignedIn, isTrue);
+        expect(context, isNotNull);
+        expect(context!.permissions, contains('buyer.tracking.read'));
+
+        final repository = BuyerDeliveriesRepositoryImpl(api);
+        final page = await repository.list(page: 0);
+        expect(page.page, 0);
+        expect(page.items.length, lessThanOrEqualTo(page.size));
+        expect(page.total, greaterThanOrEqualTo(page.items.length));
+        if (page.items.isEmpty) {
+          stdout.writeln(
+            'LOCAL_API_BUYER_DELIVERIES=0; DETAIL_EVENTS=SKIPPED_NO_FIXTURE_DELIVERY',
+          );
+        } else {
+          final selected = page.items.first;
+          final detail = await repository.detail(selected.id);
+          expect(detail.delivery.id, selected.id);
+          stdout.writeln(
+            'LOCAL_API_BUYER_DELIVERIES=${page.items.length}; DETAIL_EVENTS=PASS',
+          );
+        }
+      } finally {
+        await access.signOut();
+        await access.dispose();
+        api.close();
+      }
+    },
+    skip: _runIntegration ? false : 'Set NEXA_RUN_LOCAL_API_INTEGRATION=true to use the local fixture API.',
+  );
+
   test(
     'reads scoped Buyer drafts from the local API without creating a request',
     () async {

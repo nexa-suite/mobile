@@ -19,6 +19,11 @@ import 'contexts/credit_receivables/application/credit_exposure_repository.dart'
 import 'contexts/credit_receivables/infrastructure/buyer_credit_exposure_repository_impl.dart';
 import 'contexts/credit_receivables/presentation/buyer_credit_exposure_page.dart';
 import 'contexts/credit_receivables/presentation/buyer_credit_exposure_view_model.dart';
+import 'contexts/fulfillment_delivery/infrastructure/buyer_deliveries_repository_impl.dart';
+import 'contexts/fulfillment_delivery/application/buyer_deliveries_repository.dart';
+import 'contexts/fulfillment_delivery/presentation/buyer_deliveries_page.dart';
+import 'contexts/fulfillment_delivery/presentation/buyer_delivery_detail_page.dart';
+import 'contexts/fulfillment_delivery/presentation/buyer_deliveries_view_model.dart';
 import 'contexts/sales_commitment/application/buyer_orders_repository.dart';
 import 'contexts/sales_commitment/application/purchase_request_repository.dart';
 import 'contexts/sales_commitment/infrastructure/buyer_orders_repository_impl.dart';
@@ -68,6 +73,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
   BuyerAccessViewModel? _accessViewModel;
   CatalogRepositoryImpl? _catalogRepository;
   BuyerCreditExposureRepositoryImpl? _creditExposureRepository;
+  BuyerDeliveriesRepositoryImpl? _deliveriesRepository;
   BuyerOrdersRepositoryImpl? _ordersRepository;
   PurchaseRequestRepositoryImpl? _purchaseRequestRepository;
   BusinessDocumentsRepositoryImpl? _businessDocumentsRepository;
@@ -89,6 +95,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
       _accessViewModel = BuyerAccessViewModel(_accessRepository!);
       _catalogRepository = CatalogRepositoryImpl(api);
       _creditExposureRepository = BuyerCreditExposureRepositoryImpl(api);
+      _deliveriesRepository = BuyerDeliveriesRepositoryImpl(api);
       _ordersRepository = BuyerOrdersRepositoryImpl(api);
       _purchaseRequestRepository = PurchaseRequestRepositoryImpl(
         api,
@@ -116,6 +123,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
     final accessViewModel = _accessViewModel;
     final catalog = _catalogRepository;
     final creditExposure = _creditExposureRepository;
+    final deliveries = _deliveriesRepository;
     final orders = _ordersRepository;
     final purchaseRequests = _purchaseRequestRepository;
     final businessDocuments = _businessDocumentsRepository;
@@ -125,6 +133,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         accessViewModel == null ||
         catalog == null ||
         creditExposure == null ||
+        deliveries == null ||
         orders == null ||
         purchaseRequests == null ||
         businessDocuments == null ||
@@ -137,6 +146,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         Provider<BuyerAccessRepository>.value(value: access),
         Provider<CatalogRepository>.value(value: catalog),
         Provider<BuyerCreditExposureRepository>.value(value: creditExposure),
+        Provider<BuyerDeliveriesRepository>.value(value: deliveries),
         Provider<BuyerOrdersRepository>.value(value: orders),
         Provider<PurchaseRequestRepository>.value(value: purchaseRequests),
         Provider<BusinessDocumentsRepository>.value(value: businessDocuments),
@@ -152,6 +162,12 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         ChangeNotifierProvider<BuyerOrdersViewModel>(
           create: (context) => BuyerOrdersViewModel(
             context.read<BuyerOrdersRepository>(),
+            context.read<BuyerAccessRepository>(),
+          ),
+        ),
+        ChangeNotifierProvider<BuyerDeliveriesViewModel>(
+          create: (context) => BuyerDeliveriesViewModel(
+            context.read<BuyerDeliveriesRepository>(),
             context.read<BuyerAccessRepository>(),
           ),
         ),
@@ -200,6 +216,14 @@ GoRouter _createRouter(BuyerAccessViewModel access) => GoRouter(
     if (status == BuyerAccessStatus.signedIn &&
         (path == '/sign-in' || path == '/choose-context')) {
       return '/catalog';
+    }
+    if (status == BuyerAccessStatus.signedIn &&
+        (path == '/deliveries' || path.startsWith('/deliveries/')) &&
+        !(access.snapshot.currentContext?.permissions.contains(
+              BuyerDeliveriesViewModel.readPermission,
+            ) ??
+            false)) {
+      return '/orders';
     }
     return null;
   },
@@ -320,6 +344,31 @@ GoRouter _createRouter(BuyerAccessViewModel access) => GoRouter(
             ),
           ],
         ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/deliveries',
+              builder: (context, state) => const BuyerDeliveriesPage(),
+              routes: [
+                GoRoute(
+                  path: ':dispatchId',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) {
+                    final dispatchId = state.pathParameters['dispatchId']!;
+                    return ChangeNotifierProvider<BuyerDeliveryDetailViewModel>(
+                      create: (context) => BuyerDeliveryDetailViewModel(
+                        context.read<BuyerDeliveriesRepository>(),
+                        context.read<BuyerAccessRepository>(),
+                        dispatchId,
+                      )..load(),
+                      child: const BuyerDeliveryDetailPage(),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
       ],
     ),
   ],
@@ -338,6 +387,43 @@ final class _BuyerNavigationShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final access = context.watch<BuyerAccessViewModel>();
     final current = access.snapshot.currentContext;
+    final destinations = <NavigationDestination>[
+      const NavigationDestination(
+        icon: Icon(Icons.inventory_2_outlined),
+        selectedIcon: Icon(Icons.inventory_2),
+        label: 'Catálogo',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.receipt_long_outlined),
+        selectedIcon: Icon(Icons.receipt_long),
+        label: 'Mis pedidos',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.account_balance_wallet_outlined),
+        selectedIcon: Icon(Icons.account_balance_wallet),
+        label: 'Crédito',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.description_outlined),
+        selectedIcon: Icon(Icons.description),
+        label: 'Documentos',
+      ),
+    ];
+    if (current?.permissions.contains(
+          BuyerDeliveriesViewModel.readPermission,
+        ) ??
+        false) {
+      destinations.add(
+        const NavigationDestination(
+          icon: Icon(Icons.local_shipping_outlined),
+          selectedIcon: Icon(Icons.local_shipping),
+          label: 'Mis entregas',
+        ),
+      );
+    }
+    final selectedIndex = navigationShell.currentIndex < destinations.length
+        ? navigationShell.currentIndex
+        : 0;
     return Scaffold(
       appBar: AppBar(
         title: Column(
@@ -362,33 +448,12 @@ final class _BuyerNavigationShell extends StatelessWidget {
       ),
       body: navigationShell,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
+        selectedIndex: selectedIndex,
         onDestinationSelected: (index) => navigationShell.goBranch(
           index,
           initialLocation: index == navigationShell.currentIndex,
         ),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.inventory_2_outlined),
-            selectedIcon: Icon(Icons.inventory_2),
-            label: 'Catálogo',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long),
-            label: 'Mis pedidos',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            selectedIcon: Icon(Icons.account_balance_wallet),
-            label: 'Crédito',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.description_outlined),
-            selectedIcon: Icon(Icons.description),
-            label: 'Documentos',
-          ),
-        ],
+        destinations: destinations,
       ),
     );
   }

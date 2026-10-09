@@ -1,11 +1,13 @@
 # Nexa Buyer Mobile
 
 Flutter client for Buyer sign-in, server-selected access context, catalog,
-orders, purchase requests, credit exposure, and business documents. Access
-credentials remain in process memory. The API remains authoritative for Buyer
-scope, catalog and commercial decisions, credit, and order outcomes. Document
-bytes are verified and kept in memory for the detail view; the app does not save
-or open them as files.
+orders, purchase requests, credit exposure, business documents, and read-only
+delivery tracking. Access credentials remain in process memory. The API remains
+authoritative for Buyer scope, catalog and commercial decisions, credit, order
+outcomes, and delivery status. Delivery tracking shows Buyer-visible status and
+event summaries; it does not provide driver assignment or live location.
+Document bytes are verified and kept in memory for the detail view; the app does
+not save or open them as files.
 
 Run on an Android emulator against a local API listening on host port 8080:
 
