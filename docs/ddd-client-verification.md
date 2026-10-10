@@ -1,12 +1,12 @@
 # DDD client refactor verification — 2026-10-08
 
-## Current state
+## Published v1.1.0 baseline
 
-The current refactor organizes Operations Android under 11 canonical context
-roots and 31 runtime modules, with `domain`, `application`, `infrastructure`
-and `presentation` modules only where code exists. BC-08 Payments, BC-10
-Notifications and BC-11 Business Traceability have no runtime modules. The
-[DDD alignment](client-ddd-alignment.md) records the per-context layer map and
+At the published v1.1.0 baseline, Operations Android had 11 canonical context
+roots and 31 runtime modules. BC-08 Payments, BC-10 Notifications and BC-11
+Business Traceability had no runtime modules then. The v1.2.0 candidate adds
+three BC-10 layers and has 34 runtime modules; the
+[DDD alignment](client-ddd-alignment.md) records the current layer map and
 authority boundaries.
 
 The refactor resumed on 2026-10-08 from signed checkpoint
@@ -311,3 +311,54 @@ published Operations from missing Buyer runtime and pending acceptance.
 
 Product/UX Acceptance, System Acceptance, physical-device verification,
 private-fixture integration and production readiness remain separate gates.
+
+## v1.2.0 source candidate — 2026-10-10
+
+The current local tree sets Operations Android to `1.2.0` (`versionCode 11`)
+and the independent Buyer Flutter app to `1.1.0+2`. This is not a tag or
+published release.
+
+With JDK 17 and strict Gradle dependency verification, the following Operations
+command exited successfully:
+
+```sh
+./gradlew --dependency-verification strict --console=plain --quiet \
+  verifyAndroidArchitecture ktlintCheck lintDebug testDebugUnitTest \
+  :app:assembleDebug :app:assembleRelease \
+  -PnexaReleaseApiBaseUrl=https://nexa-api-69bj.onrender.com/
+```
+
+The JVM result XML files record 561 cases across 121 files, with zero failures,
+errors or skips. The release variant ran R8 and resource shrinking against the
+Render validation origin. It is not evidence of live Tenant API compatibility.
+
+The connected command below passed separately on API 37 (`emulator-5554`) and
+API 29 (`emulator-5556`); each run recorded 65 tests across 14 XML files, with
+zero failures, errors or skips:
+
+```sh
+scripts/verify-connected-local.sh <serial> \
+  -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.nexa.mobile.operations.RequiresPrivateFixture \
+  --console=plain --quiet
+```
+
+The private-fixture cases `LiveCandidateIdentityIntegrationTest` and
+`RoleWireflowCaptureTest` were excluded and absent from the result XML.
+
+Buyer checks on the current tree:
+
+- `flutter analyze`: PASS, no issues.
+- `flutter test --reporter compact`: PASS, 94 passed and 4 opt-in local API
+  integration cases skipped because the local API fixture was unavailable.
+- JDK 17 Gradle `assembleDebug` with strict dependency verification: PASS.
+- `flutter build ios --no-codesign --no-pub`: BLOCKED before compilation;
+  Xcode 27 could not load `IDESimulatorFoundation` because
+  `/Library/Developer/PrivateFrameworks/CoreSimulator.framework` is missing.
+  `xcodebuild -runFirstLaunch` remained silent for over 90 seconds and was
+  stopped; no iOS signing was attempted.
+
+The Operations APK has not yet been signed and verified with the official
+certificate. Buyer Android uses only a development debug signature; no Buyer
+distribution identity was reused. No artifact was uploaded or published.
+Product acceptance, System Acceptance, live service compatibility, physical
+device validation and production readiness remain separate gates.

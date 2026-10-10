@@ -75,6 +75,10 @@ final class BusinessDocumentsViewModel extends ChangeNotifier {
       status = BusinessDocumentsStatus.current;
     } on NexaApiFailure catch (failure) {
       if (!_isCurrent(generation, lease)) return;
+      if (_isAuthorityFailure(failure)) {
+        _invalidateCurrentAuthority();
+        return;
+      }
       items = const [];
       status = failure.statusCode == 403
           ? BusinessDocumentsStatus.permissionDenied
@@ -91,8 +95,15 @@ final class BusinessDocumentsViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool _isCurrent(int generation, String lease) =>
-      generation == _requestGeneration && lease == _leaseKey;
+  bool _isCurrent(int generation, String lease) {
+    if (generation != _requestGeneration || lease != _leaseKey) return false;
+    final snapshot = _access.snapshot;
+    if (lease != _activeLease(snapshot)) {
+      _onAccessChanged(snapshot);
+      return false;
+    }
+    return true;
+  }
 
   void _onAccessChanged(BuyerAccessSnapshot snapshot) {
     final nextLease = _activeLease(snapshot);
@@ -107,6 +118,17 @@ final class BusinessDocumentsViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _invalidateCurrentAuthority() {
+    _requestGeneration++;
+    status = BusinessDocumentsStatus.unavailable;
+    items = const [];
+    page = 0;
+    total = 0;
+    message = 'El acceso activo cambió. Inicia sesión nuevamente.';
+    notifyListeners();
+    _access.invalidateLocalSession();
+  }
+
   static bool _hasPermission(BuyerAccessSnapshot snapshot, String permission) =>
       snapshot.isSignedIn &&
       snapshot.currentContext!.permissions.contains(permission);
@@ -115,6 +137,9 @@ final class BusinessDocumentsViewModel extends ChangeNotifier {
       snapshot.isSignedIn
       ? '${snapshot.authorityEpoch}:${snapshot.currentContext!.authorityFingerprint}'
       : null;
+
+  static bool _isAuthorityFailure(NexaApiFailure failure) =>
+      failure.statusCode == 401 || failure.code == 'ACCESS_CONTEXT_INVALID';
 
   @override
   void dispose() {
@@ -206,6 +231,10 @@ final class BusinessDocumentDetailViewModel extends ChangeNotifier {
       status = BusinessDocumentDetailStatus.current;
     } on NexaApiFailure catch (failure) {
       if (!_isCurrent(generation, lease)) return;
+      if (_isAuthorityFailure(failure)) {
+        _invalidateCurrentAuthority();
+        return;
+      }
       status = failure.statusCode == 403
           ? BusinessDocumentDetailStatus.permissionDenied
           : BusinessDocumentDetailStatus.unavailable;
@@ -266,6 +295,10 @@ final class BusinessDocumentDetailViewModel extends ChangeNotifier {
       downloadStatus = BusinessDocumentDownloadStatus.current;
     } on NexaApiFailure catch (failure) {
       if (!_isCurrent(generation, lease)) return;
+      if (_isAuthorityFailure(failure)) {
+        _invalidateCurrentAuthority();
+        return;
+      }
       _clearContent();
       downloadStatus = failure.statusCode == 403
           ? BusinessDocumentDownloadStatus.permissionDenied
@@ -288,8 +321,15 @@ final class BusinessDocumentDetailViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool _isCurrent(int generation, String lease) =>
-      generation == _requestGeneration && lease == _leaseKey;
+  bool _isCurrent(int generation, String lease) {
+    if (generation != _requestGeneration || lease != _leaseKey) return false;
+    final snapshot = _access.snapshot;
+    if (lease != BusinessDocumentsViewModel._activeLease(snapshot)) {
+      _onAccessChanged(snapshot);
+      return false;
+    }
+    return true;
+  }
 
   void _denyRead() {
     _requestGeneration++;
@@ -299,6 +339,17 @@ final class BusinessDocumentDetailViewModel extends ChangeNotifier {
     downloadStatus = BusinessDocumentDownloadStatus.permissionDenied;
     message = 'No tienes permiso para consultar documentos.';
     notifyListeners();
+  }
+
+  void _invalidateCurrentAuthority() {
+    _requestGeneration++;
+    status = BusinessDocumentDetailStatus.unavailable;
+    downloadStatus = BusinessDocumentDownloadStatus.permissionDenied;
+    document = null;
+    _clearContent();
+    message = 'El acceso activo cambió. Inicia sesión nuevamente.';
+    notifyListeners();
+    _access.invalidateLocalSession();
   }
 
   void _onAccessChanged(BuyerAccessSnapshot snapshot) {
@@ -321,6 +372,9 @@ final class BusinessDocumentDetailViewModel extends ChangeNotifier {
   static bool _hasPermission(BuyerAccessSnapshot snapshot, String permission) =>
       snapshot.isSignedIn &&
       snapshot.currentContext!.permissions.contains(permission);
+
+  static bool _isAuthorityFailure(NexaApiFailure failure) =>
+      failure.statusCode == 401 || failure.code == 'ACCESS_CONTEXT_INVALID';
 
   void _clearContent() {
     content?.clear();

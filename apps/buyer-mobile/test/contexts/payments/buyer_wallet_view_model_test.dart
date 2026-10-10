@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexa_buyer_mobile/contexts/payments/application/buyer_wallet_repository.dart';
+import 'package:nexa_buyer_mobile/contexts/payments/application/buyer_wallet_recharge_command_store.dart';
 import 'package:nexa_buyer_mobile/contexts/payments/presentation/buyer_wallet_page.dart';
 import 'package:nexa_buyer_mobile/contexts/payments/presentation/buyer_wallet_view_model.dart';
 import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/application/buyer_access_repository.dart';
@@ -15,7 +16,11 @@ void main() {
     () async {
       final access = _FakeAccess(_snapshot(roles: const {'LOGISTICS'}));
       final repository = _FakeWalletRepository();
-      final viewModel = BuyerWalletViewModel(repository, access);
+      final viewModel = BuyerWalletViewModel(
+        repository,
+        access,
+        _FakeRechargeStore(),
+      );
 
       await viewModel.refresh();
 
@@ -40,7 +45,11 @@ void main() {
             userMessage: 'Temporarily unavailable.',
           ),
         );
-      final viewModel = BuyerWalletViewModel(repository, access);
+      final viewModel = BuyerWalletViewModel(
+        repository,
+        access,
+        _FakeRechargeStore(),
+      );
 
       await viewModel.refresh();
 
@@ -67,7 +76,11 @@ void main() {
           started.complete();
           return pending.future;
         };
-      final viewModel = BuyerWalletViewModel(repository, access);
+      final viewModel = BuyerWalletViewModel(
+        repository,
+        access,
+        _FakeRechargeStore(),
+      );
 
       final read = viewModel.refresh();
       await started.future;
@@ -95,7 +108,11 @@ void main() {
           started.complete();
           return pending.future;
         };
-      final viewModel = BuyerWalletViewModel(repository, access);
+      final viewModel = BuyerWalletViewModel(
+        repository,
+        access,
+        _FakeRechargeStore(),
+      );
 
       final read = viewModel.refresh();
       await started.future;
@@ -105,7 +122,7 @@ void main() {
       await read;
 
       expect(viewModel.wallet, isNull);
-      expect(viewModel.status, BuyerWalletViewStatus.loading);
+      expect(viewModel.status, BuyerWalletViewStatus.idle);
 
       access.emit(changedContext);
       expect(viewModel.status, BuyerWalletViewStatus.idle);
@@ -122,7 +139,11 @@ void main() {
     final access = _FakeAccess(_snapshot());
     final repository = _FakeWalletRepository()
       ..readHandler = (_) async => _notInitializedWallet();
-    final viewModel = BuyerWalletViewModel(repository, access);
+    final viewModel = BuyerWalletViewModel(
+      repository,
+      access,
+      _FakeRechargeStore(),
+    );
     addTearDown(viewModel.dispose);
     addTearDown(access.dispose);
 
@@ -147,7 +168,11 @@ void main() {
     final access = _FakeAccess(_snapshot());
     final repository = _FakeWalletRepository()
       ..readHandler = (_) async => _activeWallet();
-    final viewModel = BuyerWalletViewModel(repository, access);
+    final viewModel = BuyerWalletViewModel(
+      repository,
+      access,
+      _FakeRechargeStore(),
+    );
     addTearDown(viewModel.dispose);
     addTearDown(access.dispose);
 
@@ -277,5 +302,60 @@ final class _FakeWalletRepository implements BuyerWalletRepository {
     final handler = readHandler;
     if (handler != null) return handler(page);
     return Future.value(_activeWallet());
+  }
+
+  @override
+  Future<BuyerWalletRechargeProjection> createRecharge({
+    required String amount,
+    required String idempotencyKey,
+  }) => Future.error(UnimplementedError());
+
+  @override
+  Future<BuyerWalletRechargeProjection> readRecharge({
+    required String rechargeId,
+  }) => Future.error(UnimplementedError());
+}
+
+final class _FakeRechargeStore implements BuyerWalletRechargeCommandStore {
+  BuyerWalletRechargeCommand? command;
+
+  @override
+  Future<BuyerWalletRechargeCommand?> load({required String scopeKey}) async =>
+      command;
+
+  @override
+  Future<BuyerWalletRechargeCommand> prepare({
+    required String scopeKey,
+    required String amount,
+  }) async {
+    final existing = command;
+    if (existing != null) return existing;
+    final created = BuyerWalletRechargeCommand(
+      amount: amount,
+      idempotencyKey: 'recharge-idempotency-key',
+    );
+    command = created;
+    return created;
+  }
+
+  @override
+  Future<bool> recordCreated({
+    required String scopeKey,
+    required String idempotencyKey,
+    required String rechargeId,
+  }) async {
+    if (command?.idempotencyKey != idempotencyKey) return false;
+    command = command!.withRechargeId(rechargeId);
+    return true;
+  }
+
+  @override
+  Future<bool> clear({
+    required String scopeKey,
+    required String idempotencyKey,
+  }) async {
+    if (command?.idempotencyKey != idempotencyKey) return false;
+    command = null;
+    return true;
   }
 }

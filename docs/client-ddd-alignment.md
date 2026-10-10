@@ -49,14 +49,17 @@ the client has code in it.
 | BC-07 Credit & Receivables | `creditreceivables` | `domain`, `application`, `infrastructure` |
 | BC-08 Payments | `payments` | No runtime module |
 | BC-09 Business Documents | `businessdocuments` | `domain`, `application`, `infrastructure`, `presentation` |
-| BC-10 Notifications | `notifications` | No runtime module |
+| BC-10 Notifications | `notifications` | `application`, `infrastructure`, `presentation` |
 | BC-11 Business Traceability | `businesstraceability` | No runtime module |
 
-The seven four-layer roots contribute 28 modules; BC-07 contributes three.
-BC-08, BC-10 and BC-11 have context README files but no runtime Gradle modules
-or client capability. Their inclusion in the directory map does not imply
-implementation. `:app` is the composition root, and `:core:*` modules are
-technical foundations; neither is an extra Bounded Context.
+The seven four-layer roots contribute 28 modules; BC-07 and BC-10 contribute
+three modules each, for 34 runtime modules. BC-08 and BC-11 have context README
+files but no runtime Gradle modules or client capability. BC-10 source provides
+the scoped inbox, read state and preference workflows for accepted `IN_APP` and
+`EMAIL` channels; push delivery is outside this slice. Module presence does not
+imply Product acceptance or server authority. `:app` is the composition root,
+and `:core:*` modules are technical foundations; neither is an extra Bounded
+Context.
 
 ## Client layers
 

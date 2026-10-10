@@ -24,7 +24,11 @@ data class DriverWorkdayLocationSample(
 )
 
 sealed interface DriverWorkdayLocationEvent {
-    data class Sample(val value: DriverWorkdayLocationSample) : DriverWorkdayLocationEvent
-    data object PermissionUnavailable : DriverWorkdayLocationEvent
-    data object ProviderUnavailable : DriverWorkdayLocationEvent
+    val captureId: String
+
+    data class Sample(override val captureId: String, val value: DriverWorkdayLocationSample) :
+        DriverWorkdayLocationEvent
+
+    data class PermissionUnavailable(override val captureId: String) : DriverWorkdayLocationEvent
+    data class ProviderUnavailable(override val captureId: String) : DriverWorkdayLocationEvent
 }

@@ -52,5 +52,8 @@ include(
     ":contexts:businessdocuments:domain",
     ":contexts:businessdocuments:application",
     ":contexts:businessdocuments:infrastructure",
-    ":contexts:businessdocuments:presentation"
+    ":contexts:businessdocuments:presentation",
+    ":contexts:notifications:application",
+    ":contexts:notifications:infrastructure",
+    ":contexts:notifications:presentation"
 )

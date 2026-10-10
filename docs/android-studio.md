@@ -28,6 +28,17 @@ The origin can be set for Gradle builds with
 configuration permits cleartext only for the configured local development
 hosts. Keep release origins HTTPS and externally approved.
 
+For a physical Android device, connect the local API through its selected ADB
+serial instead of changing the emulator default:
+
+```sh
+scripts/reverse-local-api.sh "$ANDROID_SERIAL"
+```
+
+Use `-PnexaDebugApiBaseUrl=http://127.0.0.1:8080/` for that debug build. The
+helper configures only the named device and maps host port 8080 to device
+loopback.
+
 Terminal verification uses the checked-in Gradle wrapper from
 `apps/operations-android` and can make strict mode explicit:
 

@@ -19,12 +19,21 @@ import 'contexts/credit_receivables/application/credit_exposure_repository.dart'
 import 'contexts/credit_receivables/infrastructure/buyer_credit_exposure_repository_impl.dart';
 import 'contexts/credit_receivables/presentation/buyer_credit_exposure_page.dart';
 import 'contexts/credit_receivables/presentation/buyer_credit_exposure_view_model.dart';
+import 'contexts/notifications/application/buyer_notifications_repository.dart';
+import 'contexts/notifications/infrastructure/buyer_notifications_repository_impl.dart';
+import 'contexts/notifications/presentation/buyer_notification_preferences_page.dart';
+import 'contexts/notifications/presentation/buyer_notifications_page.dart';
+import 'contexts/notifications/presentation/buyer_notifications_view_model.dart';
 import 'contexts/payments/application/buyer_payments_repository.dart';
 import 'contexts/payments/application/buyer_order_payment_capability_query.dart';
 import 'contexts/payments/application/buyer_wallet_repository.dart';
+import 'contexts/payments/application/buyer_wallet_checkout_port.dart';
+import 'contexts/payments/application/buyer_wallet_recharge_command_store.dart';
 import 'contexts/payments/application/payment_report_idempotency_store.dart';
 import 'contexts/payments/infrastructure/buyer_payments_repository_impl.dart';
 import 'contexts/payments/infrastructure/buyer_wallet_repository_impl.dart';
+import 'contexts/payments/infrastructure/stripe_buyer_wallet_checkout.dart';
+import 'contexts/payments/infrastructure/file_buyer_wallet_recharge_command_store.dart';
 import 'contexts/payments/infrastructure/file_payment_report_idempotency_store.dart';
 import 'contexts/payments/presentation/buyer_payment_activity_page.dart';
 import 'contexts/payments/presentation/buyer_payment_activity_view_model.dart';
@@ -52,12 +61,16 @@ import 'contexts/tenant_access_governance/presentation/context_selection_page.da
 import 'contexts/tenant_access_governance/presentation/sign_in_page.dart';
 import 'core/network/nexa_api_client.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final walletCheckout = await StripeBuyerWalletCheckout.configure(
+    const String.fromEnvironment('NEXA_STRIPE_PUBLISHABLE_KEY'),
+  );
   runApp(
     BuyerMobileApp(
       apiBaseUrl: const String.fromEnvironment('NEXA_API_BASE_URL'),
       allowLocalHttp: kDebugMode,
+      walletCheckout: walletCheckout,
     ),
   );
 }
@@ -68,11 +81,13 @@ final class BuyerMobileApp extends StatefulWidget {
     required this.apiBaseUrl,
     required this.allowLocalHttp,
     this.httpClient,
+    this.walletCheckout,
   });
 
   final String apiBaseUrl;
   final bool allowLocalHttp;
   final http.Client? httpClient;
+  final BuyerWalletCheckoutPort? walletCheckout;
 
   @override
   State<BuyerMobileApp> createState() => _BuyerMobileAppState();
@@ -86,11 +101,14 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
   BuyerCreditExposureRepositoryImpl? _creditExposureRepository;
   BuyerPaymentsRepositoryImpl? _paymentsRepository;
   BuyerWalletRepositoryImpl? _walletRepository;
+  FileBuyerWalletRechargeCommandStore? _walletRechargeCommandStore;
   FilePaymentReportIdempotencyStore? _paymentIdempotencyStore;
   BuyerDeliveriesRepositoryImpl? _deliveriesRepository;
   BuyerOrdersRepositoryImpl? _ordersRepository;
   PurchaseRequestRepositoryImpl? _purchaseRequestRepository;
   BusinessDocumentsRepositoryImpl? _businessDocumentsRepository;
+  BuyerNotificationsRepositoryImpl? _notificationsRepository;
+  BuyerNotificationsViewModel? _notificationsViewModel;
   GoRouter? _router;
   bool _configurationInvalid = false;
 
@@ -111,6 +129,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
       _creditExposureRepository = BuyerCreditExposureRepositoryImpl(api);
       _paymentsRepository = BuyerPaymentsRepositoryImpl(api);
       _walletRepository = BuyerWalletRepositoryImpl(api);
+      _walletRechargeCommandStore = FileBuyerWalletRechargeCommandStore();
       _paymentIdempotencyStore = FilePaymentReportIdempotencyStore();
       _deliveriesRepository = BuyerDeliveriesRepositoryImpl(api);
       _ordersRepository = BuyerOrdersRepositoryImpl(api);
@@ -119,6 +138,11 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         FilePurchaseRequestIdempotencyStore(),
       );
       _businessDocumentsRepository = BusinessDocumentsRepositoryImpl(api);
+      _notificationsRepository = BuyerNotificationsRepositoryImpl(api);
+      _notificationsViewModel = BuyerNotificationsViewModel(
+        _notificationsRepository!,
+        _accessRepository!,
+      );
       _router = _createRouter(
         _accessViewModel!,
         _paymentsRepository!,
@@ -132,6 +156,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
   @override
   void dispose() {
     _router?.dispose();
+    _notificationsViewModel?.dispose();
     _accessViewModel?.dispose();
     _accessRepository?.dispose();
     _httpClient?.close();
@@ -146,11 +171,14 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
     final creditExposure = _creditExposureRepository;
     final payments = _paymentsRepository;
     final wallet = _walletRepository;
+    final walletRechargeCommandStore = _walletRechargeCommandStore;
     final paymentIdempotencyStore = _paymentIdempotencyStore;
     final deliveries = _deliveriesRepository;
     final orders = _ordersRepository;
     final purchaseRequests = _purchaseRequestRepository;
     final businessDocuments = _businessDocumentsRepository;
+    final notifications = _notificationsRepository;
+    final notificationsViewModel = _notificationsViewModel;
     final router = _router;
     if (_configurationInvalid ||
         access == null ||
@@ -159,11 +187,14 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         creditExposure == null ||
         payments == null ||
         wallet == null ||
+        walletRechargeCommandStore == null ||
         paymentIdempotencyStore == null ||
         deliveries == null ||
         orders == null ||
         purchaseRequests == null ||
         businessDocuments == null ||
+        notifications == null ||
+        notificationsViewModel == null ||
         router == null) {
       return const _ConfigurationApp();
     }
@@ -175,6 +206,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         Provider<BuyerCreditExposureRepository>.value(value: creditExposure),
         Provider<BuyerPaymentsRepository>.value(value: payments),
         Provider<BuyerWalletRepository>.value(value: wallet),
+        Provider<BuyerWalletRechargeCommandStore>.value(
+          value: walletRechargeCommandStore,
+        ),
         Provider<BuyerOrderPaymentCapabilityQuery>.value(value: wallet),
         Provider<PaymentReportIdempotencyStore>.value(
           value: paymentIdempotencyStore,
@@ -183,6 +217,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         Provider<BuyerOrdersRepository>.value(value: orders),
         Provider<PurchaseRequestRepository>.value(value: purchaseRequests),
         Provider<BusinessDocumentsRepository>.value(value: businessDocuments),
+        Provider<BuyerNotificationsRepository>.value(value: notifications),
         ChangeNotifierProvider<BuyerAccessViewModel>.value(
           value: accessViewModel,
         ),
@@ -214,6 +249,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
           create: (context) => BuyerWalletViewModel(
             context.read<BuyerWalletRepository>(),
             context.read<BuyerAccessRepository>(),
+            context.read<BuyerWalletRechargeCommandStore>(),
+            rechargeIntents: wallet,
+            checkout: widget.walletCheckout,
           ),
         ),
         ChangeNotifierProvider<BusinessDocumentsViewModel>(
@@ -221,6 +259,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
             context.read<BusinessDocumentsRepository>(),
             context.read<BuyerAccessRepository>(),
           ),
+        ),
+        ChangeNotifierProvider<BuyerNotificationsViewModel>.value(
+          value: notificationsViewModel,
         ),
       ],
       child: MaterialApp.router(
@@ -261,6 +302,14 @@ GoRouter _createRouter(
       return '/catalog';
     }
     if (status == BuyerAccessStatus.signedIn &&
+        path.startsWith('/notifications') &&
+        !(access.snapshot.currentContext?.permissions.contains(
+              BuyerNotificationsViewModel.readPermission,
+            ) ??
+            false)) {
+      return '/catalog';
+    }
+    if (status == BuyerAccessStatus.signedIn &&
         (path == '/deliveries' || path.startsWith('/deliveries/')) &&
         !(access.snapshot.currentContext?.permissions.contains(
               BuyerDeliveriesViewModel.readPermission,
@@ -286,10 +335,14 @@ GoRouter _createRouter(
                   BuyerWalletViewModel.buyerRole,
                 ) ??
                 false) ||
-            !(access.snapshot.currentContext?.permissions.contains(
-                  BuyerWalletViewModel.readPermission,
-                ) ??
-                false))) {
+            !((access.snapshot.currentContext?.permissions.contains(
+                      BuyerWalletViewModel.readPermission,
+                    ) ??
+                    false) ||
+                (access.snapshot.currentContext?.permissions.contains(
+                      BuyerWalletViewModel.createPermission,
+                    ) ??
+                    false)))) {
       return '/credit';
     }
     return null;
@@ -299,6 +352,17 @@ GoRouter _createRouter(
     GoRoute(
       path: '/choose-context',
       builder: (context, state) => const ContextSelectionPage(),
+    ),
+    GoRoute(
+      path: '/notifications',
+      builder: (context, state) => const BuyerNotificationsPage(),
+      routes: [
+        GoRoute(
+          path: 'preferences',
+          builder: (context, state) =>
+              const BuyerNotificationPreferencesPage(),
+        ),
+      ],
     ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
@@ -520,8 +584,10 @@ final class _BuyerNavigationShell extends StatelessWidget {
     ];
     final branchIndices = <int>[0, 1, 2, 3];
     if (current?.roles.contains(BuyerWalletViewModel.buyerRole) == true &&
-        current?.permissions.contains(BuyerWalletViewModel.readPermission) ==
-            true) {
+        (current?.permissions.contains(BuyerWalletViewModel.readPermission) ==
+                true ||
+            current?.permissions.contains(BuyerWalletViewModel.createPermission) ==
+                true)) {
       destinations.add(
         const NavigationDestination(
           icon: Icon(Icons.account_balance_wallet_outlined),
@@ -563,6 +629,15 @@ final class _BuyerNavigationShell extends StatelessWidget {
           ],
         ),
         actions: [
+          if (current?.permissions.contains(
+                BuyerNotificationsViewModel.readPermission,
+              ) ==
+              true)
+            IconButton(
+              tooltip: 'Notificaciones',
+              onPressed: () => context.push('/notifications'),
+              icon: const Icon(Icons.notifications_outlined),
+            ),
           IconButton(
             tooltip: 'Cerrar sesión',
             onPressed: access.busy ? null : access.signOut,

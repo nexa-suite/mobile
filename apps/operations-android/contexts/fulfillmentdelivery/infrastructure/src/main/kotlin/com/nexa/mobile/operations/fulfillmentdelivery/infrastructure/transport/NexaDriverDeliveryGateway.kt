@@ -568,14 +568,17 @@ class NexaDriverDeliveryGateway(private val protectedCalls: ProtectedCallExecuto
                 return null
             }
         val status = requiredText("status") ?: return null
-        val destination = optionalText("destinationSnapshot")
-            ?: if (this["destinationSnapshot"] == null ||
-                this["destinationSnapshot"] == JsonNull
-            ) {
-                null
-            } else {
-                return null
+        val destinationElement = this["destinationSnapshot"]
+        val destination = when (destinationElement) {
+            null, JsonNull -> null
+
+            is JsonPrimitive -> {
+                if (!destinationElement.isString) return null
+                destinationElement.contentOrNull?.toDriverDestinationSummary()
             }
+
+            else -> return null
+        }
         val scheduled = optionalText("scheduledAt")
             ?: if (this["scheduledAt"] == null ||
                 this["scheduledAt"] == JsonNull
@@ -634,6 +637,39 @@ class NexaDriverDeliveryGateway(private val protectedCalls: ProtectedCallExecuto
         )
     } catch (_: Exception) {
         null
+    }
+
+    /** Keep contact and delivery-instruction fields out of the assigned-delivery projection. */
+    private fun String.toDriverDestinationSummary(): String? {
+        val trimmed = trim()
+        if (trimmed.isEmpty()) return null
+        if (!trimmed.startsWith('{')) {
+            return trimmed.takeUnless {
+                it.length > 240 || it.any(Char::isISOControl) ||
+                    it.startsWith('[') || it.startsWith('"')
+            }
+        }
+
+        val snapshot = trimmed.toObject() ?: return null
+        fun field(name: String): String? = (snapshot[name] as? JsonPrimitive)
+            ?.contentOrNull
+            ?.trim()
+            ?.takeIf { value ->
+                value.isNotEmpty() && value.length <= 120 &&
+                    value.none(Char::isISOControl)
+            }
+
+        val street = listOf("roadType", "street", "number", "interior")
+            .mapNotNull(::field)
+            .joinToString(" ")
+        val locality = listOf("district", "province", "department")
+            .mapNotNull(::field)
+            .distinct()
+            .joinToString(", ")
+        return listOf(street, locality)
+            .filter(String::isNotEmpty)
+            .joinToString(", ")
+            .takeIf(String::isNotEmpty)
     }
 
     private fun JsonObject.toAttempt(): DriverDeliveryAttemptProjection? = try {

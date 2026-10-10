@@ -560,7 +560,9 @@
     <string name="driver_delivery_instructions_open">Instrucciones de entrega</string>
     <string name="driver_delivery_instructions_required">Revisar instrucciones críticas obligatorias</string>
     <string name="driver_delivery_loading">Consultando asignaciones actuales…</string>
+    <string name="driver_delivery_location_ack_required">Esta pantalla espera una jornada activa y una muestra GPS reciente confirmada por Nexa antes de habilitar el inicio de ruta y la señal de llegada.</string>
     <string name="driver_delivery_location_sharing_unavailable">Compartir ubicación no está disponible: faltan destinatarios, consentimiento y plazo de conservación confirmados para esta entrega. No se activa seguimiento en segundo plano.</string>
+    <string name="driver_delivery_open_workday">Jornada y ubicación</string>
     <string name="driver_delivery_network">No se pudo consultar Nexa. Conéctate y vuelve a actualizar.</string>
     <string name="driver_delivery_not_found">La entrega ya no está asignada a este contexto o no existe.</string>
     <string name="driver_delivery_outcome_absent">Destinatario ausente</string>
@@ -799,7 +801,7 @@
     <string name="driver_operational_exceptions_unknown">Nexa no confirmó la acción. La excepción no se muestra como modificada.</string>
     <string name="driver_operational_exceptions_version">Versión actual de la entrega %1$d</string>
     <string name="driver_workday_active_starting">Activa desde %1$s. Confirmando el servicio de ubicación…</string>
-    <string name="driver_workday_active_tracking">Activa desde %1$s. Se solicitó iniciar el servicio de ubicación en primer plano.</string>
+    <string name="driver_workday_active_tracking">Activa desde %1$s. Nexa aceptó una muestra actual de ubicación; el envío en primer plano continúa.</string>
     <string name="driver_workday_active_without_location">La jornada está activa, pero Nexa informa que la ubicación no está disponible.</string>
     <string name="driver_workday_availability_unknown">Nexa no confirmó el cambio de ubicación. El envío permanece detenido hasta actualizar la jornada actual.</string>
     <string name="driver_workday_back">Volver</string>
@@ -814,6 +816,7 @@
     <string name="driver_workday_end_confirmation">La ubicación se detuvo. Actualiza para confirmar el fin de la jornada.</string>
     <string name="driver_workday_last_sample">Última muestra aceptada: %1$s</string>
     <string name="driver_workday_loading">Consultando la jornada actual con Nexa…</string>
+    <string name="driver_workday_location_acquiring">Obteniendo una ubicación GPS actual antes de solicitar el cambio de jornada…</string>
     <string name="driver_workday_location_unavailable">La ubicación no está disponible. El envío se detuvo.</string>
     <string name="driver_workday_no_active">Nexa no tiene una jornada activa para este conductor.</string>
     <string name="driver_workday_permission_required">Permite la ubicación precisa para iniciar o reanudar el envío durante la jornada.</string>

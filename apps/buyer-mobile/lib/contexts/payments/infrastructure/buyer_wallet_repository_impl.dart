@@ -1,12 +1,20 @@
 import '../../../core/network/nexa_api_client.dart';
 import '../application/buyer_order_payment_capability_query.dart';
+import '../application/buyer_wallet_recharge_intent_repository.dart';
 import '../application/buyer_wallet_repository.dart';
 
 final class BuyerWalletRepositoryImpl
-    implements BuyerWalletRepository, BuyerOrderPaymentCapabilityQuery {
+    implements
+        BuyerWalletRepository,
+        BuyerOrderPaymentCapabilityQuery,
+        BuyerWalletRechargeIntentRepository {
   BuyerWalletRepositoryImpl(this._api);
 
   final NexaApiClient _api;
+
+  static final _uuidPattern = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+  );
 
   @override
   Future<bool> isOrderPaymentSupported() async {
@@ -82,6 +90,132 @@ final class BuyerWalletRepositoryImpl
       orderPaymentSupported: orderPaymentSupported,
     );
   }
+
+  @override
+  Future<BuyerWalletRechargeProjection> createRecharge({
+    required String amount,
+    required String idempotencyKey,
+  }) async => (await createRechargeIntent(
+    amount: amount,
+    idempotencyKey: idempotencyKey,
+  )).recharge;
+
+  @override
+  Future<BuyerWalletRechargeIntent> createRechargeIntent({
+    required String amount,
+    required String idempotencyKey,
+  }) async {
+    if (!_uuidPattern.hasMatch(idempotencyKey) || !_validRechargeAmount(amount)) {
+      _invalidRechargeRequest();
+    }
+    final response = await _api.request(
+      'POST',
+      '/buyer/wallet/recharges',
+      body: {'amount': double.parse(amount)},
+      idempotencyKey: idempotencyKey,
+      refreshAfterUnauthorized: true,
+    );
+    final status = _rechargeStatus(response.body['status']);
+    if (status == null) _invalidResponse();
+    final rawClientSecret = response.body['clientSecret'];
+    if (rawClientSecret != null &&
+        (rawClientSecret is! String || rawClientSecret.trim().isEmpty)) {
+      _invalidResponse();
+    }
+    if ((status == BuyerWalletRechargeStatus.preparing ||
+            status == BuyerWalletRechargeStatus.awaitingPayment) &&
+        rawClientSecret == null) {
+      _invalidResponse();
+    }
+    return BuyerWalletRechargeIntent(
+      recharge: _parseRecharge(response.body, includeStatusTimes: false),
+      clientSecret: rawClientSecret as String?,
+    );
+  }
+
+  @override
+  Future<BuyerWalletRechargeProjection> readRecharge({
+    required String rechargeId,
+  }) async {
+    if (!_uuidPattern.hasMatch(rechargeId)) _invalidRechargeRequest();
+    final response = await _api.get(
+      '/buyer/wallet/recharges/$rechargeId',
+      refreshAfterUnauthorized: true,
+    );
+    if (response.body.containsKey('clientSecret')) _invalidResponse();
+    return _parseRecharge(response.body, includeStatusTimes: true);
+  }
+
+  BuyerWalletRechargeProjection _parseRecharge(
+    Map<String, Object?> value, {
+    required bool includeStatusTimes,
+  }) {
+    final id = _string(value['id']);
+    final status = _rechargeStatus(value['status']);
+    final rawAmount = _amount(value['amount']);
+    final amount = rawAmount == null ? null : _normalizeRechargeAmount(rawAmount);
+    final currency = _string(value['currency']);
+    final provider = _string(value['provider']);
+    final providerPaymentIntentId = _string(value['providerPaymentIntentId']);
+    final createdAt = _dateTime(value['createdAt']);
+    final updatedAt = includeStatusTimes ? _dateTime(value['updatedAt']) : null;
+    final completedAt = includeStatusTimes && value['completedAt'] != null
+        ? _dateTime(value['completedAt'])
+        : null;
+    if (id == null || !_uuidPattern.hasMatch(id) ||
+        status == null || amount == null || !_validRechargeAmount(amount) ||
+        currency != 'PEN' || provider == null ||
+        providerPaymentIntentId == null || createdAt == null ||
+        (includeStatusTimes && updatedAt == null) ||
+        (value['completedAt'] != null && completedAt == null)) {
+      _invalidResponse();
+    }
+    return BuyerWalletRechargeProjection(
+      id: id,
+      status: status,
+      amount: amount,
+      currency: currency!,
+      provider: provider,
+      providerPaymentIntentId: providerPaymentIntentId,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      completedAt: completedAt,
+    );
+  }
+
+  BuyerWalletRechargeStatus? _rechargeStatus(Object? value) => switch (value) {
+    'PREPARING' => BuyerWalletRechargeStatus.preparing,
+    'AWAITING_PAYMENT' => BuyerWalletRechargeStatus.awaitingPayment,
+    'SUCCEEDED' => BuyerWalletRechargeStatus.succeeded,
+    'FAILED' => BuyerWalletRechargeStatus.failed,
+    'CANCELLED' => BuyerWalletRechargeStatus.cancelled,
+    'REJECTED' => BuyerWalletRechargeStatus.rejected,
+    _ => null,
+  };
+
+  bool _validRechargeAmount(String value) {
+    if (!RegExp(r'^(?:0|[1-9]\d{0,5})\.\d{2}$').hasMatch(value)) return false;
+    final parts = value.split('.');
+    final whole = int.tryParse(parts[0]);
+    final fraction = int.tryParse(parts[1]);
+    if (whole == null || fraction == null) return false;
+    final minor = whole * 100 + fraction;
+    return minor > 0 && minor <= 99999999;
+  }
+
+  String? _normalizeRechargeAmount(String value) {
+    if (!RegExp(r'^(?:0|[1-9]\d{0,5})(?:\.\d{1,2})?$').hasMatch(value)) {
+      return null;
+    }
+    final parts = value.split('.');
+    final normalized = '${parts[0]}.${(parts.length == 1 ? '' : parts[1]).padRight(2, '0')}';
+    return _validRechargeAmount(normalized) ? normalized : null;
+  }
+
+  Never _invalidRechargeRequest() => throw const NexaApiFailure(
+    code: 'invalid_buyer_wallet_recharge_request',
+    userMessage: 'Ingresa un monto válido en PEN para solicitar la recarga.',
+  );
 
   bool _orderPaymentSupported(Object? value) {
     if (value == null) return false;

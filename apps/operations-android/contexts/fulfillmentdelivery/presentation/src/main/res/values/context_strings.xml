@@ -557,7 +557,9 @@
     <string name="driver_delivery_instructions_open">Delivery instructions</string>
     <string name="driver_delivery_instructions_required">Review required critical instructions</string>
     <string name="driver_delivery_loading">Consultando asignaciones actuales…</string>
+    <string name="driver_delivery_location_ack_required">Esta pantalla espera una jornada activa y una muestra GPS reciente confirmada por Nexa antes de habilitar el inicio de ruta y la señal de llegada.</string>
     <string name="driver_delivery_location_sharing_unavailable">Compartir ubicación no está disponible: faltan destinatarios, consentimiento y plazo de conservación confirmados para esta entrega. No se activa seguimiento en segundo plano.</string>
+    <string name="driver_delivery_open_workday">Jornada y ubicación</string>
     <string name="driver_delivery_network">No se pudo consultar Nexa. Conéctate y vuelve a actualizar.</string>
     <string name="driver_delivery_not_found">La entrega ya no está asignada a este contexto o no existe.</string>
     <string name="driver_delivery_outcome_absent">Destinatario ausente</string>
@@ -796,7 +798,7 @@
     <string name="driver_operational_exceptions_unknown">Nexa did not confirm the action. The exception is not shown as changed.</string>
     <string name="driver_operational_exceptions_version">Current Delivery version %1$d</string>
     <string name="driver_workday_active_starting">Active since %1$s. Confirming location service…</string>
-    <string name="driver_workday_active_tracking">Active since %1$s. Foreground location service start was requested.</string>
+    <string name="driver_workday_active_tracking">Active since %1$s. Nexa accepted a current location sample; foreground sharing continues.</string>
     <string name="driver_workday_active_without_location">Workday is active, but Nexa reports location unavailable.</string>
     <string name="driver_workday_availability_unknown">Nexa did not confirm the location change. Sharing stays stopped until the current workday is refreshed.</string>
     <string name="driver_workday_back">Back</string>
@@ -811,6 +813,7 @@
     <string name="driver_workday_end_confirmation">Location stopped. Refresh to confirm the workday end.</string>
     <string name="driver_workday_last_sample">Last accepted sample: %1$s</string>
     <string name="driver_workday_loading">Checking the current workday with Nexa…</string>
+    <string name="driver_workday_location_acquiring">Getting a current GPS fix before requesting the workday change…</string>
     <string name="driver_workday_location_unavailable">Location is unavailable. Sharing has stopped.</string>
     <string name="driver_workday_no_active">Nexa has no active workday for this driver.</string>
     <string name="driver_workday_permission_required">Allow precise location to start or resume workday location sharing.</string>

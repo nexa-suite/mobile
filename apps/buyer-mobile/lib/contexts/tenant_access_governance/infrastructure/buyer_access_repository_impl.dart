@@ -258,6 +258,7 @@ final class BuyerAccessRepositoryImpl
     if (selectedContext != null) {
       context = BuyerAccessContext(
         membershipId: context.membershipId,
+        userId: context.userId,
         tenantId: context.tenantId,
         tenantName: selectedContext.tenantName,
         tenantSlug: context.tenantSlug,
@@ -286,12 +287,14 @@ final class BuyerAccessRepositoryImpl
   }
 
   BuyerAccessContext? _parseSessionContext(Map<String, Object?> session) {
+    final userId = _string(session['userId']);
     final membershipId = _string(session['membershipId']);
     final tenantId = _string(session['tenantId']);
     final tenantSlug = _string(session['tenantSlug']);
     final workspaceId = _string(session['workspaceId']);
     final workspaceSlug = _string(session['workspaceSlug']);
-    if (membershipId == null ||
+    if (userId == null ||
+        membershipId == null ||
         tenantId == null ||
         tenantSlug == null ||
         workspaceId == null ||
@@ -299,6 +302,7 @@ final class BuyerAccessRepositoryImpl
       return null;
     }
     return BuyerAccessContext(
+      userId: userId,
       membershipId: membershipId,
       tenantId: tenantId,
       tenantName: _string(session['tenantName']) ?? tenantSlug,

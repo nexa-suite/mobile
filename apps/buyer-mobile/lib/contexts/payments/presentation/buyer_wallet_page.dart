@@ -32,6 +32,14 @@ final class _BuyerWalletPageState extends State<BuyerWalletPage> {
         children: [
           Text('Billetera', style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 12),
+          if (viewModel.canCreateRecharge ||
+              viewModel.rechargeCommand != null ||
+              viewModel.recharge != null ||
+              viewModel.rechargeActionStatus !=
+                  BuyerWalletRechargeActionStatus.idle) ...[
+            _RechargeCard(viewModel: viewModel),
+            const SizedBox(height: 12),
+          ],
           if (viewModel.status == BuyerWalletViewStatus.loading &&
               wallet == null)
             const Padding(
@@ -144,6 +152,140 @@ final class _BuyerWalletPageState extends State<BuyerWalletPage> {
     );
   }
 }
+
+final class _RechargeCard extends StatefulWidget {
+  const _RechargeCard({required this.viewModel});
+
+  final BuyerWalletViewModel viewModel;
+
+  @override
+  State<_RechargeCard> createState() => _RechargeCardState();
+}
+
+final class _RechargeCardState extends State<_RechargeCard> {
+  final _amountController = TextEditingController();
+  String? _clearedTerminalRechargeId;
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewModel = widget.viewModel;
+    final busy = viewModel.isRechargeBusy;
+    final recharge = viewModel.recharge;
+    final action = viewModel.rechargeActionStatus;
+    if (recharge != null &&
+        recharge.isTerminal &&
+        viewModel.rechargeCommand == null &&
+        _clearedTerminalRechargeId != recharge.id) {
+      _clearedTerminalRechargeId = recharge.id;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _amountController.clear();
+      });
+    }
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Solicitar recarga', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            const Text(
+              'El proveedor procesa el pago en su checkout seguro. Nexa actualiza el saldo '
+              'solo cuando verifica la confirmación firmada del proveedor.',
+            ),
+            if (viewModel.canCreateRecharge) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _amountController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                enabled: !busy,
+                decoration: const InputDecoration(
+                  labelText: 'Monto en PEN',
+                  hintText: '0.00',
+                ),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
+                  onPressed: busy
+                      ? null
+                      : () => viewModel.requestRecharge(_amountController.text),
+                  icon: const Icon(Icons.add_card_outlined),
+                  label: const Text('Crear solicitud'),
+                ),
+              ),
+            ],
+            if (recharge != null) ...[
+              const Divider(height: 24),
+              Text('Estado vigente: ${_rechargeStatusLabel(recharge.status)}'),
+              Text('Monto solicitado: ${recharge.amount} ${recharge.currency}'),
+            ],
+            if (viewModel.rechargeMessage case final message?) ...[
+              const SizedBox(height: 8),
+              Text(message),
+            ],
+            if (busy) ...[
+              const SizedBox(height: 12),
+              const LinearProgressIndicator(),
+            ],
+            if (!busy && viewModel.canContinueRechargeCheckout) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  onPressed: viewModel.continueRechargeCheckout,
+                  icon: const Icon(Icons.payment),
+                  label: const Text('Continuar checkout'),
+                ),
+              ),
+            ],
+            if (!busy &&
+                (viewModel.canRetryRecharge || viewModel.canRefreshRecharge)) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  onPressed: viewModel.canRetryRecharge
+                      ? viewModel.retryRechargeCreation
+                      : viewModel.refreshRechargeStatus,
+                  icon: const Icon(Icons.refresh),
+                  label: Text(
+                    viewModel.canRetryRecharge
+                        ? 'Reintentar la misma solicitud'
+                        : 'Consultar estado vigente',
+                  ),
+                ),
+              ),
+            ],
+            if (action == BuyerWalletRechargeActionStatus.conflict) ...[
+              const SizedBox(height: 8),
+              const Text(
+                'La solicitud conserva su clave de idempotencia para evitar duplicados. '
+                'No se puede iniciar otra con esta identidad hasta resolver el conflicto.',
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _rechargeStatusLabel(BuyerWalletRechargeStatus status) => switch (status) {
+  BuyerWalletRechargeStatus.preparing => 'Preparando',
+  BuyerWalletRechargeStatus.awaitingPayment => 'Pago pendiente',
+  BuyerWalletRechargeStatus.succeeded => 'Confirmada por Nexa',
+  BuyerWalletRechargeStatus.failed => 'No completada',
+  BuyerWalletRechargeStatus.cancelled => 'Cancelada',
+  BuyerWalletRechargeStatus.rejected => 'Rechazada',
+};
 
 final class _BalanceFact extends StatelessWidget {
   const _BalanceFact({

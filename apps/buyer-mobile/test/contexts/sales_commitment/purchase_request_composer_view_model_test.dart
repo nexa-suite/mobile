@@ -141,7 +141,7 @@ void main() {
       expect(model.status, PurchaseRequestComposerStatus.reviewReady);
       expect(repository.preferenceWrites, ['WALLET']);
       expect(repository.submittedCount, 0);
-      expect(capability.calls, 2);
+      expect(capability.calls, 3);
 
       model.dispose();
       await access.dispose();
@@ -254,6 +254,7 @@ void main() {
       );
       final capability = _FakeWalletCapabilityQuery(
         responses: [
+          Future.value(true),
           Future.value(true),
           Future.value(true),
           Future.value(false),

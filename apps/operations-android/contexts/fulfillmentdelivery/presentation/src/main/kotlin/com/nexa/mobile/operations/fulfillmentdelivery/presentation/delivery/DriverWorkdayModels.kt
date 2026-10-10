@@ -11,6 +11,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.Drive
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayCommandScope
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayCommandStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayLocationAcquisition
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayLocationCapture
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayReadResult
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkday
@@ -19,11 +20,16 @@ import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWork
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+
+private const val LOCATION_ACQUISITION_TIMEOUT_MILLIS = 30_000L
+private const val LOCATION_FRESHNESS_CHECK_INTERVAL_MILLIS = 15_000L
+private const val MAX_LOCATION_SAMPLE_AGE_MILLIS = 120_000L
 
 enum class DriverWorkdayNotice {
     NONE,
@@ -31,6 +37,7 @@ enum class DriverWorkdayNotice {
     CURRENT_UNAVAILABLE,
     START_UNKNOWN,
     START_REJECTED,
+    LOCATION_ACQUIRING,
     END_PENDING_CONFIRMATION,
     AVAILABILITY_UNKNOWN,
     LOCATION_UNAVAILABLE,
@@ -49,6 +56,7 @@ data class DriverWorkdayUiState(
     val loading: Boolean = false,
     val commandPending: Boolean = false,
     val captureRequested: Boolean = false,
+    val locationReady: Boolean = false,
     val lastSampleAt: String? = null,
     val pendingCommand: DriverWorkdayCommandIntent? = null,
     val notice: DriverWorkdayNotice = DriverWorkdayNotice.NONE
@@ -67,7 +75,9 @@ class DriverWorkdayViewModel(
     private var authority: DriverDeliveryAuthority? = null
     private var fineLocationPermission = false
     private var captureJob: Job? = null
+    private var locationFreshnessJob: Job? = null
     private var capturingWorkdayId: String? = null
+    private var acknowledgedWorkdayId: String? = null
     private var operationGeneration = 0L
     private var availabilityChangeInFlight: Boolean? = null
     private var commandStoreAvailable = true
@@ -220,6 +230,10 @@ class DriverWorkdayViewModel(
                 }
             }
 
+            if (!acquireLocationBeforeCommand(currentAuthority, requestGeneration)) {
+                return@launch
+            }
+
             val intent = DriverWorkdayCommandIntent(
                 scope = currentAuthority.commandScope(),
                 action = DriverWorkdayCommandAction.START,
@@ -337,6 +351,12 @@ class DriverWorkdayViewModel(
         viewModelScope.launch {
             mutableState.value =
                 mutableState.value.copy(commandPending = true, notice = DriverWorkdayNotice.NONE)
+            if (available &&
+                !acquireLocationBeforeCommand(currentAuthority, requestGeneration)
+            ) {
+                availabilityChangeInFlight = null
+                return@launch
+            }
             val intent = DriverWorkdayCommandIntent(
                 scope = currentAuthority.commandScope(),
                 action = DriverWorkdayCommandAction.SET_LOCATION_AVAILABILITY,
@@ -707,6 +727,14 @@ class DriverWorkdayViewModel(
         if (identity == null || !active.sameContext(identity)) invalidate()
     }
 
+    fun hasAcknowledgedLocationFor(currentAuthority: DriverDeliveryAuthority): Boolean {
+        val current = mutableState.value
+        val day = current.workday ?: return false
+        return authority == currentAuthority && current.locationReady && current.captureRequested &&
+            capturingWorkdayId == day.id && day.status == DriverWorkdayStatus.ACTIVE &&
+            day.locationAvailable && current.lastSampleAt?.let(::isFreshLocationTimestamp) == true
+    }
+
     fun invalidate() = invalidate(DriverWorkdayNotice.NONE)
 
     private fun invalidate(notice: DriverWorkdayNotice) {
@@ -742,21 +770,30 @@ class DriverWorkdayViewModel(
                 mutableState.value.copy(notice = DriverWorkdayNotice.PERMISSION_DENIED)
             return
         }
-        if (capturingWorkdayId == day.id && captureJob?.isActive == true) return
+        if (capturingWorkdayId == day.id && captureJob?.isActive == true) {
+            startLocationFreshnessMonitor(currentAuthority, day.id)
+            return
+        }
         stopCapture()
         captureJob = viewModelScope.launch {
             capture.events.collect { event ->
                 when (event) {
                     is DriverWorkdayLocationEvent.Sample -> {
-                        if (authority == currentAuthority &&
+                        if (event.captureId == day.id && authority == currentAuthority &&
                             mutableState.value.workday?.id == day.id &&
-                            mutableState.value.workday?.status == DriverWorkdayStatus.ACTIVE
+                            mutableState.value.workday?.status == DriverWorkdayStatus.ACTIVE &&
+                            isFreshLocationTimestamp(event.value.capturedAt)
                         ) {
                             val location = event.value
                             val sent = gateway.reportLocation(currentAuthority, day.id, location)
                             if (sent is DriverWorkdayCommandResult.Accepted) {
+                                acknowledgedWorkdayId = day.id
                                 mutableState.value =
-                                    mutableState.value.copy(lastSampleAt = location.capturedAt)
+                                    mutableState.value.copy(
+                                        lastSampleAt = location.capturedAt,
+                                        locationReady =
+                                            isFreshLocationTimestamp(location.capturedAt)
+                                    )
                             } else if (sent == DriverWorkdayCommandResult.ContextInvalidated ||
                                 sent == DriverWorkdayCommandResult.SessionInvalidated
                             ) {
@@ -778,25 +815,33 @@ class DriverWorkdayViewModel(
                         }
                     }
 
-                    DriverWorkdayLocationEvent.PermissionUnavailable,
-                    DriverWorkdayLocationEvent.ProviderUnavailable -> onLocationSourceUnavailable(
-                        currentAuthority,
-                        day
-                    )
+                    is DriverWorkdayLocationEvent.PermissionUnavailable,
+                    is DriverWorkdayLocationEvent.ProviderUnavailable -> {
+                        if (event.captureId == day.id) {
+                            onLocationSourceUnavailable(currentAuthority, day)
+                        }
+                    }
                 }
             }
         }
+        capturingWorkdayId = day.id
         val requested = capture.start(day.id)
-        capturingWorkdayId = if (requested) day.id else null
+        if (!requested) capturingWorkdayId = null
         mutableState.value = mutableState.value.copy(
             captureRequested = requested,
+            locationReady = requested && acknowledgedWorkdayId == day.id &&
+                mutableState.value.lastSampleAt?.let(::isFreshLocationTimestamp) == true,
             notice = if (requested) {
                 DriverWorkdayNotice.NONE
             } else {
                 DriverWorkdayNotice.LOCATION_UNAVAILABLE
             }
         )
-        if (!requested) onLocationSourceUnavailable(currentAuthority, day)
+        if (requested) {
+            startLocationFreshnessMonitor(currentAuthority, day.id)
+        } else {
+            onLocationSourceUnavailable(currentAuthority, day)
+        }
     }
 
     private fun onLocationSourceUnavailable(
@@ -818,11 +863,88 @@ class DriverWorkdayViewModel(
     private fun stopCapture() {
         captureJob?.cancel()
         captureJob = null
+        locationFreshnessJob?.cancel()
+        locationFreshnessJob = null
         capturingWorkdayId = null
+        acknowledgedWorkdayId = null
         capture.stop()
-        if (mutableState.value.captureRequested) {
-            mutableState.value = mutableState.value.copy(captureRequested = false)
+        if (mutableState.value.captureRequested || mutableState.value.locationReady) {
+            mutableState.value = mutableState.value.copy(
+                captureRequested = false,
+                locationReady = false
+            )
         }
+    }
+
+    private suspend fun acquireLocationBeforeCommand(
+        currentAuthority: DriverDeliveryAuthority,
+        requestGeneration: Long
+    ): Boolean {
+        if (!isCurrent(currentAuthority, requestGeneration)) return false
+        mutableState.value = mutableState.value.copy(
+            notice = DriverWorkdayNotice.LOCATION_ACQUIRING
+        )
+        val acquisition = capture.acquireFreshLocation(LOCATION_ACQUISITION_TIMEOUT_MILLIS)
+        if (!isCurrent(currentAuthority, requestGeneration)) return false
+        val failureNotice = when (acquisition) {
+            DriverWorkdayLocationAcquisition.SAMPLE_AVAILABLE -> null
+
+            DriverWorkdayLocationAcquisition.PERMISSION_UNAVAILABLE ->
+                DriverWorkdayNotice.LOCATION_PERMISSION_REQUIRED
+
+            DriverWorkdayLocationAcquisition.PROVIDER_UNAVAILABLE,
+            DriverWorkdayLocationAcquisition.TIMED_OUT,
+            DriverWorkdayLocationAcquisition.SERVICE_UNAVAILABLE ->
+                DriverWorkdayNotice.LOCATION_UNAVAILABLE
+        }
+        if (failureNotice != null) {
+            mutableState.value = mutableState.value.copy(
+                commandPending = false,
+                locationReady = false,
+                notice = failureNotice
+            )
+            return false
+        }
+        if (!fineLocationPermission) {
+            mutableState.value = mutableState.value.copy(
+                commandPending = false,
+                locationReady = false,
+                notice = DriverWorkdayNotice.LOCATION_PERMISSION_REQUIRED
+            )
+            return false
+        }
+        return true
+    }
+
+    private fun startLocationFreshnessMonitor(
+        currentAuthority: DriverDeliveryAuthority,
+        workdayId: String
+    ) {
+        if (locationFreshnessJob?.isActive == true) return
+        locationFreshnessJob = viewModelScope.launch {
+            while (true) {
+                delay(LOCATION_FRESHNESS_CHECK_INTERVAL_MILLIS)
+                val current = mutableState.value
+                val ready = authority == currentAuthority &&
+                    current.workday?.id == workdayId &&
+                    current.workday.status == DriverWorkdayStatus.ACTIVE &&
+                    current.workday.locationAvailable &&
+                    current.captureRequested &&
+                    capturingWorkdayId == workdayId &&
+                    acknowledgedWorkdayId == workdayId &&
+                    current.lastSampleAt?.let(::isFreshLocationTimestamp) == true
+                if (current.locationReady != ready) {
+                    mutableState.value = current.copy(locationReady = ready)
+                }
+            }
+        }
+    }
+
+    private fun isFreshLocationTimestamp(timestamp: String): Boolean {
+        val capturedAtMillis = runCatching { Instant.parse(timestamp).toEpochMilli() }
+            .getOrNull() ?: return false
+        val ageMillis = System.currentTimeMillis() - capturedAtMillis
+        return ageMillis in 0..MAX_LOCATION_SAMPLE_AGE_MILLIS
     }
 
     private fun failRead(notice: DriverWorkdayNotice) {

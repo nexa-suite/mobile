@@ -195,8 +195,15 @@ final class BuyerCreditExposureViewModel extends ChangeNotifier {
     }
   }
 
-  bool _isCurrent(int generation, String lease) =>
-      generation == _requestGeneration && lease == _leaseKey;
+  bool _isCurrent(int generation, String lease) {
+    if (generation != _requestGeneration || lease != _leaseKey) return false;
+    final snapshot = _access.snapshot;
+    if (lease != _activeLease(snapshot)) {
+      _onAccessChanged(snapshot);
+      return false;
+    }
+    return true;
+  }
 
   void _onAccessChanged(BuyerAccessSnapshot snapshot) {
     final nextLease = _activeLease(snapshot);

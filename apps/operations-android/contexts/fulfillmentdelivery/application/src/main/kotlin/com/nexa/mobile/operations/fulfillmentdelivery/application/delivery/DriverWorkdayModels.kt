@@ -27,8 +27,17 @@ class DriverWorkdayLocationEventStream {
 /** The app adapter is an Android foreground location service; events are never buffered to disk. */
 interface DriverWorkdayLocationCapture {
     val events: Flow<DriverWorkdayLocationEvent>
+    suspend fun acquireFreshLocation(timeoutMillis: Long): DriverWorkdayLocationAcquisition
     fun start(workdayId: String): Boolean
     fun stop()
+}
+
+enum class DriverWorkdayLocationAcquisition {
+    SAMPLE_AVAILABLE,
+    PERMISSION_UNAVAILABLE,
+    PROVIDER_UNAVAILABLE,
+    TIMED_OUT,
+    SERVICE_UNAVAILABLE
 }
 
 interface DriverWorkdayGateway {

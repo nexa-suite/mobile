@@ -23,8 +23,8 @@ android {
         applicationId = "com.nexa.mobile.operations"
         minSdk = 29
         targetSdk = 37
-        versionCode = 10
-        versionName = "1.1.0"
+        versionCode = 11
+        versionName = "1.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -122,6 +122,9 @@ dependencies {
     implementation(project(":contexts:businessdocuments:application"))
     implementation(project(":contexts:businessdocuments:infrastructure"))
     implementation(project(":contexts:businessdocuments:presentation"))
+    implementation(project(":contexts:notifications:application"))
+    implementation(project(":contexts:notifications:infrastructure"))
+    implementation(project(":contexts:notifications:presentation"))
 
     implementation(project(":core:auth"))
     implementation(project(":core:local"))

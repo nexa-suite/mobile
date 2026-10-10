@@ -13,6 +13,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.SocketPolicy
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -39,6 +40,74 @@ class NexaDriverDeliveryGatewayTest {
             assertEquals(ATTEMPT_ID, detail.item.arrival?.attemptId)
             assertEquals("/api/v1/driver/deliveries", server.takeRequest().path)
             assertEquals("/api/v1/driver/deliveries/$DELIVERY_ID", server.takeRequest().path)
+        }
+    }
+
+    @Test
+    fun structuredDestinationSnapshotShowsAddressOnlyAndOmitsContactAndInstructions() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val addressSnapshot = """
+                {
+                  "schemaVersion":"v1",
+                  "roadType":"AVENIDA",
+                  "street":"Central",
+                  "number":"100",
+                  "interior":"4B",
+                  "district":"Miraflores",
+                  "province":"Lima",
+                  "department":"Lima",
+                  "recipient":"SYNTHETIC RECIPIENT",
+                  "phone":"000000000",
+                  "receivingInstructions":"SYNTHETIC INSTRUCTION",
+                  "latitude":-12.1,
+                  "longitude":-77.0
+                }
+            """.trimIndent().lines().joinToString("") {
+                it.trim()
+            }
+            val encodedSnapshot = addressSnapshot.replace("\"", "\\\"")
+            server.enqueue(
+                jsonResponse(
+                    200,
+                    "[${deliveryJson(version = 9).replace(
+                        "\"destinationSnapshot\":\"Av. Central 100\"",
+                        "\"destinationSnapshot\":\"$encodedSnapshot\""
+                    )}]"
+                )
+            )
+
+            val outcome = gateway(server).assignedDeliveries()
+            val result = outcome as DriverDeliveryNetworkOutcome.Assigned
+            val destination = result.items.single().destinationSnapshot
+
+            assertEquals("AVENIDA Central 100 4B, Miraflores, Lima", destination)
+            assertFalse(destination.orEmpty().contains("SYNTHETIC RECIPIENT"))
+            assertFalse(destination.orEmpty().contains("000000000"))
+            assertFalse(destination.orEmpty().contains("SYNTHETIC INSTRUCTION"))
+            assertFalse(destination.orEmpty().contains("latitude"))
+            assertFalse(destination.orEmpty().contains("longitude"))
+        }
+    }
+
+    @Test
+    fun malformedStructuredDestinationIsNotRenderedVerbatim() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(
+                jsonResponse(
+                    200,
+                    "[${deliveryJson(version = 9).replace(
+                        "\"destinationSnapshot\":\"Av. Central 100\"",
+                        "\"destinationSnapshot\":\"{invalid,synthetic-secret}\""
+                    )}]"
+                )
+            )
+
+            val outcome = gateway(server).assignedDeliveries()
+            val result = outcome as DriverDeliveryNetworkOutcome.Assigned
+
+            assertEquals(null, result.items.single().destinationSnapshot)
         }
     }
 

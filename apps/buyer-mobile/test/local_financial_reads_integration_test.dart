@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:nexa_buyer_mobile/contexts/credit_receivables/infrastructure/buyer_credit_exposure_repository_impl.dart';
+import 'package:nexa_buyer_mobile/contexts/notifications/infrastructure/buyer_notifications_repository_impl.dart';
 import 'package:nexa_buyer_mobile/contexts/payments/infrastructure/buyer_payments_repository_impl.dart';
+import 'package:nexa_buyer_mobile/contexts/payments/infrastructure/buyer_wallet_repository_impl.dart';
 import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/application/buyer_access_repository.dart';
 import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/infrastructure/buyer_access_repository_impl.dart';
 import 'package:nexa_buyer_mobile/core/network/nexa_api_client.dart';
@@ -16,7 +18,7 @@ const _apiOrigin = String.fromEnvironment(
 
 void main() {
   test(
-    'reads Buyer credit, receivables, and one payment-history page locally',
+    'reads Buyer credit, wallet, notifications, receivables, and payment history locally',
     () async {
       final environment = Platform.environment;
       final identifier = environment['NEXA_DEV_BUYER_EMAIL'];
@@ -55,6 +57,7 @@ void main() {
         expect(access.snapshot.isSignedIn, isTrue);
         expect(context, isNotNull);
         expect(context!.permissions, contains('payment.read'));
+        expect(context.permissions, contains('notification.read'));
 
         final creditRepository = BuyerCreditExposureRepositoryImpl(api);
         final exposure = await creditRepository.readCurrentBuyerExposure(
@@ -73,6 +76,26 @@ void main() {
           receivables.items.every(
             (receivable) =>
                 receivable.clientAccountId == exposure.clientAccountId,
+          ),
+          isTrue,
+        );
+
+        final wallet = await BuyerWalletRepositoryImpl(api).readCurrentWallet(
+          page: 0,
+        );
+        expect(wallet.currency, 'PEN');
+        expect(wallet.movements.page, 0);
+
+        final notifications = BuyerNotificationsRepositoryImpl(api);
+        final inbox = await notifications.list(unreadOnly: false, limit: 25);
+        expect(inbox.limit, 25);
+        expect(inbox.items.length, lessThanOrEqualTo(25));
+        final preferences = await notifications.preferences();
+        expect(preferences.version, greaterThanOrEqualTo(0));
+        expect(
+          preferences.preferences.every(
+            (preference) =>
+                preference.channel == 'IN_APP' || preference.channel == 'EMAIL',
           ),
           isTrue,
         );
@@ -140,7 +163,6 @@ void main() {
           expect(history.total, 0);
           paymentHistoryCount = history.total;
           stdout.writeln('LOCAL_API_BUYER_SALES_ORDER_LINK=PASS');
-          stdout.writeln('LOCAL_API_BUYER_SALES_ORDER_ID=$salesOrderId');
         } else if (receivables.items.isNotEmpty) {
           final selected = receivables.items.first;
           final history = await BuyerPaymentsRepositoryImpl(api)
@@ -155,6 +177,8 @@ void main() {
           paymentHistoryCount = history.items.length;
         }
         stdout.writeln('LOCAL_API_BUYER_CREDIT_READ=PASS');
+        stdout.writeln('LOCAL_API_BUYER_WALLET_READ=PASS');
+        stdout.writeln('LOCAL_API_BUYER_NOTIFICATIONS_READ=PASS');
         stdout.writeln(
           'LOCAL_API_BUYER_RECEIVABLES=${receivables.items.length}',
         );

@@ -10,9 +10,9 @@
 - Align client code to the eleven canonical contexts under
   `apps/operations-android/contexts/<context-root>/`. Current roots and their
   implemented layers are listed in [the DDD alignment](docs/client-ddd-alignment.md).
-  Runtime modules exist only where code exists: BC-08, BC-10 and BC-11 have no
-  runtime module. Never add empty layers to make the folder structure appear
-  uniform.
+  Runtime modules exist only where code exists: BC-10 has application,
+  infrastructure and presentation source; BC-08 and BC-11 have no runtime
+  module. Never add empty layers to make the folder structure appear uniform.
 - Keep the client layers explicit. `domain` is limited to non-authoritative
   projections and local value constraints; it does not contain server
   aggregates, authorization, inventory or other business authority. `application`

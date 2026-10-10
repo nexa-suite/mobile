@@ -9,6 +9,7 @@ final class BuyerAccessContext {
     required this.workspaceId,
     required this.workspaceName,
     required this.workspaceSlug,
+    this.userId,
     this.roles = const {},
     this.permissions = const {},
     this.authorizationVersion,
@@ -23,6 +24,7 @@ final class BuyerAccessContext {
   final String workspaceId;
   final String workspaceName;
   final String workspaceSlug;
+  final String? userId;
   final Set<String> roles;
   final Set<String> permissions;
   final int? authorizationVersion;
@@ -34,7 +36,7 @@ final class BuyerAccessContext {
   String get authorityFingerprint {
     final sortedRoles = roles.toList()..sort();
     final sortedPermissions = permissions.toList()..sort();
-    return '$scopeKey|${authorizationVersion ?? ''}|'
+    return '${userId ?? ''}|$scopeKey|${authorizationVersion ?? ''}|'
         '${sortedRoles.join(',')}|${sortedPermissions.join(',')}';
   }
 }
