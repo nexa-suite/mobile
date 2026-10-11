@@ -354,8 +354,7 @@ GoRouter _createRouter(
       routes: [
         GoRoute(
           path: 'preferences',
-          builder: (context, state) =>
-              const BuyerNotificationPreferencesPage(),
+          builder: (context, state) => const BuyerNotificationPreferencesPage(),
         ),
       ],
     ),
@@ -581,7 +580,9 @@ final class _BuyerNavigationShell extends StatelessWidget {
     if (current?.roles.contains(BuyerWalletViewModel.buyerRole) == true &&
         (current?.permissions.contains(BuyerWalletViewModel.readPermission) ==
                 true ||
-            current?.permissions.contains(BuyerWalletViewModel.createPermission) ==
+            current?.permissions.contains(
+                  BuyerWalletViewModel.createPermission,
+                ) ==
                 true)) {
       destinations.add(
         const NavigationDestination(

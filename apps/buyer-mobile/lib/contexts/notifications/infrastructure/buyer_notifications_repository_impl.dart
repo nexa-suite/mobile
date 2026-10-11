@@ -43,7 +43,9 @@ final class BuyerNotificationsRepositoryImpl
   @override
   Future<void> markRead(String notificationId) async {
     _requireNotificationId(notificationId);
-    await _api.post('/notifications/${Uri.encodeComponent(notificationId)}/read');
+    await _api.post(
+      '/notifications/${Uri.encodeComponent(notificationId)}/read',
+    );
   }
 
   @override

@@ -105,7 +105,8 @@ final class BuyerWalletRepositoryImpl
     required String amount,
     required String idempotencyKey,
   }) async {
-    if (!_uuidPattern.hasMatch(idempotencyKey) || !_validRechargeAmount(amount)) {
+    if (!_uuidPattern.hasMatch(idempotencyKey) ||
+        !_validRechargeAmount(amount)) {
       _invalidRechargeRequest();
     }
     final response = await _api.request(
@@ -153,7 +154,9 @@ final class BuyerWalletRepositoryImpl
     final id = _string(value['id']);
     final status = _rechargeStatus(value['status']);
     final rawAmount = _amount(value['amount']);
-    final amount = rawAmount == null ? null : _normalizeRechargeAmount(rawAmount);
+    final amount = rawAmount == null
+        ? null
+        : _normalizeRechargeAmount(rawAmount);
     final currency = _string(value['currency']);
     final provider = _string(value['provider']);
     final providerPaymentIntentId = _string(value['providerPaymentIntentId']);
@@ -162,10 +165,15 @@ final class BuyerWalletRepositoryImpl
     final completedAt = includeStatusTimes && value['completedAt'] != null
         ? _dateTime(value['completedAt'])
         : null;
-    if (id == null || !_uuidPattern.hasMatch(id) ||
-        status == null || amount == null || !_validRechargeAmount(amount) ||
-        currency != 'PEN' || provider == null ||
-        providerPaymentIntentId == null || createdAt == null ||
+    if (id == null ||
+        !_uuidPattern.hasMatch(id) ||
+        status == null ||
+        amount == null ||
+        !_validRechargeAmount(amount) ||
+        currency != 'PEN' ||
+        provider == null ||
+        providerPaymentIntentId == null ||
+        createdAt == null ||
         (includeStatusTimes && updatedAt == null) ||
         (value['completedAt'] != null && completedAt == null)) {
       _invalidResponse();
@@ -208,7 +216,8 @@ final class BuyerWalletRepositoryImpl
       return null;
     }
     final parts = value.split('.');
-    final normalized = '${parts[0]}.${(parts.length == 1 ? '' : parts[1]).padRight(2, '0')}';
+    final normalized =
+        '${parts[0]}.${(parts.length == 1 ? '' : parts[1]).padRight(2, '0')}';
     return _validRechargeAmount(normalized) ? normalized : null;
   }
 

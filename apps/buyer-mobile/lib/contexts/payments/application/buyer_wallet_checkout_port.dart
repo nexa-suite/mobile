@@ -57,8 +57,9 @@ final class BuyerWalletCheckoutLease {
   );
 }
 
-typedef BuyerWalletCheckoutLeasePredicate =
-    bool Function(BuyerWalletCheckoutLease lease);
+typedef BuyerWalletCheckoutLeasePredicate = bool Function(
+  BuyerWalletCheckoutLease lease,
+);
 
 /// Opens an on-device provider checkout for one server-created payment intent.
 abstract interface class BuyerWalletCheckoutPort {

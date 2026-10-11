@@ -70,10 +70,14 @@ final class BuyerWalletViewModel extends ChangeNotifier {
   _RechargeCheckoutCredential? _checkoutCredential;
 
   bool get canRead => _hasReadAuthority(_access.snapshot);
-  bool get canCreateRecharge => _hasCreateAuthority(_access.snapshot) &&
-      rechargeCommand == null && !_isRechargeBusy;
-  bool get canRetryRecharge => _hasCreateAuthority(_access.snapshot) &&
-      rechargeCommand != null && rechargeCommand?.rechargeId == null &&
+  bool get canCreateRecharge =>
+      _hasCreateAuthority(_access.snapshot) &&
+      rechargeCommand == null &&
+      !_isRechargeBusy;
+  bool get canRetryRecharge =>
+      _hasCreateAuthority(_access.snapshot) &&
+      rechargeCommand != null &&
+      rechargeCommand?.rechargeId == null &&
       (rechargeActionStatus == BuyerWalletRechargeActionStatus.uncertain ||
           rechargeActionStatus == BuyerWalletRechargeActionStatus.unavailable ||
           rechargeActionStatus ==
@@ -97,6 +101,7 @@ final class BuyerWalletViewModel extends ChangeNotifier {
         _checkout?.isConfigured == true &&
         !_isRechargeBusy;
   }
+
   bool get isRechargeBusy => _isRechargeBusy;
 
   bool get _isRechargeBusy =>
@@ -163,7 +168,8 @@ final class BuyerWalletViewModel extends ChangeNotifier {
       }
       if (command.rechargeId != null) {
         rechargeActionStatus = BuyerWalletRechargeActionStatus.pending;
-        rechargeMessage = 'Esta solicitud ya existe. Consulta su estado vigente.';
+        rechargeMessage =
+            'Esta solicitud ya existe. Consulta su estado vigente.';
         notifyListeners();
         await refreshRechargeStatus();
         return;
@@ -172,8 +178,7 @@ final class BuyerWalletViewModel extends ChangeNotifier {
     } catch (_) {
       if (!_isCurrentRecharge(generation, lease)) return;
       rechargeActionStatus = BuyerWalletRechargeActionStatus.storageUnavailable;
-      rechargeMessage =
-          'No se pudo guardar de forma segura la solicitud de recarga. No se envió.';
+      rechargeMessage = 'No se pudo guardar de forma segura la solicitud de recarga. No se envió.';
       notifyListeners();
     }
   }
@@ -192,8 +197,8 @@ final class BuyerWalletViewModel extends ChangeNotifier {
     if (_isRechargeBusy) return;
     final generation = ++_rechargeGeneration;
     try {
-      final command = rechargeCommand ??
-          await _rechargeStore.load(scopeKey: scopeKey);
+      final command =
+          rechargeCommand ?? await _rechargeStore.load(scopeKey: scopeKey);
       if (!_isCurrentRecharge(generation, lease)) return;
       if (command == null) {
         rechargeActionStatus = BuyerWalletRechargeActionStatus.idle;
@@ -210,7 +215,8 @@ final class BuyerWalletViewModel extends ChangeNotifier {
     } catch (_) {
       if (!_isCurrentRecharge(generation, lease)) return;
       rechargeActionStatus = BuyerWalletRechargeActionStatus.storageUnavailable;
-      rechargeMessage = 'No se pudo leer la solicitud guardada de forma segura.';
+      rechargeMessage =
+          'No se pudo leer la solicitud guardada de forma segura.';
       notifyListeners();
     }
   }
@@ -224,7 +230,8 @@ final class BuyerWalletViewModel extends ChangeNotifier {
       final stored = await _rechargeStore.load(scopeKey: scopeKey);
       if (!_isCurrentRecharge(generation, lease)) return;
       final inMemory = rechargeCommand;
-      final command = inMemory != null &&
+      final command =
+          inMemory != null &&
               stored?.idempotencyKey == inMemory.idempotencyKey &&
               inMemory.rechargeId != null
           ? inMemory
@@ -235,15 +242,13 @@ final class BuyerWalletViewModel extends ChangeNotifier {
       if (rechargeId == null) {
         recharge = null;
         rechargeActionStatus = BuyerWalletRechargeActionStatus.uncertain;
-        rechargeMessage =
-            'No se conoce el resultado de la solicitud. Reintenta solo el mismo monto y la misma identidad.';
+        rechargeMessage = 'No se conoce el resultado de la solicitud. Reintenta solo el mismo monto y la misma identidad.';
         notifyListeners();
         return;
       }
       if (!_hasReadAuthority(_access.snapshot)) {
         rechargeActionStatus = BuyerWalletRechargeActionStatus.pending;
-        rechargeMessage =
-            'La solicitud sigue registrada, pero falta payment.read para consultar su estado.';
+        rechargeMessage = 'La solicitud sigue registrada, pero falta payment.read para consultar su estado.';
         notifyListeners();
         return;
       }
@@ -321,11 +326,8 @@ final class BuyerWalletViewModel extends ChangeNotifier {
       outcome = await _checkout!.present(
         clientSecret: credential.clientSecret,
         lease: credential.checkoutLease,
-        isLeaseCurrent: (candidate) => _isCurrentCheckoutCredential(
-          generation,
-          credential,
-          candidate,
-        ),
+        isLeaseCurrent: (candidate) =>
+            _isCurrentCheckoutCredential(generation, credential, candidate),
       );
     } catch (_) {
       outcome = BuyerWalletCheckoutOutcome.failed;
@@ -342,26 +344,21 @@ final class BuyerWalletViewModel extends ChangeNotifier {
       case BuyerWalletCheckoutOutcome.completed:
         _clearCheckoutCredential(rechargeId: credential.rechargeId);
         rechargeActionStatus = BuyerWalletRechargeActionStatus.pending;
-        rechargeMessage =
-            'Stripe terminó el checkout. Nexa todavía debe verificar su callback firmado antes de acreditar el saldo.';
+        rechargeMessage = 'Stripe terminó el checkout. Nexa todavía debe verificar su callback firmado antes de acreditar el saldo.';
       case BuyerWalletCheckoutOutcome.cancelled:
         rechargeActionStatus = BuyerWalletRechargeActionStatus.pending;
-        rechargeMessage =
-            'Checkout cerrado. La recarga sigue pendiente; puedes continuar el mismo intento sin crear otra solicitud.';
+        rechargeMessage = 'Checkout cerrado. La recarga sigue pendiente; puedes continuar el mismo intento sin crear otra solicitud.';
       case BuyerWalletCheckoutOutcome.failed:
         rechargeActionStatus = BuyerWalletRechargeActionStatus.pending;
-        rechargeMessage =
-            'El checkout no se completó. La recarga sigue pendiente; puedes reintentar el mismo intento.';
+        rechargeMessage = 'El checkout no se completó. La recarga sigue pendiente; puedes reintentar el mismo intento.';
       case BuyerWalletCheckoutOutcome.unavailable:
         _clearCheckoutCredential(rechargeId: credential.rechargeId);
         rechargeActionStatus = BuyerWalletRechargeActionStatus.pending;
-        rechargeMessage =
-            'El checkout no está disponible en esta plataforma. La recarga sigue pendiente y no se creó otro intento.';
+        rechargeMessage = 'El checkout no está disponible en esta plataforma. La recarga sigue pendiente y no se creó otro intento.';
       case BuyerWalletCheckoutOutcome.leaseInvalidated:
         _clearCheckoutCredential(rechargeId: credential.rechargeId);
         rechargeActionStatus = BuyerWalletRechargeActionStatus.pending;
-        rechargeMessage =
-            'El checkout perdió su acceso vigente. La recarga sigue pendiente; consulta su estado antes de continuar.';
+        rechargeMessage = 'El checkout perdió su acceso vigente. La recarga sigue pendiente; consulta su estado antes de continuar.';
         notifyListeners();
         return;
     }
@@ -387,7 +384,8 @@ final class BuyerWalletViewModel extends ChangeNotifier {
               idempotencyKey: command.idempotencyKey,
             );
       if (!_isCurrentRecharge(generation, lease)) return;
-      final created = intent?.recharge ??
+      final created =
+          intent?.recharge ??
           await _repository.createRecharge(
             amount: command.amount,
             idempotencyKey: command.idempotencyKey,
@@ -422,9 +420,7 @@ final class BuyerWalletViewModel extends ChangeNotifier {
       rechargeActionStatus = persisted
           ? BuyerWalletRechargeActionStatus.pending
           : BuyerWalletRechargeActionStatus.storageUnavailable;
-      rechargeMessage = persisted
-          ? _checkoutPendingMessage(created)
-          : 'Nexa creó la solicitud, pero no se guardó su referencia de recuperación. Consulta el estado y conserva esta pantalla abierta.';
+      rechargeMessage = persisted ? _checkoutPendingMessage(created) : 'Nexa creó la solicitud, pero no se guardó su referencia de recuperación. Consulta el estado y conserva esta pantalla abierta.';
       final checkoutLease = _checkoutLeaseFor(_access.snapshot, created);
       if (_canOpenCheckout(created, intent?.clientSecret) &&
           checkoutLease != null) {
@@ -471,11 +467,9 @@ final class BuyerWalletViewModel extends ChangeNotifier {
       rechargeMessage = switch (rechargeActionStatus) {
         BuyerWalletRechargeActionStatus.permissionDenied =>
           'No tienes permiso para solicitar una recarga de Buyer.',
-        BuyerWalletRechargeActionStatus.conflict =>
-          'La clave guardada ya corresponde a otro monto. No se creó una nueva solicitud; conserva el caso para revisión.',
+        BuyerWalletRechargeActionStatus.conflict => 'La clave guardada ya corresponde a otro monto. No se creó una nueva solicitud; conserva el caso para revisión.',
         BuyerWalletRechargeActionStatus.rejected => failure.userMessage,
-        BuyerWalletRechargeActionStatus.uncertain =>
-          'Nexa no confirmó el resultado. Reintenta solo esta misma solicitud para recuperar su estado.',
+        BuyerWalletRechargeActionStatus.uncertain => 'Nexa no confirmó el resultado. Reintenta solo esta misma solicitud para recuperar su estado.',
         BuyerWalletRechargeActionStatus.unavailable
             when failure.code == 'BUYER_WALLET_STORE_UNAVAILABLE' =>
           'El registro de billetera de Nexa no está disponible. No se confirmó ningún abono; vuelve a intentar la misma solicitud.',
@@ -485,8 +479,7 @@ final class BuyerWalletViewModel extends ChangeNotifier {
     } catch (_) {
       if (!_isCurrentRecharge(generation, lease)) return;
       rechargeActionStatus = BuyerWalletRechargeActionStatus.uncertain;
-      rechargeMessage =
-          'No se pudo confirmar la respuesta. Reintenta solo esta misma solicitud.';
+      rechargeMessage = 'No se pudo confirmar la respuesta. Reintenta solo esta misma solicitud.';
       notifyListeners();
     }
   }
@@ -516,9 +509,7 @@ final class BuyerWalletViewModel extends ChangeNotifier {
     rechargeActionStatus = cleared
         ? BuyerWalletRechargeActionStatus.idle
         : BuyerWalletRechargeActionStatus.storageUnavailable;
-    rechargeMessage = cleared
-        ? _terminalRechargeMessage(current.status)
-        : 'Nexa registró un estado terminal, pero no se pudo limpiar la recuperación local. Actualiza antes de iniciar otra recarga.';
+    rechargeMessage = cleared ? _terminalRechargeMessage(current.status) : 'Nexa registró un estado terminal, pero no se pudo limpiar la recuperación local. Actualiza antes de iniciar otra recarga.';
     notifyListeners();
     if (current.status == BuyerWalletRechargeStatus.succeeded && canRead) {
       await loadPage(wallet?.movements.page ?? 0);
@@ -592,7 +583,8 @@ final class BuyerWalletViewModel extends ChangeNotifier {
     );
     final snapshot = _access.snapshot;
     final currentRecharge = recharge;
-    final isCurrent = generationCurrent &&
+    final isCurrent =
+        generationCurrent &&
         identical(_checkoutCredential, credential) &&
         candidate == credential.checkoutLease &&
         _matchesCheckoutLease(snapshot, candidate) &&
@@ -640,31 +632,40 @@ final class BuyerWalletViewModel extends ChangeNotifier {
         when providerPaymentIntentId != null &&
             _isLocalMockProviderIntent(providerPaymentIntentId) =>
       'PSP local de demostración: pago pendiente. Nexa acredita el saldo solo al procesar su callback firmado.',
-    BuyerWalletRechargeStatus.awaitingPayment =>
-      'Pago pendiente. Nexa acredita el saldo solo al procesar su callback firmado.',
-    BuyerWalletRechargeStatus.succeeded =>
-      'Nexa confirmó la recarga. Actualizando el saldo y los movimientos vigentes.',
-    BuyerWalletRechargeStatus.failed => 'El proveedor rechazó o no completó la recarga.',
-    BuyerWalletRechargeStatus.cancelled => 'La solicitud de recarga fue cancelada.',
-    BuyerWalletRechargeStatus.rejected => 'Nexa rechazó la solicitud de recarga.',
+    BuyerWalletRechargeStatus.awaitingPayment => 'Pago pendiente. Nexa acredita el saldo solo al procesar su callback firmado.',
+    BuyerWalletRechargeStatus.succeeded => 'Nexa confirmó la recarga. Actualizando el saldo y los movimientos vigentes.',
+    BuyerWalletRechargeStatus.failed =>
+      'El proveedor rechazó o no completó la recarga.',
+    BuyerWalletRechargeStatus.cancelled =>
+      'La solicitud de recarga fue cancelada.',
+    BuyerWalletRechargeStatus.rejected =>
+      'Nexa rechazó la solicitud de recarga.',
   };
 
-  String _terminalRechargeMessage(BuyerWalletRechargeStatus status) => switch (status) {
-    BuyerWalletRechargeStatus.succeeded =>
-      'Nexa confirmó la recarga y actualizó el estado de la billetera.',
-    BuyerWalletRechargeStatus.failed => 'La recarga terminó sin abonar fondos.',
-    BuyerWalletRechargeStatus.cancelled => 'La recarga fue cancelada sin abonar fondos.',
-    BuyerWalletRechargeStatus.rejected => 'La recarga fue rechazada sin abonar fondos.',
-    BuyerWalletRechargeStatus.preparing ||
-    BuyerWalletRechargeStatus.awaitingPayment => _pendingRechargeMessage(status),
-  };
+  String _terminalRechargeMessage(BuyerWalletRechargeStatus status) =>
+      switch (status) {
+        BuyerWalletRechargeStatus.succeeded =>
+          'Nexa confirmó la recarga y actualizó el estado de la billetera.',
+        BuyerWalletRechargeStatus.failed =>
+          'La recarga terminó sin abonar fondos.',
+        BuyerWalletRechargeStatus.cancelled =>
+          'La recarga fue cancelada sin abonar fondos.',
+        BuyerWalletRechargeStatus.rejected =>
+          'La recarga fue rechazada sin abonar fondos.',
+        BuyerWalletRechargeStatus.preparing ||
+        BuyerWalletRechargeStatus.awaitingPayment => _pendingRechargeMessage(
+          status,
+        ),
+      };
 
   String? _normalizeRechargeAmount(String raw) {
     final value = raw.trim();
     if (!RegExp(r'^\d{1,6}(?:\.\d{1,2})?$').hasMatch(value)) return null;
     final parts = value.split('.');
     final whole = int.tryParse(parts[0]);
-    final cents = parts.length == 1 ? 0 : int.tryParse(parts[1].padRight(2, '0'));
+    final cents = parts.length == 1
+        ? 0
+        : int.tryParse(parts[1].padRight(2, '0'));
     if (whole == null || cents == null) return null;
     final minor = whole * 100 + cents;
     if (minor < 1 || minor > 99999999) return null;

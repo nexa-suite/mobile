@@ -19,9 +19,7 @@ final class _BuyerNotificationPreferencesPageState
   @override
   void initState() {
     super.initState();
-    unawaited(
-      context.read<BuyerNotificationsViewModel>().refreshPreferences(),
-    );
+    unawaited(context.read<BuyerNotificationsViewModel>().refreshPreferences());
   }
 
   @override
@@ -51,9 +49,7 @@ final class _BuyerNotificationPreferencesPageState
                   title: Text(viewModel.preferencesMessage!),
                   trailing: IconButton(
                     tooltip: 'Actualizar',
-                    onPressed: () => unawaited(
-                      viewModel.refreshPreferences(),
-                    ),
+                    onPressed: () => unawaited(viewModel.refreshPreferences()),
                     icon: const Icon(Icons.refresh),
                   ),
                 ),
@@ -84,7 +80,8 @@ final class _BuyerNotificationPreferencesPageState
                 margin: const EdgeInsets.only(top: 10),
                 child: SwitchListTile.adaptive(
                   value: preference.enabled,
-                  onChanged: viewModel.canManagePreferences &&
+                  onChanged:
+                      viewModel.canManagePreferences &&
                           viewModel.pendingPreferenceKeys.isEmpty
                       ? (enabled) => unawaited(
                           viewModel.setPreference(preference, enabled),
@@ -110,7 +107,9 @@ final class _BuyerNotificationPreferencesPageState
     BuyerNotificationPreferencesProjection? projection,
   ) =>
       projection?.preferences
-          .where((preference) => _channelLabelOrNull(preference.channel) != null)
+          .where(
+            (preference) => _channelLabelOrNull(preference.channel) != null,
+          )
           .toList(growable: false) ??
       const [];
 

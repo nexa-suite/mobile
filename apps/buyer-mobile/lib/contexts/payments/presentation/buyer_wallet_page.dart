@@ -193,7 +193,10 @@ final class _RechargeCardState extends State<_RechargeCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Solicitar recarga', style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              'Solicitar recarga',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 8),
             const Text(
               'El proveedor procesa el pago en su checkout seguro. Nexa actualiza el saldo '
@@ -203,7 +206,9 @@ final class _RechargeCardState extends State<_RechargeCard> {
               const SizedBox(height: 12),
               TextField(
                 controller: _amountController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 enabled: !busy,
                 decoration: const InputDecoration(
                   labelText: 'Monto en PEN',
@@ -247,7 +252,8 @@ final class _RechargeCardState extends State<_RechargeCard> {
               ),
             ],
             if (!busy &&
-                (viewModel.canRetryRecharge || viewModel.canRefreshRecharge)) ...[
+                (viewModel.canRetryRecharge ||
+                    viewModel.canRefreshRecharge)) ...[
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerRight,
@@ -278,14 +284,15 @@ final class _RechargeCardState extends State<_RechargeCard> {
   }
 }
 
-String _rechargeStatusLabel(BuyerWalletRechargeStatus status) => switch (status) {
-  BuyerWalletRechargeStatus.preparing => 'Preparando',
-  BuyerWalletRechargeStatus.awaitingPayment => 'Pago pendiente',
-  BuyerWalletRechargeStatus.succeeded => 'Confirmada por Nexa',
-  BuyerWalletRechargeStatus.failed => 'No completada',
-  BuyerWalletRechargeStatus.cancelled => 'Cancelada',
-  BuyerWalletRechargeStatus.rejected => 'Rechazada',
-};
+String _rechargeStatusLabel(BuyerWalletRechargeStatus status) =>
+    switch (status) {
+      BuyerWalletRechargeStatus.preparing => 'Preparando',
+      BuyerWalletRechargeStatus.awaitingPayment => 'Pago pendiente',
+      BuyerWalletRechargeStatus.succeeded => 'Confirmada por Nexa',
+      BuyerWalletRechargeStatus.failed => 'No completada',
+      BuyerWalletRechargeStatus.cancelled => 'Cancelada',
+      BuyerWalletRechargeStatus.rejected => 'Rechazada',
+    };
 
 final class _BalanceFact extends StatelessWidget {
   const _BalanceFact({

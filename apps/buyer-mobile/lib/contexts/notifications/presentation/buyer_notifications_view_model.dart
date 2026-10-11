@@ -41,8 +41,7 @@ final class BuyerNotificationsViewModel extends ChangeNotifier {
   final Set<String> pendingNotificationIds = {};
   bool markAllPending = false;
 
-  BuyerNotificationsStatus preferencesStatus =
-      BuyerNotificationsStatus.idle;
+  BuyerNotificationsStatus preferencesStatus = BuyerNotificationsStatus.idle;
   BuyerNotificationPreferencesProjection? notificationPreferences;
   String? preferencesMessage;
   final Set<String> pendingPreferenceKeys = {};
@@ -115,7 +114,10 @@ final class BuyerNotificationsViewModel extends ChangeNotifier {
     await refreshInbox();
   }
 
-  Future<void> setRead(BuyerNotificationProjection notification, bool read) async {
+  Future<void> setRead(
+    BuyerNotificationProjection notification,
+    bool read,
+  ) async {
     final lease = _leaseKey;
     if (lease == null ||
         !canRead ||
@@ -382,8 +384,7 @@ final class BuyerNotificationsViewModel extends ChangeNotifier {
 
   static String _preferenceKey(
     BuyerNotificationPreferenceProjection preference,
-  ) =>
-      '${preference.eventCategory}|${preference.channel}';
+  ) => '${preference.eventCategory}|${preference.channel}';
 
   static bool _supportedChannel(String channel) =>
       channel == 'IN_APP' || channel == 'EMAIL';

@@ -10,8 +10,7 @@ final class BuyerNotificationsPage extends StatefulWidget {
   const BuyerNotificationsPage({super.key});
 
   @override
-  State<BuyerNotificationsPage> createState() =>
-      _BuyerNotificationsPageState();
+  State<BuyerNotificationsPage> createState() => _BuyerNotificationsPageState();
 }
 
 final class _BuyerNotificationsPageState extends State<BuyerNotificationsPage> {
@@ -58,9 +57,8 @@ final class _BuyerNotificationsPageState extends State<BuyerNotificationsPage> {
                       ),
                     ],
                     selected: {viewModel.filter},
-                    onSelectionChanged: (selected) => unawaited(
-                      viewModel.setFilter(selected.first),
-                    ),
+                    onSelectionChanged: (selected) =>
+                        unawaited(viewModel.setFilter(selected.first)),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -91,8 +89,8 @@ final class _BuyerNotificationsPageState extends State<BuyerNotificationsPage> {
             if (viewModel.inboxMessage != null)
               _StatusCard(
                 message: viewModel.inboxMessage!,
-                loading: viewModel.inboxStatus ==
-                    BuyerNotificationsStatus.loading,
+                loading:
+                    viewModel.inboxStatus == BuyerNotificationsStatus.loading,
                 onRetry: () => unawaited(viewModel.refreshInbox()),
               ),
             if (viewModel.inboxStatus == BuyerNotificationsStatus.loading &&
@@ -149,11 +147,15 @@ final class _BuyerNotificationsPageState extends State<BuyerNotificationsPage> {
                     tooltip: notification.isRead
                         ? 'Marcar como sin leer'
                         : 'Marcar como leída',
-                    onPressed: viewModel.markAllPending ||
+                    onPressed:
+                        viewModel.markAllPending ||
                             viewModel.pendingNotificationIds.isNotEmpty
                         ? null
                         : () => unawaited(
-                            viewModel.setRead(notification, !notification.isRead),
+                            viewModel.setRead(
+                              notification,
+                              !notification.isRead,
+                            ),
                           ),
                     icon: const Icon(Icons.check_circle_outline),
                   ),

@@ -80,9 +80,8 @@ void main() {
           isTrue,
         );
 
-        final wallet = await BuyerWalletRepositoryImpl(api).readCurrentWallet(
-          page: 0,
-        );
+        final wallet = await BuyerWalletRepositoryImpl(api)
+            .readCurrentWallet(page: 0);
         expect(wallet.currency, 'PEN');
         expect(wallet.movements.page, 0);
 

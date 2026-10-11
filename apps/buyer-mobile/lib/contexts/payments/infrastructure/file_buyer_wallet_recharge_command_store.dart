@@ -132,10 +132,13 @@ final class FileBuyerWalletRechargeCommandStore
         final amount = value['amount'];
         final idempotencyKey = value['idempotencyKey'];
         final rechargeId = value['rechargeId'];
-        if (amount is! String || !_isAmount(amount) ||
-            idempotencyKey is! String || !_uuidPattern.hasMatch(idempotencyKey) ||
+        if (amount is! String ||
+            !_isAmount(amount) ||
+            idempotencyKey is! String ||
+            !_uuidPattern.hasMatch(idempotencyKey) ||
             (rechargeId != null &&
-                (rechargeId is! String || !_uuidPattern.hasMatch(rechargeId)))) {
+                (rechargeId is! String ||
+                    !_uuidPattern.hasMatch(rechargeId)))) {
           _corrupt();
         }
         entries[entry.key] = BuyerWalletRechargeCommand(
