@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <issue id="ObsoleteSdkInt">
+        <!-- Adaptive launcher icons require mipmap-anydpi-v26, including at minSdk 29.
+             Keep Android's required resource qualifier; see
+             https://developer.android.com/develop/ui/compose/system/icon_design_adaptive -->
+        <ignore path="src/main/res/mipmap-anydpi-v26" />
+    </issue>
+</lint>

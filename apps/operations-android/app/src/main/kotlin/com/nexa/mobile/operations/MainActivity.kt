@@ -3267,7 +3267,9 @@ class MainActivity : ComponentActivity() {
                                 onRetryPodSeal = {
                                     val current = readinessViewModel.state.value
                                     val currentRoute = connectedRoute
-                                    if (current.pendingPodSeal?.deliveryId == current.detail?.deliveryId &&
+                                    if (
+                                        current.pendingPodSeal?.deliveryId ==
+                                        current.detail?.deliveryId &&
                                         current.detailStatus == ReadinessDetailStatus.Current &&
                                         currentRoute != null &&
                                         currentRoute.authority.permissions.any {
