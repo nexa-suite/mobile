@@ -116,46 +116,31 @@ class NexaDispatchReadinessGatewayTest {
     }
 
     @Test
-    fun deliveryPodReadUsesModernDeliveryIdentityAndSealSendsCurrentVersionAndStableKey() =
-        runTest {
-            MockWebServer().use { server ->
-                server.start()
-                server.enqueue(jsonResponse(deliveryJson()))
-                server.enqueue(MockResponse().setResponseCode(204))
-                server.enqueue(jsonResponse(podJson("SEALED", version = 18), etag = "\"18\""))
-                val gateway = gateway(server)
+    fun deliveryPodReadUsesModernDeliveryIdentity() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(jsonResponse(deliveryJson()))
+            server.enqueue(MockResponse().setResponseCode(204))
+            val gateway = gateway(server)
 
-                val current = gateway.deliveryPod(DELIVERY_ID) as
-                    DispatchDeliveryPodNetworkOutcome.Snapshot
-                val deliveryRead = server.takeRequest()
-                val podRead = server.takeRequest()
-                assertEquals("GET", deliveryRead.method)
-                assertEquals(
-                    "/api/v1/deliveries/$DELIVERY_ID",
-                    deliveryRead.requestUrl?.encodedPath
-                )
-                assertEquals("GET", podRead.method)
-                assertEquals("/api/v1/deliveries/$DELIVERY_ID/pod", podRead.requestUrl?.encodedPath)
-                assertEquals(DELIVERY_ID, current.value.deliveryId)
-                assertEquals(FULFILLMENT_ID, current.value.fulfillmentId)
-                assertEquals(17L, current.value.deliveryVersion)
-                assertEquals("\"17\"", current.value.deliveryEtag)
-                assertEquals(null, current.value.pod)
-
-                val sealed = gateway.sealPod(DELIVERY_ID, "\"17\"", "stable-seal-key") as
-                    DispatchDeliveryPodNetworkOutcome.Sealed
-                val request = server.takeRequest()
-                assertEquals("POST", request.method)
-                assertEquals(
-                    "/api/v1/deliveries/$DELIVERY_ID/pod/seals",
-                    request.requestUrl?.encodedPath
-                )
-                assertEquals("\"17\"", request.getHeader("If-Match"))
-                assertEquals("stable-seal-key", request.getHeader("Idempotency-Key"))
-                assertEquals("SEALED", sealed.value.status)
-                assertEquals(18L, sealed.value.deliveryVersion)
-            }
+            val current = gateway.deliveryPod(DELIVERY_ID) as
+                DispatchDeliveryPodNetworkOutcome.Snapshot
+            val deliveryRead = server.takeRequest()
+            val podRead = server.takeRequest()
+            assertEquals("GET", deliveryRead.method)
+            assertEquals(
+                "/api/v1/deliveries/$DELIVERY_ID",
+                deliveryRead.requestUrl?.encodedPath
+            )
+            assertEquals("GET", podRead.method)
+            assertEquals("/api/v1/deliveries/$DELIVERY_ID/pod", podRead.requestUrl?.encodedPath)
+            assertEquals(DELIVERY_ID, current.value.deliveryId)
+            assertEquals(FULFILLMENT_ID, current.value.fulfillmentId)
+            assertEquals(17L, current.value.deliveryVersion)
+            assertEquals("\"17\"", current.value.deliveryEtag)
+            assertEquals(null, current.value.pod)
         }
+    }
 
     private fun gateway(server: MockWebServer): NexaDispatchReadinessGateway {
         val endpoint = ApiEndpoint(server.url("/").toString())
@@ -172,9 +157,6 @@ class NexaDispatchReadinessGatewayTest {
 
     private fun deliveryJson() =
         """{"id":"$DELIVERY_ID","fulfillmentId":"$FULFILLMENT_ID","status":"DELIVERED","version":17}"""
-
-    private fun podJson(status: String, version: Long = 17) =
-        """{"id":"$POD_ID","deliveryId":"$DELIVERY_ID","status":"$status","receiverName":"Receiver","capturedAt":"2026-09-30T10:15:30Z","sealedAt":"2026-09-30T10:16:30Z","deliveryVersion":$version}"""
 
     private fun jsonResponse(body: String, etag: String = "\"17\"") = MockResponse()
         .setResponseCode(200)
@@ -206,6 +188,5 @@ class NexaDispatchReadinessGatewayTest {
         const val LINE_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413201"
         const val SKU_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413301"
         const val DELIVERY_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413501"
-        const val POD_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413502"
     }
 }

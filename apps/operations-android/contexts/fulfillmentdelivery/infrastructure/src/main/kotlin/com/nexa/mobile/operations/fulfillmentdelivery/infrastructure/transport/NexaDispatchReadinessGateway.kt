@@ -264,42 +264,6 @@ class NexaDispatchReadinessGateway(private val protectedCalls: ProtectedCallExec
         )
     }
 
-    /** Sends the exact coordinator-owned seal command with the current Delivery ETag. */
-    suspend fun sealPod(
-        deliveryId: String,
-        deliveryEtag: String,
-        idempotencyKey: String
-    ): DispatchDeliveryPodNetworkOutcome {
-        val expectedVersion = deliveryEtag.version()
-            ?: return DispatchDeliveryPodNetworkOutcome.ServiceUnavailable
-        if (!deliveryId.isUuid() || idempotencyKey.isBlank() || idempotencyKey.length > 160) {
-            return DispatchDeliveryPodNetworkOutcome.ServiceUnavailable
-        }
-        val result = protectedCalls.execute(
-            ProtectedRequest(
-                method = ProtectedMethod.POST,
-                path = "$DELIVERIES_PATH/${encode(deliveryId)}/pod/seals",
-                payload = "{}",
-                idempotencyKey = idempotencyKey,
-                ifMatch = deliveryEtag
-            )
-        )
-        if (result is ProtectedResult.Failure) return result.error.toPodOutcome(mutation = true)
-        result as ProtectedResult.Success
-        if (result.status != 200) return DispatchDeliveryPodNetworkOutcome.UnknownOutcome
-        val wire = result.body.decode<DeliveryPodWire>()
-            ?: return DispatchDeliveryPodNetworkOutcome.UnknownOutcome
-        val pod = wire.toProjection(result.etag)
-            ?: return DispatchDeliveryPodNetworkOutcome.UnknownOutcome
-        if (!pod.deliveryId.equals(deliveryId, true) || pod.status != "SEALED" ||
-            pod.deliveryVersion != expectedVersion + 1 ||
-            pod.deliveryEtag.version() != pod.deliveryVersion
-        ) {
-            return DispatchDeliveryPodNetworkOutcome.UnknownOutcome
-        }
-        return DispatchDeliveryPodNetworkOutcome.Sealed(pod)
-    }
-
     private fun DeliveryPodWire.toProjection(etag: String?): DispatchPodEvidenceProjection? {
         val id = this.id.requiredText()?.takeIf { it.isUuid() } ?: return null
         val deliveryId = this.deliveryId.requiredText()?.takeIf { it.isUuid() } ?: return null
@@ -442,9 +406,7 @@ class NexaDispatchReadinessGateway(private val protectedCalls: ProtectedCallExec
         else -> DispatchReadinessNetworkOutcome.ServiceUnavailable
     }
 
-    private fun ClientFailure.toPodOutcome(
-        mutation: Boolean = false
-    ): DispatchDeliveryPodNetworkOutcome = when {
+    private fun ClientFailure.toPodOutcome(): DispatchDeliveryPodNetworkOutcome = when {
         kind == FailureKind.AuthenticationRequired ->
             DispatchDeliveryPodNetworkOutcome.SessionInvalidated
 
@@ -462,11 +424,6 @@ class NexaDispatchReadinessGateway(private val protectedCalls: ProtectedCallExec
 
         problemCode == "IDEMPOTENCY_PAYLOAD_CONFLICT" || httpStatus == 409 ||
             kind == FailureKind.BusinessConflict -> DispatchDeliveryPodNetworkOutcome.Conflict
-
-        mutation && (
-            kind == FailureKind.UnknownOutcome || kind == FailureKind.NetworkUnavailable ||
-                kind == FailureKind.Timeout
-            ) -> DispatchDeliveryPodNetworkOutcome.UnknownOutcome
 
         kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
             DispatchDeliveryPodNetworkOutcome.NetworkUnavailable

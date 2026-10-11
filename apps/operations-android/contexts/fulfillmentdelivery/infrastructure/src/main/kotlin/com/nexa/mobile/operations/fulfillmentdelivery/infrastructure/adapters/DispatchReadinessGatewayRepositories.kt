@@ -31,6 +31,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.D
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchReadinessNetworkOutcome as ReadinessOutcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchReadinessProjection as ReadinessProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDispatchAssignmentGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDispatchDeliveryPodSealGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDispatchReadinessGateway
 import dagger.Module
 import dagger.Provides
@@ -47,6 +48,12 @@ object DispatchReadinessGatewayBindings {
     fun dispatchReadinessGateway(
         protectedCalls: ProtectedCallExecutor
     ): NexaDispatchReadinessGateway = NexaDispatchReadinessGateway(protectedCalls)
+
+    @Provides
+    @Singleton
+    fun dispatchDeliveryPodSealGateway(
+        protectedCalls: ProtectedCallExecutor
+    ): NexaDispatchDeliveryPodSealGateway = NexaDispatchDeliveryPodSealGateway(protectedCalls)
 
     @Provides
     @Singleton
@@ -394,7 +401,8 @@ class OperationsDispatchAssignmentGateway @Inject constructor(
 @Singleton
 class OperationsDispatchReadinessGateway @Inject constructor(
     private val sessions: SessionCoordinator,
-    private val readiness: NexaDispatchReadinessGateway
+    private val readiness: NexaDispatchReadinessGateway,
+    private val deliveryPodSeal: NexaDispatchDeliveryPodSealGateway
 ) : DispatchReadinessGateway {
     override suspend fun list(context: DispatchAuthorityContext): ReadinessGatewayResult {
         val authorization = authorize(context)
@@ -435,7 +443,7 @@ class OperationsDispatchReadinessGateway @Inject constructor(
 
         // Keep ambiguous-outcome retries byte-for-byte stable. The server's idempotency record
         // replays an already-applied seal before checking the current Delivery version.
-        val result = readiness.sealPod(
+        val result = deliveryPodSeal.sealPod(
             command.deliveryId,
             command.deliveryEtag,
             command.idempotencyKey
