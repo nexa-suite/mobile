@@ -19,6 +19,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 
 private const val READINESS_PATH = "/api/v1/dispatch-readiness"
+private const val DELIVERIES_PATH = "/api/v1/deliveries"
 private const val READINESS_PAGE_SIZE = 100
 private const val MAX_READINESS_PAGES = 100
 private val dispatchReadinessJson = Json { ignoreUnknownKeys = true }
@@ -75,6 +76,40 @@ sealed interface DispatchReadinessNetworkOutcome {
     data object PermissionDenied : DispatchReadinessNetworkOutcome
     data object ContextInvalidated : DispatchReadinessNetworkOutcome
     data object SessionInvalidated : DispatchReadinessNetworkOutcome
+}
+
+data class DispatchDeliveryPodProjection(
+    val deliveryId: String,
+    val fulfillmentId: String,
+    val deliveryStatus: String,
+    val deliveryVersion: Long,
+    val deliveryEtag: String,
+    val pod: DispatchPodEvidenceProjection?
+)
+
+data class DispatchPodEvidenceProjection(
+    val id: String,
+    val deliveryId: String,
+    val status: String,
+    val receiverName: String?,
+    val capturedAt: Instant?,
+    val sealedAt: Instant?,
+    val deliveryVersion: Long,
+    val deliveryEtag: String
+)
+
+sealed interface DispatchDeliveryPodNetworkOutcome {
+    data class Snapshot(val value: DispatchDeliveryPodProjection) :
+        DispatchDeliveryPodNetworkOutcome
+    data class Sealed(val value: DispatchPodEvidenceProjection) : DispatchDeliveryPodNetworkOutcome
+    data object Stale : DispatchDeliveryPodNetworkOutcome
+    data object Conflict : DispatchDeliveryPodNetworkOutcome
+    data object UnknownOutcome : DispatchDeliveryPodNetworkOutcome
+    data object NetworkUnavailable : DispatchDeliveryPodNetworkOutcome
+    data object ServiceUnavailable : DispatchDeliveryPodNetworkOutcome
+    data object PermissionDenied : DispatchDeliveryPodNetworkOutcome
+    data object ContextInvalidated : DispatchDeliveryPodNetworkOutcome
+    data object SessionInvalidated : DispatchDeliveryPodNetworkOutcome
 }
 
 /** Protected read-only adapter for current, server-evaluated dispatch readiness. */
@@ -167,6 +202,127 @@ class NexaDispatchReadinessGateway(private val protectedCalls: ProtectedCallExec
                 }
             }
         }
+    }
+
+    /** Reads a current modern Delivery and its optional immutable POD under protected API scope. */
+    suspend fun deliveryPod(deliveryId: String): DispatchDeliveryPodNetworkOutcome {
+        if (!deliveryId.isUuid()) return DispatchDeliveryPodNetworkOutcome.ServiceUnavailable
+        val path = "$DELIVERIES_PATH/${encode(deliveryId)}"
+        val deliveryResult = protectedCalls.execute(ProtectedRequest(ProtectedMethod.GET, path))
+        if (deliveryResult is ProtectedResult.Failure) return deliveryResult.error.toPodOutcome()
+        deliveryResult as ProtectedResult.Success
+        if (deliveryResult.status !=
+            200
+        ) {
+            return DispatchDeliveryPodNetworkOutcome.ServiceUnavailable
+        }
+        val delivery = deliveryResult.body.decode<DeliveryWire>()
+            ?: return DispatchDeliveryPodNetworkOutcome.ServiceUnavailable
+        val deliveryVersion = delivery.version?.takeIf { it >= 0 }
+            ?: return DispatchDeliveryPodNetworkOutcome.ServiceUnavailable
+        val safeDeliveryId = delivery.id.requiredText()?.takeIf { it.equals(deliveryId, true) }
+            ?: return DispatchDeliveryPodNetworkOutcome.ServiceUnavailable
+        val fulfillmentId = delivery.fulfillmentId.requiredText()?.takeIf { it.isUuid() }
+            ?: return DispatchDeliveryPodNetworkOutcome.ServiceUnavailable
+        val status = delivery.status.requiredText()
+            ?: return DispatchDeliveryPodNetworkOutcome.ServiceUnavailable
+        val deliveryEtag = deliveryResult.etag?.takeIf { it.version() == deliveryVersion }
+            ?: return DispatchDeliveryPodNetworkOutcome.ServiceUnavailable
+
+        val podResult = protectedCalls.execute(
+            ProtectedRequest(ProtectedMethod.GET, "$DELIVERIES_PATH/${encode(safeDeliveryId)}/pod")
+        )
+        if (podResult is ProtectedResult.Failure) return podResult.error.toPodOutcome()
+        podResult as ProtectedResult.Success
+        val pod = when (podResult.status) {
+            204 -> null
+
+            200 -> {
+                val wire = podResult.body.decode<DeliveryPodWire>()
+                    ?: return DispatchDeliveryPodNetworkOutcome.ServiceUnavailable
+                val parsed = wire.toProjection(podResult.etag)
+                    ?: return DispatchDeliveryPodNetworkOutcome.ServiceUnavailable
+                if (!parsed.deliveryId.equals(safeDeliveryId, true) ||
+                    parsed.deliveryVersion != deliveryVersion || parsed.deliveryEtag != deliveryEtag
+                ) {
+                    return DispatchDeliveryPodNetworkOutcome.ServiceUnavailable
+                }
+                parsed
+            }
+
+            else -> return DispatchDeliveryPodNetworkOutcome.ServiceUnavailable
+        }
+        return DispatchDeliveryPodNetworkOutcome.Snapshot(
+            DispatchDeliveryPodProjection(
+                deliveryId = safeDeliveryId,
+                fulfillmentId = fulfillmentId,
+                deliveryStatus = status,
+                deliveryVersion = deliveryVersion,
+                deliveryEtag = deliveryEtag,
+                pod = pod
+            )
+        )
+    }
+
+    /** Sends the exact coordinator-owned seal command with the current Delivery ETag. */
+    suspend fun sealPod(
+        deliveryId: String,
+        deliveryEtag: String,
+        idempotencyKey: String
+    ): DispatchDeliveryPodNetworkOutcome {
+        val expectedVersion = deliveryEtag.version()
+            ?: return DispatchDeliveryPodNetworkOutcome.ServiceUnavailable
+        if (!deliveryId.isUuid() || idempotencyKey.isBlank() || idempotencyKey.length > 160) {
+            return DispatchDeliveryPodNetworkOutcome.ServiceUnavailable
+        }
+        val result = protectedCalls.execute(
+            ProtectedRequest(
+                method = ProtectedMethod.POST,
+                path = "$DELIVERIES_PATH/${encode(deliveryId)}/pod/seals",
+                payload = "{}",
+                idempotencyKey = idempotencyKey,
+                ifMatch = deliveryEtag
+            )
+        )
+        if (result is ProtectedResult.Failure) return result.error.toPodOutcome(mutation = true)
+        result as ProtectedResult.Success
+        if (result.status != 200) return DispatchDeliveryPodNetworkOutcome.UnknownOutcome
+        val wire = result.body.decode<DeliveryPodWire>()
+            ?: return DispatchDeliveryPodNetworkOutcome.UnknownOutcome
+        val pod = wire.toProjection(result.etag)
+            ?: return DispatchDeliveryPodNetworkOutcome.UnknownOutcome
+        if (!pod.deliveryId.equals(deliveryId, true) || pod.status != "SEALED" ||
+            pod.deliveryVersion != expectedVersion + 1 ||
+            pod.deliveryEtag.version() != pod.deliveryVersion
+        ) {
+            return DispatchDeliveryPodNetworkOutcome.UnknownOutcome
+        }
+        return DispatchDeliveryPodNetworkOutcome.Sealed(pod)
+    }
+
+    private fun DeliveryPodWire.toProjection(etag: String?): DispatchPodEvidenceProjection? {
+        val id = this.id.requiredText()?.takeIf { it.isUuid() } ?: return null
+        val deliveryId = this.deliveryId.requiredText()?.takeIf { it.isUuid() } ?: return null
+        val status = this.status.requiredText() ?: return null
+        val version = this.deliveryVersion?.takeIf { it >= 0 } ?: return null
+        val deliveryEtag = etag?.takeIf { it.version() == version } ?: return null
+        val capturedAt = this.capturedAt?.requiredText()?.parseInstant()
+        val sealedAt = this.sealedAt?.requiredText()?.parseInstant()
+        if ((this.capturedAt != null && capturedAt == null) ||
+            (this.sealedAt != null && sealedAt == null)
+        ) {
+            return null
+        }
+        return DispatchPodEvidenceProjection(
+            id = id,
+            deliveryId = deliveryId,
+            status = status,
+            receiverName = receiverName?.takeIf(String::isNotBlank),
+            capturedAt = capturedAt,
+            sealedAt = sealedAt,
+            deliveryVersion = version,
+            deliveryEtag = deliveryEtag
+        )
     }
 
     private fun DispatchReadinessWire.toProjection(): DispatchReadinessProjection? {
@@ -286,6 +442,47 @@ class NexaDispatchReadinessGateway(private val protectedCalls: ProtectedCallExec
         else -> DispatchReadinessNetworkOutcome.ServiceUnavailable
     }
 
+    private fun ClientFailure.toPodOutcome(
+        mutation: Boolean = false
+    ): DispatchDeliveryPodNetworkOutcome = when {
+        kind == FailureKind.AuthenticationRequired ->
+            DispatchDeliveryPodNetworkOutcome.SessionInvalidated
+
+        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
+            DispatchDeliveryPodNetworkOutcome.ContextInvalidated
+
+        httpStatus == 403 || kind == FailureKind.AuthorizationFailure ->
+            DispatchDeliveryPodNetworkOutcome.PermissionDenied
+
+        httpStatus == 404 || kind == FailureKind.ResourceUnavailable ->
+            DispatchDeliveryPodNetworkOutcome.PermissionDenied
+
+        httpStatus == 412 || httpStatus == 428 || kind == FailureKind.StaleState ||
+            kind == FailureKind.PreconditionRequired -> DispatchDeliveryPodNetworkOutcome.Stale
+
+        problemCode == "IDEMPOTENCY_PAYLOAD_CONFLICT" || httpStatus == 409 ||
+            kind == FailureKind.BusinessConflict -> DispatchDeliveryPodNetworkOutcome.Conflict
+
+        mutation && (
+            kind == FailureKind.UnknownOutcome || kind == FailureKind.NetworkUnavailable ||
+                kind == FailureKind.Timeout
+            ) -> DispatchDeliveryPodNetworkOutcome.UnknownOutcome
+
+        kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
+            DispatchDeliveryPodNetworkOutcome.NetworkUnavailable
+
+        else -> DispatchDeliveryPodNetworkOutcome.ServiceUnavailable
+    }
+
+    private fun String?.version(): Long? {
+        val value = this?.trim()?.removeSurrounding("\"") ?: return null
+        if (value.isEmpty() || value.any { !it.isDigit() }) return null
+        return value.toLongOrNull()?.takeIf { it >= 0 }
+    }
+
+    private fun encode(value: String): String =
+        URLEncoder.encode(value, StandardCharsets.UTF_8.name())
+
     private fun JsonElement?.decimalValue(): BigDecimal? = try {
         when (this) {
             null, JsonNull -> null
@@ -363,4 +560,23 @@ private data class DispatchReadinessLineWire(
     val allocationComplete: Boolean? = null,
     val pickingComplete: Boolean? = null,
     val evidenceComplete: Boolean? = null
+)
+
+@Serializable
+private data class DeliveryWire(
+    val id: String? = null,
+    val fulfillmentId: String? = null,
+    val status: String? = null,
+    val version: Long? = null
+)
+
+@Serializable
+private data class DeliveryPodWire(
+    val id: String? = null,
+    val deliveryId: String? = null,
+    val status: String? = null,
+    val receiverName: String? = null,
+    val capturedAt: String? = null,
+    val sealedAt: String? = null,
+    val deliveryVersion: Long? = null
 )

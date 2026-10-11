@@ -3243,6 +3243,48 @@ class MainActivity : ComponentActivity() {
                                     } else {
                                         null
                                     },
+                                onRefreshDeliveryPod = readinessViewModel::refreshDeliveryPod,
+                                onSealPod = { deliveryId ->
+                                    val current = readinessViewModel.state.value
+                                    val currentRoute = connectedRoute
+                                    if (current.detail?.deliveryId == deliveryId &&
+                                        current.detailStatus == ReadinessDetailStatus.Current &&
+                                        readinessViewModel.canSealPod() && currentRoute != null &&
+                                        currentRoute.authority.permissions.any {
+                                            it == "dispatch.complete" || it == "logistics:write"
+                                        } &&
+                                        ConnectedOperationsNavigation.permits(
+                                            currentRoute,
+                                            CONNECTED_OPERATIONS,
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        )
+                                    ) {
+                                        readinessViewModel.sealPod()
+                                    }
+                                },
+                                onRetryPodSeal = {
+                                    val current = readinessViewModel.state.value
+                                    val currentRoute = connectedRoute
+                                    if (current.pendingPodSeal?.deliveryId == current.detail?.deliveryId &&
+                                        current.detailStatus == ReadinessDetailStatus.Current &&
+                                        currentRoute != null &&
+                                        currentRoute.authority.permissions.any {
+                                            it == "dispatch.complete" || it == "logistics:write"
+                                        } &&
+                                        ConnectedOperationsNavigation.permits(
+                                            currentRoute,
+                                            CONNECTED_OPERATIONS,
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        )
+                                    ) {
+                                        readinessViewModel.retryPodSeal()
+                                    }
+                                },
+                                canSealPod = readinessViewModel.canSealPod(),
                                 onRecordTemperature = { fulfillmentId ->
                                     val current = readinessViewModel.state.value
                                     if (current.detail?.fulfillmentId == fulfillmentId &&

@@ -11,4 +11,14 @@ interface DispatchReadinessGateway {
         fulfillmentId: String,
         context: DispatchAuthorityContext
     ): DispatchReadinessGatewayResult
+
+    suspend fun deliveryPod(
+        deliveryId: String,
+        context: DispatchAuthorityContext
+    ): DispatchDeliveryPodGatewayResult
+
+    suspend fun sealPod(
+        command: SealDispatchPodCommand,
+        context: DispatchAuthorityContext
+    ): DispatchDeliveryPodGatewayResult
 }
