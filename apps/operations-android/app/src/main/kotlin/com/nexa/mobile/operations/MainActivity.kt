@@ -160,6 +160,11 @@ import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.W
 import com.nexa.mobile.operations.notifications.application.inbox.NotificationsAuthority
 import com.nexa.mobile.operations.notifications.presentation.inbox.NotificationsScreen
 import com.nexa.mobile.operations.notifications.presentation.inbox.NotificationsViewModel
+import com.nexa.mobile.operations.payments.application.refund.WalletRefundAuthority
+import com.nexa.mobile.operations.payments.infrastructure.adapters.AppWalletRefundIntentStore
+import com.nexa.mobile.operations.payments.infrastructure.transport.NexaWalletRefundGateway
+import com.nexa.mobile.operations.payments.presentation.refund.WalletRefundScreen
+import com.nexa.mobile.operations.payments.presentation.refund.WalletRefundViewModel
 import com.nexa.mobile.operations.salescommitment.presentation.commercial.CustomerProgressScreen
 import com.nexa.mobile.operations.salescommitment.presentation.commercial.CustomerProgressViewModel
 import com.nexa.mobile.operations.salescommitment.presentation.commercial.DirectOrderScreen
@@ -381,6 +386,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject internal lateinit var directOrderFactory: DirectOrderViewModelFactory
     private val directOrderViewModel: DirectOrderViewModel by viewModels { directOrderFactory }
+
+    @Inject internal lateinit var walletRefundFactory: WalletRefundViewModelFactory
+    private val walletRefundViewModel: WalletRefundViewModel by viewModels { walletRefundFactory }
 
     @Inject internal lateinit var businessDocumentsFactory: BusinessDocumentsViewModelFactory
     private val businessDocumentsViewModel: BusinessDocumentsViewModel by viewModels {
@@ -802,6 +810,7 @@ class MainActivity : ComponentActivity() {
                     businessDocumentsViewModel.state.collectAsStateWithLifecycle()
                 val notificationsState by notificationsViewModel.state.collectAsStateWithLifecycle()
                 val directOrderState by directOrderViewModel.state.collectAsStateWithLifecycle()
+                val walletRefundState by walletRefundViewModel.state.collectAsStateWithLifecycle()
                 val dispatchHandoffIdentityState by
                     dispatchHandoffIdentityViewModel.state.collectAsStateWithLifecycle()
                 val dispatchTemperatureState by
@@ -820,6 +829,30 @@ class MainActivity : ComponentActivity() {
                     businessExceptionsViewModel.state.collectAsStateWithLifecycle()
                 val executionTemperatureState by
                     executionTemperatureViewModel.state.collectAsStateWithLifecycle()
+                LaunchedEffect(
+                    connectedRoute,
+                    state,
+                    accessState.stage,
+                    accessState.authorityEpoch,
+                    accessState.activeContext,
+                    warehouseState.authorityEpoch,
+                    warehouseState.activeContext
+                ) {
+                    val route = connectedRoute
+                        ?.takeIf { it.entryKey == "payments.wallet-refund" }
+                        ?: return@LaunchedEffect
+                    if (!ConnectedOperationsNavigation.permits(
+                            route,
+                            CONNECTED_OPERATIONS,
+                            state,
+                            accessState,
+                            warehouseState
+                        )
+                    ) {
+                        walletRefundViewModel.deactivate()
+                        closeConnectedOperation()
+                    }
+                }
                 LaunchedEffect(
                     pendingLoadDelivery,
                     connectedRoute,
@@ -1761,11 +1794,39 @@ class MainActivity : ComponentActivity() {
                                             route.authorityEpoch
                                         )
                                     )
+
+                                    "payments.wallet-refund" -> walletRefundViewModel.activate(
+                                        WalletRefundAuthority(
+                                            identity = VerifiedOperationsIdentity(
+                                                userId = authority.userId,
+                                                tenantId = authority.tenantId,
+                                                workspaceId = authority.workspaceId,
+                                                membershipId = authority.membershipId,
+                                                permissions = authority.permissions.toSet(),
+                                                roles = authority.roles.toSet()
+                                            ),
+                                            authorityEpoch = route.authorityEpoch
+                                        )
+                                    )
                                 }
                             }
                     },
                     connectedOperationContent = {
                         when (connectedRoute?.entryKey) {
+                            "payments.wallet-refund" -> WalletRefundScreen(
+                                state = walletRefundState,
+                                onBack = ::closeConnectedOperation,
+                                onRefresh = walletRefundViewModel::refresh,
+                                onSelectOrder = walletRefundViewModel::selectOrder,
+                                onAmountChanged = walletRefundViewModel::amountChanged,
+                                onUseRemaining = walletRefundViewModel::useServerRefundableAmount,
+                                onReasonChanged = walletRefundViewModel::reasonChanged,
+                                onSubmit = walletRefundViewModel::submit,
+                                onRetry = walletRefundViewModel::retry,
+                                onPreviousPage = walletRefundViewModel::previousPage,
+                                onNextPage = walletRefundViewModel::nextPage
+                            )
+
                             "warehouse.lot-substitution" -> LotSubstitutionScreen(
                                 lotSubstitutionState,
                                 onBack = ::closeConnectedOperation,
@@ -3795,6 +3856,9 @@ class MainActivity : ComponentActivity() {
             pickingViewModel.invalidate()
             pickingWorkListViewModel.invalidate()
         }
+        if (connectedRoute?.entryKey == "payments.wallet-refund") {
+            walletRefundViewModel.deactivate()
+        }
         warehouseBatchViewModel.invalidate()
         pendingDispositionLot = null
         pendingTemperatureDispositionSeed = null
@@ -3876,7 +3940,8 @@ private fun WorkforceContextSummary.toActiveOperationsContext(
             tenantId = authority.tenantId,
             workspaceId = authority.workspaceId,
             membershipId = authority.membershipId,
-            permissions = authority.permissions.toSet()
+            permissions = authority.permissions.toSet(),
+            roles = authority.roles.toSet()
         )
     }
 )
@@ -4009,6 +4074,12 @@ private val CONNECTED_OPERATIONS = listOf(
         "operations.notifications",
         "Notificaciones",
         setOf("notification.read")
+    ),
+    ConnectedOperationEntry(
+        "payments.wallet-refund",
+        "Devolución a billetera",
+        setOf("payment.reconcile"),
+        readRoles = setOf("BUSINESS_OPERATIONS_MANAGER", "COMPANY_OWNER")
     ),
     ConnectedOperationEntry("operations.overview", "Vista operativa", setOf("dispatch.read")),
     ConnectedOperationEntry("operations.exceptions", "Trabajo bloqueado", setOf("dispatch.read")),

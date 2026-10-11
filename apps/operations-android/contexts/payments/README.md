@@ -1,8 +1,15 @@
 # BC-08 Payments
 
-Status: Canonical ownership mapped; client capability not implemented.
+Status: Operations wallet-refund client slice implemented and focused technical
+checks pass; Product/UX acceptance and system acceptance are not claimed.
 
-No standalone Operations client capability is implemented. A field-request payment preference is a BC04 input and does not implement payment authority.
+The slice lists server-provided refundable sales-order candidates and submits a
+full or partial PEN refund with a required reason. It preserves four-decimal
+server values and an encrypted, membership-scoped frozen intent for explicit
+same-key retries after an ambiguous outcome. The API remains authoritative;
+this client does not select a buyer wallet, automatically retry, or couple a
+refund to order cancellation. A field-request payment preference remains a
+BC04 input and does not implement payment authority.
 
 The API owns authoritative business decisions. Client domain types represent
 immutable facts and local value constraints; application coordinates requests

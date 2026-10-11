@@ -61,11 +61,12 @@ data class VerifiedSession(
     val workspaceName: String? = null,
     val workspaceSlug: String? = null,
     val membershipId: String? = null,
-    val permissions: Set<String> = emptySet()
+    val permissions: Set<String> = emptySet(),
+    val roles: Set<String> = emptySet()
 ) {
     override fun toString(): String =
         "VerifiedSession(hasAuthorizedContext=$hasAuthorizedContext, " +
-            "membershipId=REDACTED, permissions=${permissions.size})"
+            "membershipId=REDACTED, permissions=${permissions.size}, roles=${roles.size})"
 }
 
 interface AuthRemoteGateway {

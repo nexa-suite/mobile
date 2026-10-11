@@ -50,7 +50,8 @@ enum class ScopedMetadataPurpose {
     DeliveryLoadCommand,
     DispatchDeliveryInstructionCommand,
     DriverExecutionTemperatureCommand,
-    BusinessOperationalExceptionCommand
+    BusinessOperationalExceptionCommand,
+    WalletRefundCommand
 }
 data class ScopedMetadataScope(
     val userId: String,
