@@ -28,11 +28,12 @@ commands and evidence locations.
 | `:core:*` | Shared auth, generic scoped local storage, network, device and design-system foundations |
 | `:contexts:<root>:<layer>` | Code aligned to a canonical Bounded Context and one of its implemented client layers |
 
-The Android source has 11 canonical context roots and 31 runtime layer modules.
+The Android source has 11 canonical context roots and 34 runtime layer modules.
 The four layer names are `domain`, `application`, `infrastructure` and
-`presentation`; a module exists only where this client has code. BC-08 Payments,
-BC-10 Notifications and BC-11 Business Traceability currently have ownership
-documentation but no runtime module. The [DDD alignment](docs/client-ddd-alignment.md)
+`presentation`; a module exists only where this client has code. BC-10
+Notifications has application, infrastructure and presentation modules. BC-08
+Payments and BC-11 Business Traceability have ownership documentation but no
+runtime module. The [DDD alignment](docs/client-ddd-alignment.md)
 lists every root and implemented layer. Context roots, Gradle modules and screens
 do not create business Bounded Contexts or transfer server authority.
 
@@ -122,6 +123,16 @@ production API endpoint, or distribution signing configuration. No
 physical-device acceptance is claimed. Local sign-out clears protected state
 even when server revocation cannot be confirmed. Product Acceptance, System
 Acceptance and production readiness remain separate gates.
+
+## v1.2.0 candidate — unreleased
+
+Local technical verification passed for the current working tree: strict
+architecture, formatting, lint, JVM tests, debug assembly, and API 37/API 29
+instrumentation. The candidate sets Operations Android to `1.2.0` (`versionCode
+11`) and the separate Buyer Flutter app to `1.1.0+2`. The unsigned Operations
+R8 build uses the Render validation origin; it does not establish live API
+compatibility or production distribution. Buyer Android distribution signing
+and iOS signing remain unresolved. See the [candidate evidence](docs/releases/v1.2.0.md).
 
 ## Historical release checkpoint — 2026-10-05
 

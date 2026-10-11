@@ -49,8 +49,15 @@ include(
     ":contexts:creditreceivables:domain",
     ":contexts:creditreceivables:application",
     ":contexts:creditreceivables:infrastructure",
+    ":contexts:payments:domain",
+    ":contexts:payments:application",
+    ":contexts:payments:infrastructure",
+    ":contexts:payments:presentation",
     ":contexts:businessdocuments:domain",
     ":contexts:businessdocuments:application",
     ":contexts:businessdocuments:infrastructure",
-    ":contexts:businessdocuments:presentation"
+    ":contexts:businessdocuments:presentation",
+    ":contexts:notifications:application",
+    ":contexts:notifications:infrastructure",
+    ":contexts:notifications:presentation"
 )

@@ -1,7 +1,23 @@
 # Nexa mobile launcher artwork
 
-`nexa-mobile.svg` is the preserved source artwork provided for the Operations Android launcher icon. It uses the Nexa blue `#2563EB` square background and the complete white Nexa mark and wordmark.
+Launcher artwork comes from the preserved Design Lab sources outside this
+repository:
 
-The Android adaptive icon keeps that blue as its full-bleed background and uses a transparent white-wordmark foreground. Foreground artwork is centered on a 108 dp canvas and limited to 62 dp, inside Android's 66 dp safe zone. Both launcher resources are adaptive drawables in `drawable-anydpi`; the `ic_launcher_round` resource receives the launcher's circular mask. The app minimum is API 29, so adaptive icons cover every supported Android version without legacy bitmap variants.
+- Operations Android: `design-lab/shared/brand/nexa-mobile-inverted.svg`, with
+  the white background and blue mark.
+- Buyer Android and iOS: `design-lab/shared/brand/nexa-mobile.svg`, with the
+  Nexa blue `#2563EB` background and white mark.
 
-The foreground raster was rendered from the preserved SVG with `rsvg-convert` 2.62.3 and alpha-cropped/resized with Pillow 11.3.0. The source geometry is retained without cropping; only the surrounding transparent padding changes for the adaptive safe zone.
+The source files remain unchanged. PNGs are rendered directly from those SVGs
+with `rsvg-convert` 2.62.4. Android adaptive foregrounds remove only the
+source background rectangle and place the original vector artwork on a
+transparent 108 dp canvas. The source tile is scaled to 72 dp; its horizontal
+mark spans about 50 by 27 dp and stays within Android's centered 66 dp safe
+circle, including circular masks. The supplied horizontal artwork falls below
+Android's [documented 48 dp minimum](https://developer.android.com/develop/ui/compose/system/icon_design_adaptive) on its short axis; no alternate compact mark
+was supplied, so the complete source shape is preserved. Adaptive backgrounds
+match the corresponding source colors. Density-specific legacy icons render
+the complete source artwork.
+
+Buyer iOS app-icon sizes render directly from `nexa-mobile.svg` into the Xcode
+asset catalog as square, unmasked PNGs. iOS applies its platform mask.

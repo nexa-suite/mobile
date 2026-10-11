@@ -11,19 +11,27 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.Dispa
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAssignmentScopeIdentity as AssignmentScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryPodGatewayResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryPodSnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPodEvidence
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGatewayResult as ReadinessGatewayResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.SealDispatchPodCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchAssignmentSnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDriverCandidate
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadinessLine
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.PreparedFulfillmentDriverAssignment
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchAssignmentNetworkOutcome as AssignmentOutcome
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchDeliveryPodNetworkOutcome as DeliveryPodOutcome
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchDeliveryPodProjection as DeliveryPodProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchDriverAssignmentProjection as DriverAssignmentProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchDriverAssignmentRequest as DriverAssignmentRequest
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchPodEvidenceProjection as PodEvidenceProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchReadinessNetworkOutcome as ReadinessOutcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchReadinessProjection as ReadinessProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDispatchAssignmentGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDispatchDeliveryPodSealGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDispatchReadinessGateway
 import dagger.Module
 import dagger.Provides
@@ -40,6 +48,12 @@ object DispatchReadinessGatewayBindings {
     fun dispatchReadinessGateway(
         protectedCalls: ProtectedCallExecutor
     ): NexaDispatchReadinessGateway = NexaDispatchReadinessGateway(protectedCalls)
+
+    @Provides
+    @Singleton
+    fun dispatchDeliveryPodSealGateway(
+        protectedCalls: ProtectedCallExecutor
+    ): NexaDispatchDeliveryPodSealGateway = NexaDispatchDeliveryPodSealGateway(protectedCalls)
 
     @Provides
     @Singleton
@@ -387,7 +401,8 @@ class OperationsDispatchAssignmentGateway @Inject constructor(
 @Singleton
 class OperationsDispatchReadinessGateway @Inject constructor(
     private val sessions: SessionCoordinator,
-    private val readiness: NexaDispatchReadinessGateway
+    private val readiness: NexaDispatchReadinessGateway,
+    private val deliveryPodSeal: NexaDispatchDeliveryPodSealGateway
 ) : DispatchReadinessGateway {
     override suspend fun list(context: DispatchAuthorityContext): ReadinessGatewayResult {
         val authorization = authorize(context)
@@ -406,7 +421,45 @@ class OperationsDispatchReadinessGateway @Inject constructor(
         return if (isCurrent(context, authorization.lease)) result else authorityDrift(context)
     }
 
-    private suspend fun authorize(context: DispatchAuthorityContext): Authorization {
+    override suspend fun deliveryPod(
+        deliveryId: String,
+        context: DispatchAuthorityContext
+    ): DispatchDeliveryPodGatewayResult {
+        val authorization = authorize(context)
+        if (authorization !is Authorization.Current) return authorization.toPodResult()
+        val result = readiness.deliveryPod(deliveryId).toFeatureResult()
+        return if (isCurrent(context, authorization.lease)) result else authorityDriftPod(context)
+    }
+
+    override suspend fun sealPod(
+        command: SealDispatchPodCommand,
+        context: DispatchAuthorityContext
+    ): DispatchDeliveryPodGatewayResult {
+        val authorization = authorize(context, requireSealPermission = true)
+        if (authorization !is Authorization.Current) return authorization.toPodResult()
+        if (!isCurrent(context, authorization.lease, requireSealPermission = true)) {
+            return authorityDriftPod(context)
+        }
+
+        // Keep ambiguous-outcome retries byte-for-byte stable. The server's idempotency record
+        // replays an already-applied seal before checking the current Delivery version.
+        val result = deliveryPodSeal.sealPod(
+            command.deliveryId,
+            command.deliveryEtag,
+            command.idempotencyKey
+        )
+            .toFeatureResult()
+        return if (isCurrent(context, authorization.lease, requireSealPermission = true)) {
+            result
+        } else {
+            authorityDriftPod(context)
+        }
+    }
+
+    private suspend fun authorize(
+        context: DispatchAuthorityContext,
+        requireSealPermission: Boolean = false
+    ): Authorization {
         if (sessions.sessionState.value !=
             SessionState.Active
         ) {
@@ -426,14 +479,20 @@ class OperationsDispatchReadinessGateway @Inject constructor(
         }
         return when {
             identity.permissions.isEmpty() -> Authorization.ContextInvalidated
+
             DISPATCH_READ_PERMISSION !in identity.permissions -> Authorization.PermissionDenied
+
+            requireSealPermission && identity.permissions.none { it in POD_SEAL_PERMISSIONS } ->
+                Authorization.PermissionDenied
+
             else -> Authorization.Current(lease)
         }
     }
 
     private suspend fun isCurrent(
         context: DispatchAuthorityContext,
-        originalLease: AccessTokenLease
+        originalLease: AccessTokenLease,
+        requireSealPermission: Boolean = false
     ): Boolean {
         if (sessions.sessionState.value != SessionState.Active ||
             !sessions.isEpochCurrent(originalLease.epoch)
@@ -442,7 +501,8 @@ class OperationsDispatchReadinessGateway @Inject constructor(
         }
         val identity = context.identity ?: return false
         return sessions.verifiedSession.value?.matches(identity) == true &&
-            DISPATCH_READ_PERMISSION in identity.permissions
+            DISPATCH_READ_PERMISSION in identity.permissions &&
+            (!requireSealPermission || identity.permissions.any { it in POD_SEAL_PERMISSIONS })
     }
 
     private suspend fun authorityDrift(context: DispatchAuthorityContext) = when {
@@ -489,6 +549,57 @@ class OperationsDispatchReadinessGateway @Inject constructor(
             ReadinessGatewayResult.SessionInvalidated
     }
 
+    private fun DeliveryPodOutcome.toFeatureResult(): DispatchDeliveryPodGatewayResult =
+        when (this) {
+            is DeliveryPodOutcome.Snapshot -> DispatchDeliveryPodGatewayResult.Snapshot(
+                value.toFeature()
+            )
+
+            is DeliveryPodOutcome.Sealed -> DispatchDeliveryPodGatewayResult.Sealed(
+                value.toFeature()
+            )
+
+            DeliveryPodOutcome.Stale -> DispatchDeliveryPodGatewayResult.Stale
+
+            DeliveryPodOutcome.Conflict -> DispatchDeliveryPodGatewayResult.Conflict
+
+            DeliveryPodOutcome.UnknownOutcome -> DispatchDeliveryPodGatewayResult.UnknownOutcome
+
+            DeliveryPodOutcome.NetworkUnavailable ->
+                DispatchDeliveryPodGatewayResult.NetworkUnavailable
+
+            DeliveryPodOutcome.ServiceUnavailable ->
+                DispatchDeliveryPodGatewayResult.ServiceUnavailable
+
+            DeliveryPodOutcome.PermissionDenied -> DispatchDeliveryPodGatewayResult.PermissionDenied
+
+            DeliveryPodOutcome.ContextInvalidated ->
+                DispatchDeliveryPodGatewayResult.ContextInvalidated
+
+            DeliveryPodOutcome.SessionInvalidated ->
+                DispatchDeliveryPodGatewayResult.SessionInvalidated
+        }
+
+    private fun DeliveryPodProjection.toFeature() = DispatchDeliveryPodSnapshot(
+        deliveryId = deliveryId,
+        fulfillmentId = fulfillmentId,
+        deliveryStatus = deliveryStatus,
+        deliveryVersion = deliveryVersion,
+        deliveryEtag = deliveryEtag,
+        pod = pod?.toFeature()
+    )
+
+    private fun PodEvidenceProjection.toFeature() = DispatchPodEvidence(
+        id = id,
+        deliveryId = deliveryId,
+        status = status,
+        receiverName = receiverName,
+        capturedAt = capturedAt,
+        sealedAt = sealedAt,
+        deliveryVersion = deliveryVersion,
+        deliveryEtag = deliveryEtag
+    )
+
     private sealed interface Authorization {
         data class Current(val lease: AccessTokenLease) : Authorization
         data object SessionInvalidated : Authorization
@@ -503,8 +614,29 @@ class OperationsDispatchReadinessGateway @Inject constructor(
         is Authorization.Current -> error("authorized result is not a failure")
     }
 
+    private fun Authorization.toPodResult(): DispatchDeliveryPodGatewayResult = when (this) {
+        Authorization.SessionInvalidated -> DispatchDeliveryPodGatewayResult.SessionInvalidated
+        Authorization.ContextInvalidated -> DispatchDeliveryPodGatewayResult.ContextInvalidated
+        Authorization.PermissionDenied -> DispatchDeliveryPodGatewayResult.PermissionDenied
+        is Authorization.Current -> error("authorized result is not a failure")
+    }
+
+    private suspend fun authorityDriftPod(
+        context: DispatchAuthorityContext
+    ): DispatchDeliveryPodGatewayResult = when {
+        sessions.sessionState.value != SessionState.Active ->
+            DispatchDeliveryPodGatewayResult.SessionInvalidated
+
+        sessions.verifiedSession.value?.let { verified ->
+            context.identity?.let { expected -> verified.matches(expected) } == true
+        } == true -> DispatchDeliveryPodGatewayResult.SessionInvalidated
+
+        else -> DispatchDeliveryPodGatewayResult.ContextInvalidated
+    }
+
     private companion object {
         const val DISPATCH_READ_PERMISSION = "dispatch.read"
+        val POD_SEAL_PERMISSIONS = setOf("dispatch.complete", "logistics:write")
     }
 }
 

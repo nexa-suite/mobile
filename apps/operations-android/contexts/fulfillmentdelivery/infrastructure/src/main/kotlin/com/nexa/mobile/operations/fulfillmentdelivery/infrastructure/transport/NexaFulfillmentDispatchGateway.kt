@@ -33,7 +33,8 @@ data class FulfillmentHandoffEvidenceProjection(
     val fulfillmentId: String,
     val fulfillmentVersion: Long,
     val deliveryId: String,
-    val warehouseActorMembershipId: String,
+    val warehouseActorMembershipId: String?,
+    val dispatchActorMembershipId: String?,
     val driverAssignmentId: String,
     val driverMembershipId: String,
     val physicalAllocationId: String,
@@ -259,7 +260,11 @@ class NexaFulfillmentDispatchGateway(private val protectedCalls: ProtectedCallEx
         val workId = fulfillmentId?.takeIf { it.isUuid() } ?: return null
         val workVersion = fulfillmentVersion?.takeIf { it >= 0 } ?: return null
         val delivery = deliveryId?.takeIf { it.isUuid() } ?: return null
-        val warehouseActor = warehouseActorMembershipId?.takeIf { it.isUuid() } ?: return null
+        val warehouseActor = warehouseActorMembershipId?.takeIf { it.isUuid() }
+        if (warehouseActorMembershipId != null && warehouseActor == null) return null
+        val dispatchActor = dispatchActorMembershipId?.takeIf { it.isUuid() }
+        if (dispatchActorMembershipId != null && dispatchActor == null) return null
+        if (warehouseActor == null && dispatchActor == null) return null
         val assignment = driverAssignmentId?.takeIf { it.isUuid() } ?: return null
         val driver = driverMembershipId?.takeIf { it.isUuid() } ?: return null
         val allocation = physicalAllocationId?.takeIf { it.isUuid() } ?: return null
@@ -269,7 +274,7 @@ class NexaFulfillmentDispatchGateway(private val protectedCalls: ProtectedCallEx
             occurredAt?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
         val isCurrent = current ?: return null
         return FulfillmentHandoffEvidenceProjection(
-            evidenceId, workId, workVersion, delivery, warehouseActor,
+            evidenceId, workId, workVersion, delivery, warehouseActor, dispatchActor,
             assignment, driver, allocation, allocationVersion, check, occurred, isCurrent
         )
     }
@@ -310,6 +315,7 @@ private data class HandoffEvidenceWire(
     val fulfillmentVersion: Long? = null,
     val deliveryId: String? = null,
     val warehouseActorMembershipId: String? = null,
+    val dispatchActorMembershipId: String? = null,
     val driverAssignmentId: String? = null,
     val driverMembershipId: String? = null,
     val physicalAllocationId: String? = null,

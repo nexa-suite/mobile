@@ -7,14 +7,15 @@ The application starts in `Bootstrapping`, reads only the protected refresh reco
 `:app` composes Hilt bindings, ViewModel factories, Navigation 3, Android entry
 points and the root ViewModel. Business-facing code is organized under the 11
 canonical roots in `contexts/<root>/{domain,application,infrastructure,presentation}`;
-the 31 runtime modules cover only layers where code exists. Client `domain`
+the 34 runtime modules cover only layers where code exists. Client `domain`
 modules hold non-authoritative projections and local value constraints.
 `application` modules own narrow ports and selective workflow coordination.
 Context `infrastructure` modules adapt protected HTTP, serialization,
 context-owned scoped metadata and platform APIs. `presentation` modules own
-Compose UI state and screens. BC-08 Payments, BC-10 Notifications and BC-11
-Business Traceability currently have ownership documentation but no runtime
-modules. See [client DDD alignment](client-ddd-alignment.md) for the canonical
+Compose UI state and screens. BC-10 Notifications has application,
+infrastructure and presentation modules. BC-08 Payments and BC-11 Business
+Traceability currently have ownership documentation but no runtime modules.
+See [client DDD alignment](client-ddd-alignment.md) for the canonical
 map and its boundaries.
 
 `:app` is the composition root, not a context; `:core:*` modules are technical

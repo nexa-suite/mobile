@@ -62,7 +62,8 @@ fun DriverWorkdayScreen(
                         )
                     )
 
-                    state.workday.locationAvailable && state.captureRequested -> Text(
+                    state.workday.locationAvailable && state.captureRequested &&
+                        state.locationReady -> Text(
                         stringResource(
                             R.string.driver_workday_active_tracking,
                             state.workday.startedAt.displayTime()
@@ -90,7 +91,17 @@ fun DriverWorkdayScreen(
                 Text(stringResource(it), color = MaterialTheme.colorScheme.error)
             }
         }
-        if (state.commandPending) Text(stringResource(R.string.driver_workday_command_pending))
+        if (state.commandPending) {
+            Text(
+                stringResource(
+                    if (state.notice == DriverWorkdayNotice.LOCATION_ACQUIRING) {
+                        R.string.driver_workday_location_acquiring
+                    } else {
+                        R.string.driver_workday_command_pending
+                    }
+                )
+            )
+        }
         if (state.pendingCommand != null) {
             Text(stringResource(R.string.driver_workday_unknown_command_pending))
             Button(onClick = onRetryPending, enabled = !state.commandPending) {
@@ -126,6 +137,7 @@ fun DriverWorkdayScreen(
 private fun noticeText(notice: DriverWorkdayNotice): Int? = when (notice) {
     DriverWorkdayNotice.NONE -> null
     DriverWorkdayNotice.LOCATION_PERMISSION_REQUIRED -> R.string.driver_workday_permission_required
+    DriverWorkdayNotice.LOCATION_ACQUIRING -> null
     DriverWorkdayNotice.CURRENT_UNAVAILABLE -> R.string.driver_workday_current_unavailable
     DriverWorkdayNotice.START_UNKNOWN -> R.string.driver_workday_start_unknown
     DriverWorkdayNotice.START_REJECTED -> R.string.driver_workday_start_rejected

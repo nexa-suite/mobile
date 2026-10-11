@@ -14,7 +14,8 @@ internal data class ConnectedOperationEntry(
     val key: String,
     val label: String,
     val readPermissions: Set<String>,
-    val visibleInHub: Boolean = true
+    val visibleInHub: Boolean = true,
+    val readRoles: Set<String> = emptySet()
 ) {
     init {
         require(key.isNotBlank() && label.isNotBlank() && readPermissions.isNotEmpty())
@@ -59,7 +60,8 @@ internal object ConnectedOperationsNavigation {
         if (identity.userId != authority.userId || identity.tenantId != authority.tenantId ||
             identity.workspaceId != authority.workspaceId ||
             identity.membershipId != authority.membershipId ||
-            identity.permissions != authority.permissions
+            identity.permissions != authority.permissions ||
+            identity.roles != authority.roles
         ) {
             return null
         }
@@ -75,7 +77,7 @@ internal object ConnectedOperationsNavigation {
         val authority = currentAuthority(session, access, warehouse) ?: return emptyList()
         return entries.filter { entry ->
             entry.visibleInHub &&
-                authority.permissions.any(entry.readPermissions::contains)
+                permits(authority, entry)
         }
     }
 
@@ -86,11 +88,14 @@ internal object ConnectedOperationsNavigation {
         warehouse: WarehouseUiState
     ): ConnectedOperationRoute? {
         val authority = currentAuthority(session, access, warehouse) ?: return null
-        if (authority.permissions.none(entry.readPermissions::contains)) return null
+        if (!permits(authority, entry)) return null
         return ConnectedOperationRoute(
             entry.key,
             access.authorityEpoch,
-            authority.copy(permissions = authority.permissions.toSet())
+            authority.copy(
+                permissions = authority.permissions.toSet(),
+                roles = authority.roles.toSet()
+            )
         )
     }
 
@@ -105,8 +110,12 @@ internal object ConnectedOperationsNavigation {
         if (route.authorityEpoch != access.authorityEpoch) return false
         val current = currentAuthority(session, access, warehouse) ?: return false
         return current == route.authority &&
-            current.permissions.any(entry.readPermissions::contains)
+            permits(current, entry)
     }
+
+    private fun permits(authority: VerifiedContextAuthority, entry: ConnectedOperationEntry) =
+        authority.permissions.any(entry.readPermissions::contains) &&
+            (entry.readRoles.isEmpty() || authority.roles.any(entry.readRoles::contains))
 }
 
 @Composable

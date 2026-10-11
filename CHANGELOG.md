@@ -1,7 +1,19 @@
 # Changelog
 
+## [1.2.0-alpha.1] - 2026-10-10
+
+Source checkpoint prerelease; incomplete integration and distribution gates. See [checkpoint notes](docs/releases/v1.2.0-alpha.1.md).
+
 ## [Unreleased]
 
+- Prepare unreleased Mobile v1.2.0 candidate: Operations Android `1.2.0`
+  (`versionCode 11`) and independent Buyer Flutter `1.1.0+2`; see the
+  [candidate evidence](docs/releases/v1.2.0.md).
+- Add scoped Operations and Buyer notification inbox, read state and
+  preferences for accepted `IN_APP`/`EMAIL` channels; push delivery remains
+  outside the implemented scope.
+- Add Buyer wallet PaymentSheet checkout with scoped retry identity; payment
+  status remains server-confirmed and wallet credit is not inferred by the app.
 - Publish verified workforce scope and commercial permission hints through BC-01
   application APIs; translate Catalog scope at its adapter boundary and reject
   dependencies between context domains.
