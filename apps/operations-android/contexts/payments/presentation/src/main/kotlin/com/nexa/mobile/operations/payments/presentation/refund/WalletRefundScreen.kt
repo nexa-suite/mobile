@@ -29,6 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.core.designsystem.NexaColors
+import com.nexa.mobile.operations.core.designsystem.NexaFeedbackBanner
+import com.nexa.mobile.operations.core.designsystem.NexaFeedbackTone
 import com.nexa.mobile.operations.core.designsystem.NexaShapes
 import com.nexa.mobile.operations.core.designsystem.NexaSizes
 import com.nexa.mobile.operations.core.designsystem.NexaSpacing
@@ -342,25 +344,31 @@ private fun WalletRefundNoticeCard(notice: WalletRefundNotice) {
 
         WalletRefundNotice.IntentUnavailable -> "Solicitud guardada no disponible en este contexto."
     }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (notice == WalletRefundNotice.AccessDenied ||
-                notice == WalletRefundNotice.MetadataUnavailable
-            ) {
-                NexaColors.DangerSurface
-            } else {
-                NexaColors.InfoSurface
-            }
-        ),
-        shape = NexaShapes.card
-    ) {
-        Text(
-            message,
-            modifier = Modifier.padding(NexaSpacing.surfaceInset),
-            style = MaterialTheme.typography.bodyMedium
-        )
-    }
+    NexaFeedbackBanner(message = message, tone = notice.feedbackTone())
+}
+
+private fun WalletRefundNotice.feedbackTone(): NexaFeedbackTone = when (this) {
+    WalletRefundNotice.CandidatesUnavailable,
+    WalletRefundNotice.MetadataUnavailable,
+    WalletRefundNotice.MissingReason,
+    WalletRefundNotice.InvalidAmount,
+    WalletRefundNotice.ReasonTooLong,
+    WalletRefundNotice.Rejected
+    -> NexaFeedbackTone.Error
+
+    WalletRefundNotice.AccessDenied,
+    WalletRefundNotice.AmountExceedsServerBalance,
+    WalletRefundNotice.PendingIntent,
+    WalletRefundNotice.UnknownOutcome,
+    WalletRefundNotice.Conflict,
+    WalletRefundNotice.IntentUnavailable
+    -> NexaFeedbackTone.Warning
+
+    WalletRefundNotice.Posted,
+    WalletRefundNotice.PostedIntentRetained
+    -> NexaFeedbackTone.Success
+
+    WalletRefundNotice.None -> NexaFeedbackTone.Information
 }
 
 private const val PAGE_SIZE = 25L
