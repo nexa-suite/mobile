@@ -60,6 +60,7 @@ import 'contexts/tenant_access_governance/presentation/buyer_access_view_model.d
 import 'contexts/tenant_access_governance/presentation/context_selection_page.dart';
 import 'contexts/tenant_access_governance/presentation/sign_in_page.dart';
 import 'core/network/nexa_api_client.dart';
+import 'core/presentation/nexa_buyer_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -266,13 +267,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
       ],
       child: MaterialApp.router(
         title: 'Nexa Buyer',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF176B61)),
-          useMaterial3: true,
-          inputDecorationTheme: const InputDecorationTheme(
-            border: OutlineInputBorder(),
-          ),
-        ),
+        theme: NexaBuyerTheme.light,
         routerConfig: router,
       ),
     );
@@ -667,10 +662,7 @@ final class _ConfigurationApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Nexa Buyer',
-    theme: ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF176B61)),
-      useMaterial3: true,
-    ),
+    theme: NexaBuyerTheme.light,
     home: Scaffold(
       body: SafeArea(
         child: Center(

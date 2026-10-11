@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:nexa_buyer_mobile/contexts/business_documents/presentation/business_document_detail_page.dart';
 import 'package:nexa_buyer_mobile/contexts/business_documents/presentation/business_documents_view_model.dart';
 import 'package:nexa_buyer_mobile/core/network/nexa_api_client.dart';
+import 'package:nexa_buyer_mobile/core/presentation/nexa_buyer_theme.dart';
 import 'package:nexa_buyer_mobile/main.dart';
 
 const _documentId = '00000000-0000-4000-8000-000000000001';
@@ -24,6 +25,11 @@ void main() {
 
     expect(find.text('Configura el origen de Nexa API'), findsOneWidget);
     expect(find.text('Nexa Buyer'), findsNothing);
+    final theme = Theme.of(
+      tester.element(find.text('Configura el origen de Nexa API')),
+    );
+    expect(theme.colorScheme.primary, const Color(0xFF2A67D9));
+    expect(theme.extension<NexaThemeExtension>()?.radiusControl, 12);
   });
 
   testWidgets('hides delivery navigation without the exact tracking grant', (
@@ -95,6 +101,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('Nexa'), findsOneWidget);
+    final signInTheme = Theme.of(tester.element(find.text('Nexa Buyer')));
+    expect(signInTheme.colorScheme.primary, const Color(0xFF2A67D9));
+    expect(signInTheme.textTheme.bodyMedium?.fontFamily, 'Inter');
     await tester.enterText(
       find.byType(TextFormField).at(0),
       'buyer@example.test',

@@ -44,6 +44,16 @@ final class _SignInPageState extends State<SignInPage> {
               padding: const EdgeInsets.all(24),
               shrinkWrap: true,
               children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Image.asset(
+                    'assets/brand/nexa-mobile.png',
+                    width: 72,
+                    height: 72,
+                    semanticLabel: 'Nexa',
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Text(
                   'Nexa Buyer',
                   style: Theme.of(context).textTheme.headlineMedium,
@@ -68,7 +78,6 @@ final class _SignInPageState extends State<SignInPage> {
                         textInputAction: TextInputAction.next,
                         decoration: const InputDecoration(
                           labelText: 'Correo o usuario',
-                          border: OutlineInputBorder(),
                         ),
                         validator: (value) =>
                             value == null || value.trim().isEmpty
@@ -84,7 +93,6 @@ final class _SignInPageState extends State<SignInPage> {
                         onFieldSubmitted: (_) => _submit(),
                         decoration: const InputDecoration(
                           labelText: 'Contraseña',
-                          border: OutlineInputBorder(),
                         ),
                         validator: (value) => value == null || value.isEmpty
                             ? 'Escribe tu contraseña.'
