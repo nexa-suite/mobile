@@ -1,14 +1,13 @@
 # Changelog
 
-## [1.2.0-alpha.1] - 2026-10-10
-
-Source checkpoint prerelease; incomplete integration and distribution gates. See [checkpoint notes](docs/releases/v1.2.0-alpha.1.md).
-
 ## [Unreleased]
 
-- Prepare unreleased Mobile v1.2.0 candidate: Operations Android `1.2.0`
-  (`versionCode 11`) and independent Buyer Flutter `1.1.0+2`; see the
-  [candidate evidence](docs/releases/v1.2.0.md).
+- Planned changes for the next release will be recorded here.
+
+## [1.2.0] - 2026-10-11
+
+Source release merged through [PR #46](https://github.com/nexa-suite/mobile/pull/46). Operations Android is `1.2.0` (`versionCode 11`); Buyer Flutter is independently `1.1.0+2`. See the [release evidence](docs/releases/v1.2.0.md).
+
 - Add scoped Operations and Buyer notification inbox, read state and
   preferences for accepted `IN_APP`/`EMAIL` channels; push delivery remains
   outside the implemented scope.
@@ -20,6 +19,10 @@ Source checkpoint prerelease; incomplete integration and distribution gates. See
 - Allow a new Direct Order decision after recovered permission or unavailable
   terminal outcomes while retaining same-key replay for uncertain outcomes.
 - Update published v1.1.0 verification and distribution records.
+
+## [1.2.0-alpha.1] - 2026-10-10
+
+Source checkpoint prerelease; incomplete integration and distribution gates. See [checkpoint notes](docs/releases/v1.2.0-alpha.1.md).
 
 ## [1.1.0] - 2026-10-08
 
