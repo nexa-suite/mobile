@@ -10,7 +10,15 @@ Before refresh dispatch, the store atomically replaces `READY(R1)` with `IN_FLIG
 
 One application-scoped coroutine flight serves callers observing the same access-token generation. The epoch invalidates late results after logout or context replacement. Cancelling a caller does not cancel the shared refresh. Local logout clears protected material and navigation state before a bounded best-effort sign-out call. The API can return 204 without proving server revocation; only local sign-out is guaranteed in this client flow.
 
-Auth headers are route-specific. `Authorization` is used for session, sign-out, and protected requests. `X-Nexa-Refresh-Token` is used only for refresh. `X-Nexa-Client: NATIVE` is used only for sign-in, refresh, and sign-out; `X-Nexa-Surface: PLATFORM` is used on refresh. The origin guard compares exact scheme, host, and port and redirects are disabled. No BODY HTTP logger is installed.
+Auth headers are route-specific. `Authorization` is used for session, sign-out,
+protected requests, and access-context reads/selections. `X-Nexa-Refresh-Token`
+is used only for refresh. `X-Nexa-Client: NATIVE` is sent on credential sign-in,
+identity sign-in, refresh, sign-out, and access-context reads/selections.
+`X-Nexa-Surface: PLATFORM` is sent on refresh and access-context
+reads/selections. Identity sign-in carries its surface in the request body.
+`X-Nexa-Context-Ticket` is optional on access-context reads/selections. The
+origin guard compares exact scheme, host, and port and redirects are disabled.
+No BODY HTTP logger is installed.
 
 Protected response bodies are consumed and closed on the OkHttp callback thread
 before the caller resumes. Reading a body after resuming a UI coroutine can block
