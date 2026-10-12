@@ -1,5 +1,6 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 
+import androidx.lifecycle.ViewModelStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayCommandIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayCommandIntentRead
@@ -7,6 +8,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.Drive
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayCommandScope
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayCommandStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayLocationAcquisition
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayLocationCapture
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayLocationEventStream
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayReadResult
@@ -18,8 +20,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -31,9 +33,10 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class DriverWorkdayViewModelTest {
     @get:Rule val mainDispatcher = MainDispatcherRule()
+    private val viewModelStores = mutableListOf<ViewModelStore>()
 
     @Test
-    fun volatileLocationEventsReachAnActiveCollector() = runTest {
+    fun volatileLocationEventsReachAnActiveCollector() = runTestWithViewModelCleanup {
         val stream = DriverWorkdayLocationEventStream()
         val received = mutableListOf<DriverWorkdayLocationEvent>()
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -46,58 +49,60 @@ class DriverWorkdayViewModelTest {
     }
 
     @Test
-    fun locationEventsPublishedWithoutACollectorAreNotReplayedLater() = runTest {
-        val stream = DriverWorkdayLocationEventStream()
-        val received = mutableListOf<DriverWorkdayLocationEvent>()
-        assertTrue(stream.publish(sampleEvent()))
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            stream.events.collect { received.add(it) }
-        }
-        runCurrent()
-
-        assertTrue(received.isEmpty())
-    }
-
-    @Test
-    fun startOnlyCapturesAfterFreshCurrentReadConfirmsActiveWorkday() = runTest {
-        val events = mutableListOf<String>()
-        val capture = FakeCapture(events)
-        val gateway = FakeGateway(events).apply {
-            reads += DriverWorkdayReadResult.Current(null)
-            reads += DriverWorkdayReadResult.Current(null)
-            reads += DriverWorkdayReadResult.Current(activeWorkday())
-            commands += DriverWorkdayCommandResult.Accepted
-        }
-        val viewModel = DriverWorkdayViewModel(gateway, capture, FakeCommandStore())
-        viewModel.activate(AUTHORITY, hasFineLocationPermission = true)
-        advanceUntilIdle()
-
-        viewModel.startWorkday()
-        advanceUntilIdle()
-
-        assertEquals(
-            listOf("get", "get", "start", "get", "capture.start"),
-            events.filter {
-                it !=
-                    "capture.stop"
+    fun locationEventsPublishedWithoutACollectorAreNotReplayedLater() =
+        runTestWithViewModelCleanup {
+            val stream = DriverWorkdayLocationEventStream()
+            val received = mutableListOf<DriverWorkdayLocationEvent>()
+            assertTrue(stream.publish(sampleEvent()))
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                stream.events.collect { received.add(it) }
             }
-        )
-        assertEquals("ACTIVE", viewModel.state.value.workday?.status?.name)
-        assertTrue(viewModel.state.value.captureRequested)
-    }
+            runCurrent()
+
+            assertTrue(received.isEmpty())
+        }
 
     @Test
-    fun readOnlyAuthorityNeverStartsLocationCapture() = runTest {
+    fun startOnlyCapturesAfterFreshCurrentReadConfirmsActiveWorkday() =
+        runTestWithViewModelCleanup {
+            val events = mutableListOf<String>()
+            val capture = FakeCapture(events)
+            val gateway = FakeGateway(events).apply {
+                reads += DriverWorkdayReadResult.Current(null)
+                reads += DriverWorkdayReadResult.Current(null)
+                reads += DriverWorkdayReadResult.Current(activeWorkday())
+                commands += DriverWorkdayCommandResult.Accepted
+            }
+            val viewModel = track(DriverWorkdayViewModel(gateway, capture, FakeCommandStore()))
+            viewModel.activate(AUTHORITY, hasFineLocationPermission = true)
+            runCurrent()
+
+            viewModel.startWorkday()
+            runCurrent()
+
+            assertEquals(
+                listOf("get", "get", "start", "get", "capture.start"),
+                events.filter {
+                    it !=
+                        "capture.stop"
+                }
+            )
+            assertEquals("ACTIVE", viewModel.state.value.workday?.status?.name)
+            assertTrue(viewModel.state.value.captureRequested)
+        }
+
+    @Test
+    fun readOnlyAuthorityNeverStartsLocationCapture() = runTestWithViewModelCleanup {
         val events = mutableListOf<String>()
         val capture = FakeCapture(events)
         val gateway = FakeGateway(events).apply {
             reads += DriverWorkdayReadResult.Current(activeWorkday())
         }
-        val viewModel = DriverWorkdayViewModel(gateway, capture, FakeCommandStore())
+        val viewModel = track(DriverWorkdayViewModel(gateway, capture, FakeCommandStore()))
         val readOnly = AUTHORITY.copy(permissions = setOf("dispatch.read", "logistics:read"))
 
         viewModel.activate(readOnly, hasFineLocationPermission = true)
-        advanceUntilIdle()
+        runCurrent()
 
         assertEquals(0, capture.starts)
         assertFalse(viewModel.state.value.captureRequested)
@@ -105,7 +110,7 @@ class DriverWorkdayViewModelTest {
     }
 
     @Test
-    fun unknownStartWithNoCurrentWorkdayDoesNotStartCapture() = runTest {
+    fun unknownStartWithNoCurrentWorkdayDoesNotStartCapture() = runTestWithViewModelCleanup {
         val events = mutableListOf<String>()
         val capture = FakeCapture(events)
         val gateway = FakeGateway(events).apply {
@@ -118,12 +123,18 @@ class DriverWorkdayViewModelTest {
             commands += DriverWorkdayCommandResult.Accepted
         }
         val commandStore = FakeCommandStore()
-        val viewModel =
-            DriverWorkdayViewModel(gateway, capture, commandStore, keyFactory = { IDEMPOTENCY_KEY })
+        val viewModel = track(
+            DriverWorkdayViewModel(
+                gateway,
+                capture,
+                commandStore,
+                keyFactory = { IDEMPOTENCY_KEY }
+            )
+        )
         viewModel.activate(AUTHORITY, hasFineLocationPermission = true)
-        advanceUntilIdle()
+        runCurrent()
         viewModel.startWorkday()
-        advanceUntilIdle()
+        runCurrent()
 
         assertEquals(0, capture.starts)
         assertFalse(viewModel.state.value.captureRequested)
@@ -131,7 +142,7 @@ class DriverWorkdayViewModelTest {
         assertEquals(IDEMPOTENCY_KEY, commandStore.intent?.idempotencyKey)
 
         viewModel.retryPendingCommand()
-        advanceUntilIdle()
+        runCurrent()
 
         assertEquals(listOf(IDEMPOTENCY_KEY, IDEMPOTENCY_KEY), gateway.startKeys)
         assertEquals(1, capture.starts)
@@ -140,25 +151,26 @@ class DriverWorkdayViewModelTest {
     }
 
     @Test
-    fun endStopsForegroundCaptureBeforeMutationAndDoesNotResumeFromMutationReply() = runTest {
-        val events = mutableListOf<String>()
-        val capture = FakeCapture(events)
-        val gateway = FakeGateway(events).apply {
-            reads += DriverWorkdayReadResult.Current(activeWorkday())
-            commands += DriverWorkdayCommandResult.Accepted
+    fun endStopsForegroundCaptureBeforeMutationAndDoesNotResumeFromMutationReply() =
+        runTestWithViewModelCleanup {
+            val events = mutableListOf<String>()
+            val capture = FakeCapture(events)
+            val gateway = FakeGateway(events).apply {
+                reads += DriverWorkdayReadResult.Current(activeWorkday())
+                commands += DriverWorkdayCommandResult.Accepted
+            }
+            val viewModel = track(DriverWorkdayViewModel(gateway, capture, FakeCommandStore()))
+            viewModel.activate(AUTHORITY, hasFineLocationPermission = true)
+            runCurrent()
+            events.clear()
+
+            viewModel.endWorkday()
+            runCurrent()
+
+            assertEquals(listOf("capture.stop", "end"), events)
+            assertFalse(viewModel.state.value.captureRequested)
+            assertEquals(DriverWorkdayNotice.END_PENDING_CONFIRMATION, viewModel.state.value.notice)
         }
-        val viewModel = DriverWorkdayViewModel(gateway, capture, FakeCommandStore())
-        viewModel.activate(AUTHORITY, hasFineLocationPermission = true)
-        advanceUntilIdle()
-        events.clear()
-
-        viewModel.endWorkday()
-        advanceUntilIdle()
-
-        assertEquals(listOf("capture.stop", "end"), events)
-        assertFalse(viewModel.state.value.captureRequested)
-        assertEquals(DriverWorkdayNotice.END_PENDING_CONFIRMATION, viewModel.state.value.notice)
-    }
 
     private class FakeGateway(private val events: MutableList<String>) : DriverWorkdayGateway {
         val reads = ArrayDeque<DriverWorkdayReadResult>()
@@ -231,6 +243,9 @@ class DriverWorkdayViewModelTest {
         private val mutableEvents = MutableSharedFlow<DriverWorkdayLocationEvent>()
         override val events: Flow<DriverWorkdayLocationEvent> = mutableEvents
         var starts = 0
+        override suspend fun acquireFreshLocation(
+            timeoutMillis: Long
+        ): DriverWorkdayLocationAcquisition = DriverWorkdayLocationAcquisition.SAMPLE_AVAILABLE
         override fun start(workdayId: String): Boolean {
             starts += 1
             log += "capture.start"
@@ -251,8 +266,31 @@ class DriverWorkdayViewModelTest {
     )
 
     private fun sampleEvent() = DriverWorkdayLocationEvent.Sample(
-        DriverWorkdayLocationSample(SAMPLE_ID, -12.05, -77.04, 9.5, "2026-10-01T17:30:00Z")
+        captureId = WORKDAY_ID,
+        value = DriverWorkdayLocationSample(
+            SAMPLE_ID,
+            -12.05,
+            -77.04,
+            9.5,
+            "2026-10-01T17:30:00Z"
+        )
     )
+
+    private fun track(viewModel: DriverWorkdayViewModel): DriverWorkdayViewModel {
+        val store = ViewModelStore()
+        store.put("driver-workday-test", viewModel)
+        viewModelStores += store
+        return viewModel
+    }
+
+    private fun runTestWithViewModelCleanup(block: suspend TestScope.() -> Unit) = runTest {
+        try {
+            block(this)
+        } finally {
+            viewModelStores.forEach(ViewModelStore::clear)
+            viewModelStores.clear()
+        }
+    }
 
     private companion object {
         val AUTHORITY = DriverDeliveryAuthority(

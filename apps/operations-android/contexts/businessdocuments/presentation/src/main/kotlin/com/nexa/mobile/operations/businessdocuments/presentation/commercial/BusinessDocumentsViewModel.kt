@@ -17,7 +17,9 @@ data class BusinessDocumentsState(
     val page: Int = 0,
     val totalItems: Long? = null,
     val status: String = "NotRequested",
-    val content: BusinessDocumentContent? = null
+    val content: BusinessDocumentContent? = null,
+    val contentStatus: String = "NotRequested",
+    val canDownloadContent: Boolean = false
 )
 
 class BusinessDocumentsViewModel(private val gateway: BusinessDocumentsGateway) : ViewModel() {
@@ -32,7 +34,12 @@ class BusinessDocumentsViewModel(private val gateway: BusinessDocumentsGateway) 
     }
     fun activate(value: CommercialAuthority) {
         deactivate()
-        authority = value
+        authority = value.copy(permissions = value.permissions.toSet())
+        val permissions = value.permissions
+        mutableState.value = BusinessDocumentsState(
+            canDownloadContent = "document.read" in permissions &&
+                "document.download" in permissions
+        )
         refresh()
     }
     fun refresh() = load(state.value.page)
@@ -51,22 +58,40 @@ class BusinessDocumentsViewModel(private val gateway: BusinessDocumentsGateway) 
             load(state.value.page - 1)
         }
     }
-    private fun load(page: Int) =
-        perform(BusinessDocumentsState(page = page)) { gateway.list(it, page) }
+    private fun load(page: Int) {
+        val canDownloadContent = state.value.canDownloadContent
+        perform(BusinessDocumentsState(page = page, canDownloadContent = canDownloadContent)) {
+            gateway.list(it, page)
+        }
+    }
     fun open(id: String) {
-        if (state.value.status != "Current" || state.value.items.none { it.id == id }) return
-        perform(state.value.copy(content = null)) { gateway.content(it, id) }
+        val current = state.value
+        if (current.status != "Current" || current.contentStatus == "Pending" ||
+            current.items.none { it.id == id }
+        ) {
+            return
+        }
+        if (!current.canDownloadContent) {
+            mutableState.value = current.copy(content = null, contentStatus = "DownloadDenied")
+            return
+        }
+        perform(current.copy(content = null), contentRequest = true) { gateway.content(it, id) }
     }
     fun closeContent() {
-        mutableState.value = state.value.copy(content = null)
+        mutableState.value = state.value.copy(content = null, contentStatus = "NotRequested")
     }
     private fun perform(
         input: BusinessDocumentsState,
+        contentRequest: Boolean = false,
         action: suspend (CommercialAuthority) -> BusinessDocumentsResult
     ) {
         val captured = authority ?: return
         val request = ++generation
-        mutableState.value = input.copy(status = "Pending", content = null)
+        mutableState.value = if (contentRequest) {
+            input.copy(content = null, contentStatus = "Pending")
+        } else {
+            input.copy(status = "Pending", content = null, contentStatus = "NotRequested")
+        }
         viewModelScope.launch {
             val result = try {
                 action(captured)
@@ -82,12 +107,15 @@ class BusinessDocumentsViewModel(private val gateway: BusinessDocumentsGateway) 
                 is BusinessDocumentsResult.Page -> input.copy(
                     items = result.items,
                     totalItems = result.totalItems,
-                    status = "Current"
+                    status = "Current",
+                    content = null,
+                    contentStatus = "NotRequested"
                 )
 
                 is BusinessDocumentsResult.Content -> input.copy(
                     content = result.value,
-                    status = "Current"
+                    status = "Current",
+                    contentStatus = "Current"
                 )
 
                 BusinessDocumentsResult.Denied -> BusinessDocumentsState(
@@ -95,8 +123,9 @@ class BusinessDocumentsViewModel(private val gateway: BusinessDocumentsGateway) 
                 )
 
                 BusinessDocumentsResult.Unavailable -> input.copy(
-                    status = "Unavailable",
-                    content = null
+                    status = if (contentRequest) input.status else "Unavailable",
+                    content = null,
+                    contentStatus = if (contentRequest) "Unavailable" else "NotRequested"
                 )
             }
         }

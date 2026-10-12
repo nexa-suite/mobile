@@ -71,10 +71,29 @@ fun DispatchHandoverScreen(
                 )
             )
             receipt.evidence?.let { evidence ->
+                evidence.dispatchActorMembershipId?.let { membershipId ->
+                    Text(
+                        stringResource(
+                            R.string.dispatch_handover_dispatch_actor,
+                            membershipId
+                        )
+                    )
+                }
+                evidence.warehouseActorMembershipId?.let { membershipId ->
+                    Text(
+                        stringResource(
+                            if (evidence.dispatchActorMembershipId == null) {
+                                R.string.dispatch_handover_legacy_warehouse_actor
+                            } else {
+                                R.string.dispatch_handover_warehouse_actor
+                            },
+                            membershipId
+                        )
+                    )
+                }
                 Text(
                     stringResource(
-                        R.string.dispatch_handover_evidence,
-                        evidence.warehouseActorMembershipId,
+                        R.string.dispatch_handover_delivery_facts,
                         evidence.driverMembershipId,
                         evidence.outgoingGoodsCheckId,
                         evidence.occurredAt.toString(),

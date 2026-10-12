@@ -2,8 +2,12 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryPodGatewayResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryPodSnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPodEvidence
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGatewayResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.SealDispatchPodCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadinessLine
 import java.math.BigDecimal
@@ -100,6 +104,81 @@ class DispatchReadinessViewModelTest {
         assertNull(viewModel.state.value.detail)
     }
 
+    @Test
+    fun capturedPodCanBeSealedOnlyWithCurrentDeliveryAndPermission() = runTest {
+        val gateway = FakeGateway(deliveredReadiness())
+        gateway.podResult = { DispatchDeliveryPodGatewayResult.Snapshot(deliveryPod()) }
+        gateway.sealResult = {
+            DispatchDeliveryPodGatewayResult.Sealed(podEvidence("SEALED", version = 18))
+        }
+        val viewModel = DispatchReadinessViewModel(
+            gateway,
+            newCommandKey = { "stable-pod-seal-key" }
+        )
+
+        viewModel.activate(context(setOf("dispatch.read", "dispatch.complete")))
+        runCurrent()
+        viewModel.selectFulfillment(FULFILLMENT_ID)
+        runCurrent()
+
+        assertEquals(DispatchDeliveryPodStatus.Current, viewModel.state.value.deliveryPodStatus)
+        assertTrue(viewModel.canSealPod())
+        viewModel.sealPod()
+        runCurrent()
+
+        assertEquals(DispatchPodSealStatus.Sealed, viewModel.state.value.podSealStatus)
+        assertEquals("SEALED", viewModel.state.value.deliveryPod?.pod?.status)
+        assertEquals(listOf("stable-pod-seal-key"), gateway.sealCommands.map { it.idempotencyKey })
+        assertEquals("\"17\"", gateway.sealCommands.single().deliveryEtag)
+        assertEquals(18L, viewModel.state.value.deliveryPod?.deliveryVersion)
+    }
+
+    @Test
+    fun unknownSealOutcomeRetriesTheSameCommandIdentity() = runTest {
+        val gateway = FakeGateway(deliveredReadiness())
+        gateway.podResult = { DispatchDeliveryPodGatewayResult.Snapshot(deliveryPod()) }
+        gateway.sealResult = { DispatchDeliveryPodGatewayResult.UnknownOutcome }
+        val viewModel = DispatchReadinessViewModel(
+            gateway,
+            newCommandKey = { "retry-pod-seal-key" }
+        )
+
+        viewModel.activate(context(setOf("dispatch.read", "logistics:write")))
+        runCurrent()
+        viewModel.selectFulfillment(FULFILLMENT_ID)
+        runCurrent()
+        viewModel.sealPod()
+        runCurrent()
+        assertEquals(DispatchPodSealStatus.UnknownOutcome, viewModel.state.value.podSealStatus)
+
+        gateway.sealResult = {
+            DispatchDeliveryPodGatewayResult.Sealed(podEvidence("SEALED", version = 18))
+        }
+        viewModel.retryPodSeal()
+        runCurrent()
+
+        assertEquals(DispatchPodSealStatus.Sealed, viewModel.state.value.podSealStatus)
+        assertEquals(2, gateway.sealCommands.size)
+        assertEquals(gateway.sealCommands[0], gateway.sealCommands[1])
+    }
+
+    @Test
+    fun podCannotBeSealedWhenCurrentContextLacksCompletionPermission() = runTest {
+        val gateway = FakeGateway(deliveredReadiness())
+        gateway.podResult = { DispatchDeliveryPodGatewayResult.Snapshot(deliveryPod()) }
+        val viewModel = DispatchReadinessViewModel(gateway)
+
+        viewModel.activate(context(setOf("dispatch.read")))
+        runCurrent()
+        viewModel.selectFulfillment(FULFILLMENT_ID)
+        runCurrent()
+
+        assertTrue(!viewModel.canSealPod())
+        viewModel.sealPod()
+        runCurrent()
+        assertTrue(gateway.sealCommands.isEmpty())
+    }
+
     private fun context(permissions: Set<String> = setOf("dispatch.read")) =
         DispatchAuthorityContext(
             authorityEpoch = 7,
@@ -145,10 +224,43 @@ class DispatchReadinessViewModelTest {
         asOf = AS_OF
     )
 
+    private fun deliveredReadiness() = readyReadiness().copy(
+        deliveryId = DELIVERY_ID,
+        deliveryStatus = "DELIVERED",
+        deliveryVersion = 17
+    )
+
+    private fun deliveryPod() = DispatchDeliveryPodSnapshot(
+        deliveryId = DELIVERY_ID,
+        fulfillmentId = FULFILLMENT_ID,
+        deliveryStatus = "DELIVERED",
+        deliveryVersion = 17,
+        deliveryEtag = "\"17\"",
+        pod = podEvidence("CAPTURED")
+    )
+
+    private fun podEvidence(status: String, version: Long = 17) = DispatchPodEvidence(
+        id = POD_ID,
+        deliveryId = DELIVERY_ID,
+        status = status,
+        receiverName = "Receiver",
+        capturedAt = AS_OF,
+        sealedAt = if (status == "SEALED") AS_OF else null,
+        deliveryVersion = version,
+        deliveryEtag = "\"$version\""
+    )
+
     private class FakeGateway(private val readiness: DispatchReadiness) : DispatchReadinessGateway {
         val detailRequests = mutableListOf<String>()
+        val sealCommands = mutableListOf<SealDispatchPodCommand>()
         var detailResult: suspend () -> DispatchReadinessGatewayResult = {
             DispatchReadinessGatewayResult.Detail(readiness)
+        }
+        var podResult: suspend () -> DispatchDeliveryPodGatewayResult = {
+            DispatchDeliveryPodGatewayResult.ServiceUnavailable
+        }
+        var sealResult: suspend () -> DispatchDeliveryPodGatewayResult = {
+            DispatchDeliveryPodGatewayResult.UnknownOutcome
         }
 
         override suspend fun list(context: DispatchAuthorityContext) =
@@ -161,6 +273,19 @@ class DispatchReadinessViewModelTest {
             detailRequests += fulfillmentId
             return detailResult()
         }
+
+        override suspend fun deliveryPod(
+            deliveryId: String,
+            context: DispatchAuthorityContext
+        ): DispatchDeliveryPodGatewayResult = podResult()
+
+        override suspend fun sealPod(
+            command: SealDispatchPodCommand,
+            context: DispatchAuthorityContext
+        ): DispatchDeliveryPodGatewayResult {
+            sealCommands += command
+            return sealResult()
+        }
     }
 
     private companion object {
@@ -172,6 +297,8 @@ class DispatchReadinessViewModelTest {
         const val FULFILLMENT_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413001"
         const val OTHER_ALLOCATION_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413102"
         const val ALLOCATION_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413101"
+        const val DELIVERY_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413501"
+        const val POD_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413502"
         const val LINE_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413201"
         const val SKU_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413301"
     }

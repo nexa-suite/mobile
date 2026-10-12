@@ -80,8 +80,6 @@ import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.Driv
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureViewModel as TemperatureViewModel
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverHandoffTokenScreen
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverHandoffTokenViewModel as HandoffTokenViewModel
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverWorkdayScreen
-import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverWorkdayViewModel
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.BusinessOperationalExceptionsScreen
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.BusinessOperationalExceptionsViewModel as ExceptionsViewModel
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DeliveryLoadScreen
@@ -159,6 +157,14 @@ import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.S
 import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.TemperatureEvidenceScreen
 import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.TemperatureEvidenceViewModel
 import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.WarehouseAutomationScreen
+import com.nexa.mobile.operations.notifications.application.inbox.NotificationsAuthority
+import com.nexa.mobile.operations.notifications.presentation.inbox.NotificationsScreen
+import com.nexa.mobile.operations.notifications.presentation.inbox.NotificationsViewModel
+import com.nexa.mobile.operations.payments.application.refund.WalletRefundAuthority
+import com.nexa.mobile.operations.payments.infrastructure.adapters.AppWalletRefundIntentStore
+import com.nexa.mobile.operations.payments.infrastructure.transport.NexaWalletRefundGateway
+import com.nexa.mobile.operations.payments.presentation.refund.WalletRefundScreen
+import com.nexa.mobile.operations.payments.presentation.refund.WalletRefundViewModel
 import com.nexa.mobile.operations.salescommitment.presentation.commercial.CustomerProgressScreen
 import com.nexa.mobile.operations.salescommitment.presentation.commercial.CustomerProgressViewModel
 import com.nexa.mobile.operations.salescommitment.presentation.commercial.DirectOrderScreen
@@ -378,17 +384,20 @@ class MainActivity : ComponentActivity() {
         executionTemperatureFactory.viewModelFactory()
     }
 
-    @Inject internal lateinit var driverWorkdayBindings: DriverWorkdayBindings
-    private val driverWorkdayViewModel: DriverWorkdayViewModel by viewModels {
-        driverWorkdayBindings.viewModelFactory()
-    }
-
     @Inject internal lateinit var directOrderFactory: DirectOrderViewModelFactory
     private val directOrderViewModel: DirectOrderViewModel by viewModels { directOrderFactory }
+
+    @Inject internal lateinit var walletRefundFactory: WalletRefundViewModelFactory
+    private val walletRefundViewModel: WalletRefundViewModel by viewModels { walletRefundFactory }
 
     @Inject internal lateinit var businessDocumentsFactory: BusinessDocumentsViewModelFactory
     private val businessDocumentsViewModel: BusinessDocumentsViewModel by viewModels {
         businessDocumentsFactory
+    }
+
+    @Inject internal lateinit var notificationsFactory: NotificationsViewModelFactory
+    private val notificationsViewModel: NotificationsViewModel by viewModels {
+        notificationsFactory
     }
 
     @Inject internal lateinit var fieldVisitFactory: FieldVisitViewModelFactory
@@ -581,10 +590,6 @@ class MainActivity : ComponentActivity() {
             )
         }
         verifyScannerForegroundReturn()
-        driverWorkdayViewModel.onLocationPermissionChanged(
-            checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED
-        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -759,20 +764,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-                val startWorkdayLocationPermission = rememberLauncherForActivityResult(
-                    ActivityResultContracts.RequestMultiplePermissions()
-                ) { permissions ->
-                    val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
-                    driverWorkdayViewModel.onLocationPermissionChanged(granted)
-                    if (granted) driverWorkdayViewModel.startWorkday()
-                }
-                val resumeWorkdayLocationPermission = rememberLauncherForActivityResult(
-                    ActivityResultContracts.RequestMultiplePermissions()
-                ) { permissions ->
-                    val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
-                    driverWorkdayViewModel.onLocationPermissionChanged(granted)
-                    if (granted) driverWorkdayViewModel.enableLocation()
-                }
                 val cameraScanner = remember {
                     CameraXProductCodeScanner(applicationContext)
                 }
@@ -817,7 +808,9 @@ class MainActivity : ComponentActivity() {
                 val fieldVisitState by fieldVisitViewModel.state.collectAsStateWithLifecycle()
                 val businessDocumentsState by
                     businessDocumentsViewModel.state.collectAsStateWithLifecycle()
+                val notificationsState by notificationsViewModel.state.collectAsStateWithLifecycle()
                 val directOrderState by directOrderViewModel.state.collectAsStateWithLifecycle()
+                val walletRefundState by walletRefundViewModel.state.collectAsStateWithLifecycle()
                 val dispatchHandoffIdentityState by
                     dispatchHandoffIdentityViewModel.state.collectAsStateWithLifecycle()
                 val dispatchTemperatureState by
@@ -836,7 +829,30 @@ class MainActivity : ComponentActivity() {
                     businessExceptionsViewModel.state.collectAsStateWithLifecycle()
                 val executionTemperatureState by
                     executionTemperatureViewModel.state.collectAsStateWithLifecycle()
-                val driverWorkdayState by driverWorkdayViewModel.state.collectAsStateWithLifecycle()
+                LaunchedEffect(
+                    connectedRoute,
+                    state,
+                    accessState.stage,
+                    accessState.authorityEpoch,
+                    accessState.activeContext,
+                    warehouseState.authorityEpoch,
+                    warehouseState.activeContext
+                ) {
+                    val route = connectedRoute
+                        ?.takeIf { it.entryKey == "payments.wallet-refund" }
+                        ?: return@LaunchedEffect
+                    if (!ConnectedOperationsNavigation.permits(
+                            route,
+                            CONNECTED_OPERATIONS,
+                            state,
+                            accessState,
+                            warehouseState
+                        )
+                    ) {
+                        walletRefundViewModel.deactivate()
+                        closeConnectedOperation()
+                    }
+                }
                 LaunchedEffect(
                     pendingLoadDelivery,
                     connectedRoute,
@@ -870,31 +886,6 @@ class MainActivity : ComponentActivity() {
                     enabled = showDriverOperationalExceptions,
                     onBack = ::closeDriverDeliveryOperationalExceptions
                 )
-                LaunchedEffect(
-                    state,
-                    accessState.authorityEpoch,
-                    accessState.activeContext,
-                    warehouseState.authorityEpoch,
-                    warehouseState.activeContext,
-                    connectedRoute
-                ) {
-                    val verified = ConnectedOperationsNavigation.currentAuthority(
-                        state,
-                        accessState,
-                        warehouseState
-                    )
-                    val currentAuthority = verified?.let {
-                        DriverDeliveryAuthority(
-                            it.userId,
-                            it.tenantId,
-                            it.workspaceId,
-                            it.membershipId,
-                            it.permissions,
-                            accessState.authorityEpoch
-                        )
-                    }
-                    driverWorkdayViewModel.invalidateIfAuthorityChanged(currentAuthority)
-                }
                 val dispatchReadinessState by
                     readinessViewModel.state.collectAsStateWithLifecycle()
                 val dispositionState by dispositionViewModel.state.collectAsStateWithLifecycle()
@@ -1645,6 +1636,17 @@ class MainActivity : ComponentActivity() {
                                         )
                                     )
 
+                                    "operations.notifications" -> notificationsViewModel.activate(
+                                        NotificationsAuthority(
+                                            authority.userId,
+                                            authority.tenantId,
+                                            authority.workspaceId,
+                                            authority.membershipId,
+                                            authority.permissions,
+                                            route.authorityEpoch
+                                        )
+                                    )
+
                                     "commercial.request" -> directOrderViewModel.activate(
                                         CommercialAuthority(
                                             authority.userId,
@@ -1698,8 +1700,8 @@ class MainActivity : ComponentActivity() {
                                             route.entryKey == "driver.loads"
                                         )
 
-                                    "driver.deliveries" -> driverViewModel.activate(
-                                        DriverDeliveryAuthority(
+                                    "driver.deliveries" -> {
+                                        val driverAuthority = DriverDeliveryAuthority(
                                             authority.userId,
                                             authority.tenantId,
                                             authority.workspaceId,
@@ -1707,22 +1709,8 @@ class MainActivity : ComponentActivity() {
                                             authority.permissions,
                                             route.authorityEpoch
                                         )
-                                    )
-
-                                    "driver.workday" -> driverWorkdayViewModel.activate(
-                                        DriverDeliveryAuthority(
-                                            authority.userId,
-                                            authority.tenantId,
-                                            authority.workspaceId,
-                                            authority.membershipId,
-                                            authority.permissions,
-                                            route.authorityEpoch
-                                        ),
-                                        checkSelfPermission(
-                                            Manifest.permission.ACCESS_FINE_LOCATION
-                                        ) ==
-                                            PackageManager.PERMISSION_GRANTED
-                                    )
+                                        driverViewModel.activate(driverAuthority)
+                                    }
 
                                     "commercial.catalog" -> commercialCatalogViewModel.activate(
                                         CommercialAuthority(
@@ -1806,11 +1794,39 @@ class MainActivity : ComponentActivity() {
                                             route.authorityEpoch
                                         )
                                     )
+
+                                    "payments.wallet-refund" -> walletRefundViewModel.activate(
+                                        WalletRefundAuthority(
+                                            identity = VerifiedOperationsIdentity(
+                                                userId = authority.userId,
+                                                tenantId = authority.tenantId,
+                                                workspaceId = authority.workspaceId,
+                                                membershipId = authority.membershipId,
+                                                permissions = authority.permissions.toSet(),
+                                                roles = authority.roles.toSet()
+                                            ),
+                                            authorityEpoch = route.authorityEpoch
+                                        )
+                                    )
                                 }
                             }
                     },
                     connectedOperationContent = {
                         when (connectedRoute?.entryKey) {
+                            "payments.wallet-refund" -> WalletRefundScreen(
+                                state = walletRefundState,
+                                onBack = ::closeConnectedOperation,
+                                onRefresh = walletRefundViewModel::refresh,
+                                onSelectOrder = walletRefundViewModel::selectOrder,
+                                onAmountChanged = walletRefundViewModel::amountChanged,
+                                onUseRemaining = walletRefundViewModel::useServerRefundableAmount,
+                                onReasonChanged = walletRefundViewModel::reasonChanged,
+                                onSubmit = walletRefundViewModel::submit,
+                                onRetry = walletRefundViewModel::retry,
+                                onPreviousPage = walletRefundViewModel::previousPage,
+                                onNextPage = walletRefundViewModel::nextPage
+                            )
+
                             "warehouse.lot-substitution" -> LotSubstitutionScreen(
                                 lotSubstitutionState,
                                 onBack = ::closeConnectedOperation,
@@ -2370,6 +2386,21 @@ class MainActivity : ComponentActivity() {
                                 businessDocumentsFactory.pdfPageRenderer
                             )
 
+                            "operations.notifications" -> NotificationsScreen(
+                                state = notificationsState,
+                                onBack = ::closeConnectedOperation,
+                                onTabSelected = notificationsViewModel::selectTab,
+                                onRefreshInbox = notificationsViewModel::refreshInbox,
+                                onUnreadOnlyChanged = notificationsViewModel::setUnreadOnly,
+                                onMarkRead = { id, read ->
+                                    notificationsState.inbox?.items?.singleOrNull { it.id == id }
+                                        ?.let { notificationsViewModel.setRead(it, read) }
+                                },
+                                onMarkAllRead = notificationsViewModel::markAllRead,
+                                onRefreshPreferences = notificationsViewModel::refreshPreferences,
+                                onPreferenceChanged = notificationsViewModel::setPreference
+                            )
+
                             "commercial.request" -> DirectOrderScreen(
                                 directOrderState,
                                 ::closeConnectedOperation,
@@ -2409,8 +2440,7 @@ class MainActivity : ComponentActivity() {
                                     state = driverDeliveryState, onBack = ::closeConnectedOperation,
                                     onRefresh = driverViewModel::refresh,
                                     onSelectDelivery = driverViewModel::selectDelivery,
-                                    onBeginDelivery =
-                                        driverViewModel::beginSelectedDelivery,
+                                    onBeginDelivery = driverViewModel::beginSelectedDelivery,
                                     onRetryUnknownStart =
                                         driverViewModel::retryUnknownStart,
                                     onRecordOutcome = driverViewModel::recordOutcome,
@@ -2540,7 +2570,9 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
                                     },
-                                    onSignalArrival = driverViewModel::signalArrival,
+                                    onSignalArrival = {
+                                        driverViewModel.signalArrival()
+                                    },
                                     onRetryUnknownArrival =
                                         driverViewModel::retryUnknownArrival,
                                     onOpenInstructions = { deliveryId ->
@@ -2618,22 +2650,7 @@ class MainActivity : ComponentActivity() {
                                         ) {
                                             false
                                         } else {
-                                            try {
-                                                startActivity(
-                                                    android.content.Intent(
-                                                        android.content.Intent.ACTION_VIEW,
-                                                        (
-                                                            "geo:0,0?q=" +
-                                                                android.net.Uri.encode(destination)
-                                                            ).toUri()
-                                                    )
-                                                )
-                                                true
-                                            } catch (_: android.content.ActivityNotFoundException) {
-                                                false
-                                            } catch (_: SecurityException) {
-                                                false
-                                            }
+                                            launchDriverDirections(this@MainActivity, destination)
                                         }
                                     }
                                 )
@@ -2848,56 +2865,6 @@ class MainActivity : ComponentActivity() {
                                     }
                                 )
                             }
-
-                            "driver.workday" -> DriverWorkdayScreen(
-                                state = driverWorkdayState,
-                                onBack = ::closeConnectedOperation,
-                                onStart = {
-                                    if (checkSelfPermission(
-                                            Manifest.permission.ACCESS_FINE_LOCATION
-                                        ) ==
-                                        PackageManager.PERMISSION_GRANTED
-                                    ) {
-                                        driverWorkdayViewModel.onLocationPermissionChanged(true)
-                                        driverWorkdayViewModel.startWorkday()
-                                    } else {
-                                        startWorkdayLocationPermission.launch(
-                                            arrayOf(
-                                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                                Manifest.permission.ACCESS_COARSE_LOCATION
-                                            )
-                                        )
-                                    }
-                                },
-                                onEnableLocation = {
-                                    if (checkSelfPermission(
-                                            Manifest.permission.ACCESS_FINE_LOCATION
-                                        ) ==
-                                        PackageManager.PERMISSION_GRANTED
-                                    ) {
-                                        driverWorkdayViewModel.onLocationPermissionChanged(true)
-                                        driverWorkdayViewModel.enableLocation()
-                                    } else {
-                                        resumeWorkdayLocationPermission.launch(
-                                            arrayOf(
-                                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                                Manifest.permission.ACCESS_COARSE_LOCATION
-                                            )
-                                        )
-                                    }
-                                },
-                                onEnd = driverWorkdayViewModel::endWorkday,
-                                onRetryPending = driverWorkdayViewModel::retryPendingCommand,
-                                onRefresh = {
-                                    driverWorkdayViewModel.onLocationPermissionChanged(
-                                        checkSelfPermission(
-                                            Manifest.permission.ACCESS_FINE_LOCATION
-                                        ) ==
-                                            PackageManager.PERMISSION_GRANTED
-                                    )
-                                    driverWorkdayViewModel.refresh()
-                                }
-                            )
 
                             "commercial.catalog" -> CommercialCatalogScreen(
                                 state = commercialCatalogState,
@@ -3276,6 +3243,50 @@ class MainActivity : ComponentActivity() {
                                     } else {
                                         null
                                     },
+                                onRefreshDeliveryPod = readinessViewModel::refreshDeliveryPod,
+                                onSealPod = { deliveryId ->
+                                    val current = readinessViewModel.state.value
+                                    val currentRoute = connectedRoute
+                                    if (current.detail?.deliveryId == deliveryId &&
+                                        current.detailStatus == ReadinessDetailStatus.Current &&
+                                        readinessViewModel.canSealPod() && currentRoute != null &&
+                                        currentRoute.authority.permissions.any {
+                                            it == "dispatch.complete" || it == "logistics:write"
+                                        } &&
+                                        ConnectedOperationsNavigation.permits(
+                                            currentRoute,
+                                            CONNECTED_OPERATIONS,
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        )
+                                    ) {
+                                        readinessViewModel.sealPod()
+                                    }
+                                },
+                                onRetryPodSeal = {
+                                    val current = readinessViewModel.state.value
+                                    val currentRoute = connectedRoute
+                                    if (
+                                        current.pendingPodSeal?.deliveryId ==
+                                        current.detail?.deliveryId &&
+                                        current.detailStatus == ReadinessDetailStatus.Current &&
+                                        currentRoute != null &&
+                                        currentRoute.authority.permissions.any {
+                                            it == "dispatch.complete" || it == "logistics:write"
+                                        } &&
+                                        ConnectedOperationsNavigation.permits(
+                                            currentRoute,
+                                            CONNECTED_OPERATIONS,
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        )
+                                    ) {
+                                        readinessViewModel.retryPodSeal()
+                                    }
+                                },
+                                canSealPod = readinessViewModel.canSealPod(),
                                 onRecordTemperature = { fulfillmentId ->
                                     val current = readinessViewModel.state.value
                                     if (current.detail?.fulfillmentId == fulfillmentId &&
@@ -3889,6 +3900,9 @@ class MainActivity : ComponentActivity() {
             pickingViewModel.invalidate()
             pickingWorkListViewModel.invalidate()
         }
+        if (connectedRoute?.entryKey == "payments.wallet-refund") {
+            walletRefundViewModel.deactivate()
+        }
         warehouseBatchViewModel.invalidate()
         pendingDispositionLot = null
         pendingTemperatureDispositionSeed = null
@@ -3913,6 +3927,7 @@ class MainActivity : ComponentActivity() {
         stockTransferViewModel.deactivate()
         fieldVisitViewModel.deactivate()
         businessDocumentsViewModel.deactivate()
+        notificationsViewModel.deactivate()
         directOrderViewModel.deactivate()
         driverViewModel.invalidate()
         dispatchHandoffIdentityViewModel.deactivate()
@@ -3969,7 +3984,8 @@ private fun WorkforceContextSummary.toActiveOperationsContext(
             tenantId = authority.tenantId,
             workspaceId = authority.workspaceId,
             membershipId = authority.membershipId,
-            permissions = authority.permissions.toSet()
+            permissions = authority.permissions.toSet(),
+            roles = authority.roles.toSet()
         )
     }
 )
@@ -4098,6 +4114,17 @@ private val CONNECTED_OPERATIONS = listOf(
         "Documentos del cliente",
         setOf("document.read")
     ),
+    ConnectedOperationEntry(
+        "operations.notifications",
+        "Notificaciones",
+        setOf("notification.read")
+    ),
+    ConnectedOperationEntry(
+        "payments.wallet-refund",
+        "Devolución a billetera",
+        setOf("payment.reconcile"),
+        readRoles = setOf("BUSINESS_OPERATIONS_MANAGER", "COMPANY_OWNER")
+    ),
     ConnectedOperationEntry("operations.overview", "Vista operativa", setOf("dispatch.read")),
     ConnectedOperationEntry("operations.exceptions", "Trabajo bloqueado", setOf("dispatch.read")),
     ConnectedOperationEntry(
@@ -4137,11 +4164,6 @@ private val CONNECTED_OPERATIONS = listOf(
     ConnectedOperationEntry(
         "driver.deliveries",
         "Mis entregas",
-        setOf("dispatch.read", "logistics:read")
-    ),
-    ConnectedOperationEntry(
-        "driver.workday",
-        "Jornada y ubicación",
         setOf("dispatch.read", "logistics:read")
     ),
     ConnectedOperationEntry(

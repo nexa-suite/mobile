@@ -9,7 +9,8 @@ data class VerifiedContextAuthority(
     val tenantId: String,
     val workspaceId: String,
     val membershipId: String,
-    val permissions: Set<String>
+    val permissions: Set<String>,
+    val roles: Set<String> = emptySet()
 ) {
     override fun toString(): String = "VerifiedContextAuthority(REDACTED)"
 }

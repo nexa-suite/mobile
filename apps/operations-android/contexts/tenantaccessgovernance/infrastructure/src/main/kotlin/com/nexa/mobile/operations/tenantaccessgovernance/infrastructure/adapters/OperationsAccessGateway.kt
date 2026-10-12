@@ -178,7 +178,8 @@ fun VerifiedSession.toWorkforceContext(): WorkforceContextSummary? {
             tenantId = tenantId,
             workspaceId = workspaceId,
             membershipId = membership,
-            permissions = permissions.toSet()
+            permissions = permissions.toSet(),
+            roles = roles.toSet()
         )
     )
 }

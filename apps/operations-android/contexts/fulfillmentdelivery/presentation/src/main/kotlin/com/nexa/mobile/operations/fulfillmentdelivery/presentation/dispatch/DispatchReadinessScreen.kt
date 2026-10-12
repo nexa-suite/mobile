@@ -50,7 +50,11 @@ fun DispatchReadinessScreen(
     onConfirmHandover: ((String) -> Unit)? = null,
     onRecordTemperature: ((String) -> Unit)? = null,
     onEditDeliveryInstructions: ((String) -> Unit)? = null,
-    onReviewExecutionHold: ((String) -> Unit)? = null
+    onReviewExecutionHold: ((String) -> Unit)? = null,
+    onRefreshDeliveryPod: (() -> Unit)? = null,
+    onSealPod: ((String) -> Unit)? = null,
+    onRetryPodSeal: (() -> Unit)? = null,
+    canSealPod: Boolean = false
 ) {
     val closeAction = rememberUpdatedState(onRouteClosed)
     DisposableEffect(Unit) {
@@ -115,30 +119,40 @@ fun DispatchReadinessScreen(
             }
             if (state.selectedFulfillmentId != null) {
                 item {
-                    if (state.detail != null &&
+                    val selectedDetail = state.detail
+                    if (selectedDetail != null &&
                         state.detailStatus == DispatchReadinessDetailStatus.Current
                     ) {
-                        ReadinessDetail(state.detail, onClearSelection)
+                        ReadinessDetail(selectedDetail, onClearSelection)
+                        val deliveryId = selectedDetail.deliveryId
+                        if (deliveryId != null) {
+                            DeliveryPodPanel(
+                                state = state,
+                                canSeal = canSealPod,
+                                onRefresh = onRefreshDeliveryPod ?: {},
+                                onSeal = { onSealPod?.invoke(deliveryId) },
+                                onRetrySeal = onRetryPodSeal ?: {}
+                            )
+                        }
                         if (onVerifyOutgoingGoods != null) {
                             TextButton(onClick = {
-                                onVerifyOutgoingGoods(state.detail.fulfillmentId)
+                                onVerifyOutgoingGoods(selectedDetail.fulfillmentId)
                             }) {
                                 Text("Verificar lote y cantidad de salida")
                             }
                         }
                         if (onRecordTemperature != null) {
                             TextButton(onClick = {
-                                onRecordTemperature(state.detail.fulfillmentId)
+                                onRecordTemperature(selectedDetail.fulfillmentId)
                             }) {
                                 Text("Registrar temperatura de preparación")
                             }
                         }
                         if (onConfirmHandover != null) {
                             TextButton(onClick = {
-                                onConfirmHandover(state.detail.fulfillmentId)
+                                onConfirmHandover(selectedDetail.fulfillmentId)
                             }) { Text("Confirmar salida y handoff") }
                         }
-                        val deliveryId = state.detail.deliveryId
                         if (deliveryId != null && onEditDeliveryInstructions != null) {
                             TextButton(onClick = { onEditDeliveryInstructions(deliveryId) }) {
                                 Text(stringResource(R.string.dispatch_readiness_open_instructions))
@@ -151,7 +165,7 @@ fun DispatchReadinessScreen(
                         }
                         if (onAssignFulfillment != null) {
                             TextButton(onClick = {
-                                onAssignFulfillment(state.detail.fulfillmentId)
+                                onAssignFulfillment(selectedDetail.fulfillmentId)
                             }) {
                                 Text(stringResource(R.string.dispatch_assignment_title))
                             }
@@ -160,6 +174,151 @@ fun DispatchReadinessScreen(
                         DetailStatusPanel(state.detailStatus, onClearSelection)
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeliveryPodPanel(
+    state: DispatchReadinessUiState,
+    canSeal: Boolean,
+    onRefresh: () -> Unit,
+    onSeal: () -> Unit,
+    onRetrySeal: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                stringResource(R.string.dispatch_pod_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            when (state.deliveryPodStatus) {
+                DispatchDeliveryPodStatus.NotRequested ->
+                    Text(stringResource(R.string.dispatch_pod_unavailable))
+
+                DispatchDeliveryPodStatus.Loading -> {
+                    CircularProgressIndicator()
+                    Text(stringResource(R.string.dispatch_pod_loading))
+                }
+
+                DispatchDeliveryPodStatus.Current -> {
+                    val current = state.deliveryPod
+                    if (current == null) {
+                        Text(stringResource(R.string.dispatch_pod_unavailable))
+                    } else {
+                        Text(
+                            stringResource(
+                                R.string.dispatch_pod_delivery,
+                                current.deliveryId,
+                                current.deliveryStatus,
+                                current.deliveryVersion
+                            )
+                        )
+                        val pod = current.pod
+                        if (pod == null) {
+                            Text(stringResource(R.string.dispatch_pod_not_captured))
+                        } else {
+                            Text(stringResource(R.string.dispatch_pod_status, pod.status))
+                            pod.receiverName?.let {
+                                Text(stringResource(R.string.dispatch_pod_receiver, it))
+                            }
+                            pod.capturedAt?.let {
+                                Text(
+                                    stringResource(
+                                        R.string.dispatch_pod_captured_at,
+                                        formatInstant(it)
+                                    )
+                                )
+                            }
+                            pod.sealedAt?.let {
+                                Text(
+                                    stringResource(
+                                        R.string.dispatch_pod_sealed_at,
+                                        formatInstant(it)
+                                    )
+                                )
+                            }
+                            if (pod.status == "SEALED") {
+                                Text(stringResource(R.string.dispatch_pod_async_documents))
+                            }
+                        }
+                    }
+                }
+
+                DispatchDeliveryPodStatus.NetworkUnavailable ->
+                    Text(stringResource(R.string.dispatch_pod_network))
+
+                DispatchDeliveryPodStatus.ServiceUnavailable ->
+                    Text(stringResource(R.string.dispatch_pod_service))
+
+                DispatchDeliveryPodStatus.PermissionDenied ->
+                    Text(stringResource(R.string.dispatch_pod_permission))
+
+                DispatchDeliveryPodStatus.ContextInvalidated ->
+                    Text(stringResource(R.string.dispatch_pod_context))
+
+                DispatchDeliveryPodStatus.SessionInvalidated ->
+                    Text(stringResource(R.string.dispatch_pod_session))
+            }
+
+            when (state.podSealStatus) {
+                DispatchPodSealStatus.Idle -> Unit
+
+                DispatchPodSealStatus.Submitting -> Text(
+                    stringResource(R.string.dispatch_pod_sealing)
+                )
+
+                DispatchPodSealStatus.Sealed -> Text(stringResource(R.string.dispatch_pod_sealed))
+
+                DispatchPodSealStatus.UnknownOutcome -> Text(
+                    stringResource(R.string.dispatch_pod_unknown)
+                )
+
+                DispatchPodSealStatus.Stale -> Text(stringResource(R.string.dispatch_pod_stale))
+
+                DispatchPodSealStatus.Conflict -> Text(
+                    stringResource(R.string.dispatch_pod_conflict)
+                )
+
+                DispatchPodSealStatus.ServiceUnavailable -> Text(
+                    stringResource(R.string.dispatch_pod_service)
+                )
+
+                DispatchPodSealStatus.PermissionDenied -> Text(
+                    stringResource(R.string.dispatch_pod_permission)
+                )
+            }
+
+            if (canSeal && state.podSealStatus == DispatchPodSealStatus.Idle) {
+                Button(onClick = onSeal, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.dispatch_pod_seal))
+                }
+            }
+            if (state.pendingPodSeal != null && state.podSealStatus in setOf(
+                    DispatchPodSealStatus.UnknownOutcome,
+                    DispatchPodSealStatus.ServiceUnavailable
+                )
+            ) {
+                Button(onClick = onRetrySeal, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.dispatch_pod_retry_same))
+                }
+            }
+            OutlinedButton(
+                onClick = onRefresh,
+                enabled = state.deliveryPodStatus != DispatchDeliveryPodStatus.Loading &&
+                    state.podSealStatus != DispatchPodSealStatus.Submitting,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.dispatch_pod_refresh))
             }
         }
     }

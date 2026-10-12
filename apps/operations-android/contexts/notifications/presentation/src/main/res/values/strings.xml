@@ -1,0 +1,28 @@
+<resources>
+    <string name="notifications_title">Notifications</string>
+    <string name="notifications_inbox_tab">Inbox</string>
+    <string name="notifications_preferences_tab">Preferences</string>
+    <string name="notifications_inbox_heading">Inbox</string>
+    <string name="notifications_preferences_heading">Notification preferences</string>
+    <string name="notifications_accepted_channels">Channels: in app and email.</string>
+    <string name="notifications_preferences_read_only">Your membership can view preferences but cannot change them.</string>
+    <string name="notifications_preferences_empty">No in-app or email preferences available.</string>
+    <string name="notifications_empty">No notifications.</string>
+    <string name="notifications_loading">Loading…</string>
+    <string name="notifications_denied">Access is no longer authorized. Return and open this page again.</string>
+    <string name="notifications_conflict">Server data changed. Refresh before trying again.</string>
+    <string name="notifications_inbox_unavailable">Inbox is unavailable. No notification state was changed locally.</string>
+    <string name="notifications_preferences_unavailable">Preferences are unavailable.</string>
+    <string name="notifications_action_loading">Sending request…</string>
+    <string name="notifications_action_success">Server confirmed change.</string>
+    <string name="notifications_action_unavailable">Change was not confirmed. Refresh to check server state.</string>
+    <string name="notifications_refresh">Refresh</string>
+    <string name="notifications_mark_all_read">Mark all read</string>
+    <string name="notifications_unread_only">Show unread</string>
+    <string name="notifications_show_all">Show all</string>
+    <string name="notifications_mark_read">Mark read</string>
+    <string name="notifications_mark_unread">Mark unread</string>
+    <string name="notifications_category_and_time">%1$s · %2$s</string>
+    <string name="notifications_in_app_channel">In app</string>
+    <string name="notifications_email_channel">Email</string>
+</resources>
