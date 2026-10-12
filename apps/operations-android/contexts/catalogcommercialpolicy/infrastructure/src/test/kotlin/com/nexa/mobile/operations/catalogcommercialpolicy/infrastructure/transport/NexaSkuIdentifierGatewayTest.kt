@@ -6,8 +6,6 @@ import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.network.ApiEndpoint
 import com.nexa.mobile.operations.core.network.ApiHttpClient
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
-import java.nio.file.Files
-import java.nio.file.Path
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
@@ -159,7 +157,7 @@ class NexaSkuIdentifierGatewayTest {
 
     @Test
     fun sharedContractParityFixturesMatchTheProtectedGateway() = runTest {
-        val fixture = Json.parseToJsonElement(Files.readString(contractFixturePath())).jsonObject
+        val fixture = Json.parseToJsonElement(contractFixture()).jsonObject
         val contract = fixture.getValue("contract").jsonObject
         val fixtureCases = fixture.getValue("cases").jsonArray
 
@@ -258,31 +256,9 @@ class NexaSkuIdentifierGatewayTest {
     private fun resolvedJson(identifier: String) =
         """{"outcome":"RESOLVED","identifierType":"SKU_CODE","normalizedIdentifier":"$identifier","candidateCount":1,"skuId":"c2e78931-f127-433d-b84d-f98b381d2378","skuCode":"SKU-4","gtin":"12345678","presentation":"Pack","unitOfMeasure":"EA","status":"ACTIVE"}"""
 
-    private fun contractFixturePath(): Path {
-        val configured = System.getProperty("mobile.contract.parity.fixture")
-            ?.takeIf(String::isNotBlank)
-            ?.let { Path.of(it) }
-        if (configured != null) {
-            check(Files.isRegularFile(configured)) {
-                "Configured mobile contract parity fixture does not exist"
-            }
-            return configured
-        }
-
-        var directory: Path? = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize()
-        while (directory != null) {
-            val candidate = directory.resolve(
-                "experiments/mobile-contract-parity/fixtures/sku-resolver-contract.json"
-            )
-            if (Files.isRegularFile(candidate)) return candidate
-            directory = directory.parent
-        }
-        error(
-            "Could not find experiments/mobile-contract-parity/fixtures/" +
-                "sku-resolver-contract.json " +
-                "from the test working directory"
-        )
-    }
+    private fun contractFixture(): String = checkNotNull(
+        javaClass.getResourceAsStream("/sku-resolver-contract.json")
+    ) { "SKU resolver test fixture is missing" }.bufferedReader().use { it.readText() }
 
     private fun assertFixtureOutcome(
         name: String,
