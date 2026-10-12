@@ -14,9 +14,16 @@
 *.hprof
 .DS_Store
 
-# Local documentation, evidence and working instructions
-/docs/
+# Keep generated wave evidence and experiments local. Engineering guides,
+# architecture records and release notes remain versioned under docs/.
+/docs/assets/wave*/
+/docs/mobile-design-adoption.md
+/docs/operations-business-decisions.md
+/docs/operations-functional-coverage.md
+/docs/receiving-verification.md
+/docs/research/
+/docs/scanner-verification.md
+/docs/sprint-1-2-implementation-traceability.md
+/docs/technical-verification.md
 /experiments/
-/AGENTS.md
-/AGENTS.override.md
 /apps/operations-android/docs/

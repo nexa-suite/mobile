@@ -53,9 +53,9 @@ its domain no longer imports BC-05. BC-09 platform rendering is behind a JVM
 application port, with bounded pixel results and process-scoped temporary-file
 cleanup. If OS deletion fails, a current-process artifact can remain in private cache until the next process cleanup; interruption before unlink has the same residual limit. New native PDF cases remain subject to the connected runs below. The first full API 37 run recorded 36 tests with 10 failures: nine locale-dependent UI assertions and one capture method without its private credentials. Locale assertions now use resource lookups and distinguish titles from actions. Ordinary-run configuration excludes the `RequiresPrivateFixture` annotation; the API 37 rerun app XML confirms 35 cases with no failures/errors/skips and no private-fixture classes. The independent capture-flag regression remains included. These failed runs are not successful full native verification. A later full run reached BC-04 presentation and found Espresso 3.5 incompatible with API 37 (`InputManager.getInstance`); that test module now uses the existing pinned Espresso 3.7 alias and the complete rerun passed.
 
-The [Sprint traceability](sprint-1-2-implementation-traceability.md) maps all 36
-original Mobile PBIs. This is coverage of the mapping, not 100% Sprint or
-Product acceptance. SPIKE-001 now has a bounded technical investigation with six Python checks and 20 synthetic cases; model execution and runtime adoption remain deferred. The separate Buyer runtime scope is recorded explicitly.
+Sprint and academic traceability are maintained separately from this
+implementation verification record. The checks recorded here do not establish
+Product acceptance.
 
 The script verifies the 11 roots, module/layer shape, JVM framework boundaries,
 context import direction and removal of source from legacy `feature` and `data`
