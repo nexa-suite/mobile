@@ -6,7 +6,7 @@
 
 ## [1.2.0] - Unreleased
 
-Source candidate for controlled local Nexa Suite testing. Application source merged through [PR #46](https://github.com/nexa-suite/mobile/pull/46), repository cleanup through [PR #43](https://github.com/nexa-suite/mobile/pull/43), and release evidence updates through [PR #47](https://github.com/nexa-suite/mobile/pull/47). The signed `v1.2.0` tag and GitHub Release have not been published. Operations Android is `1.2.0` (`versionCode 11`); Buyer Flutter is independently `1.1.0+2`. See the [release candidate notes](docs/releases/v1.2.0.md).
+Source candidate for controlled local Nexa Suite testing. Application source merged through [PR #46](https://github.com/nexa-suite/mobile/pull/46), repository cleanup through [PR #43](https://github.com/nexa-suite/mobile/pull/43), and release evidence updates through [PR #47](https://github.com/nexa-suite/mobile/pull/47). The signed `v1.2.0` tag and GitHub Release have not been published. Operations Android is `1.2.0` (`versionCode 11`); Buyer Flutter is independently `1.1.0+2`.
 
 - Add scoped Operations and Buyer notification inbox, read state and
   preferences for accepted `IN_APP`/`EMAIL` channels; push delivery remains
@@ -22,7 +22,7 @@ Source candidate for controlled local Nexa Suite testing. Application source mer
 
 ## [1.2.0-alpha.1] - 2026-10-10
 
-Source checkpoint prerelease; incomplete integration and distribution gates. See [checkpoint notes](docs/releases/v1.2.0-alpha.1.md).
+Source checkpoint prerelease; incomplete integration and distribution gates. See the [GitHub prerelease](https://github.com/nexa-suite/mobile/releases/tag/v1.2.0-alpha.1).
 
 ## [1.1.0] - 2026-10-08
 
@@ -30,11 +30,9 @@ Published Operations Android release, versionCode 10. The [GitHub
 Release](https://github.com/nexa-suite/mobile/releases/tag/v1.1.0) uses tag
 `v1.1.0` at source commit
 `6cdb4318fa2e41a0268cce8900c138caffc93aec`. The attached APK SHA-256 is
-`a5e27394de8fa422599ca463dd1d6ee3f6f80d8a06c157303234dd1b4e91f769`; see the
-[release notes](docs/releases/v1.1.0.md) and [execution
-record](docs/ddd-client-verification.md) for verification and limits. PR #41
-contains follow-up changes outside the published tag; its local technical
-validation passed, while updated-head CI, review and integration remain pending.
+`a5e27394de8fa422599ca463dd1d6ee3f6f80d8a06c157303234dd1b4e91f769`; the
+[GitHub Release](https://github.com/nexa-suite/mobile/releases/tag/v1.1.0)
+contains the published artifact.
 
 - Organize client code by the eleven canonical bounded contexts, with explicit
   JVM domain/application and Android infrastructure/presentation modules.
@@ -52,8 +50,8 @@ validation passed, while updated-head CI, review and integration remain pending.
 ## [1.0.0] - 2026-10-05
 
 Operations Android v1.0.0 source candidate, versionCode 8. A signed APK for
-controlled direct distribution is recorded in the
-[release notes](docs/releases/v1.0.0.md), along with its validation boundaries.
+controlled direct distribution is available from the
+[GitHub Release](https://github.com/nexa-suite/mobile/releases/tag/v1.0.0).
 
 - Set the Android app version to 1.0.0 while retaining the Operations client scope in this repository.
 - Keep Buyer Mobile outside this repository as a separate TARGET.
@@ -84,8 +82,7 @@ Operations Android checkpoint, versionCode 6.
 
 ## [0.4.0] - 2026-10-02
 
-Operations functional remediation and local Android delivery. See
-[release notes](docs/releases/v0.4.0.md) for verified scope and distribution limits.
+Operations functional remediation and local Android delivery checkpoint.
 
 - Integrate authorized Warehouse, Dispatch, Delivery, Sales and exception coordination workflows.
 - Fix scoped inventory pagination, native navigation, Android 17 local-network recovery and receiving selection layout.
@@ -95,7 +92,8 @@ Operations functional remediation and local Android delivery. See
 ## [0.3.0-alpha.1] - 2026-10-01
 
 Earlier source checkpoint, published as prerelease with known validation failures.
-See [release notes](docs/releases/v0.3.0-alpha.1.md). No stable readiness claim.
+See the [GitHub prerelease](https://github.com/nexa-suite/mobile/releases/tag/v0.3.0-alpha.1).
+No stable readiness claim.
 
 ## 0.1.1 - 2026-09-28
 
