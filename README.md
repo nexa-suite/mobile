@@ -17,8 +17,7 @@ authority.
 Install JDK 17, Android SDK package `platforms;android-37.0`, and
 `build-tools;36.0.0`. The checked-in Gradle wrapper downloads Gradle 9.7.1.
 Use an API 37 emulator for feature verification and an API 29 emulator for
-promotion verification. See the [verification guide](docs/verification.md) for
-commands and evidence locations.
+promotion verification.
 
 ## Module layout
 
@@ -33,8 +32,8 @@ The four layer names are `domain`, `application`, `infrastructure` and
 `presentation`; a module exists only where this client has code. BC-10
 Notifications has application, infrastructure and presentation modules. BC-08
 Payments and BC-11 Business Traceability have ownership documentation but no
-runtime module. The [DDD alignment](docs/client-ddd-alignment.md)
-lists every root and implemented layer. Context roots, Gradle modules and screens
+runtime module. The source tree and Gradle settings list implemented roots and
+layers. Context roots, Gradle modules and screens
 do not create business Bounded Contexts or transfer server authority.
 
 In these client modules, `domain` contains non-authoritative projections and
@@ -51,10 +50,7 @@ ownership.
 The API owns Tenant and Workspace authorization, catalog and commercial
 decisions, inventory, credit, payments, fulfillment and delivery outcomes.
 Permission hints only shape navigation. A successful current server response is
-required before a client projection can be treated as confirmed. See [product
-boundaries](docs/operations-product-boundaries.md), [foundation
-architecture](docs/android-foundation.md) and [native session
-security](docs/native-session.md).
+required before a client projection can be treated as confirmed.
 
 ## Build and verify
 
@@ -69,9 +65,7 @@ python3 scripts/verify-context-architecture.py
 The Python check enforces the 11 canonical roots and context-layer source
 boundaries. The Gradle gates cover Android module architecture, formatting,
 lint, JVM tests and debug assembly. The aggregate `testDebugUnitTest` covers
-configured Android modules and Kotlin/JVM domain/application modules. See the
-[verification guide](docs/verification.md) for test-result locations and
-connected-device commands.
+configured Android modules and Kotlin/JVM domain/application modules.
 
 Release assembly requires an explicitly supplied non-local HTTPS API origin:
 
@@ -103,17 +97,12 @@ Release](https://github.com/nexa-suite/mobile/releases/tag/v1.1.0) from tag
 passed. Local verification recorded 524 JVM tests and 64 instrumentation
 tests on each API 29 and API 37 AVD, with no failures, errors or skips. The
 published APK SHA-256 is
-`a5e27394de8fa422599ca463dd1d6ee3f6f80d8a06c157303234dd1b4e91f769`; see the
-[release notes](docs/releases/v1.1.0.md) for the asset and full evidence.
+`a5e27394de8fa422599ca463dd1d6ee3f6f80d8a06c157303234dd1b4e91f769`; the
+[GitHub Release](https://github.com/nexa-suite/mobile/releases/tag/v1.1.0)
+contains the published artifact.
 
-PR [#41](https://github.com/nexa-suite/mobile/pull/41) remains open with
-follow-up changes outside the published tag. Corrective source commit
-`b18337e63accdbd56906ad73b5294345b1727ac0` passed local architecture, format,
-lint, debug/release assembly, 528 JVM cases and 65 native cases on each API
-29/37 with no failures, errors or skips. Updated-head GitHub CI, review and
-integration remain pending. These technical checks do not establish
-Product/UX Acceptance, System Acceptance or production readiness. See the [DDD
-execution record](docs/ddd-client-verification.md).
+Technical verification does not establish Product/UX Acceptance, System
+Acceptance or production readiness.
 
 ## Current limits
 
@@ -128,11 +117,14 @@ Acceptance and production readiness remain separate gates.
 
 Local technical verification passed for the v1.2.0 application source: strict
 architecture, formatting, lint, JVM tests, debug assembly, and API 37/API 29
-instrumentation. This release sets Operations Android to `1.2.0` (`versionCode
-11`) and the separate Buyer Flutter app to `1.1.0+2`. The unsigned Operations
-R8 build uses the Render validation origin; it does not establish live API
-compatibility or production distribution. Buyer Android distribution signing
-and iOS signing remain unresolved. See the [release evidence](docs/releases/v1.2.0.md).
+instrumentation. This source release sets Operations Android to `1.2.0`
+(`versionCode 11`) and the separate Buyer Mobile app to `1.1.0+2`. It does not
+include a signed Android APK, a Buyer distribution artifact, or an iOS package.
+The unsigned Operations R8 build uses the Render validation origin; it does not
+establish live API compatibility or production distribution. The full
+cross-client order-to-delivery flow, Product Acceptance, System Acceptance and
+Production Readiness remain unverified. See the [GitHub Release](https://github.com/nexa-suite/mobile/releases/tag/v1.2.0)
+for the published source boundary and limits.
 
 ## Historical release checkpoint — 2026-10-05
 
@@ -143,6 +135,6 @@ gates covered its then-current feature/data module layout. GitHub Actions run
 [37394456318](https://github.com/nexa-suite/mobile/actions/runs/37394456318)
 passed on candidate commit
 `2508b2f18a52ccbad55e50c96c5ce0aca2f474e1`. The signed APK and smoke-test
-scope are recorded in the [v1.0.0 release notes](docs/releases/v1.0.0.md).
+scope are recorded in the [v1.0.0 GitHub Release](https://github.com/nexa-suite/mobile/releases/tag/v1.0.0).
 That record did not establish Product Acceptance, System Acceptance or
 production readiness and must not be treated as evidence for v1.1.0.
