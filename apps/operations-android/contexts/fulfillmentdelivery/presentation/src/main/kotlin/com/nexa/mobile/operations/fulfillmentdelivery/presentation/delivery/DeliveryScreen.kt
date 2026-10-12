@@ -90,7 +90,6 @@ fun DriverDeliveryScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
             if (!state.canRead) {
                 Notice(stringResource(R.string.driver_delivery_read_permission), isError = true)
             }
@@ -827,7 +826,8 @@ private fun OutcomeEntry(
     var reason by remember(delivery.id) { mutableStateOf("") }
     var notes by remember(delivery.id) { mutableStateOf("") }
     val delivered = remember(delivery.id) { mutableStateMapOf<String, String>() }
-    val canEdit = state.canStart && state.detailStatus == DriverDeliveryLoadStatus.Ready &&
+    val canEdit = state.canStart &&
+        state.detailStatus == DriverDeliveryLoadStatus.Ready &&
         state.outcomeCommandStatus in setOf(
             DriverOutcomeCommandStatus.Idle,
             DriverOutcomeCommandStatus.Recorded,

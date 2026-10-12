@@ -34,3 +34,56 @@ sealed interface DispatchReadinessGatewayResult {
     data object ContextInvalidated : DispatchReadinessGatewayResult
     data object SessionInvalidated : DispatchReadinessGatewayResult
 }
+
+/** Current server-owned Delivery and optional proof-of-delivery facts for a coordinator. */
+data class DispatchDeliveryPodSnapshot(
+    val deliveryId: String,
+    val fulfillmentId: String,
+    val deliveryStatus: String,
+    val deliveryVersion: Long,
+    val deliveryEtag: String,
+    val pod: DispatchPodEvidence?
+) {
+    override fun toString(): String =
+        "DispatchDeliveryPodSnapshot(deliveryId=REDACTED, status=$deliveryStatus, " +
+            "version=$deliveryVersion, hasPod=${pod != null})"
+}
+
+data class DispatchPodEvidence(
+    val id: String,
+    val deliveryId: String,
+    val status: String,
+    val receiverName: String?,
+    val capturedAt: Instant?,
+    val sealedAt: Instant?,
+    val deliveryVersion: Long,
+    val deliveryEtag: String
+) {
+    override fun toString(): String =
+        "DispatchPodEvidence(id=REDACTED, deliveryId=REDACTED, status=$status, " +
+            "version=$deliveryVersion)"
+}
+
+/** Exact retry identity and current Delivery version for the explicit sealing command. */
+data class SealDispatchPodCommand(
+    val deliveryId: String,
+    val deliveryEtag: String,
+    val idempotencyKey: String
+) {
+    override fun toString(): String =
+        "SealDispatchPodCommand(deliveryId=REDACTED, deliveryEtag=REDACTED, " +
+            "idempotencyKey=REDACTED)"
+}
+
+sealed interface DispatchDeliveryPodGatewayResult {
+    data class Snapshot(val value: DispatchDeliveryPodSnapshot) : DispatchDeliveryPodGatewayResult
+    data class Sealed(val value: DispatchPodEvidence) : DispatchDeliveryPodGatewayResult
+    data object Stale : DispatchDeliveryPodGatewayResult
+    data object Conflict : DispatchDeliveryPodGatewayResult
+    data object UnknownOutcome : DispatchDeliveryPodGatewayResult
+    data object NetworkUnavailable : DispatchDeliveryPodGatewayResult
+    data object ServiceUnavailable : DispatchDeliveryPodGatewayResult
+    data object PermissionDenied : DispatchDeliveryPodGatewayResult
+    data object ContextInvalidated : DispatchDeliveryPodGatewayResult
+    data object SessionInvalidated : DispatchDeliveryPodGatewayResult
+}

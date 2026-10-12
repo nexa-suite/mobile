@@ -33,7 +33,7 @@ primary pattern references; Blueprint determines the accepted Nexa application.
 ## Canonical context roots and current code
 
 The project has 11 roots under
-`apps/operations-android/contexts/<canonical-root>`. It currently has 31
+`apps/operations-android/contexts/<canonical-root>`. It currently has 38
 runtime modules across four possible client layers. Module counts below are
 AS-IS source structure, not business-ownership claims. A layer exists only when
 the client has code in it.
@@ -47,16 +47,20 @@ the client has code in it.
 | BC-05 Inventory Availability | `inventoryavailability` | `domain`, `application`, `infrastructure`, `presentation` |
 | BC-06 Fulfillment & Delivery | `fulfillmentdelivery` | `domain`, `application`, `infrastructure`, `presentation` |
 | BC-07 Credit & Receivables | `creditreceivables` | `domain`, `application`, `infrastructure` |
-| BC-08 Payments | `payments` | No runtime module |
+| BC-08 Payments | `payments` | `domain`, `application`, `infrastructure`, `presentation` |
 | BC-09 Business Documents | `businessdocuments` | `domain`, `application`, `infrastructure`, `presentation` |
-| BC-10 Notifications | `notifications` | No runtime module |
+| BC-10 Notifications | `notifications` | `application`, `infrastructure`, `presentation` |
 | BC-11 Business Traceability | `businesstraceability` | No runtime module |
 
-The seven four-layer roots contribute 28 modules; BC-07 contributes three.
-BC-08, BC-10 and BC-11 have context README files but no runtime Gradle modules
-or client capability. Their inclusion in the directory map does not imply
-implementation. `:app` is the composition root, and `:core:*` modules are
-technical foundations; neither is an extra Bounded Context.
+The seven existing four-layer roots contribute 28 modules; BC-08 contributes
+four modules; BC-07 and BC-10 contribute three modules each, for 38 runtime
+modules. BC-11 has a context README but no runtime Gradle module or client
+capability. BC-10 source provides
+the scoped inbox, read state and preference workflows for accepted `IN_APP` and
+`EMAIL` channels; push delivery is outside this slice. Module presence does not
+imply Product acceptance or server authority. `:app` is the composition root,
+and `:core:*` modules are technical foundations; neither is an extra Bounded
+Context.
 
 ## Client layers
 
@@ -153,6 +157,15 @@ not in domain or presentation. Exact request bytes, idempotency keys, scope and
 authority-epoch correlation must survive explicit retries where the existing
 contract requires them. Durable client intent does not claim exactly-once
 transport or imply server acceptance.
+
+BC-08 application coordinates the wallet-refund candidate read and an explicit
+refund command. The candidate's server-provided refundable PEN amount and
+four-decimal precision guide the form; only the API decides whether the refund
+may post. Infrastructure freezes the exact JSON, hash and idempotency key, then
+stores the intent with AES-GCM under verified user, tenant, workspace and
+membership scope. After an ambiguous response, the user can explicitly retry
+that same frozen command. Context or membership replacement fences stale UI
+results, and no automatic retry or order cancellation is coupled to refund.
 
 ## Owner decision for MOB-US-009
 

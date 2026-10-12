@@ -20,11 +20,15 @@ import javax.inject.Inject
 /** Hands the server-authorized destination snapshot to an external navigation app. */
 fun launchDriverDirections(context: Context, destination: String): Boolean {
     val address = destination.trim().takeIf(String::isNotEmpty) ?: return false
-    val intent = Intent(Intent.ACTION_VIEW, "geo:0,0?q=${Uri.encode(address)}".toUri())
-    if (context !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    val navigationIntent = Intent(
+        Intent.ACTION_VIEW,
+        "geo:0,0?q=${Uri.encode(address)}".toUri()
+    )
     return try {
-        if (intent.resolveActivity(context.packageManager) == null) return false
-        context.startActivity(intent)
+        if (navigationIntent.resolveActivity(context.packageManager) == null) return false
+        val chooser = Intent.createChooser(navigationIntent, null)
+        if (context !is Activity) chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(chooser)
         true
     } catch (_: ActivityNotFoundException) {
         false

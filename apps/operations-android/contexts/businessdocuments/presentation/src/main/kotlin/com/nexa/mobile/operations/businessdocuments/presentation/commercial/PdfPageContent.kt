@@ -66,6 +66,10 @@ fun BusinessDocumentsScreen(
                 else -> "Sin consultar"
             }}. Visor protegido PDF, CSV y XML hasta 8 MiB."
         )
+        if (state.status == "Current" && !state.canDownloadContent) {
+            Text("Puede consultar los datos de emisión.")
+            Text("Su membresía no permite descargar el contenido privado.")
+        }
         Button(onClick = onRefresh, enabled = state.status != "Pending") {
             Text("Actualizar documentos")
         }
@@ -84,6 +88,11 @@ fun BusinessDocumentsScreen(
                 ProtectedTextContent(content)
             }
         } else {
+            when (state.contentStatus) {
+                "Pending" -> Text("Consultando contenido autorizado…")
+                "DownloadDenied" -> Text("Sin permiso para descargar contenido privado.")
+                "Unavailable" -> Text("El contenido autorizado no está disponible.")
+            }
             if (state.status == "Current" &&
                 state.items.isEmpty()
             ) {
@@ -105,10 +114,18 @@ fun BusinessDocumentsScreen(
                         Text("${item.number ?: item.id} · ${item.type} · versión ${item.version}")
                         Text("Cliente: ${item.customerId}\n${item.subjectType}: ${item.subjectId}")
                         Text("Emitido: ${item.generatedAt ?: "fecha no disponible"}")
-                        TextButton(onClick = {
-                            onOpen(item.id)
-                        }, enabled = state.status == "Current") {
-                            Text("Consultar contenido autorizado")
+                        TextButton(
+                            onClick = { onOpen(item.id) },
+                            enabled = state.status == "Current" &&
+                                state.canDownloadContent && state.contentStatus != "Pending"
+                        ) {
+                            Text(
+                                if (state.canDownloadContent) {
+                                    "Consultar contenido autorizado"
+                                } else {
+                                    "Contenido restringido"
+                                }
+                            )
                         }
                     }
                 }

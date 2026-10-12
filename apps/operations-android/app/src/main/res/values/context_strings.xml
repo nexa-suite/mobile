@@ -1,6 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="driver_workday_notification_channel">Driver location</string>
-    <string name="driver_workday_notification_text">Location is shared with Nexa for the active workday.</string>
-    <string name="driver_workday_notification_title">Workday location sharing active</string>
-</resources>

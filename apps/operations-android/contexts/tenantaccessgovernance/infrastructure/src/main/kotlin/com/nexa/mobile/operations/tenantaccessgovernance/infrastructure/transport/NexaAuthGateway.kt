@@ -88,7 +88,8 @@ internal data class WorkspaceBody(
 @Serializable
 internal data class MembershipBody(
     val membershipId: String? = null,
-    val permissions: Set<String> = emptySet()
+    val permissions: Set<String> = emptySet(),
+    val roles: Set<String> = emptySet()
 )
 
 class NexaAuthGateway private constructor(private val service: NativeAuthService) :
@@ -132,7 +133,8 @@ class NexaAuthGateway private constructor(private val service: NativeAuthService
                 workspaceName = body.workspace?.workspaceName,
                 workspaceSlug = body.workspace?.workspaceSlug,
                 membershipId = body.membership?.membershipId,
-                permissions = body.membership?.permissions.orEmpty()
+                permissions = body.membership?.permissions.orEmpty(),
+                roles = body.membership?.roles.orEmpty()
             )
         }
 

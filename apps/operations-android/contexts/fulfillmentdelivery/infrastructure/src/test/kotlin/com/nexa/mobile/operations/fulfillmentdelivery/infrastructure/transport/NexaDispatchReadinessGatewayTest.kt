@@ -115,6 +115,33 @@ class NexaDispatchReadinessGatewayTest {
         }
     }
 
+    @Test
+    fun deliveryPodReadUsesModernDeliveryIdentity() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(jsonResponse(deliveryJson()))
+            server.enqueue(MockResponse().setResponseCode(204))
+            val gateway = gateway(server)
+
+            val current = gateway.deliveryPod(DELIVERY_ID) as
+                DispatchDeliveryPodNetworkOutcome.Snapshot
+            val deliveryRead = server.takeRequest()
+            val podRead = server.takeRequest()
+            assertEquals("GET", deliveryRead.method)
+            assertEquals(
+                "/api/v1/deliveries/$DELIVERY_ID",
+                deliveryRead.requestUrl?.encodedPath
+            )
+            assertEquals("GET", podRead.method)
+            assertEquals("/api/v1/deliveries/$DELIVERY_ID/pod", podRead.requestUrl?.encodedPath)
+            assertEquals(DELIVERY_ID, current.value.deliveryId)
+            assertEquals(FULFILLMENT_ID, current.value.fulfillmentId)
+            assertEquals(17L, current.value.deliveryVersion)
+            assertEquals("\"17\"", current.value.deliveryEtag)
+            assertEquals(null, current.value.pod)
+        }
+    }
+
     private fun gateway(server: MockWebServer): NexaDispatchReadinessGateway {
         val endpoint = ApiEndpoint(server.url("/").toString())
         return NexaDispatchReadinessGateway(
@@ -128,9 +155,13 @@ class NexaDispatchReadinessGatewayTest {
     private fun readinessJson(id: String = FULFILLMENT_ID) =
         """{"subjectKind":"PREPARED_FULFILLMENT","fulfillmentId":"$id","fulfillmentVersion":12,"fulfillmentStatus":"READY_FOR_DISPATCH","physicalAllocationId":"$ALLOCATION_ID","physicalAllocationStatus":"ALLOCATED","physicalAllocationVersion":7,"deliveryId":null,"deliveryStatus":null,"deliveryVersion":null,"allocationComplete":true,"pickingComplete":true,"pickingEvidenceComplete":true,"ready":true,"reasons":[],"lines":[{"fulfillmentLineId":"$LINE_ID","skuId":"$SKU_ID","catalogItemId":"CAT-42","allocatedQuantity":3.50,"physicallyAllocatedQuantity":3.50,"pickedQuantity":3.50,"evidencedPickedQuantity":3.50,"allocationComplete":true,"pickingComplete":true,"evidenceComplete":true}],"asOf":"2026-09-30T10:15:30Z"}"""
 
-    private fun jsonResponse(body: String) = MockResponse()
+    private fun deliveryJson() =
+        """{"id":"$DELIVERY_ID","fulfillmentId":"$FULFILLMENT_ID","status":"DELIVERED","version":17}"""
+
+    private fun jsonResponse(body: String, etag: String = "\"17\"") = MockResponse()
         .setResponseCode(200)
         .addHeader("Content-Type", "application/json; charset=utf-8")
+        .addHeader("ETag", etag)
         .setBody(body)
 
     private fun problemResponse(status: Int, code: String) = MockResponse()
@@ -156,5 +187,6 @@ class NexaDispatchReadinessGatewayTest {
         const val ALLOCATION_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413101"
         const val LINE_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413201"
         const val SKU_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413301"
+        const val DELIVERY_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413501"
     }
 }

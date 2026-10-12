@@ -114,7 +114,8 @@ class ConnectedOperationsNavigationTest {
             authority.copy(tenantId = "other"),
             authority.copy(workspaceId = "other"),
             authority.copy(membershipId = "other"),
-            authority.copy(permissions = emptySet())
+            authority.copy(permissions = emptySet()),
+            authority.copy(roles = setOf("COMPANY_OWNER"))
         )) {
             val replaced = access.copy(
                 activeContext = access.activeContext!!.copy(verifiedAuthority = changed)
@@ -126,6 +127,75 @@ class ConnectedOperationsNavigationTest {
                     SessionState.Active,
                     replaced,
                     warehouse
+                )
+            )
+        }
+    }
+
+    @Test fun walletRefundRequiresAllowedVerifiedMembershipRoleAndPermission() {
+        val refundEntry = ConnectedOperationEntry(
+            "payments.wallet-refund",
+            "Devolución a billetera",
+            setOf("payment.reconcile"),
+            readRoles = setOf("BUSINESS_OPERATIONS_MANAGER", "COMPANY_OWNER")
+        )
+        val owner = authority.copy(
+            permissions = setOf("payment.reconcile"),
+            roles = setOf("COMPANY_OWNER")
+        )
+        val ownerAccess = access.copy(
+            activeContext = access.activeContext!!.copy(verifiedAuthority = owner)
+        )
+        val ownerWarehouse = warehouse.copy(
+            activeContext = warehouse.activeContext!!.copy(
+                verifiedIdentity = warehouse.activeContext!!.verifiedIdentity!!.copy(
+                    permissions = owner.permissions,
+                    roles = owner.roles
+                )
+            )
+        )
+        val route = ConnectedOperationsNavigation.open(
+            refundEntry,
+            SessionState.Active,
+            ownerAccess,
+            ownerWarehouse
+        )
+        assertNotNull(route)
+
+        for (unauthorized in listOf(
+            owner.copy(roles = emptySet()),
+            owner.copy(roles = setOf("SALES")),
+            owner.copy(permissions = emptySet())
+        )) {
+            val deniedAccess = ownerAccess.copy(
+                activeContext = ownerAccess.activeContext!!.copy(
+                    verifiedAuthority = unauthorized
+                )
+            )
+            val deniedWarehouse = ownerWarehouse.copy(
+                activeContext = ownerWarehouse.activeContext!!.copy(
+                    verifiedIdentity = ownerWarehouse.activeContext!!.verifiedIdentity!!.copy(
+                        permissions = unauthorized.permissions,
+                        roles = unauthorized.roles
+                    )
+                )
+            )
+            assertEquals(
+                emptyList<ConnectedOperationEntry>(),
+                ConnectedOperationsNavigation.visibleEntries(
+                    listOf(refundEntry),
+                    SessionState.Active,
+                    deniedAccess,
+                    deniedWarehouse
+                )
+            )
+            assertEquals(
+                null,
+                ConnectedOperationsNavigation.open(
+                    refundEntry,
+                    SessionState.Active,
+                    deniedAccess,
+                    deniedWarehouse
                 )
             )
         }
