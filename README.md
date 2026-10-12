@@ -113,16 +113,18 @@ physical-device acceptance is claimed. Local sign-out clears protected state
 even when server revocation cannot be confirmed. Product Acceptance, System
 Acceptance and production readiness remain separate gates.
 
-## v1.2.0 source candidate — unreleased
+## v1.2.0 source release
 
 Local technical verification passed for the v1.2.0 application source: strict
 architecture, formatting, lint, JVM tests, debug assembly, and API 37/API 29
-instrumentation. This source candidate sets Operations Android to `1.2.0` (`versionCode
-11`) and the separate Buyer Flutter app to `1.1.0+2`. The unsigned Operations
-R8 build uses the Render validation origin; it does not establish live API
-compatibility or production distribution. Buyer Android distribution signing
-and iOS signing remain unresolved. No signed stable tag or GitHub Release is
-published.
+instrumentation. This source release sets Operations Android to `1.2.0`
+(`versionCode 11`) and the separate Buyer Mobile app to `1.1.0+2`. It does not
+include a signed Android APK, a Buyer distribution artifact, or an iOS package.
+The unsigned Operations R8 build uses the Render validation origin; it does not
+establish live API compatibility or production distribution. The full
+cross-client order-to-delivery flow, Product Acceptance, System Acceptance and
+Production Readiness remain unverified. See the [GitHub Release](https://github.com/nexa-suite/mobile/releases/tag/v1.2.0)
+for the published source boundary and limits.
 
 ## Historical release checkpoint — 2026-10-05
 
