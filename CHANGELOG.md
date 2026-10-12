@@ -4,9 +4,9 @@
 
 - Planned changes for the next release will be recorded here.
 
-## [1.2.0 candidate — unreleased] - 2026-10-11
+## [1.2.0] - 2026-10-12
 
-Candidate follows application source merge through [PR #46](https://github.com/nexa-suite/mobile/pull/46). No stable signed tag or GitHub Release is published yet. Operations Android is `1.2.0` (`versionCode 11`); Buyer Flutter is independently `1.1.0+2`. See the [candidate evidence](docs/releases/v1.2.0.md).
+Source-only release for controlled local Nexa Suite testing. Application source merged through [PR #46](https://github.com/nexa-suite/mobile/pull/46), with release evidence corrected in [PR #47](https://github.com/nexa-suite/mobile/pull/47). The signed tag and corresponding GitHub Release identify the published source; no binary distribution or production readiness is claimed. Operations Android is `1.2.0` (`versionCode 11`); Buyer Flutter is independently `1.1.0+2`. See the [release notes](docs/releases/v1.2.0.md).
 
 - Add scoped Operations and Buyer notification inbox, read state and
   preferences for accepted `IN_APP`/`EMAIL` channels; push delivery remains

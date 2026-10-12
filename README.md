@@ -124,15 +124,15 @@ physical-device acceptance is claimed. Local sign-out clears protected state
 even when server revocation cannot be confirmed. Product Acceptance, System
 Acceptance and production readiness remain separate gates.
 
-## v1.2.0 candidate — unreleased
+## v1.2.0 source release
 
-Local technical verification passed for the current working tree: strict
+Local technical verification passed for the v1.2.0 application source: strict
 architecture, formatting, lint, JVM tests, debug assembly, and API 37/API 29
-instrumentation. The candidate sets Operations Android to `1.2.0` (`versionCode
+instrumentation. This release sets Operations Android to `1.2.0` (`versionCode
 11`) and the separate Buyer Flutter app to `1.1.0+2`. The unsigned Operations
 R8 build uses the Render validation origin; it does not establish live API
 compatibility or production distribution. Buyer Android distribution signing
-and iOS signing remain unresolved. See the [candidate evidence](docs/releases/v1.2.0.md).
+and iOS signing remain unresolved. See the [release evidence](docs/releases/v1.2.0.md).
 
 ## Historical release checkpoint — 2026-10-05
 
