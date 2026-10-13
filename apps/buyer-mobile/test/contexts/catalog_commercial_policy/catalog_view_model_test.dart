@@ -66,12 +66,30 @@ void main() {
       await access.dispose();
     },
   );
+
+  test('a Buyer role without catalog.read cannot query the catalog', () async {
+    final access = _FakeAccess(_signedInSnapshot(permissions: const {}));
+    final repository = _CountingCatalogRepository();
+    final viewModel = CatalogViewModel(repository, access);
+
+    await viewModel.refresh();
+
+    expect(repository.listCalls, 0);
+    expect(viewModel.status, CatalogLoadStatus.permissionDenied);
+    expect(access.snapshot.isSignedIn, isTrue);
+
+    viewModel.dispose();
+    await access.dispose();
+  });
 }
 
-BuyerAccessSnapshot _signedInSnapshot() => BuyerAccessSnapshot(
+BuyerAccessSnapshot _signedInSnapshot({
+  Set<String> permissions = const {'catalog.read'},
+}) => BuyerAccessSnapshot(
   status: BuyerAccessStatus.signedIn,
   authorityEpoch: 1,
-  currentContext: const BuyerAccessContext(
+  currentContext: BuyerAccessContext(
+    userId: 'user-1',
     membershipId: 'membership-1',
     tenantId: 'tenant-1',
     tenantName: 'Company',
@@ -79,6 +97,8 @@ BuyerAccessSnapshot _signedInSnapshot() => BuyerAccessSnapshot(
     workspaceId: 'workspace-1',
     workspaceName: 'Main',
     workspaceSlug: 'main',
+    roles: {'BUYER'},
+    permissions: permissions,
   ),
 );
 
@@ -110,6 +130,23 @@ final class _ForbiddenCatalogRepository implements CatalogRepository {
       userMessage: 'This information is not available for your current access.',
     ),
   );
+
+  @override
+  Future<CatalogItemProjection> detail(String catalogItemId) =>
+      throw UnimplementedError();
+}
+
+final class _CountingCatalogRepository implements CatalogRepository {
+  int listCalls = 0;
+
+  @override
+  Future<CatalogPageProjection> list({
+    required String query,
+    required int page,
+  }) {
+    listCalls++;
+    throw UnimplementedError();
+  }
 
   @override
   Future<CatalogItemProjection> detail(String catalogItemId) =>

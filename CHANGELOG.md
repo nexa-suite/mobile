@@ -2,7 +2,13 @@
 
 ## [Unreleased]
 
-- Planned changes for the next release will be recorded here.
+- Project Buyer destinations and direct routes from current scoped server
+  grants; handle missing authority and zero or one available destination safely.
+- Deduplicate Operations destinations, reject conflicting declarations and
+  consume system insets at the appropriate navigation boundary.
+- Respect safe areas in Buyer forms and details. Separate application error and
+  document-size contracts from HTTP implementations, and verify Buyer context
+  import boundaries in CI.
 
 ## [1.2.0] - 2026-10-12
 

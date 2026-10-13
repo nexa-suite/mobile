@@ -14,7 +14,7 @@ final class CatalogItemDetailPage extends StatelessWidget {
     final item = detail.item;
     return Scaffold(
       appBar: AppBar(title: Text(item?.itemName ?? 'Detalle del producto')),
-      body: _content(context, detail),
+      body: SafeArea(top: false, child: _content(context, detail)),
     );
   }
 

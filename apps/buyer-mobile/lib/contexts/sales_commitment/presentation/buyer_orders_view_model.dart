@@ -2,11 +2,17 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../../../core/network/nexa_api_client.dart';
+import '../../../core/application/error/nexa_api_failure.dart';
 import '../../tenant_access_governance/application/buyer_access_repository.dart';
 import '../application/buyer_orders_repository.dart';
 
-enum BuyerOrdersLoadStatus { idle, loading, current, unavailable }
+enum BuyerOrdersLoadStatus {
+  idle,
+  loading,
+  current,
+  unavailable,
+  permissionDenied,
+}
 
 final class BuyerOrdersViewModel extends ChangeNotifier {
   BuyerOrdersViewModel(this._repository, this._access)
@@ -27,6 +33,8 @@ final class BuyerOrdersViewModel extends ChangeNotifier {
   int total = 0;
   String? message;
 
+  static const readPermission = 'buyer.order.read';
+
   Future<void> refresh() => _load(page);
 
   Future<void> nextPage() {
@@ -44,8 +52,25 @@ final class BuyerOrdersViewModel extends ChangeNotifier {
   }
 
   Future<void> _load(int requestedPage) async {
+    final snapshot = _access.snapshot;
     final lease = _leaseKey;
-    if (lease == null) return;
+    if (lease == null) {
+      _requestGeneration++;
+      status = BuyerOrdersLoadStatus.unavailable;
+      items = const [];
+      message = 'Inicia sesión para consultar tus pedidos.';
+      notifyListeners();
+      return;
+    }
+    if (!snapshot.hasActiveBuyerScope ||
+        !snapshot.currentContext!.permissions.contains(readPermission)) {
+      _requestGeneration++;
+      status = BuyerOrdersLoadStatus.permissionDenied;
+      items = const [];
+      message = 'No tienes permiso para consultar tus pedidos.';
+      notifyListeners();
+      return;
+    }
     final generation = ++_requestGeneration;
     status = BuyerOrdersLoadStatus.loading;
     message = null;
@@ -92,7 +117,7 @@ final class BuyerOrdersViewModel extends ChangeNotifier {
   }
 
   static String? _activeLease(BuyerAccessSnapshot snapshot) =>
-      snapshot.isSignedIn
+      snapshot.hasActiveBuyerScope
       ? '${snapshot.authorityEpoch}:${snapshot.currentContext!.authorityFingerprint}'
       : null;
 
@@ -103,7 +128,7 @@ final class BuyerOrdersViewModel extends ChangeNotifier {
   }
 }
 
-enum BuyerOrderDetailStatus { loading, current, unavailable }
+enum BuyerOrderDetailStatus { loading, current, unavailable, permissionDenied }
 
 final class BuyerOrderDetailViewModel extends ChangeNotifier {
   BuyerOrderDetailViewModel(this._repository, this._access, this.orderId)
@@ -127,6 +152,17 @@ final class BuyerOrderDetailViewModel extends ChangeNotifier {
     if (lease == null) {
       status = BuyerOrderDetailStatus.unavailable;
       order = null;
+      notifyListeners();
+      return;
+    }
+    final snapshot = _access.snapshot;
+    if (!snapshot.hasActiveBuyerScope ||
+        !snapshot.currentContext!.permissions.contains(
+          BuyerOrdersViewModel.readPermission,
+        )) {
+      status = BuyerOrderDetailStatus.permissionDenied;
+      order = null;
+      message = 'No tienes permiso para consultar este pedido.';
       notifyListeners();
       return;
     }

@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../../../core/network/nexa_api_client.dart';
+import '../../../core/application/error/nexa_api_failure.dart';
 import '../../catalog_commercial_policy/application/catalog_repository.dart';
 import '../../payments/application/buyer_order_payment_capability_query.dart';
 import '../../tenant_access_governance/application/buyer_access_repository.dart';

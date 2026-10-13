@@ -17,7 +17,7 @@ final class BuyerOrderDetailPage extends StatelessWidget {
           order == null ? 'Detalle del pedido' : 'Pedido ${order.number}',
         ),
       ),
-      body: _content(context, detail, order),
+      body: SafeArea(top: false, child: _content(context, detail, order)),
     );
   }
 

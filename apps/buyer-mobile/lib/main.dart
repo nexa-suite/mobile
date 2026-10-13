@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
+import 'app/buyer_workspace_navigation.dart';
 import 'contexts/business_documents/application/business_documents_repository.dart';
 import 'contexts/business_documents/infrastructure/business_documents_repository_impl.dart';
 import 'contexts/business_documents/presentation/business_document_detail_page.dart';
@@ -282,71 +283,19 @@ GoRouter _createRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/catalog',
   refreshListenable: access,
-  redirect: (context, state) {
-    final status = access.snapshot.status;
-    final path = state.uri.path;
-    if (status == BuyerAccessStatus.signedOut && path != '/sign-in') {
-      return '/sign-in';
-    }
-    if (status == BuyerAccessStatus.choosingContext &&
-        path != '/choose-context') {
-      return '/choose-context';
-    }
-    if (status == BuyerAccessStatus.signedIn &&
-        (path == '/sign-in' || path == '/choose-context')) {
-      return '/catalog';
-    }
-    if (status == BuyerAccessStatus.signedIn &&
-        path.startsWith('/notifications') &&
-        !(access.snapshot.currentContext?.permissions.contains(
-              BuyerNotificationsViewModel.readPermission,
-            ) ??
-            false)) {
-      return '/catalog';
-    }
-    if (status == BuyerAccessStatus.signedIn &&
-        (path == '/deliveries' || path.startsWith('/deliveries/')) &&
-        !(access.snapshot.currentContext?.permissions.contains(
-              BuyerDeliveriesViewModel.readPermission,
-            ) ??
-            false)) {
-      return '/orders';
-    }
-    if (status == BuyerAccessStatus.signedIn &&
-        path.startsWith('/credit/receivables/') &&
-        !(access.snapshot.currentContext?.permissions.contains(
-              BuyerPaymentActivityViewModel.readPermission,
-            ) ??
-            false) &&
-        !(access.snapshot.currentContext?.permissions.contains(
-              BuyerPaymentActivityViewModel.createPermission,
-            ) ??
-            false)) {
-      return '/credit';
-    }
-    if (status == BuyerAccessStatus.signedIn &&
-        path == '/wallet' &&
-        (!(access.snapshot.currentContext?.roles.contains(
-                  BuyerWalletViewModel.buyerRole,
-                ) ??
-                false) ||
-            !((access.snapshot.currentContext?.permissions.contains(
-                      BuyerWalletViewModel.readPermission,
-                    ) ??
-                    false) ||
-                (access.snapshot.currentContext?.permissions.contains(
-                      BuyerWalletViewModel.createPermission,
-                    ) ??
-                    false)))) {
-      return '/credit';
-    }
-    return null;
-  },
+  redirect: (context, state) => BuyerWorkspaceNavigation.redirectLocation(
+    access.snapshot,
+    state.uri.path,
+  ),
   routes: [
     GoRoute(path: '/sign-in', builder: (context, state) => const SignInPage()),
     GoRoute(
       path: '/choose-context',
       builder: (context, state) => const ContextSelectionPage(),
+    ),
+    GoRoute(
+      path: '/workspace-unavailable',
+      builder: (context, state) => const _WorkspaceUnavailablePage(),
     ),
     GoRoute(
       path: '/notifications',
@@ -554,62 +503,16 @@ final class _BuyerNavigationShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final access = context.watch<BuyerAccessViewModel>();
     final current = access.snapshot.currentContext;
-    final destinations = <NavigationDestination>[
-      const NavigationDestination(
-        icon: Icon(Icons.inventory_2_outlined),
-        selectedIcon: Icon(Icons.inventory_2),
-        label: 'Catálogo',
-      ),
-      const NavigationDestination(
-        icon: Icon(Icons.receipt_long_outlined),
-        selectedIcon: Icon(Icons.receipt_long),
-        label: 'Mis pedidos',
-      ),
-      const NavigationDestination(
-        icon: Icon(Icons.account_balance_wallet_outlined),
-        selectedIcon: Icon(Icons.account_balance_wallet),
-        label: 'Crédito y pagos',
-      ),
-      const NavigationDestination(
-        icon: Icon(Icons.description_outlined),
-        selectedIcon: Icon(Icons.description),
-        label: 'Documentos',
-      ),
-    ];
-    final branchIndices = <int>[0, 1, 2, 3];
-    if (current?.roles.contains(BuyerWalletViewModel.buyerRole) == true &&
-        (current?.permissions.contains(BuyerWalletViewModel.readPermission) ==
-                true ||
-            current?.permissions.contains(
-                  BuyerWalletViewModel.createPermission,
-                ) ==
-                true)) {
-      destinations.add(
-        const NavigationDestination(
-          icon: Icon(Icons.account_balance_wallet_outlined),
-          selectedIcon: Icon(Icons.account_balance_wallet),
-          label: 'Billetera',
-        ),
-      );
-      branchIndices.add(4);
-    }
-    if (current?.permissions.contains(
-          BuyerDeliveriesViewModel.readPermission,
-        ) ??
-        false) {
-      destinations.add(
-        const NavigationDestination(
-          icon: Icon(Icons.local_shipping_outlined),
-          selectedIcon: Icon(Icons.local_shipping),
-          label: 'Mis entregas',
-        ),
-      );
-      branchIndices.add(5);
-    }
-    final visibleSelectedIndex = branchIndices.indexOf(
-      navigationShell.currentIndex,
-    );
-    final selectedIndex = visibleSelectedIndex >= 0 ? visibleSelectedIndex : 0;
+    final options = BuyerWorkspaceNavigation.destinations(access.snapshot);
+    final destinations = options.map(_navigationDestination).toList();
+    final branchIndices = options
+        .map((option) => option.branchIndex)
+        .toList(growable: false);
+    final selectedIndex =
+        BuyerWorkspaceNavigation.selectedBottomNavigationIndex(
+          options,
+          navigationShell.currentIndex,
+        );
     return Scaffold(
       appBar: AppBar(
         title: Column(
@@ -625,10 +528,7 @@ final class _BuyerNavigationShell extends StatelessWidget {
           ],
         ),
         actions: [
-          if (current?.permissions.contains(
-                BuyerNotificationsViewModel.readPermission,
-              ) ==
-              true)
+          if (BuyerWorkspaceNavigation.canReadNotifications(access.snapshot))
             IconButton(
               tooltip: 'Notificaciones',
               onPressed: () => context.push('/notifications'),
@@ -642,16 +542,87 @@ final class _BuyerNavigationShell extends StatelessWidget {
         ],
       ),
       body: navigationShell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (index) {
-          final branchIndex = branchIndices[index];
-          navigationShell.goBranch(
-            branchIndex,
-            initialLocation: branchIndex == navigationShell.currentIndex,
-          );
-        },
-        destinations: destinations,
+      bottomNavigationBar: selectedIndex < 0
+          ? null
+          : NavigationBar(
+              selectedIndex: selectedIndex,
+              onDestinationSelected: (index) {
+                final branchIndex = branchIndices[index];
+                navigationShell.goBranch(
+                  branchIndex,
+                  initialLocation: branchIndex == navigationShell.currentIndex,
+                );
+              },
+              destinations: destinations,
+            ),
+    );
+  }
+}
+
+NavigationDestination _navigationDestination(
+  BuyerWorkspaceDestination destination,
+) => switch (destination) {
+  BuyerWorkspaceDestination.catalog => const NavigationDestination(
+    icon: Icon(Icons.inventory_2_outlined),
+    selectedIcon: Icon(Icons.inventory_2),
+    label: 'Catálogo',
+  ),
+  BuyerWorkspaceDestination.orders => const NavigationDestination(
+    icon: Icon(Icons.receipt_long_outlined),
+    selectedIcon: Icon(Icons.receipt_long),
+    label: 'Mis pedidos',
+  ),
+  BuyerWorkspaceDestination.credit => const NavigationDestination(
+    icon: Icon(Icons.account_balance_wallet_outlined),
+    selectedIcon: Icon(Icons.account_balance_wallet),
+    label: 'Crédito y pagos',
+  ),
+  BuyerWorkspaceDestination.documents => const NavigationDestination(
+    icon: Icon(Icons.description_outlined),
+    selectedIcon: Icon(Icons.description),
+    label: 'Documentos',
+  ),
+  BuyerWorkspaceDestination.wallet => const NavigationDestination(
+    icon: Icon(Icons.account_balance_wallet_outlined),
+    selectedIcon: Icon(Icons.account_balance_wallet),
+    label: 'Billetera',
+  ),
+  BuyerWorkspaceDestination.deliveries => const NavigationDestination(
+    icon: Icon(Icons.local_shipping_outlined),
+    selectedIcon: Icon(Icons.local_shipping),
+    label: 'Mis entregas',
+  ),
+};
+
+final class _WorkspaceUnavailablePage extends StatelessWidget {
+  const _WorkspaceUnavailablePage();
+
+  @override
+  Widget build(BuildContext context) {
+    final access = context.watch<BuyerAccessViewModel>();
+    return Scaffold(
+      appBar: AppBar(title: const Text('Espacio de trabajo')),
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Tu acceso actual no tiene opciones disponibles en este espacio.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: access.busy ? null : access.signOut,
+                  child: const Text('Cerrar sesión'),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

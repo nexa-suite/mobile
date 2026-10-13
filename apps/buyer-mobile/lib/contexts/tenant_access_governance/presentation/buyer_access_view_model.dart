@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../../../core/network/nexa_api_client.dart';
+import '../../../core/application/error/nexa_api_failure.dart';
 import '../application/buyer_access_repository.dart';
 
 final class BuyerAccessViewModel extends ChangeNotifier {

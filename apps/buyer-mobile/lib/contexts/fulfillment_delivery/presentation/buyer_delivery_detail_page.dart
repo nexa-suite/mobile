@@ -10,108 +10,116 @@ final class BuyerDeliveryDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final detail = context.watch<BuyerDeliveryDetailViewModel>();
     if (detail.status == BuyerDeliveryDetailStatus.loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: SafeArea(child: Center(child: CircularProgressIndicator())),
+      );
     }
     final delivery = detail.delivery;
     if (delivery == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Seguimiento de entrega')),
-        body: _DeliveryDetailMessage(
-          message: detail.message ?? 'Esta entrega no está disponible.',
-          showRefresh:
-              detail.status != BuyerDeliveryDetailStatus.permissionDenied,
-          onRefresh: detail.refresh,
+        body: SafeArea(
+          top: false,
+          child: _DeliveryDetailMessage(
+            message: detail.message ?? 'Esta entrega no está disponible.',
+            showRefresh:
+                detail.status != BuyerDeliveryDetailStatus.permissionDenied,
+            onRefresh: detail.refresh,
+          ),
         ),
       );
     }
 
     return Scaffold(
       appBar: AppBar(title: Text('Pedido ${delivery.salesOrderNumber}')),
-      body: RefreshIndicator(
-        onRefresh: detail.refresh,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: detail.refresh,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Actualizar'),
-              ),
-            ),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Estado de entrega',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(_statusLabel(delivery.status)),
-                    const SizedBox(height: 12),
-                    _DetailRow(
-                      label: 'Pedido',
-                      value: delivery.salesOrderNumber,
-                    ),
-                    if (delivery.destination != null)
-                      _DetailRow(
-                        label: 'Destino',
-                        value: delivery.destination!,
-                      ),
-                    _DetailRow(
-                      label: 'Programada',
-                      value:
-                          _dateTimeLabel(delivery.scheduledAt) ?? 'Sin fecha',
-                    ),
-                    _DetailRow(
-                      label: 'Despachada',
-                      value:
-                          _dateTimeLabel(delivery.dispatchedAt) ??
-                          'No disponible',
-                    ),
-                    _DetailRow(
-                      label: 'Entregada',
-                      value:
-                          _dateTimeLabel(delivery.deliveredAt) ??
-                          'No disponible',
-                    ),
-                    _DetailRow(
-                      label: 'Comprobante de entrega',
-                      value: delivery.proofOfDeliveryStatus == null
-                          ? 'No disponible'
-                          : _statusLabel(delivery.proofOfDeliveryStatus!),
-                    ),
-                    _DetailRow(
-                      label: 'Actualización',
-                      value: _dateTimeLabel(delivery.updatedAt)!,
-                    ),
-                  ],
+      body: SafeArea(
+        top: false,
+        child: RefreshIndicator(
+          onRefresh: detail.refresh,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            children: [
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: detail.refresh,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Actualizar'),
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Historial de entrega',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            if (detail.events.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 12),
-                child: Text('Todavía no hay eventos de entrega disponibles.'),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Estado de entrega',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(_statusLabel(delivery.status)),
+                      const SizedBox(height: 12),
+                      _DetailRow(
+                        label: 'Pedido',
+                        value: delivery.salesOrderNumber,
+                      ),
+                      if (delivery.destination != null)
+                        _DetailRow(
+                          label: 'Destino',
+                          value: delivery.destination!,
+                        ),
+                      _DetailRow(
+                        label: 'Programada',
+                        value:
+                            _dateTimeLabel(delivery.scheduledAt) ?? 'Sin fecha',
+                      ),
+                      _DetailRow(
+                        label: 'Despachada',
+                        value:
+                            _dateTimeLabel(delivery.dispatchedAt) ??
+                            'No disponible',
+                      ),
+                      _DetailRow(
+                        label: 'Entregada',
+                        value:
+                            _dateTimeLabel(delivery.deliveredAt) ??
+                            'No disponible',
+                      ),
+                      _DetailRow(
+                        label: 'Comprobante de entrega',
+                        value: delivery.proofOfDeliveryStatus == null
+                            ? 'No disponible'
+                            : _statusLabel(delivery.proofOfDeliveryStatus!),
+                      ),
+                      _DetailRow(
+                        label: 'Actualización',
+                        value: _dateTimeLabel(delivery.updatedAt)!,
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            for (final event in detail.events)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.circle, size: 10),
-                title: Text(_statusLabel(event.type)),
-                subtitle: Text(_dateTimeLabel(event.occurredAt)!),
+              const SizedBox(height: 12),
+              Text(
+                'Historial de entrega',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-          ],
+              if (detail.events.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 12),
+                  child: Text('Todavía no hay eventos de entrega disponibles.'),
+                ),
+              for (final event in detail.events)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.circle, size: 10),
+                  title: Text(_statusLabel(event.type)),
+                  subtitle: Text(_dateTimeLabel(event.occurredAt)!),
+                ),
+            ],
+          ),
         ),
       ),
     );

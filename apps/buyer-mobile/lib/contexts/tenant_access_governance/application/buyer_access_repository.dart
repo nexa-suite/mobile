@@ -56,6 +56,23 @@ final class BuyerAccessSnapshot {
 
   bool get isSignedIn =>
       status == BuyerAccessStatus.signedIn && currentContext != null;
+
+  /// Current Buyer access with complete server-provided membership scope.
+  /// The role constrains this app's surface; destination grants still require
+  /// their individual server permissions.
+  bool get hasActiveBuyerScope {
+    final context = currentContext;
+    return isSignedIn &&
+        authorityEpoch > 0 &&
+        context != null &&
+        context.roles.contains('BUYER') &&
+        [
+          context.userId,
+          context.membershipId,
+          context.tenantId,
+          context.workspaceId,
+        ].every((value) => value != null && value.trim().isNotEmpty);
+  }
 }
 
 abstract interface class BuyerAccessRepository {

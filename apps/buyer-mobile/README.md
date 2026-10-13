@@ -52,9 +52,17 @@ flutter build apk --debug --dart-define=NEXA_API_BASE_URL=https://api.example.te
 Run static analysis and tests from this directory:
 
 ```sh
+python3 scripts/test-context-architecture.py
+python3 scripts/verify-context-architecture.py
 flutter analyze
 flutter test
 ```
+
+The architecture check scans Dart source imports and exports. It keeps domain
+and application code independent of platform implementations, presentation
+independent of HTTP and persistence adapters, and cross-context references
+limited to application contracts. The accompanying negative probes exercise
+forbidden dependencies; this check does not establish Product Acceptance.
 
 The four local API integration tests are opt-in. They require a ready local
 API plus an active Buyer `PORTAL` membership for the selected Tenant and

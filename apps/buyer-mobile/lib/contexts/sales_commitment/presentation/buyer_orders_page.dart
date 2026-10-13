@@ -28,12 +28,17 @@ final class _BuyerOrdersPageState extends State<BuyerOrdersPage> {
         orders.items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (orders.status == BuyerOrdersLoadStatus.unavailable &&
+    if ((orders.status == BuyerOrdersLoadStatus.unavailable ||
+            orders.status == BuyerOrdersLoadStatus.permissionDenied) &&
         orders.items.isEmpty) {
       return _OrdersEmptyState(
         message: orders.message ?? 'No se pudieron consultar tus pedidos.',
-        action: 'Reintentar',
-        onAction: orders.refresh,
+        action: orders.status == BuyerOrdersLoadStatus.permissionDenied
+            ? null
+            : 'Reintentar',
+        onAction: orders.status == BuyerOrdersLoadStatus.permissionDenied
+            ? null
+            : orders.refresh,
       );
     }
     if (orders.status == BuyerOrdersLoadStatus.current &&

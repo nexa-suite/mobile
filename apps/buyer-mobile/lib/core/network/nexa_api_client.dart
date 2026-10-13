@@ -5,6 +5,10 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 
+import '../application/error/nexa_api_failure.dart';
+
+export '../application/error/nexa_api_failure.dart';
+
 abstract interface class SessionCredentialProvider {
   String? get accessToken;
 
@@ -16,25 +20,6 @@ abstract interface class SessionCredentialProvider {
     String tokenUsed,
     int expectedAuthorityEpoch,
   );
-}
-
-final class NexaApiFailure implements Exception {
-  const NexaApiFailure({
-    required this.code,
-    required this.userMessage,
-    this.statusCode,
-    this.correlationId,
-    this.retryable = false,
-  });
-
-  final String code;
-  final String userMessage;
-  final int? statusCode;
-  final String? correlationId;
-  final bool retryable;
-
-  @override
-  String toString() => 'NexaApiFailure($code, $statusCode)';
 }
 
 final class NexaApiResponse {

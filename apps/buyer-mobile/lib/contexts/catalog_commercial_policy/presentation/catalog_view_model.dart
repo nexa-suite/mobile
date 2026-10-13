@@ -2,11 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../../../core/network/nexa_api_client.dart';
+import '../../../core/application/error/nexa_api_failure.dart';
 import '../../tenant_access_governance/application/buyer_access_repository.dart';
 import '../application/catalog_repository.dart';
 
-enum CatalogLoadStatus { idle, loading, current, unavailable }
+enum CatalogLoadStatus { idle, loading, current, unavailable, permissionDenied }
 
 final class CatalogViewModel extends ChangeNotifier {
   CatalogViewModel(this._repository, this._access)
@@ -29,6 +29,8 @@ final class CatalogViewModel extends ChangeNotifier {
   DateTime? updatedAt;
   String? message;
 
+  static const readPermission = 'catalog.read';
+
   Future<void> search(String value) => _load(query: value.trim(), page: 0);
 
   Future<void> refresh() => _load(query: query, page: page);
@@ -48,8 +50,25 @@ final class CatalogViewModel extends ChangeNotifier {
   }
 
   Future<void> _load({required String query, required int page}) async {
+    final snapshot = _access.snapshot;
     final lease = _leaseKey;
-    if (lease == null) return;
+    if (lease == null) {
+      _requestGeneration++;
+      status = CatalogLoadStatus.unavailable;
+      items = const [];
+      message = 'Inicia sesión para consultar el catálogo.';
+      notifyListeners();
+      return;
+    }
+    if (!snapshot.hasActiveBuyerScope ||
+        !snapshot.currentContext!.permissions.contains(readPermission)) {
+      _requestGeneration++;
+      status = CatalogLoadStatus.permissionDenied;
+      items = const [];
+      message = 'No tienes permiso para consultar el catálogo.';
+      notifyListeners();
+      return;
+    }
     final generation = ++_requestGeneration;
     final sameQuery = this.query == query;
     status = CatalogLoadStatus.loading;
@@ -108,7 +127,7 @@ final class CatalogViewModel extends ChangeNotifier {
   }
 
   static String? _activeLease(BuyerAccessSnapshot snapshot) =>
-      snapshot.isSignedIn
+      snapshot.hasActiveBuyerScope
       ? '${snapshot.authorityEpoch}:${snapshot.currentContext!.authorityFingerprint}'
       : null;
 

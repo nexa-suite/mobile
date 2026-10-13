@@ -35,28 +35,30 @@ final class _BuyerPaymentActivityPageState
   @override
   Widget build(BuildContext context) {
     final viewModel = context.watch<BuyerPaymentActivityViewModel>();
-    return RefreshIndicator(
-      onRefresh: viewModel.refreshHistory,
-      child: ListView(
-        key: const Key('buyer-payment-activity-list'),
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(
-            widget.receivableNumber == null
-                ? 'Cuenta por cobrar'
-                : 'Cuenta ${widget.receivableNumber}',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'El servidor verifica el saldo pendiente y el estado de la cuenta antes de registrar un reporte.',
-          ),
-          const SizedBox(height: 20),
-          _reportSection(viewModel),
-          const SizedBox(height: 20),
-          _historySection(context, viewModel),
-        ],
+    return SafeArea(
+      child: RefreshIndicator(
+        onRefresh: viewModel.refreshHistory,
+        child: ListView(
+          key: const Key('buyer-payment-activity-list'),
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(
+              widget.receivableNumber == null
+                  ? 'Cuenta por cobrar'
+                  : 'Cuenta ${widget.receivableNumber}',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'El servidor verifica el saldo pendiente y el estado de la cuenta antes de registrar un reporte.',
+            ),
+            const SizedBox(height: 20),
+            _reportSection(viewModel),
+            const SizedBox(height: 20),
+            _historySection(context, viewModel),
+          ],
+        ),
       ),
     );
   }

@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../../../core/network/nexa_api_client.dart';
+import '../../../core/application/error/nexa_api_failure.dart';
 import '../../tenant_access_governance/application/buyer_access_repository.dart';
 import '../application/business_documents_repository.dart';
 
@@ -195,7 +195,7 @@ final class BusinessDocumentDetailViewModel extends ChangeNotifier {
     final snapshot = _access.snapshot;
     return current != null &&
         current.contentAvailable &&
-        current.byteSize <= NexaApiClient.maxProtectedBinaryBytes &&
+        current.byteSize <= maxProtectedBusinessDocumentBytes &&
         _hasPermission(snapshot, readPermission) &&
         _hasPermission(snapshot, downloadPermission);
   }
@@ -205,7 +205,7 @@ final class BusinessDocumentDetailViewModel extends ChangeNotifier {
 
   bool get downloadExceedsLimit =>
       document != null &&
-      document!.byteSize > NexaApiClient.maxProtectedBinaryBytes;
+      document!.byteSize > maxProtectedBusinessDocumentBytes;
 
   Future<void> load() async {
     final lease = _leaseKey;
@@ -262,10 +262,10 @@ final class BusinessDocumentDetailViewModel extends ChangeNotifier {
       return;
     }
     if (!current.contentAvailable ||
-        current.byteSize > NexaApiClient.maxProtectedBinaryBytes) {
+        current.byteSize > maxProtectedBusinessDocumentBytes) {
       _clearContent();
       downloadStatus = BusinessDocumentDownloadStatus.unavailable;
-      message = current.byteSize > NexaApiClient.maxProtectedBinaryBytes
+      message = current.byteSize > maxProtectedBusinessDocumentBytes
           ? 'El documento supera el límite de descarga protegido.'
           : 'El documento todavía no está listo para descargar.';
       notifyListeners();

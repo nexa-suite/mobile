@@ -86,12 +86,17 @@ final class _CatalogPageState extends State<CatalogPage> {
     if (catalog.status == CatalogLoadStatus.loading && catalog.items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (catalog.status == CatalogLoadStatus.unavailable &&
+    if ((catalog.status == CatalogLoadStatus.unavailable ||
+            catalog.status == CatalogLoadStatus.permissionDenied) &&
         catalog.items.isEmpty) {
       return _EmptyState(
         message: catalog.message ?? 'No se pudo consultar el catálogo.',
-        actionLabel: 'Reintentar',
-        onAction: catalog.refresh,
+        actionLabel: catalog.status == CatalogLoadStatus.permissionDenied
+            ? null
+            : 'Reintentar',
+        onAction: catalog.status == CatalogLoadStatus.permissionDenied
+            ? null
+            : catalog.refresh,
       );
     }
     if (catalog.items.isEmpty && catalog.status == CatalogLoadStatus.current) {
