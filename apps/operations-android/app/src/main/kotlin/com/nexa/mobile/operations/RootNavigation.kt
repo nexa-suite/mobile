@@ -1,5 +1,9 @@
 package com.nexa.mobile.operations
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
@@ -541,6 +545,9 @@ internal fun RootNavigation(
             }
         )
         NavDisplay(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing),
             backStack = backStack,
             onBack = {
                 when (destination) {

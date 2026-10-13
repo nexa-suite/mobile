@@ -84,6 +84,54 @@ class ConnectedOperationsNavigationTest {
         )
     }
 
+    @Test fun identicalEntriesAreShownOnceAndConflictingKeysFailClosed() {
+        val duplicate = listOf(entry, entry)
+        assertEquals(
+            listOf(entry),
+            ConnectedOperationsNavigation.visibleEntries(
+                duplicate,
+                SessionState.Active,
+                access,
+                warehouse
+            )
+        )
+        val route = ConnectedOperationsNavigation.open(
+            entry,
+            SessionState.Active,
+            access,
+            warehouse
+        )!!
+        assertTrue(
+            ConnectedOperationsNavigation.permits(
+                route,
+                duplicate,
+                SessionState.Active,
+                access,
+                warehouse
+            )
+        )
+
+        val conflicting = entry.copy(readPermissions = setOf("other.read"))
+        val conflictingEntries = listOf(entry, conflicting)
+        assertTrue(
+            ConnectedOperationsNavigation.visibleEntries(
+                conflictingEntries,
+                SessionState.Active,
+                access,
+                warehouse
+            ).isEmpty()
+        )
+        assertFalse(
+            ConnectedOperationsNavigation.permits(
+                route,
+                conflictingEntries,
+                SessionState.Active,
+                access,
+                warehouse
+            )
+        )
+    }
+
     @Test fun routeCannotSurviveRevalidationOrScopeReplacement() {
         val route = ConnectedOperationsNavigation.open(
             entry,

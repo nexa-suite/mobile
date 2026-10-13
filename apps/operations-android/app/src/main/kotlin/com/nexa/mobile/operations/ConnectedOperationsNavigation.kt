@@ -75,7 +75,7 @@ internal object ConnectedOperationsNavigation {
         warehouse: WarehouseUiState
     ): List<ConnectedOperationEntry> {
         val authority = currentAuthority(session, access, warehouse) ?: return emptyList()
-        return entries.filter { entry ->
+        return uniqueEntries(entries).filter { entry ->
             entry.visibleInHub &&
                 permits(authority, entry)
         }
@@ -106,7 +106,7 @@ internal object ConnectedOperationsNavigation {
         access: AccessUiState,
         warehouse: WarehouseUiState
     ): Boolean {
-        val entry = entries.singleOrNull { it.key == route.entryKey } ?: return false
+        val entry = uniqueEntries(entries).singleOrNull { it.key == route.entryKey } ?: return false
         if (route.authorityEpoch != access.authorityEpoch) return false
         val current = currentAuthority(session, access, warehouse) ?: return false
         return current == route.authority &&
@@ -116,6 +116,14 @@ internal object ConnectedOperationsNavigation {
     private fun permits(authority: VerifiedContextAuthority, entry: ConnectedOperationEntry) =
         authority.permissions.any(entry.readPermissions::contains) &&
             (entry.readRoles.isEmpty() || authority.roles.any(entry.readRoles::contains))
+
+    /** Identical declarations collapse; conflicting declarations for a key fail closed. */
+    private fun uniqueEntries(
+        entries: List<ConnectedOperationEntry>
+    ): List<ConnectedOperationEntry> =
+        entries.groupBy(ConnectedOperationEntry::key).values.mapNotNull { sameKey ->
+            sameKey.distinct().singleOrNull()
+        }
 }
 
 @Composable
