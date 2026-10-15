@@ -1,8 +1,10 @@
 import '../../../core/network/nexa_api_client.dart';
 import '../application/purchase_request_repository.dart';
 import '../application/purchase_request_idempotency_store.dart';
+import '../application/buyer_purchase_workspace_repository.dart';
 
-final class PurchaseRequestRepositoryImpl implements PurchaseRequestRepository {
+final class PurchaseRequestRepositoryImpl
+    implements PurchaseRequestRepository, BuyerPurchaseWorkspaceRepository {
   PurchaseRequestRepositoryImpl(this._api, this._idempotencyStore);
 
   final NexaApiClient _api;
@@ -28,13 +30,17 @@ final class PurchaseRequestRepositoryImpl implements PurchaseRequestRepository {
     );
     final accountId = _uuid(account.body['id']);
     final buyerMembershipId = _uuid(account.body['buyerMembershipId']);
-    if (accountId == null || buyerMembershipId == null) _invalidResponse();
+    if (accountId == null || buyerMembershipId == null) {
+      _invalidResponse();
+    }
     final addresses = await _api.get(
       '/client-accounts/$accountId/addresses',
       refreshAfterUnauthorized: true,
     );
     final values = addresses.data;
-    if (values is! List) _invalidResponse();
+    if (values is! List) {
+      _invalidResponse();
+    }
     final parsed = values.map(_parseAddress).toList(growable: false);
     return BuyerPurchaseContextProjection(
       clientAccountId: accountId,
@@ -52,7 +58,9 @@ final class PurchaseRequestRepositoryImpl implements PurchaseRequestRepository {
   Future<PurchaseRequestDraftPageProjection> listDrafts({
     required int page,
   }) async {
-    if (page < 0) _invalidInput();
+    if (page < 0) {
+      _invalidInput();
+    }
     final response = await _api.get(
       '/buyer/purchase-request-drafts',
       query: {'page': '$page', 'size': '20'},
@@ -75,7 +83,9 @@ final class PurchaseRequestRepositoryImpl implements PurchaseRequestRepository {
       _invalidResponse();
     }
     final items = rawItems.map(_parseDraftSummary).toList(growable: false);
-    if (items.length > size || totalItems < items.length) _invalidResponse();
+    if (items.length > size || totalItems < items.length) {
+      _invalidResponse();
+    }
     if (items.map((draft) => draft.id).toSet().length != items.length) {
       _invalidResponse();
     }
@@ -125,12 +135,18 @@ final class PurchaseRequestRepositoryImpl implements PurchaseRequestRepository {
 
   @override
   Future<PurchaseRequestDraftProjection> getDraft(String draftId) async {
-    if (_uuid(draftId) == null) _invalidInput();
+    if (_uuid(draftId) == null) {
+      _invalidInput();
+    }
     final response = await _api.get(
       '/buyer/purchase-request-drafts/$draftId',
       refreshAfterUnauthorized: true,
     );
-    return _parseDraft(response.body, response.headers['etag']);
+    final result = _parseDraft(response.body, response.headers['etag']);
+    if (result.id != draftId) {
+      _invalidResponse();
+    }
+    return result;
   }
 
   @override
@@ -169,7 +185,9 @@ final class PurchaseRequestRepositoryImpl implements PurchaseRequestRepository {
     required PurchaseRequestDraftProjection draft,
     required String addressId,
   }) async {
-    if (_uuid(addressId) == null) _invalidInput();
+    if (_uuid(addressId) == null) {
+      _invalidInput();
+    }
     final response = await _api.put(
       '/buyer/purchase-request-drafts/${draft.id}/destination',
       ifMatch: draft.etag,
@@ -213,16 +231,29 @@ final class PurchaseRequestRepositoryImpl implements PurchaseRequestRepository {
 
   @override
   Future<PurchaseRequestReviewProjection> review(String draftId) async {
-    if (_uuid(draftId) == null) _invalidInput();
+    if (_uuid(draftId) == null) {
+      _invalidInput();
+    }
     final response = await _api.get(
       '/buyer/purchase-request-drafts/$draftId/review',
       refreshAfterUnauthorized: true,
     );
     final draft = _map(response.body['draft']);
     final missing = response.body['missing'];
-    if (draft == null || missing is! List) _invalidResponse();
+    if (draft == null ||
+        missing is! List ||
+        missing.any((value) => value is! String) ||
+        response.body['readyToSubmit'] is! bool) {
+      _invalidResponse();
+    }
+    final result = _parseDraft(draft);
+    if (result.id != draftId ||
+        (response.body['readyToSubmit'] == true &&
+            (result.status != 'READY_TO_SUBMIT' || missing.isNotEmpty))) {
+      _invalidResponse();
+    }
     return PurchaseRequestReviewProjection(
-      draft: _parseDraft(draft),
+      draft: result,
       readyToSubmit: response.body['readyToSubmit'] == true,
       missing: missing.whereType<String>().toList(growable: false),
     );
@@ -233,17 +264,31 @@ final class PurchaseRequestRepositoryImpl implements PurchaseRequestRepository {
     PurchaseRequestDraftProjection draft, {
     required String scopeKey,
   }) async {
+    final authority = _api.sessionCredentials?.authorityFingerprint;
+    final authorityEpoch = _api.sessionCredentials?.authorityEpoch;
     final idempotencyKey = await _idempotencyStore.keyFor(
       scopeKey: scopeKey,
       draftId: draft.id,
       version: draft.version,
     );
+    if (_api.sessionCredentials?.authorityFingerprint != authority ||
+        _api.sessionCredentials?.authorityEpoch != authorityEpoch) {
+      throw const NexaApiFailure(
+        code: 'buyer_authority_changed',
+        userMessage: 'El acceso cambió. Consulta nuevamente el borrador.',
+      );
+    }
     final response = await _api.post(
       '/buyer/purchase-request-drafts/${draft.id}/submissions',
       ifMatch: draft.etag,
       idempotencyKey: idempotencyKey,
     );
     final submitted = _parseDraft(response.body, response.headers['etag']);
+    if (submitted.id != draft.id ||
+        submitted.clientAccountId != draft.clientAccountId ||
+        submitted.status != 'SUBMITTED') {
+      _invalidResponse();
+    }
     try {
       await _idempotencyStore.markCompleted(
         scopeKey: scopeKey,
@@ -257,11 +302,333 @@ final class PurchaseRequestRepositoryImpl implements PurchaseRequestRepository {
     return submitted;
   }
 
+  @override
+  Future<BuyerRequestPage> listRequests({
+    required int page,
+    String? status,
+  }) async {
+    if (page < 0) {
+      _invalidInput();
+    }
+    final response = await _api.get(
+      '/purchase-requests',
+      query: {
+        'page': '$page',
+        'size': '20',
+        'sort': 'createdAt,desc',
+        'status': ?status,
+      },
+      refreshAfterUnauthorized: true,
+    );
+    final values = response.body['items'];
+    final returnedPage = _int(response.body['page']);
+    final size = _int(response.body['size']);
+    final total = _int(response.body['total']);
+    if (values is! List ||
+        returnedPage != page ||
+        size == null ||
+        size < 1 ||
+        total == null ||
+        total < 0 ||
+        values.length > size ||
+        values.length > total) {
+      _invalidResponse();
+    }
+    final items = values
+        .map((value) => _parseRequest(value))
+        .toList(growable: false);
+    if (items.map((item) => item.id).toSet().length != items.length) {
+      _invalidResponse();
+    }
+    return BuyerRequestPage(
+      items: List.unmodifiable(items),
+      page: page,
+      size: size,
+      total: total,
+    );
+  }
+
+  @override
+  Future<BuyerRequestProjection> request(String id) async {
+    if (_uuid(id) == null) {
+      _invalidInput();
+    }
+    final response = await _api.get(
+      '/purchase-requests/$id',
+      refreshAfterUnauthorized: true,
+    );
+    final result = _parseRequest(
+      response.body,
+      etag: response.headers['etag'],
+      requireLines: true,
+    );
+    if (result.id != id) {
+      _invalidResponse();
+    }
+    return result;
+  }
+
+  @override
+  Future<List<BuyerRequestEvent>> events(String id) async {
+    if (_uuid(id) == null) {
+      _invalidInput();
+    }
+    final response = await _api.get(
+      '/purchase-requests/$id/events',
+      refreshAfterUnauthorized: true,
+    );
+    if (response.data is! List) {
+      _invalidResponse();
+    }
+    return List.unmodifiable(
+      (response.data as List).map((raw) {
+        final value = _map(raw);
+        if (value == null ||
+            _uuid(value['eventId']) == null ||
+            _string(value['eventType']) == null ||
+            _dateTime(value['occurredAt']) == null) {
+          _invalidResponse();
+        }
+        return BuyerRequestEvent(
+          id: value['eventId'] as String,
+          type: value['eventType'] as String,
+          fromStatus: _string(value['fromStatus']),
+          toStatus: _string(value['toStatus']),
+          occurredAt: _dateTime(value['occurredAt']),
+        );
+      }),
+    );
+  }
+
+  @override
+  Future<BuyerMaterialChange?> currentChange(String id) async {
+    if (_uuid(id) == null) {
+      _invalidInput();
+    }
+    final response = await _api.get(
+      '/purchase-requests/$id/material-changes/current',
+      refreshAfterUnauthorized: true,
+    );
+    final value = response.body;
+    final changeId = _uuid(value['id']);
+    if (changeId == null ||
+        _string(value['purchaseRequestId']) != id ||
+        _int(value['requestVersion']) == null ||
+        (value['requestVersion'] as int) < 0 ||
+        _string(value['status']) != 'PROPOSED' ||
+        _string(value['reason']) == null ||
+        _map(value['originalTerms']) == null ||
+        _map(value['proposedTerms']) == null) {
+      _invalidResponse();
+    }
+    return BuyerMaterialChange(
+      id: changeId,
+      status: _string(value['status']) ?? 'UNKNOWN',
+      reason: _string(value['reason']) ?? '',
+      requestVersion: value['requestVersion'] as int,
+      original: _parseTerms(_map(value['originalTerms'])!, requireLines: true),
+      proposed: _parseTerms(_map(value['proposedTerms'])!, requireLines: true),
+    );
+  }
+
+  @override
+  Future<BuyerRequestProjection> decide({
+    required BuyerRequestProjection request,
+    required BuyerRequestDecision decision,
+    required String scopeKey,
+    BuyerMaterialChange? proposal,
+  }) async {
+    if (_uuid(request.id) == null ||
+        scopeKey.trim().isEmpty ||
+        request.version < 0 ||
+        request.etag != '"${request.version}"') {
+      _invalidInput();
+    }
+    final authority = _api.sessionCredentials?.authorityFingerprint;
+    final authorityEpoch = _api.sessionCredentials?.authorityEpoch;
+    final path = switch (decision) {
+      BuyerRequestDecision.withdraw => 'withdrawals',
+      BuyerRequestDecision.acceptChange =>
+        'material-changes/${proposal?.id}/acceptances',
+      BuyerRequestDecision.rejectChange =>
+        'material-changes/${proposal?.id}/rejections',
+    };
+    if (decision != BuyerRequestDecision.withdraw &&
+        (proposal == null ||
+            _uuid(proposal.id) == null ||
+            proposal.requestVersion != request.version ||
+            proposal.status != 'PROPOSED')) {
+      _invalidInput();
+    }
+    final key = await _idempotencyStore.keyFor(
+      scopeKey: '$scopeKey|$path',
+      draftId: request.id,
+      version: request.version,
+    );
+    if (_api.sessionCredentials?.authorityFingerprint != authority ||
+        _api.sessionCredentials?.authorityEpoch != authorityEpoch) {
+      throw const NexaApiFailure(
+        code: 'buyer_authority_changed',
+        userMessage: 'El acceso cambió. Consulta nuevamente la solicitud.',
+      );
+    }
+    final response = await _api.post(
+      '/purchase-requests/${request.id}/$path',
+      ifMatch: request.etag,
+      idempotencyKey: key,
+    );
+    final result = _parseRequest(
+      response.body,
+      etag: response.headers['etag'],
+      requireLines: true,
+    );
+    if (result.id != request.id) {
+      _invalidResponse();
+    }
+    return result;
+  }
+
+  @override
+  Future<PurchaseRequestDraftProjection> replaceDraftLines({
+    required PurchaseRequestDraftProjection draft,
+    required List<PurchaseRequestLineProjection> lines,
+  }) async {
+    if (_uuid(draft.id) == null ||
+        draft.version < 0 ||
+        draft.etag != '"${draft.version}"' ||
+        lines.isEmpty ||
+        lines.length > 100 ||
+        lines.map((line) => line.skuId).toSet().length != lines.length) {
+      _invalidInput();
+    }
+    for (final line in lines) {
+      final quantity = num.tryParse(line.quantity);
+      if (_uuid(line.skuId) == null ||
+          quantity == null ||
+          !quantity.isFinite ||
+          quantity <= 0 ||
+          line.unit.trim().isEmpty ||
+          line.unit.length > 32) {
+        _invalidInput();
+      }
+    }
+    final response = await _api.put(
+      '/buyer/purchase-request-drafts/${draft.id}/lines',
+      ifMatch: draft.etag,
+      body: {
+        'lines': [
+          for (final line in lines)
+            {
+              'skuId': line.skuId,
+              'quantity': num.parse(line.quantity),
+              'unit': line.unit,
+              'notes': line.notes ?? '',
+            },
+        ],
+      },
+    );
+    final result = _parseDraft(response.body, response.headers['etag']);
+    if (result.id != draft.id ||
+        result.clientAccountId != draft.clientAccountId) {
+      _invalidResponse();
+    }
+    return result;
+  }
+
+  BuyerRequestProjection _parseRequest(
+    Object? raw, {
+    String? etag,
+    bool requireLines = false,
+  }) {
+    final value = _map(raw);
+    if (value == null) {
+      _invalidResponse();
+    }
+    final id = _uuid(value['id']);
+    final code = _string(value['code']);
+    final status = _string(value['status']);
+    final version = _int(value['version']);
+    if (id == null ||
+        code == null ||
+        status == null ||
+        version == null ||
+        version < 0 ||
+        (etag != null && etag != '"$version"') ||
+        (value['lineCount'] != null &&
+            (_int(value['lineCount']) == null ||
+                (value['lineCount'] as int) < 0)) ||
+        (requireLines && value['lines'] is! List)) {
+      _invalidResponse();
+    }
+    final terms = _parseTerms(value, requireLines: requireLines);
+    return BuyerRequestProjection(
+      id: id,
+      code: code,
+      status: status,
+      version: version,
+      etag: etag ?? '"$version"',
+      lineCount: _int(value['lineCount']) ?? terms.lines.length,
+      terms: terms,
+      reviewNote: _string(value['reviewNote']),
+      expiresAt: _string(value['expiresAt']),
+    );
+  }
+
+  BuyerRequestTerms _parseTerms(
+    Map<String, Object?> value, {
+    bool requireLines = false,
+  }) {
+    final rawLines = value['lines'];
+    if ((requireLines && rawLines is! List) ||
+        (rawLines != null && rawLines is! List)) {
+      _invalidResponse();
+    }
+    final lines = (rawLines as List? ?? const [])
+        .map((raw) {
+          final line = _map(raw);
+          if (line == null ||
+              _string(line['itemName']) == null ||
+              _num(line['quantity']) == null ||
+              _string(line['unit']) == null ||
+              !(line['quantity'] as num).isFinite ||
+              (line['quantity'] as num) <= 0 ||
+              (line['unitPriceAmount'] != null &&
+                  (_num(line['unitPriceAmount']) == null ||
+                      !(line['unitPriceAmount'] as num).isFinite ||
+                      (line['unitPriceAmount'] as num) < 0 ||
+                      _string(line['unitPriceCurrency']) == null))) {
+            _invalidResponse();
+          }
+          return BuyerRequestLine(
+            name: line['itemName'] as String,
+            quantity: line['quantity'] as num,
+            unit: line['unit'] as String,
+            presentation: _string(line['presentation']),
+            price: _num(line['unitPriceAmount']),
+            currency: _string(line['unitPriceCurrency']),
+            notes: _string(line['notes']),
+          );
+        })
+        .toList(growable: false);
+    return BuyerRequestTerms(
+      priority: _string(value['priority']),
+      deliveryDate: _string(value['requestedDeliveryDate']),
+      paymentOption: _string(value['paymentOption']),
+      comment: _string(value['comment']),
+      deliveryProfile: _string(value['deliveryProfileSnapshot']),
+      lines: List.unmodifiable(lines),
+    );
+  }
+
   BuyerDeliveryAddressProjection _parseAddress(Object? value) {
     final address = _map(value);
-    if (address == null) _invalidResponse();
+    if (address == null) {
+      _invalidResponse();
+    }
     final id = _uuid(address['id']);
-    if (id == null) _invalidResponse();
+    if (id == null) {
+      _invalidResponse();
+    }
     return BuyerDeliveryAddressProjection(
       id: id,
       label: _string(address['label']) ?? 'Dirección registrada',
@@ -284,6 +651,8 @@ final class PurchaseRequestRepositoryImpl implements PurchaseRequestRepository {
     if (id == null ||
         accountId == null ||
         version == null ||
+        version < 0 ||
+        (responseEtag != null && responseEtag != '"$version"') ||
         rawLines is! List) {
       _invalidResponse();
     }
@@ -311,7 +680,9 @@ final class PurchaseRequestRepositoryImpl implements PurchaseRequestRepository {
 
   PurchaseRequestDraftSummaryProjection _parseDraftSummary(Object? value) {
     final draft = _map(value);
-    if (draft == null) _invalidResponse();
+    if (draft == null) {
+      _invalidResponse();
+    }
     final id = _uuid(draft['id']);
     final status = _string(draft['status']);
     final version = _int(draft['version']);
@@ -343,11 +714,17 @@ final class PurchaseRequestRepositoryImpl implements PurchaseRequestRepository {
 
   PurchaseRequestLineProjection _parseLine(Object? value) {
     final line = _map(value);
-    if (line == null) _invalidResponse();
+    if (line == null) {
+      _invalidResponse();
+    }
     final skuId = _uuid(line['skuId']);
     final quantity = line['quantity'];
     final unit = _string(line['unit']);
-    if (skuId == null || quantity is! num || quantity <= 0 || unit == null) {
+    if (skuId == null ||
+        quantity is! num ||
+        !quantity.isFinite ||
+        quantity <= 0 ||
+        unit == null) {
       _invalidResponse();
     }
     return PurchaseRequestLineProjection(
@@ -356,6 +733,9 @@ final class PurchaseRequestRepositoryImpl implements PurchaseRequestRepository {
       unit: unit,
       effectiveUnitPrice: _stringOrNum(line['effectiveUnitPrice']),
       currency: _string(line['currency']),
+      skuCode: _string(line['skuCode']),
+      presentation: _string(line['presentation']),
+      notes: _string(line['notes']),
     );
   }
 

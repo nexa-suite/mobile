@@ -7,6 +7,8 @@ import 'package:http/testing.dart';
 import 'package:provider/provider.dart';
 import 'package:nexa_buyer_mobile/contexts/business_documents/presentation/business_document_detail_page.dart';
 import 'package:nexa_buyer_mobile/contexts/business_documents/presentation/business_documents_view_model.dart';
+import 'package:nexa_buyer_mobile/contexts/catalog_commercial_policy/presentation/catalog_page.dart';
+import 'package:nexa_buyer_mobile/contexts/fulfillment_delivery/presentation/buyer_deliveries_page.dart';
 import 'package:nexa_buyer_mobile/core/network/nexa_api_client.dart';
 import 'package:nexa_buyer_mobile/core/presentation/nexa_buyer_theme.dart';
 import 'package:nexa_buyer_mobile/main.dart';
@@ -115,7 +117,12 @@ void main() {
     await tester.tap(find.text('Empresa Norte'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Catálogo'), findsOneWidget);
+    expect(_navigationTab('Catálogo'), findsOneWidget);
+    expect(_navigationTab('Mis entregas'), findsNothing);
+    expect(_navigationTab('Billetera'), findsNothing);
+    await tester.tap(_navigationTab('Más'));
+    await tester.pumpAndSettle();
+    expect(find.text('Documentos'), findsOneWidget);
     expect(find.text('Mis entregas'), findsNothing);
     expect(find.text('Billetera'), findsNothing);
     expect(paths, isNot(contains('/api/v1/buyer/deliveries')));
@@ -463,8 +470,17 @@ void main() {
 
       await tester.tap(find.text('Empresa Norte'));
       await tester.pumpAndSettle();
+      expect(find.byType(CatalogPage), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(CatalogPage),
+          matching: find.text('Catálogo'),
+        ),
+        findsOneWidget,
+      );
+      expect(_navigationTab('Catálogo'), findsOneWidget);
       expect(find.text('Café de altura'), findsOneWidget);
-      expect(find.text('Precio 12.50 PEN'), findsOneWidget);
+      expect(find.text('12.50 PEN'), findsOneWidget);
 
       await tester.tap(find.text('Café de altura'));
       await tester.pumpAndSettle();
@@ -483,8 +499,7 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Crédito y pagos'));
-      await tester.pumpAndSettle();
+      await _openMoreDestination(tester, 'Crédito y pagos');
       expect(find.text('260 PEN'), findsOneWidget);
       expect(find.text('Exposición usada'), findsOneWidget);
       await tester.scrollUntilVisible(find.text('REC-0001'), 400);
@@ -502,8 +517,7 @@ void main() {
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Documentos'));
-      await tester.pumpAndSettle();
+      await _openMoreDestination(tester, 'Documentos');
       expect(find.text('INV-2026-01'), findsOneWidget);
       expect(documentDownloads, 0);
       await tester.tap(find.text('INV-2026-01'));
@@ -547,7 +561,13 @@ void main() {
       await tester.tap(find.text('Mis entregas'));
       await tester.pumpAndSettle();
       expect(find.text('Pedido SO-0001'), findsOneWidget);
-      expect(find.text('Estado: Dispatched'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(BuyerDeliveriesPage),
+          matching: find.text('Despachado'),
+        ),
+        findsOneWidget,
+      );
       await tester.tap(find.text('Pedido SO-0001'));
       await tester.pumpAndSettle();
       expect(find.text('Historial de entrega'), findsOneWidget);
@@ -559,8 +579,7 @@ void main() {
 
       await tester.pageBack();
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Billetera'));
-      await tester.pumpAndSettle();
+      await _openMoreDestination(tester, 'Billetera');
       expect(find.text('90.50 PEN'), findsOneWidget);
       expect(find.text('120.50 PEN'), findsOneWidget);
       expect(find.text('ORDER CONSUMPTION'), findsOneWidget);
@@ -588,6 +607,19 @@ void main() {
       );
     },
   );
+}
+
+Finder _navigationTab(String label) =>
+    find.descendant(of: find.byType(NavigationBar), matching: find.text(label));
+
+Future<void> _openMoreDestination(
+  WidgetTester tester,
+  String destination,
+) async {
+  await tester.tap(_navigationTab('Más'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(destination));
+  await tester.pumpAndSettle();
 }
 
 Map<String, Object?> _contextOption({

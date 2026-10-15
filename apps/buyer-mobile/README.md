@@ -18,6 +18,16 @@ not save or open them as files. Payment retry metadata stores only scoped
 idempotency identities and a reference fingerprint; it does not store the
 bank reference or a payment credential.
 
+The Buyer workspace includes submitted-request history and resumable server
+drafts. A draft can contain multiple products, delivery preferences and a
+server review before submission. Material changes show the original and
+proposed terms before an explicit Buyer decision. Mutations retain current
+versions and scoped command identities; an uncertain response requires a
+server-state check. Navigation exposes only current server-granted options.
+The visual composition uses Nexa typography, spacing, surfaces and status
+tokens across phones and tablets. Construction and static analysis do not
+establish visual or connected-flow acceptance.
+
 Run on an Android emulator against a local API listening on host port 8080:
 
 ```sh

@@ -6,7 +6,8 @@ enum BuyerWorkspaceDestination {
   credit('/credit', 'Crédito y pagos', 2),
   documents('/documents', 'Documentos', 3),
   wallet('/wallet', 'Billetera', 4),
-  deliveries('/deliveries', 'Mis entregas', 5);
+  deliveries('/deliveries', 'Mis entregas', 5),
+  requests('/requests', 'Solicitudes', 6);
 
   const BuyerWorkspaceDestination(this.path, this.label, this.branchIndex);
 
@@ -52,6 +53,8 @@ abstract final class BuyerWorkspaceNavigation {
         BuyerWorkspaceDestination.wallet,
       if (permissions.contains(_buyerTrackingRead))
         BuyerWorkspaceDestination.deliveries,
+      if (permissions.contains(_buyerSalesRead))
+        BuyerWorkspaceDestination.requests,
     ];
 
     // Destination definitions are static, but keep the projection's invariant
@@ -128,6 +131,9 @@ abstract final class BuyerWorkspaceNavigation {
     }
     if (_isWithin(path, '/orders')) {
       return permissions.contains(_buyerOrderRead);
+    }
+    if (_isWithin(path, '/requests')) {
+      return permissions.contains(_buyerSalesRead);
     }
     if (_isWithin(path, '/credit')) {
       if (path.contains('/receivables/') && path.endsWith('/payments')) {

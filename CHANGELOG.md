@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Build a consistent Buyer experience using Nexa presentation tokens across
+  access, catalog, orders, finance, documents, notifications and deliveries.
+- Add Buyer request history, recoverable multi-product drafts and explicit
+  material-change decisions over versioned server contracts. Keep unknown
+  command results separate from confirmed submissions.
+- Organize Operations work by permitted role tasks with search, secondary
+  tools and consistent picking, dispatch and delivery sections.
 - Project Buyer destinations and direct routes from current scoped server
   grants; handle missing authority and zero or one available destination safely.
 - Deduplicate Operations destinations, reject conflicting declarations and
