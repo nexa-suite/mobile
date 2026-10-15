@@ -3485,49 +3485,40 @@ class MainActivity : ComponentActivity() {
                     },
                     pickingContent = {
                         if (!pickingOpened && !pickingManualEntry) {
-                            Column {
-                                TextButton(onClick = {
-                                    pickingManualEntry =
-                                        true
-                                }) {
-                                    Text(
-                                        getString(R.string.picking_manual_reference)
-                                    )
-                                }
-                                PickingWorkListScreen(
-                                    state = pickingWorkListState,
-                                    onBack = {
-                                        pickingWorkListViewModel.invalidate()
-                                        warehouseViewModel.back()
-                                    },
-                                    onReload = pickingWorkListViewModel::reload,
-                                    onPreviousPage = pickingWorkListViewModel::previousPage,
-                                    onNextPage = pickingWorkListViewModel::nextPage,
-                                    onSelectFulfillment = { fulfillmentId ->
-                                        val authority =
-                                            ConnectedOperationsNavigation.currentAuthority(
-                                                state,
-                                                accessState,
-                                                warehouseState
-                                            )
-                                        if (authority != null) {
-                                            pickingReference = fulfillmentId
-                                            pickingViewModel.activate(
-                                                PickingAuthority(
-                                                    authority.userId,
-                                                    authority.tenantId,
-                                                    authority.workspaceId,
-                                                    authority.membershipId,
-                                                    authority.permissions,
-                                                    accessState.authorityEpoch
-                                                ),
-                                                fulfillmentId
-                                            )
-                                            pickingOpened = true
-                                        }
+                            PickingWorkListScreen(
+                                state = pickingWorkListState,
+                                onBack = {
+                                    pickingWorkListViewModel.invalidate()
+                                    warehouseViewModel.back()
+                                },
+                                onReload = pickingWorkListViewModel::reload,
+                                onPreviousPage = pickingWorkListViewModel::previousPage,
+                                onNextPage = pickingWorkListViewModel::nextPage,
+                                onOpenByReference = { pickingManualEntry = true },
+                                onSelectFulfillment = { fulfillmentId ->
+                                    val authority =
+                                        ConnectedOperationsNavigation.currentAuthority(
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        )
+                                    if (authority != null) {
+                                        pickingReference = fulfillmentId
+                                        pickingViewModel.activate(
+                                            PickingAuthority(
+                                                authority.userId,
+                                                authority.tenantId,
+                                                authority.workspaceId,
+                                                authority.membershipId,
+                                                authority.permissions,
+                                                accessState.authorityEpoch
+                                            ),
+                                            fulfillmentId
+                                        )
+                                        pickingOpened = true
                                     }
-                                )
-                            }
+                                }
+                            )
                         } else if (!pickingOpened) {
                             PickingEntryScreen(
                                 reference = pickingReference,

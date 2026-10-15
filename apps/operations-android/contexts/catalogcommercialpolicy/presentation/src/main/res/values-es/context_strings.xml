@@ -97,4 +97,5 @@
     <string name="warehouse_scan_product_code_support">Leer un código de producto y comprobarlo en el contexto actual</string>
     <string name="warehouse_catalog_session_invalid_body">Inicia sesión otra vez para continuar.</string>
     <string name="warehouse_work_available">Trabajo disponible</string>
+    <string name="warehouse_work_toggle">Mostrar u ocultar tareas de almacén</string>
 </resources>

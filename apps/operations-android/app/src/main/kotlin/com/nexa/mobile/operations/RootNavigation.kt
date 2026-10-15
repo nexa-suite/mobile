@@ -163,6 +163,12 @@ internal fun RootNavigation(
         warehouseState,
         scannerState
     )
+    val visibleConnectedEntries = ConnectedOperationsNavigation.visibleEntries(
+        connectedOperationEntries,
+        state,
+        accessState,
+        warehouseState
+    )
 
     val destination = when {
         protectedContentAllowed && connectedOperationRoute != null &&
@@ -337,14 +343,13 @@ internal fun RootNavigation(
                                 additionalCapabilityLabels =
                                     operationsWorkEntryAdditionalCapabilityLabels(),
                                 onLogout = onLogout,
+                                hasAdditionalWork = visibleConnectedEntries.isNotEmpty(),
+                                promoteAdditionalWork = currentContext?.verifiedAuthority?.roles
+                                    ?.any { it == "DRIVER" || it == "LOGISTICS" } == true,
                                 additionalWorkContent = {
                                     ConnectedOperationsEntries(
-                                        entries = ConnectedOperationsNavigation.visibleEntries(
-                                            connectedOperationEntries,
-                                            state,
-                                            accessState,
-                                            warehouseState
-                                        ),
+                                        entries = visibleConnectedEntries,
+                                        roles = currentContext?.verifiedAuthority?.roles.orEmpty(),
                                         onOpen = onOpenConnectedOperation
                                     )
                                     additionalWorkContent()

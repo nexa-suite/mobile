@@ -25,13 +25,19 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.core.designsystem.NexaWorkSection
+import com.nexa.mobile.operations.core.designsystem.NexaWorkSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
 import java.time.Instant
@@ -57,6 +63,9 @@ fun DispatchReadinessScreen(
     canSealPod: Boolean = false
 ) {
     val closeAction = rememberUpdatedState(onRouteClosed)
+    var showWorkList by remember(state.selectedFulfillmentId) {
+        mutableStateOf(state.selectedFulfillmentId == null)
+    }
     DisposableEffect(Unit) {
         onDispose { closeAction.value() }
     }
@@ -74,15 +83,9 @@ fun DispatchReadinessScreen(
                 TextButton(onClick = onBack) {
                     Text(stringResource(R.string.dispatch_readiness_back))
                 }
-                Text(
-                    stringResource(R.string.dispatch_readiness_title),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    stringResource(R.string.dispatch_readiness_authority_note),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                NexaWorkSummary(
+                    title = stringResource(R.string.dispatch_readiness_title),
+                    description = stringResource(R.string.dispatch_readiness_authority_note)
                 )
             }
             item { ReadinessStatusPanel(state.status, state.asOf) }
@@ -108,13 +111,28 @@ fun DispatchReadinessScreen(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
+                    if (state.selectedFulfillmentId != null && state.items.size > 1) {
+                        TextButton(onClick = { showWorkList = !showWorkList }) {
+                            Text(
+                                stringResource(
+                                    if (showWorkList) {
+                                        R.string.dispatch_readiness_hide_list
+                                    } else {
+                                        R.string.dispatch_readiness_change_selection
+                                    }
+                                )
+                            )
+                        }
+                    }
                 }
-                items(state.items, key = { it.fulfillmentId.lowercase() }) { item ->
-                    ReadinessCard(
-                        item = item,
-                        selected = state.selectedFulfillmentId == item.fulfillmentId,
-                        onClick = { onSelectFulfillment(item.fulfillmentId) }
-                    )
+                if (showWorkList) {
+                    items(state.items, key = { it.fulfillmentId.lowercase() }) { item ->
+                        ReadinessCard(
+                            item = item,
+                            selected = state.selectedFulfillmentId == item.fulfillmentId,
+                            onClick = { onSelectFulfillment(item.fulfillmentId) }
+                        )
+                    }
                 }
             }
             if (state.selectedFulfillmentId != null) {
@@ -134,40 +152,48 @@ fun DispatchReadinessScreen(
                                 onRetrySeal = onRetryPodSeal ?: {}
                             )
                         }
-                        if (onVerifyOutgoingGoods != null) {
-                            TextButton(onClick = {
-                                onVerifyOutgoingGoods(selectedDetail.fulfillmentId)
-                            }) {
-                                Text("Verificar lote y cantidad de salida")
+                        NexaWorkSection(stringResource(R.string.dispatch_work_actions)) {
+                            if (onVerifyOutgoingGoods != null) {
+                                TextButton(onClick = {
+                                    onVerifyOutgoingGoods(selectedDetail.fulfillmentId)
+                                }) {
+                                    Text(stringResource(R.string.dispatch_work_outgoing))
+                                }
                             }
-                        }
-                        if (onRecordTemperature != null) {
-                            TextButton(onClick = {
-                                onRecordTemperature(selectedDetail.fulfillmentId)
-                            }) {
-                                Text("Registrar temperatura de preparación")
+                            if (onRecordTemperature != null) {
+                                TextButton(onClick = {
+                                    onRecordTemperature(selectedDetail.fulfillmentId)
+                                }) {
+                                    Text(stringResource(R.string.dispatch_work_temperature))
+                                }
                             }
-                        }
-                        if (onConfirmHandover != null) {
-                            TextButton(onClick = {
-                                onConfirmHandover(selectedDetail.fulfillmentId)
-                            }) { Text("Confirmar salida y handoff") }
-                        }
-                        if (deliveryId != null && onEditDeliveryInstructions != null) {
-                            TextButton(onClick = { onEditDeliveryInstructions(deliveryId) }) {
-                                Text(stringResource(R.string.dispatch_readiness_open_instructions))
+                            if (onConfirmHandover != null) {
+                                TextButton(onClick = {
+                                    onConfirmHandover(selectedDetail.fulfillmentId)
+                                }) { Text(stringResource(R.string.dispatch_work_handover)) }
                             }
-                        }
-                        if (deliveryId != null && onReviewExecutionHold != null) {
-                            TextButton(onClick = { onReviewExecutionHold(deliveryId) }) {
-                                Text(stringResource(R.string.dispatch_readiness_execution_hold))
+                            if (deliveryId != null && onEditDeliveryInstructions != null) {
+                                TextButton(
+                                    onClick = { onEditDeliveryInstructions(deliveryId) }
+                                ) {
+                                    Text(
+                                        stringResource(
+                                            R.string.dispatch_readiness_open_instructions
+                                        )
+                                    )
+                                }
                             }
-                        }
-                        if (onAssignFulfillment != null) {
-                            TextButton(onClick = {
-                                onAssignFulfillment(selectedDetail.fulfillmentId)
-                            }) {
-                                Text(stringResource(R.string.dispatch_assignment_title))
+                            if (deliveryId != null && onReviewExecutionHold != null) {
+                                TextButton(onClick = { onReviewExecutionHold(deliveryId) }) {
+                                    Text(stringResource(R.string.dispatch_readiness_execution_hold))
+                                }
+                            }
+                            if (onAssignFulfillment != null) {
+                                TextButton(onClick = {
+                                    onAssignFulfillment(selectedDetail.fulfillmentId)
+                                }) {
+                                    Text(stringResource(R.string.dispatch_assignment_title))
+                                }
                             }
                         }
                     } else {

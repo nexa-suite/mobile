@@ -415,6 +415,8 @@
     <string name="dispatch_readiness_as_of">Datos del servidor: %1$s</string>
     <string name="dispatch_readiness_authority_note">Estado confirmado por Nexa. Esta vista no cambia asignaciones ni existencias; vuelve a consultar antes de iniciar otra operación.</string>
     <string name="dispatch_readiness_back">Volver</string>
+    <string name="dispatch_readiness_change_selection">Cambiar preparación</string>
+    <string name="dispatch_readiness_hide_list">Ocultar lista de preparación</string>
     <string name="dispatch_readiness_check_allocation">Asignación física: %1$s</string>
     <string name="dispatch_readiness_check_evidence">Evidencia de picking: %1$s</string>
     <string name="dispatch_readiness_check_picking">Picking completo: %1$s</string>
@@ -562,6 +564,8 @@
     <string name="driver_delivery_attempt_started">Inicio informado: %1$s</string>
     <string name="driver_delivery_authority_note">La lista y el inicio de cada entrega se confirman con Nexa en línea. Una entrega solo está activa cuando el servicio devuelve el intento actual.</string>
     <string name="driver_delivery_back">Volver</string>
+    <string name="driver_delivery_change_selection">Cambiar entrega</string>
+    <string name="driver_delivery_hide_list">Ocultar lista de entregas</string>
     <string name="driver_delivery_begin">Comenzar entrega</string>
     <string name="driver_delivery_checking">Confirmando la asignación actual antes de comenzar…</string>
     <string name="driver_delivery_contact_unavailable">Contacto e instrucciones no disponibles: Nexa no entregó un canal vigente y autorizado para esta entrega.</string>
@@ -943,9 +947,29 @@
     <string name="picking_work_permission_error">Tu contexto actual no permite consultar preparaciones.</string>
     <string name="picking_work_previous">Anterior</string>
     <string name="picking_work_reload">Actualizar lista</string>
+    <string name="picking_work_open_by_reference">Abrir por referencia</string>
     <string name="picking_work_service_error">No se pudieron consultar las preparaciones. Inténtalo de nuevo.</string>
     <string name="picking_work_support">Nexa devuelve las preparaciones vigentes autorizadas para tus almacenes. Al abrir una fila, la aplicación vuelve a consultar su asignación actual.</string>
     <string name="picking_work_title">Preparaciones asignadas</string>
     <string name="warehouse_context_invalid_body">Vuelve a elegir un contexto antes de continuar.</string>
     <string name="warehouse_session_invalid_body">Inicia sesión otra vez para continuar.</string>
+    <string name="picking_work_queue">Picking queue</string>
+    <string name="picking_work_total">%1$d available jobs</string>
+    <string name="picking_work_selection_support">Choose a job to review its items and current allocation.</string>
+    <string name="dispatch_work_actions">Prepare this departure</string>
+    <string name="dispatch_work_outgoing">Verify outgoing lot and quantity</string>
+    <string name="dispatch_work_temperature">Record preparation temperature</string>
+    <string name="dispatch_work_handover">Confirm departure and handoff</string>
+    <string name="driver_work_assigned">Assigned deliveries</string>
+    <string name="driver_work_support">Choose a delivery to review instructions and continue its current attempt.</string>
+    <string name="driver_work_preparation">Before starting</string>
+    <string name="driver_work_execution">Delivery in progress</string>
+    <string name="driver_work_evidence">Result and evidence</string>
+    <string name="driver_work_handoff">Present delivery code</string>
+    <string name="driver_work_incident">Record incident for review</string>
+    <string name="batch_work_title">Prepare a work group</string>
+    <string name="batch_work_support">Local group of up to 25 jobs. Confirm each lot, quantity and result separately with the server.</string>
+    <string name="batch_work_available">Available jobs</string>
+    <string name="batch_work_selected">Your preparation sequence</string>
+    <string name="batch_work_position">Job %1$d</string>
 </resources>
