@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/presentation/nexa_buyer_components.dart';
 import '../application/buyer_deliveries_repository.dart';
 import 'buyer_deliveries_view_model.dart';
 
@@ -49,65 +50,70 @@ final class _BuyerDeliveriesPageState extends State<BuyerDeliveriesPage> {
       );
     }
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Mis entregas',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-              IconButton(
-                tooltip: 'Actualizar entregas',
-                onPressed: deliveries.status == BuyerDeliveriesStatus.loading
-                    ? null
-                    : deliveries.refresh,
-                icon: const Icon(Icons.refresh),
-              ),
-            ],
-          ),
-        ),
-        if (deliveries.message != null)
+    return NexaPageWidth(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Semantics(
-              liveRegion: true,
-              child: Text(deliveries.message!),
-            ),
-          ),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: deliveries.refresh,
-            child: ListView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-              itemCount: deliveries.items.length + 1,
-              itemBuilder: (context, index) {
-                if (index == deliveries.items.length) {
-                  return _DeliveryPageControls(
-                    page: deliveries.page,
-                    size: BuyerDeliveriesViewModel.pageSize,
-                    total: deliveries.total,
-                    onPrevious: deliveries.previousPage,
-                    onNext: deliveries.nextPage,
-                  );
-                }
-                final delivery = deliveries.items[index];
-                return _DeliveryCard(
-                  delivery: delivery,
-                  onTap: () => context.push(
-                    '/deliveries/${Uri.encodeComponent(delivery.id)}',
+            padding: const EdgeInsets.only(right: 8),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: NexaSectionHeader(
+                    eyebrow: 'Cumplimiento',
+                    title: 'Entregas',
+                    description:
+                        'Consulta la información disponible de cada entrega.',
                   ),
-                );
-              },
+                ),
+                IconButton(
+                  tooltip: 'Actualizar entregas',
+                  onPressed: deliveries.status == BuyerDeliveriesStatus.loading
+                      ? null
+                      : deliveries.refresh,
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
             ),
           ),
-        ),
-      ],
+          if (deliveries.message != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: NexaNotice(deliveries.message!),
+            ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: deliveries.refresh,
+              child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                itemCount: deliveries.items.length + 1,
+                itemBuilder: (context, index) {
+                  if (index == deliveries.items.length) {
+                    return _DeliveryPageControls(
+                      page: deliveries.page,
+                      size: BuyerDeliveriesViewModel.pageSize,
+                      total: deliveries.total,
+                      onPrevious: deliveries.previousPage,
+                      onNext: deliveries.nextPage,
+                    );
+                  }
+                  final delivery = deliveries.items[index];
+                  return NexaPageWidth(
+                    padding: EdgeInsets.zero,
+                    child: _DeliveryCard(
+                      delivery: delivery,
+                      onTap: () => context.push(
+                        '/deliveries/${Uri.encodeComponent(delivery.id)}',
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -119,26 +125,13 @@ final class _DeliveryCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Card(
-    margin: const EdgeInsets.only(bottom: 12),
-    child: ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      title: Text('Pedido ${delivery.salesOrderNumber}'),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Estado: ${_statusLabel(delivery.status)}'),
-            Text(
-              'Programada: ${_dateTimeLabel(delivery.scheduledAt) ?? 'Sin fecha programada'}',
-            ),
-          ],
-        ),
-      ),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: onTap,
-    ),
+  Widget build(BuildContext context) => NexaRecordCard(
+    title: 'Pedido ${delivery.salesOrderNumber}',
+    status: delivery.status,
+    icon: Icons.local_shipping_outlined,
+    subtitle:
+        'Programada: ${_dateTimeLabel(delivery.scheduledAt) ?? 'Sin fecha programada'}',
+    onTap: onTap,
   );
 }
 
@@ -214,15 +207,6 @@ final class _DeliveryMessage extends StatelessWidget {
     ),
   );
 }
-
-String _statusLabel(String value) => value
-    .split('_')
-    .map(
-      (part) => part.isEmpty
-          ? part
-          : '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
-    )
-    .join(' ');
 
 String? _dateTimeLabel(DateTime? value) {
   if (value == null) return null;

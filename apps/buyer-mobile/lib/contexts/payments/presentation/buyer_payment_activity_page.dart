@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/presentation/nexa_buyer_components.dart';
 import '../application/buyer_payments_repository.dart';
 import 'buyer_payment_activity_view_model.dart';
 
@@ -38,26 +39,25 @@ final class _BuyerPaymentActivityPageState
     return SafeArea(
       child: RefreshIndicator(
         onRefresh: viewModel.refreshHistory,
-        child: ListView(
-          key: const Key('buyer-payment-activity-list'),
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          children: [
-            Text(
-              widget.receivableNumber == null
-                  ? 'Cuenta por cobrar'
-                  : 'Cuenta ${widget.receivableNumber}',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'El servidor verifica el saldo pendiente y el estado de la cuenta antes de registrar un reporte.',
-            ),
-            const SizedBox(height: 20),
-            _reportSection(viewModel),
-            const SizedBox(height: 20),
-            _historySection(context, viewModel),
-          ],
+        child: NexaPageWidth(
+          padding: EdgeInsets.zero,
+          child: ListView(
+            key: const Key('buyer-payment-activity-list'),
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            children: [
+              NexaPageIntro(
+                title: widget.receivableNumber == null
+                    ? 'Cuenta por cobrar'
+                    : 'Cuenta ${widget.receivableNumber}',
+                description: 'El servidor verifica el saldo y el estado antes de registrar un reporte.',
+                icon: Icons.payments_outlined,
+              ),
+              _reportSection(viewModel),
+              const SizedBox(height: 20),
+              _historySection(context, viewModel),
+            ],
+          ),
         ),
       ),
     );
@@ -74,7 +74,7 @@ final class _BuyerPaymentActivityPageState
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
-          const Text(
+          const NexaNotice(
             'Ingresa la referencia bancaria. Esto informa al equipo; no confirma que el pago haya sido aplicado.',
           ),
           const SizedBox(height: 12),
@@ -122,10 +122,9 @@ final class _BuyerPaymentActivityPageState
           if (viewModel.reportMessage != null)
             Padding(
               padding: const EdgeInsets.only(top: 12),
-              child: Text(
+              child: NexaNotice(
                 viewModel.reportMessage!,
                 key: const Key('payment-report-result'),
-                style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),
         ],
@@ -186,24 +185,23 @@ final class _BuyerPaymentActivityPageState
           )
         else ...[
           for (final payment in history.items)
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.receipt_long_outlined),
-                title: Text('${payment.amount} ${payment.currency}'),
-                subtitle: Text(
-                  [
-                    _methodLabel(payment.method),
-                    _paymentStatusLabel(payment.status),
-                    if (payment.reference != null)
-                      'Referencia: ${payment.reference}',
-                    if (payment.reviewReason != null)
-                      'Observación: ${payment.reviewReason}',
-                  ].join(' · '),
-                ),
-                isThreeLine:
-                    payment.reference != null || payment.reviewReason != null,
-                trailing: Text(_dateLabel(payment.createdAt)),
-              ),
+            NexaRecordCard(
+              title: '${payment.amount} ${payment.currency}',
+              status: payment.status,
+              icon: Icons.receipt_long_outlined,
+              subtitle:
+                  '${_methodLabel(payment.method)} · ${_dateLabel(payment.createdAt)}',
+              footer:
+                  (payment.reference == null && payment.reviewReason == null)
+                  ? null
+                  : Text(
+                      [
+                        if (payment.reference != null)
+                          'Referencia: ${payment.reference}',
+                        if (payment.reviewReason != null)
+                          'Observación: ${payment.reviewReason}',
+                      ].join(' · '),
+                    ),
             ),
           if (history.total > history.size)
             Row(
@@ -239,14 +237,6 @@ String _methodLabel(String value) => switch (value) {
   'BANK_TRANSFER' => 'Transferencia bancaria',
   'CREDIT_LINE' => 'Línea de crédito',
   'CARD' => 'Tarjeta',
-  _ => value,
-};
-
-String _paymentStatusLabel(String value) => switch (value) {
-  'PROCESSING' => 'Pendiente de revisión',
-  'SUCCEEDED' => 'Confirmado por el servidor',
-  'FAILED' => 'Fallido',
-  'CANCELLED' => 'Cancelado',
   _ => value,
 };
 

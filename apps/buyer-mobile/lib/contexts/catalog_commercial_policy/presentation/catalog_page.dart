@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/presentation/nexa_buyer_components.dart';
 import '../application/catalog_repository.dart';
 import 'catalog_view_model.dart';
 
@@ -48,37 +49,48 @@ final class _CatalogPageState extends State<CatalogPage> {
   @override
   Widget build(BuildContext context) {
     final catalog = context.watch<CatalogViewModel>();
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: TextField(
-            controller: _search,
-            maxLength: 120,
-            textInputAction: TextInputAction.search,
-            onChanged: _searchChanged,
-            onSubmitted: _submitSearch,
-            decoration: InputDecoration(
-              hintText: 'Buscar productos',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _search.text.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Borrar búsqueda',
-                      icon: const Icon(Icons.close),
-                      onPressed: () {
-                        _search.clear();
-                        _searchChanged('');
-                      },
-                    ),
+    return NexaPageWidth(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          const NexaSectionHeader(
+            eyebrow: 'Compra mayorista',
+            title: 'Catálogo',
+            description: 'Consulta productos, precio y disponibilidad de tu relación activa.',
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: TextField(
+              controller: _search,
+              maxLength: 120,
+              textInputAction: TextInputAction.search,
+              onChanged: _searchChanged,
+              onSubmitted: _submitSearch,
+              decoration: InputDecoration(
+                hintText: 'Buscar productos',
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surface,
+                counterText: '',
+                suffixIcon: _search.text.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Borrar búsqueda',
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          _search.clear();
+                          _searchChanged('');
+                        },
+                      ),
+              ),
             ),
           ),
-        ),
-        if (catalog.status == CatalogLoadStatus.loading &&
-            catalog.items.isNotEmpty)
-          const LinearProgressIndicator(),
-        Expanded(child: _catalogContent(catalog)),
-      ],
+          if (catalog.status == CatalogLoadStatus.loading &&
+              catalog.items.isNotEmpty)
+            const LinearProgressIndicator(),
+          Expanded(child: _catalogContent(catalog)),
+        ],
+      ),
     );
   }
 
@@ -107,7 +119,7 @@ final class _CatalogPageState extends State<CatalogPage> {
       onRefresh: catalog.refresh,
       child: ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         itemCount: catalog.items.length + 1,
         itemBuilder: (context, index) {
           if (index == catalog.items.length) {
@@ -120,10 +132,13 @@ final class _CatalogPageState extends State<CatalogPage> {
             );
           }
           final item = catalog.items[index];
-          return _CatalogItemCard(
-            item: item,
-            onTap: () => context.push(
-              '/catalog/${Uri.encodeComponent(item.catalogItemId)}',
+          return NexaPageWidth(
+            padding: EdgeInsets.zero,
+            child: _CatalogItemCard(
+              item: item,
+              onTap: () => context.push(
+                '/catalog/${Uri.encodeComponent(item.catalogItemId)}',
+              ),
             ),
           );
         },
@@ -147,42 +162,57 @@ final class _CatalogItemCard extends StatelessWidget {
     ].whereType<String>().where((value) => value.isNotEmpty).join(' · ');
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                item.itemName,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              if (detail.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(detail, style: Theme.of(context).textTheme.bodyMedium),
-              ],
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 12,
-                runSpacing: 6,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            NexaProductVisual(name: item.itemName, height: 108),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_availabilityLabel(item.availabilityStatus)),
-                  if (item.price case final price?)
-                    Text('Precio ${price.amount} ${price.currency}'),
-                  if (item.unitOfMeasure case final unit?)
-                    Text('Unidad: $unit'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item.itemName,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  ),
+                  if (detail.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(detail, style: Theme.of(context).textTheme.bodyMedium),
+                  ],
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      NexaStatusBadge(
+                        item.availabilityStatus,
+                        label: _availabilityLabel(item.availabilityStatus),
+                      ),
+                      if (item.price case final price?)
+                        Text(
+                          '${price.amount} ${price.currency}',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      if (item.unitOfMeasure case final unit?)
+                        Text('Unidad: $unit'),
+                    ],
+                  ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Ver detalle',
-                style: Theme.of(context).textTheme.labelLarge
-                    ?.copyWith(color: Theme.of(context).colorScheme.primary),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
