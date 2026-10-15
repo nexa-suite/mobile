@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 import '../application/error/nexa_api_failure.dart';
 
@@ -89,6 +90,7 @@ final class NexaApiOrigin {
 
 final class NexaApiClient {
   static const int maxProtectedBinaryBytes = 8 * 1024 * 1024;
+  static const int maxEvidenceUploadBytes = 10 * 1024 * 1024;
 
   NexaApiClient({
     required this.origin,
@@ -237,6 +239,106 @@ final class NexaApiClient {
     ifMatch: ifMatch,
     idempotencyKey: idempotencyKey,
   );
+
+  Future<NexaApiResponse> postMultipart({
+    required String path,
+    required Map<String, String> fields,
+    required String fieldName,
+    required String filename,
+    required String contentType,
+    required List<int> bytes,
+    required String idempotencyKey,
+    bool refreshAfterUnauthorized = false,
+  }) async {
+    if (bytes.isEmpty || bytes.length > maxEvidenceUploadBytes) {
+      throw const NexaApiFailure(
+        code: 'invalid_upload_size',
+        statusCode: 400,
+        userMessage: 'Choose a file within the supported size limit.',
+      );
+    }
+    final session = sessionCredentials;
+    final tokenUsed = session?.accessToken;
+    final expectedAuthorityEpoch = session?.authorityEpoch;
+    final expectedAuthorityFingerprint = session?.authorityFingerprint;
+    if (tokenUsed == null ||
+        tokenUsed.isEmpty ||
+        session == null ||
+        expectedAuthorityEpoch == null) {
+      throw const NexaApiFailure(
+        code: 'session_required',
+        statusCode: 401,
+        userMessage: 'Sign in to continue.',
+      );
+    }
+
+    final first = await _sendMultipart(
+      path: path,
+      fields: fields,
+      fieldName: fieldName,
+      filename: filename,
+      contentType: contentType,
+      bytes: bytes,
+      token: tokenUsed,
+      idempotencyKey: idempotencyKey,
+    );
+    try {
+      _requireCurrentAuthority(
+        session,
+        expectedAuthorityEpoch,
+        expectedAuthorityFingerprint,
+      );
+    } on NexaApiFailure {
+      _clearResponseBytes(first);
+      rethrow;
+    }
+    if (first.statusCode == 401 && refreshAfterUnauthorized) {
+      final refreshedToken = await session.refreshIfCurrent(
+        tokenUsed,
+        expectedAuthorityEpoch,
+      );
+      try {
+        _requireCurrentAuthority(
+          session,
+          expectedAuthorityEpoch,
+          expectedAuthorityFingerprint,
+        );
+      } on NexaApiFailure {
+        _clearResponseBytes(first);
+        rethrow;
+      }
+      _clearResponseBytes(first);
+      if (refreshedToken == null || refreshedToken == tokenUsed) {
+        throw const NexaApiFailure(
+          code: 'session_expired',
+          statusCode: 401,
+          userMessage: 'Your session expired. Sign in again.',
+        );
+      }
+      final retried = await _sendMultipart(
+        path: path,
+        fields: fields,
+        fieldName: fieldName,
+        filename: filename,
+        contentType: contentType,
+        bytes: bytes,
+        token: refreshedToken,
+        idempotencyKey: idempotencyKey,
+      );
+      try {
+        _requireCurrentAuthority(
+          session,
+          expectedAuthorityEpoch,
+          expectedAuthorityFingerprint,
+        );
+      } on NexaApiFailure {
+        _clearResponseBytes(retried);
+        rethrow;
+      }
+      return _decode(retried);
+    }
+    return _decode(first);
+  }
 
   Future<NexaApiResponse> put(
     String path, {
@@ -428,6 +530,53 @@ final class NexaApiClient {
         code: 'network_unavailable',
         userMessage:
             'Nexa is unavailable. Check your connection and try again.',
+        retryable: true,
+      );
+    }
+  }
+
+  Future<http.Response> _sendMultipart({
+    required String path,
+    required Map<String, String> fields,
+    required String fieldName,
+    required String filename,
+    required String contentType,
+    required List<int> bytes,
+    required String token,
+    required String idempotencyKey,
+  }) async {
+    final request = http.MultipartRequest('POST', _endpoint(path, const {}));
+    request.followRedirects = false;
+    request.headers.addAll({
+      'Accept': 'application/json, application/problem+json',
+      'Authorization': 'Bearer $token',
+      'X-Nexa-Surface': 'PORTAL',
+      'X-Nexa-Client': 'NATIVE',
+      'Idempotency-Key': idempotencyKey,
+    });
+    request.fields.addAll(fields);
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        fieldName,
+        bytes,
+        filename: filename,
+        contentType: MediaType.parse(contentType),
+      ),
+    );
+
+    try {
+      final streamed = await _httpClient.send(request).timeout(requestTimeout);
+      return await http.Response.fromStream(streamed).timeout(requestTimeout);
+    } on TimeoutException {
+      throw const NexaApiFailure(
+        code: 'network_timeout',
+        userMessage: 'Nexa did not respond. Check your connection and try again.',
+        retryable: true,
+      );
+    } on http.ClientException {
+      throw const NexaApiFailure(
+        code: 'network_unavailable',
+        userMessage: 'Nexa is unavailable. Check your connection and try again.',
         retryable: true,
       );
     }

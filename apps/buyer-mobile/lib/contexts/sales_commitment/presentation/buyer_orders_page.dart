@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/presentation/nexa_buyer_components.dart';
+import '../../../core/presentation/buyer_visible_route_poller.dart';
 import '../application/buyer_orders_repository.dart';
 import 'buyer_orders_view_model.dart';
 
@@ -14,12 +15,35 @@ final class BuyerOrdersPage extends StatefulWidget {
 }
 
 final class _BuyerOrdersPageState extends State<BuyerOrdersPage> {
+  GoRouter? _router;
+  BuyerVisibleRoutePoller? _poller;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final router = GoRouter.of(context);
+    if (identical(router, _router)) return;
+    _poller?.dispose();
+    _router = router;
+    _poller = BuyerVisibleRoutePoller(
+      router: router,
+      routePath: '/orders',
+      onRefresh: () => context.read<BuyerOrdersViewModel>().refresh(),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<BuyerOrdersViewModel>().refresh();
     });
+  }
+
+  @override
+  void dispose() {
+    _poller?.dispose();
+    super.dispose();
   }
 
   @override

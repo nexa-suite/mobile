@@ -42,6 +42,10 @@ import 'contexts/payments/presentation/buyer_wallet_page.dart';
 import 'contexts/payments/presentation/buyer_wallet_view_model.dart';
 import 'contexts/fulfillment_delivery/infrastructure/buyer_deliveries_repository_impl.dart';
 import 'contexts/fulfillment_delivery/application/buyer_deliveries_repository.dart';
+import 'contexts/fulfillment_delivery/application/buyer_receipt_idempotency_store.dart';
+import 'contexts/fulfillment_delivery/application/buyer_receipt_evidence_idempotency_store.dart';
+import 'contexts/fulfillment_delivery/infrastructure/file_buyer_receipt_idempotency_store.dart';
+import 'contexts/fulfillment_delivery/infrastructure/file_buyer_receipt_evidence_idempotency_store.dart';
 import 'contexts/fulfillment_delivery/presentation/buyer_deliveries_page.dart';
 import 'contexts/fulfillment_delivery/presentation/buyer_delivery_detail_page.dart';
 import 'contexts/fulfillment_delivery/presentation/buyer_deliveries_view_model.dart';
@@ -74,11 +78,26 @@ Future<void> main() async {
   final walletCheckout = await StripeBuyerWalletCheckout.configure(
     const String.fromEnvironment('NEXA_STRIPE_PUBLISHABLE_KEY'),
   );
+  const publicOsmTiles = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  const configuredMapTiles = String.fromEnvironment(
+    'NEXA_MAP_TILE_URL_TEMPLATE',
+  );
+  const configuredMapAttribution = String.fromEnvironment(
+    'NEXA_MAP_ATTRIBUTION',
+  );
+  final mapTileUrlTemplate = configuredMapTiles;
+  final mapAttribution = configuredMapAttribution.isNotEmpty
+      ? configuredMapAttribution
+      : mapTileUrlTemplate == publicOsmTiles
+      ? '© OpenStreetMap contributors'
+      : '';
   runApp(
     BuyerMobileApp(
       apiBaseUrl: const String.fromEnvironment('NEXA_API_BASE_URL'),
       allowLocalHttp: kDebugMode,
       walletCheckout: walletCheckout,
+      mapTileUrlTemplate: mapTileUrlTemplate,
+      mapAttribution: mapAttribution,
     ),
   );
 }
@@ -88,12 +107,16 @@ final class BuyerMobileApp extends StatefulWidget {
     super.key,
     required this.apiBaseUrl,
     required this.allowLocalHttp,
+    this.mapTileUrlTemplate = '',
+    this.mapAttribution = '',
     this.httpClient,
     this.walletCheckout,
   });
 
   final String apiBaseUrl;
   final bool allowLocalHttp;
+  final String mapTileUrlTemplate;
+  final String mapAttribution;
   final http.Client? httpClient;
   final BuyerWalletCheckoutPort? walletCheckout;
 
@@ -112,6 +135,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
   FileBuyerWalletRechargeCommandStore? _walletRechargeCommandStore;
   FilePaymentReportIdempotencyStore? _paymentIdempotencyStore;
   BuyerDeliveriesRepositoryImpl? _deliveriesRepository;
+  FileBuyerReceiptIdempotencyStore? _buyerReceiptIdempotencyStore;
+  FileBuyerReceiptEvidenceIdempotencyStore?
+  _buyerReceiptEvidenceIdempotencyStore;
   BuyerOrdersRepositoryImpl? _ordersRepository;
   PurchaseRequestRepositoryImpl? _purchaseRequestRepository;
   BusinessDocumentsRepositoryImpl? _businessDocumentsRepository;
@@ -140,6 +166,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
       _walletRechargeCommandStore = FileBuyerWalletRechargeCommandStore();
       _paymentIdempotencyStore = FilePaymentReportIdempotencyStore();
       _deliveriesRepository = BuyerDeliveriesRepositoryImpl(api);
+      _buyerReceiptIdempotencyStore = FileBuyerReceiptIdempotencyStore();
+      _buyerReceiptEvidenceIdempotencyStore =
+          FileBuyerReceiptEvidenceIdempotencyStore();
       _ordersRepository = BuyerOrdersRepositoryImpl(api);
       _purchaseRequestRepository = PurchaseRequestRepositoryImpl(
         api,
@@ -155,6 +184,8 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         _accessViewModel!,
         _paymentsRepository!,
         _paymentIdempotencyStore!,
+        widget.mapTileUrlTemplate,
+        widget.mapAttribution,
       );
     } on FormatException {
       _configurationInvalid = true;
@@ -182,6 +213,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
     final walletRechargeCommandStore = _walletRechargeCommandStore;
     final paymentIdempotencyStore = _paymentIdempotencyStore;
     final deliveries = _deliveriesRepository;
+    final buyerReceiptIdempotencyStore = _buyerReceiptIdempotencyStore;
+    final buyerReceiptEvidenceIdempotencyStore =
+        _buyerReceiptEvidenceIdempotencyStore;
     final orders = _ordersRepository;
     final purchaseRequests = _purchaseRequestRepository;
     final businessDocuments = _businessDocumentsRepository;
@@ -198,6 +232,8 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         walletRechargeCommandStore == null ||
         paymentIdempotencyStore == null ||
         deliveries == null ||
+        buyerReceiptIdempotencyStore == null ||
+        buyerReceiptEvidenceIdempotencyStore == null ||
         orders == null ||
         purchaseRequests == null ||
         businessDocuments == null ||
@@ -222,6 +258,12 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
           value: paymentIdempotencyStore,
         ),
         Provider<BuyerDeliveriesRepository>.value(value: deliveries),
+        Provider<BuyerReceiptIdempotencyStore>.value(
+          value: buyerReceiptIdempotencyStore,
+        ),
+        Provider<BuyerReceiptEvidenceIdempotencyStore>.value(
+          value: buyerReceiptEvidenceIdempotencyStore,
+        ),
         Provider<BuyerOrdersRepository>.value(value: orders),
         Provider<PurchaseRequestRepository>.value(value: purchaseRequests),
         Provider<BuyerPurchaseWorkspaceRepository>.value(
@@ -295,6 +337,8 @@ GoRouter _createRouter(
   BuyerAccessViewModel access,
   BuyerPaymentsRepository payments,
   PaymentReportIdempotencyStore paymentIdempotencyStore,
+  String mapTileUrlTemplate,
+  String mapAttribution,
 ) => GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/catalog',
@@ -492,8 +536,15 @@ GoRouter _createRouter(
                         context.read<BuyerDeliveriesRepository>(),
                         context.read<BuyerAccessRepository>(),
                         deliveryId,
+                        receiptStore: context
+                            .read<BuyerReceiptIdempotencyStore>(),
+                        evidenceStore: context
+                            .read<BuyerReceiptEvidenceIdempotencyStore>(),
                       )..load(),
-                      child: const BuyerDeliveryDetailPage(),
+                      child: BuyerDeliveryDetailPage(
+                        mapTileUrlTemplate: mapTileUrlTemplate,
+                        mapAttribution: mapAttribution,
+                      ),
                     );
                   },
                 ),

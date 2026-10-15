@@ -3,12 +3,14 @@
 Flutter client for Buyer sign-in, server-selected access context, catalog,
 orders, purchase requests, credit exposure, receivables, wallet checkout and
 payment history, notification inbox and preferences, bank-transfer reporting,
-business documents, and read-only delivery tracking.
+business documents, and delivery tracking, handoff and receipt.
 Access credentials remain in process memory. The API remains authoritative for
 Buyer scope, catalog and commercial decisions, credit, payment status, order
 outcomes, and delivery status. A bank-transfer report is not a payment
 confirmation or wallet balance. Delivery tracking shows Buyer-visible status
-and event summaries; it does not provide driver assignment or live location.
+and event summaries. Active delivery details can request the server's latest
+location; the Buyer app does not provide driver assignment or background
+tracking.
 Wallet checkout uses the Stripe PaymentSheet and scoped retry identity; the API
 remains authoritative for payment status and wallet credit. Notifications
 project the server inbox and accepted `IN_APP`/`EMAIL` preferences; this client
@@ -24,9 +26,23 @@ server review before submission. Material changes show the original and
 proposed terms before an explicit Buyer decision. Mutations retain current
 versions and scoped command identities; an uncertain response requires a
 server-state check. Navigation exposes only current server-granted options.
+Catalog product, brand and category filters are applied by the API before
+pagination; brand and category choices come from Buyer-visible catalog
+taxonomy. Product family and variety remain separate metadata.
 The visual composition uses Nexa typography, spacing, surfaces and status
 tokens across phones and tablets. Construction and static analysis do not
 establish visual or connected-flow acceptance.
+
+Buyer delivery views poll only while their order or delivery route is visible.
+The delivery detail can show an active delivery's latest server location on a
+map, verify a handoff code, and submit a separate receipt or discrepancy. Code
+verification is not a receipt. A disputed receipt can receive optional image or
+PDF evidence after it is recorded; the API owns receipt scope, immutable
+evidence metadata and scanning. The app keeps selected bytes in memory only and
+persists scoped retry keys and payload fingerprints. The map has no default tile provider; configure
+`NEXA_MAP_TILE_URL_TEMPLATE` with an approved HTTPS template and
+`NEXA_MAP_ATTRIBUTION` to render map tiles. Without both values, no map tile
+requests are made.
 
 Run on an Android emulator against a local API listening on host port 8080:
 

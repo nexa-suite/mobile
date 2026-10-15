@@ -432,6 +432,8 @@ final class _CatalogPickerState extends State<_CatalogPicker> {
   Timer? _debounce;
   late final StreamSubscription<BuyerAccessSnapshot> _subscription;
   late final String _authority;
+  String _brand = '';
+  String _category = '';
   List<CatalogItemProjection> _items = const [];
   int _generation = 0;
   int _page = 0;
@@ -446,10 +448,16 @@ final class _CatalogPickerState extends State<_CatalogPicker> {
     super.initState();
     _authority = _fingerprint(widget.access.snapshot);
     _subscription = widget.access.changes.listen((snapshot) {
-      if (!mounted || _fingerprint(snapshot) == _authority) {
-        return;
-      }
-      _deauthorize();
+      if (!mounted) return;
+      final stillAllowed =
+          _fingerprint(snapshot) == _authority &&
+          snapshot.hasActiveBuyerScope &&
+          snapshot.currentContext!.permissions.containsAll({
+            'catalog.read',
+            'buyer.sales.read',
+            'buyer.sales.write',
+          });
+      if (!stillAllowed) _deauthorize();
     });
     _load(0);
   }
@@ -469,6 +477,9 @@ final class _CatalogPickerState extends State<_CatalogPicker> {
   void _deauthorize() {
     _generation++;
     _debounce?.cancel();
+    _query.clear();
+    _brand = '';
+    _category = '';
     setState(() {
       _revoked = true;
       _items = const [];
@@ -493,6 +504,8 @@ final class _CatalogPickerState extends State<_CatalogPicker> {
     try {
       final result = await widget.repository.list(
         query: _query.text.trim(),
+        brand: _brand,
+        category: _category,
         page: page,
       );
       if (!mounted || generation != _generation || !_hasAccess) {
@@ -532,6 +545,33 @@ final class _CatalogPickerState extends State<_CatalogPicker> {
         _message = 'No se pudo consultar el catálogo.';
       });
     }
+  }
+
+  Future<void> _selectTaxonomy(CatalogFilterKind kind) async {
+    if (!_hasAccess) {
+      _deauthorize();
+      return;
+    }
+    final selection = await showDialog<_CatalogFilterSelection>(
+      context: context,
+      builder: (_) => _CatalogFilterLookupDialog(
+        repository: widget.repository,
+        access: widget.access,
+        authority: _authority,
+        kind: kind,
+        onAuthorityLost: _deauthorize,
+      ),
+    );
+    if (!mounted || !_hasAccess || selection == null) return;
+    setState(() {
+      final selectedName = selection.clear ? '' : selection.option!.name;
+      if (kind == CatalogFilterKind.brand) {
+        _brand = selectedName;
+      } else {
+        _category = selectedName;
+      }
+    });
+    _load(0);
   }
 
   @override
@@ -574,6 +614,40 @@ final class _CatalogPickerState extends State<_CatalogPicker> {
             _load(0);
           },
         ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _CatalogFilterButton(
+                key: const Key('draft-brand-filter'),
+                label: _brand.isEmpty ? 'Marca' : 'Marca: $_brand',
+                enabled: _hasAccess,
+                onPressed: () => _selectTaxonomy(CatalogFilterKind.brand),
+                onClear: _brand.isEmpty
+                    ? null
+                    : () {
+                        setState(() => _brand = '');
+                        _load(0);
+                      },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _CatalogFilterButton(
+                key: const Key('draft-type-filter'),
+                label: _category.isEmpty ? 'Tipo' : 'Tipo: $_category',
+                enabled: _hasAccess,
+                onPressed: () => _selectTaxonomy(CatalogFilterKind.category),
+                onClear: _category.isEmpty
+                    ? null
+                    : () {
+                        setState(() => _category = '');
+                        _load(0);
+                      },
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 12),
         if (_busy) const LinearProgressIndicator(),
         if (_message != null) NexaNotice(_message!, isError: true),
@@ -592,6 +666,13 @@ final class _CatalogPickerState extends State<_CatalogPicker> {
                   subtitle: Text(
                     [
                       item.presentation,
+                      if (item.categoryName != null)
+                        'Tipo: ${item.categoryName}',
+                      if (item.productFamilyName != null &&
+                          item.productFamilyName != item.itemName)
+                        'Grupo: ${item.productFamilyName}',
+                      if (item.productVariantName != null)
+                        'Variedad: ${item.productVariantName}',
                       item.skuCode,
                     ].whereType<String>().join(' · '),
                   ),
@@ -639,4 +720,292 @@ final class _CatalogPickerState extends State<_CatalogPicker> {
     _query.dispose();
     super.dispose();
   }
+}
+
+final class _CatalogFilterButton extends StatelessWidget {
+  const _CatalogFilterButton({
+    super.key,
+    required this.label,
+    required this.enabled,
+    required this.onPressed,
+    this.onClear,
+  });
+
+  final String label;
+  final bool enabled;
+  final VoidCallback onPressed;
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: OutlinedButton.icon(
+          onPressed: enabled ? onPressed : null,
+          icon: const Icon(Icons.filter_list),
+          label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+      ),
+      if (onClear != null)
+        IconButton(
+          tooltip: 'Quitar $label',
+          onPressed: enabled ? onClear : null,
+          icon: const Icon(Icons.close),
+        ),
+    ],
+  );
+}
+
+final class _CatalogFilterSelection {
+  const _CatalogFilterSelection.option(this.option) : clear = false;
+  const _CatalogFilterSelection.clear() : option = null, clear = true;
+
+  final CatalogFilterOptionProjection? option;
+  final bool clear;
+}
+
+final class _CatalogFilterLookupDialog extends StatefulWidget {
+  const _CatalogFilterLookupDialog({
+    required this.repository,
+    required this.access,
+    required this.authority,
+    required this.kind,
+    required this.onAuthorityLost,
+  });
+
+  final CatalogRepository repository;
+  final BuyerAccessRepository access;
+  final String authority;
+  final CatalogFilterKind kind;
+  final VoidCallback onAuthorityLost;
+
+  @override
+  State<_CatalogFilterLookupDialog> createState() =>
+      _CatalogFilterLookupDialogState();
+}
+
+final class _CatalogFilterLookupDialogState
+    extends State<_CatalogFilterLookupDialog> {
+  final _search = TextEditingController();
+  Timer? _searchTimer;
+  late final StreamSubscription<BuyerAccessSnapshot> _subscription;
+  List<CatalogFilterOptionProjection> _items = const [];
+  int _generation = 0;
+  int _page = 0;
+  int _size = 100;
+  int _total = 0;
+  bool _busy = false;
+  bool _authorityLost = false;
+  String? _message;
+
+  String get _label =>
+      widget.kind == CatalogFilterKind.brand ? 'Marca' : 'Tipo';
+
+  int get _totalPages => _size < 1 ? 0 : (_total / _size).ceil();
+
+  @override
+  void initState() {
+    super.initState();
+    _subscription = widget.access.changes.listen(_onAccessChanged);
+    _load(page: 0, search: '');
+  }
+
+  void _onAccessChanged(BuyerAccessSnapshot snapshot) {
+    final stillAllowed =
+        snapshot.hasActiveBuyerScope &&
+        '${snapshot.authorityEpoch}:${snapshot.currentContext!.authorityFingerprint}' ==
+            widget.authority &&
+        snapshot.currentContext!.permissions.containsAll({
+          'catalog.read',
+          'buyer.sales.read',
+          'buyer.sales.write',
+        });
+    if (!stillAllowed) _loseAuthority();
+  }
+
+  void _loseAuthority() {
+    if (_authorityLost) return;
+    _authorityLost = true;
+    _generation++;
+    _searchTimer?.cancel();
+    if (mounted) {
+      setState(() {
+        _items = const [];
+        _busy = false;
+        _message = 'El acceso cambió. Cierra esta selección.';
+      });
+    }
+    widget.onAuthorityLost();
+  }
+
+  Future<void> _load({required int page, required String search}) async {
+    if (!mounted || _authorityLost) return;
+    if (!_allowedNow) {
+      _loseAuthority();
+      return;
+    }
+    final generation = ++_generation;
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      final result = await widget.repository.filterOptions(
+        kind: widget.kind,
+        search: search,
+        page: page,
+      );
+      if (!mounted || generation != _generation || !_allowedNow) {
+        if (mounted && !_allowedNow) _loseAuthority();
+        return;
+      }
+      setState(() {
+        _items = result.items;
+        _page = result.page;
+        _size = result.size;
+        _total = result.total;
+        _busy = false;
+      });
+    } on NexaApiFailure catch (error) {
+      if (!mounted || generation != _generation) return;
+      if (error.statusCode == 401) {
+        widget.access.invalidateLocalSession();
+        _loseAuthority();
+        return;
+      }
+      if (error.statusCode == 403) {
+        _loseAuthority();
+        return;
+      }
+      setState(() {
+        _items = const [];
+        _busy = false;
+        _message = error.userMessage;
+      });
+    } catch (_) {
+      if (!mounted || generation != _generation || !_allowedNow) return;
+      setState(() {
+        _items = const [];
+        _busy = false;
+        _message = 'No se pudieron consultar las opciones de $_label.';
+      });
+    }
+  }
+
+  bool get _allowedNow {
+    final snapshot = widget.access.snapshot;
+    return snapshot.hasActiveBuyerScope &&
+        '${snapshot.authorityEpoch}:${snapshot.currentContext!.authorityFingerprint}' ==
+            widget.authority &&
+        snapshot.currentContext!.permissions.containsAll({
+          'catalog.read',
+          'buyer.sales.read',
+          'buyer.sales.write',
+        });
+  }
+
+  void _searchChanged(String value) {
+    _searchTimer?.cancel();
+    _searchTimer = Timer(const Duration(milliseconds: 300), () {
+      _load(page: 0, search: value.trim());
+    });
+  }
+
+  @override
+  void dispose() {
+    _generation++;
+    _searchTimer?.cancel();
+    _subscription.cancel();
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text('Seleccionar $_label'),
+    content: SizedBox(
+      width: 440,
+      height: 440,
+      child: Column(
+        children: [
+          TextField(
+            key: Key('draft-${widget.kind.name}-lookup-search'),
+            controller: _search,
+            enabled: !_authorityLost,
+            maxLength: 120,
+            onChanged: _searchChanged,
+            decoration: InputDecoration(
+              labelText: 'Buscar $_label',
+              prefixIcon: const Icon(Icons.search),
+              counterText: '',
+            ),
+          ),
+          if (_busy) const LinearProgressIndicator(),
+          if (_message case final message?)
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Text(message, textAlign: TextAlign.center),
+            ),
+          Expanded(
+            child: _items.isEmpty && !_busy && _message == null
+                ? Center(child: Text('No hay opciones de $_label.'))
+                : ListView.builder(
+                    itemCount: _items.length,
+                    itemBuilder: (context, index) {
+                      final option = _items[index];
+                      return ListTile(
+                        key: Key(
+                          'draft-${widget.kind.name}-option-${option.id}',
+                        ),
+                        title: Text(option.name),
+                        enabled: !_busy && !_authorityLost,
+                        onTap: () =>
+                            Navigator.of(context)
+                                .pop(_CatalogFilterSelection.option(option)),
+                      );
+                    },
+                  ),
+          ),
+          if (_totalPages > 1)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  tooltip: 'Opciones anteriores',
+                  onPressed: _page > 0 && !_busy && !_authorityLost
+                      ? () =>
+                            _load(page: _page - 1, search: _search.text.trim())
+                      : null,
+                  icon: const Icon(Icons.chevron_left),
+                ),
+                Text('Página ${_page + 1} de $_totalPages'),
+                IconButton(
+                  tooltip: 'Más opciones',
+                  onPressed:
+                      _page + 1 < _totalPages && !_busy && !_authorityLost
+                      ? () =>
+                            _load(page: _page + 1, search: _search.text.trim())
+                      : null,
+                  icon: const Icon(Icons.chevron_right),
+                ),
+              ],
+            ),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: _authorityLost
+            ? null
+            : () =>
+                  Navigator.of(context)
+                      .pop(const _CatalogFilterSelection.clear()),
+        child: const Text('Quitar filtro'),
+      ),
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Cerrar'),
+      ),
+    ],
+  );
 }

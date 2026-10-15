@@ -1,12 +1,49 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/presentation/buyer_visible_route_poller.dart';
 import '../../../core/presentation/nexa_buyer_components.dart';
 import '../application/buyer_orders_repository.dart';
 import 'buyer_orders_view_model.dart';
 
-final class BuyerOrderDetailPage extends StatelessWidget {
+final class BuyerOrderDetailPage extends StatefulWidget {
   const BuyerOrderDetailPage({super.key});
+
+  @override
+  State<BuyerOrderDetailPage> createState() => _BuyerOrderDetailPageState();
+}
+
+final class _BuyerOrderDetailPageState extends State<BuyerOrderDetailPage> {
+  GoRouter? _router;
+  BuyerVisibleRoutePoller? _poller;
+  late final BuyerOrderDetailViewModel _detail;
+
+  @override
+  void initState() {
+    super.initState();
+    _detail = context.read<BuyerOrderDetailViewModel>();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final router = GoRouter.of(context);
+    if (identical(router, _router)) return;
+    _poller?.dispose();
+    _router = router;
+    _poller = BuyerVisibleRoutePoller(
+      router: router,
+      routePath: '/orders/${Uri.encodeComponent(_detail.orderId)}',
+      onRefresh: _detail.load,
+    );
+  }
+
+  @override
+  void dispose() {
+    _poller?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

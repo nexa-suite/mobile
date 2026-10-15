@@ -9,6 +9,7 @@ import 'package:nexa_buyer_mobile/contexts/business_documents/presentation/busin
 import 'package:nexa_buyer_mobile/contexts/business_documents/presentation/business_documents_view_model.dart';
 import 'package:nexa_buyer_mobile/contexts/catalog_commercial_policy/presentation/catalog_page.dart';
 import 'package:nexa_buyer_mobile/contexts/fulfillment_delivery/presentation/buyer_deliveries_page.dart';
+import 'package:nexa_buyer_mobile/contexts/fulfillment_delivery/presentation/buyer_delivery_detail_page.dart';
 import 'package:nexa_buyer_mobile/core/network/nexa_api_client.dart';
 import 'package:nexa_buyer_mobile/core/presentation/nexa_buyer_theme.dart';
 import 'package:nexa_buyer_mobile/main.dart';
@@ -104,7 +105,9 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.bySemanticsLabel('Nexa'), findsOneWidget);
-    final signInTheme = Theme.of(tester.element(find.text('Nexa Buyer')));
+    final signInTheme = Theme.of(
+      tester.element(find.text('Bienvenido a Nexa')),
+    );
     expect(signInTheme.colorScheme.primary, const Color(0xFF2A67D9));
     expect(signInTheme.textTheme.bodyMedium?.fontFamily, 'Inter');
     await tester.enterText(
@@ -299,6 +302,9 @@ void main() {
             ]),
             200,
           );
+        }
+        if (path == '/api/v1/buyer/deliveries/$_deliveryId/buyer-receipts') {
+          return http.Response(jsonEncode(<Object?>[]), 200);
         }
         if (path.endsWith(
           '/sales-orders/00000000-0000-0000-0000-000000000001',
@@ -542,12 +548,23 @@ void main() {
           await Future<void>.delayed(const Duration(milliseconds: 25));
         }
       });
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(
         detailViewModel.downloadStatus,
         BusinessDocumentDownloadStatus.current,
         reason:
             'The protected binary response should finish within one second.',
+      );
+      expect(detailViewModel.content, isNotNull);
+      await tester.scrollUntilVisible(
+        find.text('Contenido verificado'),
+        400,
+        scrollable: find
+            .descendant(
+              of: find.byType(BusinessDocumentDetailPage),
+              matching: find.byType(Scrollable),
+            )
+            .first,
       );
       expect(find.text('Contenido verificado'), findsOneWidget);
       expect(
@@ -568,8 +585,20 @@ void main() {
         ),
         findsOneWidget,
       );
+      await tester.ensureVisible(find.text('Pedido SO-0001'));
       await tester.tap(find.text('Pedido SO-0001'));
       await tester.pumpAndSettle();
+      expect(find.byType(BuyerDeliveryDetailPage), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Historial de entrega'),
+        300,
+        scrollable: find
+            .descendant(
+              of: find.byType(BuyerDeliveryDetailPage),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
       expect(find.text('Historial de entrega'), findsOneWidget);
       expect(find.text('Handed Over'), findsOneWidget);
       expect(find.textContaining('PRIVATE ASSIGNMENT'), findsNothing);

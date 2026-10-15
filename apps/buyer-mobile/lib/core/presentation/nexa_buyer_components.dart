@@ -2,6 +2,70 @@ import 'package:flutter/material.dart';
 
 import 'nexa_buyer_theme.dart';
 
+enum NexaSkeletonShape { rectangle, rounded, circle }
+
+/// A static loading placeholder with one caller-localized screen-reader label.
+///
+/// Its shape is decorative; the child is excluded from semantics so assistive
+/// technology announces only [semanticLabel]. With no [width], rectangles and
+/// rounded shapes fill a width-bounded parent and use [height] as a finite
+/// fallback in an unbounded layout. Circles use [height] as their diameter.
+final class NexaSkeleton extends StatelessWidget {
+  const NexaSkeleton({
+    super.key,
+    this.width,
+    required this.height,
+    required this.semanticLabel,
+    this.shape = NexaSkeletonShape.rounded,
+  });
+
+  final double? width;
+  final double height;
+  final String semanticLabel;
+  final NexaSkeletonShape shape;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens =
+        theme.extension<NexaThemeExtension>() ?? NexaBuyerTheme.tokens;
+    final isCircle = shape == NexaSkeletonShape.circle;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final effectiveWidth =
+            width ??
+            (isCircle || !constraints.hasBoundedWidth
+                ? height
+                : constraints.maxWidth);
+        final radius = switch (shape) {
+          NexaSkeletonShape.rectangle => 0.0,
+          NexaSkeletonShape.rounded => tokens.radiusControl,
+          NexaSkeletonShape.circle => 0.0,
+        };
+
+        return Semantics(
+          container: true,
+          liveRegion: true,
+          label: semanticLabel,
+          child: ExcludeSemantics(
+            child: SizedBox(
+              width: effectiveWidth,
+              height: height,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  shape: isCircle ? BoxShape.circle : BoxShape.rectangle,
+                  borderRadius: isCircle ? null : BorderRadius.circular(radius),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// Keeps reading width and side gutters consistent on phones and tablets.
 final class NexaPageWidth extends StatelessWidget {
   const NexaPageWidth({

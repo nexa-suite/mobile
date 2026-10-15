@@ -59,7 +59,27 @@ void main() {
 
       await viewModel.refresh();
 
-      expect(viewModel.status, CatalogLoadStatus.unavailable);
+      expect(viewModel.status, CatalogLoadStatus.permissionDenied);
+      expect(access.snapshot.isSignedIn, isTrue);
+
+      viewModel.dispose();
+      await access.dispose();
+    },
+  );
+
+  test(
+    'a catalog 403 clears products retained from a previous response',
+    () async {
+      final access = _FakeAccess(_signedInSnapshot());
+      final repository = _RecordingCatalogRepository();
+      final viewModel = CatalogViewModel(repository, access);
+
+      await viewModel.refresh();
+      repository.denyList = true;
+      await viewModel.refresh();
+
+      expect(viewModel.status, CatalogLoadStatus.permissionDenied);
+      expect(viewModel.items, isEmpty);
       expect(access.snapshot.isSignedIn, isTrue);
 
       viewModel.dispose();
@@ -81,13 +101,103 @@ void main() {
     viewModel.dispose();
     await access.dispose();
   });
+
+  test(
+    'sends product, brand, and type filters before changing pages',
+    () async {
+      final access = _FakeAccess(_signedInSnapshot());
+      final repository = _RecordingCatalogRepository();
+      final viewModel = CatalogViewModel(repository, access);
+
+      await viewModel.search('leche');
+      await viewModel.filter(brand: ' Valle ', category: ' Bebidas ');
+      await viewModel.nextPage();
+
+      expect(repository.calls, [
+        {'query': 'leche', 'brand': '', 'category': '', 'page': 0},
+        {'query': 'leche', 'brand': 'Valle', 'category': 'Bebidas', 'page': 0},
+        {'query': 'leche', 'brand': 'Valle', 'category': 'Bebidas', 'page': 1},
+      ]);
+      expect(viewModel.brand, 'Valle');
+      expect(viewModel.category, 'Bebidas');
+
+      viewModel.dispose();
+      await access.dispose();
+    },
+  );
+
+  test('clears active catalog filters when the Buyer scope changes', () async {
+    final access = _FakeAccess(_signedInSnapshot());
+    final repository = _RecordingCatalogRepository();
+    final viewModel = CatalogViewModel(repository, access);
+
+    await viewModel.filter(brand: 'Valle', category: 'Bebidas');
+    access.emit(_signedInSnapshot(epoch: 2));
+
+    expect(viewModel.query, '');
+    expect(viewModel.brand, '');
+    expect(viewModel.category, '');
+    expect(viewModel.items, isEmpty);
+    expect(viewModel.status, CatalogLoadStatus.idle);
+
+    viewModel.dispose();
+    await access.dispose();
+  });
+
+  test(
+    'loads referential filter options only with Buyer catalog access',
+    () async {
+      final access = _FakeAccess(_signedInSnapshot());
+      final repository = _RecordingCatalogRepository();
+      final viewModel = CatalogViewModel(repository, access);
+
+      await viewModel.loadFilterOptions(
+        kind: CatalogFilterKind.category,
+        search: 'Beb',
+        page: 1,
+      );
+
+      expect(repository.lookupCalls, [
+        {'kind': CatalogFilterKind.category, 'search': 'Beb', 'page': 1},
+      ]);
+      expect(
+        viewModel.filterOptionsState(CatalogFilterKind.category).status,
+        CatalogFilterOptionsStatus.current,
+      );
+
+      viewModel.dispose();
+      await access.dispose();
+    },
+  );
+
+  test('does not query taxonomy options without catalog.read', () async {
+    final access = _FakeAccess(_signedInSnapshot(permissions: const {}));
+    final repository = _RecordingCatalogRepository();
+    final viewModel = CatalogViewModel(repository, access);
+
+    await viewModel.loadFilterOptions(
+      kind: CatalogFilterKind.brand,
+      search: '',
+      page: 0,
+    );
+
+    expect(repository.lookupCalls, isEmpty);
+    expect(
+      viewModel.filterOptionsState(CatalogFilterKind.brand).status,
+      CatalogFilterOptionsStatus.permissionDenied,
+    );
+
+    viewModel.dispose();
+    await access.dispose();
+  });
 }
 
 BuyerAccessSnapshot _signedInSnapshot({
   Set<String> permissions = const {'catalog.read'},
+  int epoch = 1,
 }) => BuyerAccessSnapshot(
   status: BuyerAccessStatus.signedIn,
-  authorityEpoch: 1,
+  authorityEpoch: epoch,
   currentContext: BuyerAccessContext(
     userId: 'user-1',
     membershipId: 'membership-1',
@@ -111,7 +221,83 @@ final class _ControlledCatalogRepository implements CatalogRepository {
   Future<CatalogPageProjection> list({
     required String query,
     required int page,
+    String brand = '',
+    String category = '',
   }) => _response.future;
+
+  @override
+  Future<CatalogFilterOptionPageProjection> filterOptions({
+    required CatalogFilterKind kind,
+    required String search,
+    required int page,
+  }) async => CatalogFilterOptionPageProjection(
+    items: const [],
+    page: page,
+    size: 100,
+    total: 0,
+  );
+
+  @override
+  Future<CatalogItemProjection> detail(String catalogItemId) =>
+      throw UnimplementedError();
+}
+
+final class _RecordingCatalogRepository implements CatalogRepository {
+  final calls = <Map<String, Object>>[];
+  final lookupCalls = <Map<String, Object>>[];
+  bool denyList = false;
+
+  @override
+  Future<CatalogPageProjection> list({
+    required String query,
+    required int page,
+    String brand = '',
+    String category = '',
+  }) async {
+    calls.add({
+      'query': query,
+      'brand': brand,
+      'category': category,
+      'page': page,
+    });
+    if (denyList) {
+      throw const NexaApiFailure(
+        code: 'permission_denied',
+        statusCode: 403,
+        userMessage: 'Not permitted.',
+      );
+    }
+    return CatalogPageProjection(
+      items: const [
+        CatalogItemProjection(
+          catalogItemId: 'CAT-0001',
+          itemName: 'Leche',
+          availabilityStatus: 'AVAILABLE',
+        ),
+      ],
+      page: page,
+      size: 20,
+      totalItems: 60,
+      totalPages: 3,
+    );
+  }
+
+  @override
+  Future<CatalogFilterOptionPageProjection> filterOptions({
+    required CatalogFilterKind kind,
+    required String search,
+    required int page,
+  }) async {
+    lookupCalls.add({'kind': kind, 'search': search, 'page': page});
+    return CatalogFilterOptionPageProjection(
+      items: const [
+        CatalogFilterOptionProjection(id: 'option-1', name: 'Bebidas'),
+      ],
+      page: page,
+      size: 100,
+      total: 101,
+    );
+  }
 
   @override
   Future<CatalogItemProjection> detail(String catalogItemId) =>
@@ -123,11 +309,26 @@ final class _ForbiddenCatalogRepository implements CatalogRepository {
   Future<CatalogPageProjection> list({
     required String query,
     required int page,
+    String brand = '',
+    String category = '',
   }) => Future.error(
     const NexaApiFailure(
       code: 'permission_denied',
       statusCode: 403,
       userMessage: 'This information is not available for your current access.',
+    ),
+  );
+
+  @override
+  Future<CatalogFilterOptionPageProjection> filterOptions({
+    required CatalogFilterKind kind,
+    required String search,
+    required int page,
+  }) => Future.error(
+    const NexaApiFailure(
+      code: 'permission_denied',
+      statusCode: 403,
+      userMessage: 'Not permitted.',
     ),
   );
 
@@ -143,8 +344,19 @@ final class _CountingCatalogRepository implements CatalogRepository {
   Future<CatalogPageProjection> list({
     required String query,
     required int page,
+    String brand = '',
+    String category = '',
   }) {
     listCalls++;
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<CatalogFilterOptionPageProjection> filterOptions({
+    required CatalogFilterKind kind,
+    required String search,
+    required int page,
+  }) {
     throw UnimplementedError();
   }
 

@@ -799,6 +799,15 @@ final class _FakeCatalogRepository implements CatalogRepository {
   Future<CatalogPageProjection> list({
     required String query,
     required int page,
+    String brand = '',
+    String category = '',
+  }) => throw UnimplementedError();
+
+  @override
+  Future<CatalogFilterOptionPageProjection> filterOptions({
+    required CatalogFilterKind kind,
+    required String search,
+    required int page,
   }) => throw UnimplementedError();
 
   @override

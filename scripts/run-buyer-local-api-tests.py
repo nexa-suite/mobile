@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the four Buyer API integration tests against a ready local runtime."""
+"""Run opt-in Buyer API integration tests against a ready local runtime."""
 
 from __future__ import annotations
 
@@ -160,7 +160,7 @@ def main() -> int:
         "test/local_api_integration_test.dart",
         "test/local_financial_reads_integration_test.dart",
     ]
-    print("Local API readiness: UP; running four opt-in Buyer integration tests.")
+    print("Local API readiness: UP; running opt-in Buyer integration tests.")
     return subprocess.run(command, cwd=app_root, env=environment, check=False).returncode
 
 

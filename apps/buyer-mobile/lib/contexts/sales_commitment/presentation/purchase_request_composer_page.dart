@@ -440,10 +440,6 @@ final class _PurchaseRequestComposerPageState
                   child: const Text('Reintentar comprobación'),
                 ),
               ] else ...[
-                const Text(
-                  'La creación anterior pudo llegar al servidor aunque no recibieras respuesta. Una lista vacía tampoco descarta una confirmación tardía.',
-                ),
-                const SizedBox(height: 12),
                 if (model.recoveryCandidates.isEmpty)
                   const Card(
                     child: Padding(
