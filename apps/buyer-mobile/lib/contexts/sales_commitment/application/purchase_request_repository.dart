@@ -43,6 +43,9 @@ final class PurchaseRequestLineProjection {
     required this.unit,
     this.effectiveUnitPrice,
     this.currency,
+    this.skuCode,
+    this.presentation,
+    this.notes,
   });
 
   final String skuId;
@@ -50,6 +53,9 @@ final class PurchaseRequestLineProjection {
   final String unit;
   final String? effectiveUnitPrice;
   final String? currency;
+  final String? skuCode;
+  final String? presentation;
+  final String? notes;
 }
 
 final class PurchaseRequestDraftProjection {

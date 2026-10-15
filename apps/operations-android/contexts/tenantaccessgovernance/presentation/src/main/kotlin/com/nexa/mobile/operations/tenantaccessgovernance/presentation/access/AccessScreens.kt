@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -72,7 +71,6 @@ fun AccessScreen(
     BoxWithConstraints(
         modifier = modifier.fillMaxSize().background(NexaColors.Surface)
     ) {
-        val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val canopyHeight = if (LocalDensity.current.fontScale >= 1.8f) {
             176.dp
         } else {
@@ -83,7 +81,7 @@ fun AccessScreen(
                 .imePadding().verticalScroll(rememberScrollState())
         ) {
             NexaAuthCanopy(Modifier.fillMaxWidth().height(canopyHeight)) {
-                AccessBrandHeader(statusTop)
+                AccessBrandHeader()
             }
             Column(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp),
@@ -158,9 +156,10 @@ fun ContextChooserScreen(
 }
 
 @Composable
-private fun AccessBrandHeader(statusTop: androidx.compose.ui.unit.Dp) {
+private fun AccessBrandHeader() {
     Column(
-        modifier = Modifier.padding(start = 24.dp, top = statusTop + 22.dp),
+        modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)
+            .padding(start = 24.dp, top = 22.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Image(

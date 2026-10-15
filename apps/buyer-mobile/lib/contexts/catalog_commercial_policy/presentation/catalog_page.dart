@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/presentation/nexa_buyer_components.dart';
 import '../application/catalog_repository.dart';
 import 'catalog_view_model.dart';
 
@@ -17,18 +18,26 @@ final class CatalogPage extends StatefulWidget {
 final class _CatalogPageState extends State<CatalogPage> {
   final _search = TextEditingController();
   Timer? _searchTimer;
+  late final CatalogViewModel _catalog;
 
   @override
   void initState() {
     super.initState();
+    _catalog = context.read<CatalogViewModel>()..addListener(_syncInputs);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<CatalogViewModel>().refresh();
+      if (mounted) _catalog.refresh();
     });
+  }
+
+  void _syncInputs() {
+    if (_catalog.status != CatalogLoadStatus.idle) return;
+    if (_catalog.query.isEmpty && _search.text.isNotEmpty) _search.clear();
   }
 
   @override
   void dispose() {
     _searchTimer?.cancel();
+    _catalog.removeListener(_syncInputs);
     _search.dispose();
     super.dispose();
   }
@@ -48,50 +57,119 @@ final class _CatalogPageState extends State<CatalogPage> {
   @override
   Widget build(BuildContext context) {
     final catalog = context.watch<CatalogViewModel>();
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: TextField(
-            controller: _search,
-            maxLength: 120,
-            textInputAction: TextInputAction.search,
-            onChanged: _searchChanged,
-            onSubmitted: _submitSearch,
-            decoration: InputDecoration(
-              hintText: 'Buscar productos',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _search.text.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Borrar búsqueda',
-                      icon: const Icon(Icons.close),
-                      onPressed: () {
-                        _search.clear();
-                        _searchChanged('');
-                      },
-                    ),
+    return NexaPageWidth(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          const NexaSectionHeader(
+            eyebrow: 'Compra mayorista',
+            title: 'Catálogo',
+            description: 'Consulta productos, precio y disponibilidad de tu relación activa.',
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: TextField(
+              key: const Key('catalog-product-query'),
+              controller: _search,
+              maxLength: 120,
+              textInputAction: TextInputAction.search,
+              onChanged: _searchChanged,
+              onSubmitted: _submitSearch,
+              decoration: InputDecoration(
+                hintText: 'Buscar productos',
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surface,
+                counterText: '',
+                suffixIcon: _search.text.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Borrar búsqueda',
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          _search.clear();
+                          _searchChanged('');
+                        },
+                      ),
+              ),
             ),
           ),
-        ),
-        if (catalog.status == CatalogLoadStatus.loading &&
-            catalog.items.isNotEmpty)
-          const LinearProgressIndicator(),
-        Expanded(child: _catalogContent(catalog)),
-      ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const Key('catalog-brand-filter'),
+                    onPressed: () =>
+                        _openSelector(context, CatalogFilterKind.brand),
+                    icon: const Icon(Icons.local_offer_outlined),
+                    label: Text(
+                      catalog.brand.isEmpty
+                          ? 'Marca'
+                          : 'Marca: ${catalog.brand}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const Key('catalog-type-filter'),
+                    onPressed: () =>
+                        _openSelector(context, CatalogFilterKind.category),
+                    icon: const Icon(Icons.category_outlined),
+                    label: Text(
+                      catalog.category.isEmpty
+                          ? 'Tipo'
+                          : 'Tipo: ${catalog.category}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (catalog.status == CatalogLoadStatus.loading &&
+              catalog.items.isNotEmpty)
+            const LinearProgressIndicator(),
+          Expanded(child: _catalogContent(catalog)),
+        ],
+      ),
     );
   }
+
+  Future<void> _openSelector(
+    BuildContext context,
+    CatalogFilterKind kind,
+  ) async => showDialog<void>(
+    context: context,
+    builder: (_) => _CatalogFilterSelectorDialog(
+      model: _catalog,
+      kind: kind,
+      selectedName: kind == CatalogFilterKind.brand
+          ? _catalog.brand
+          : _catalog.category,
+    ),
+  );
 
   Widget _catalogContent(CatalogViewModel catalog) {
     if (catalog.status == CatalogLoadStatus.loading && catalog.items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (catalog.status == CatalogLoadStatus.unavailable &&
+    if ((catalog.status == CatalogLoadStatus.unavailable ||
+            catalog.status == CatalogLoadStatus.permissionDenied) &&
         catalog.items.isEmpty) {
       return _EmptyState(
         message: catalog.message ?? 'No se pudo consultar el catálogo.',
-        actionLabel: 'Reintentar',
-        onAction: catalog.refresh,
+        actionLabel: catalog.status == CatalogLoadStatus.permissionDenied
+            ? null
+            : 'Reintentar',
+        onAction: catalog.status == CatalogLoadStatus.permissionDenied
+            ? null
+            : catalog.refresh,
       );
     }
     if (catalog.items.isEmpty && catalog.status == CatalogLoadStatus.current) {
@@ -102,10 +180,29 @@ final class _CatalogPageState extends State<CatalogPage> {
       onRefresh: catalog.refresh,
       child: ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-        itemCount: catalog.items.length + 1,
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        itemCount:
+            catalog.items.length +
+            1 +
+            (catalog.status == CatalogLoadStatus.unavailable &&
+                    catalog.items.isNotEmpty
+                ? 1
+                : 0),
         itemBuilder: (context, index) {
-          if (index == catalog.items.length) {
+          final hasStaleItems =
+              catalog.status == CatalogLoadStatus.unavailable &&
+              catalog.items.isNotEmpty;
+          if (hasStaleItems && index == 0) {
+            return const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: NexaNotice(
+                'No se pudo actualizar el catálogo. La información anterior puede estar desactualizada; no confirma precio, disponibilidad ni pedido.',
+                isError: true,
+              ),
+            );
+          }
+          final itemIndex = index - (hasStaleItems ? 1 : 0);
+          if (itemIndex == catalog.items.length) {
             return _PageControls(
               page: catalog.page,
               totalPages: catalog.totalPages,
@@ -114,17 +211,190 @@ final class _CatalogPageState extends State<CatalogPage> {
               onNext: catalog.nextPage,
             );
           }
-          final item = catalog.items[index];
-          return _CatalogItemCard(
-            item: item,
-            onTap: () => context.push(
-              '/catalog/${Uri.encodeComponent(item.catalogItemId)}',
+          final item = catalog.items[itemIndex];
+          return NexaPageWidth(
+            padding: EdgeInsets.zero,
+            child: _CatalogItemCard(
+              item: item,
+              onTap: () => context.push(
+                '/catalog/${Uri.encodeComponent(item.catalogItemId)}',
+              ),
             ),
           );
         },
       ),
     );
   }
+}
+
+final class _CatalogFilterSelectorDialog extends StatefulWidget {
+  const _CatalogFilterSelectorDialog({
+    required this.model,
+    required this.kind,
+    required this.selectedName,
+  });
+
+  final CatalogViewModel model;
+  final CatalogFilterKind kind;
+  final String selectedName;
+
+  @override
+  State<_CatalogFilterSelectorDialog> createState() =>
+      _CatalogFilterSelectorDialogState();
+}
+
+final class _CatalogFilterSelectorDialogState
+    extends State<_CatalogFilterSelectorDialog> {
+  final _search = TextEditingController();
+  Timer? _searchTimer;
+
+  String get _label =>
+      widget.kind == CatalogFilterKind.brand ? 'Marca' : 'Tipo';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _load(page: 0, search: '');
+    });
+  }
+
+  void _load({required int page, required String search}) {
+    widget.model.loadFilterOptions(
+      kind: widget.kind,
+      search: search,
+      page: page,
+    );
+  }
+
+  void _searchChanged(String value) {
+    _searchTimer?.cancel();
+    _searchTimer = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) _load(page: 0, search: value.trim());
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchTimer?.cancel();
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text('Seleccionar $_label'),
+    content: SizedBox(
+      width: 440,
+      height: 440,
+      child: AnimatedBuilder(
+        animation: widget.model,
+        builder: (context, _) {
+          final state = widget.model.filterOptionsState(widget.kind);
+          return Column(
+            children: [
+              TextField(
+                key: Key('catalog-${widget.kind.name}-lookup-search'),
+                controller: _search,
+                maxLength: 120,
+                onChanged: _searchChanged,
+                decoration: InputDecoration(
+                  labelText: 'Buscar $_label',
+                  prefixIcon: const Icon(Icons.search),
+                  counterText: '',
+                ),
+              ),
+              if (state.status == CatalogFilterOptionsStatus.loading)
+                const LinearProgressIndicator(),
+              if (state.message case final message?) ...[
+                const SizedBox(height: 8),
+                Text(message, textAlign: TextAlign.center),
+              ],
+              Expanded(
+                child:
+                    state.status == CatalogFilterOptionsStatus.current &&
+                        state.items.isEmpty
+                    ? Center(child: Text('No hay opciones de $_label.'))
+                    : ListView.builder(
+                        itemCount: state.items.length,
+                        itemBuilder: (context, index) {
+                          final option = state.items[index];
+                          return ListTile(
+                            key: Key(
+                              'catalog-${widget.kind.name}-option-${option.id}',
+                            ),
+                            title: Text(option.name),
+                            trailing: option.name == widget.selectedName
+                                ? const Icon(Icons.check)
+                                : null,
+                            onTap: () {
+                              widget.model.selectFilterOption(
+                                kind: widget.kind,
+                                option: option,
+                              );
+                              Navigator.of(context).pop();
+                            },
+                          );
+                        },
+                      ),
+              ),
+              if (state.status == CatalogFilterOptionsStatus.unavailable ||
+                  state.status == CatalogFilterOptionsStatus.permissionDenied)
+                TextButton(
+                  onPressed: () =>
+                      _load(page: state.page, search: state.search),
+                  child: const Text('Reintentar'),
+                ),
+              if (state.totalPages > 1)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      tooltip: 'Opciones anteriores',
+                      onPressed:
+                          state.page > 0 &&
+                              state.status != CatalogFilterOptionsStatus.loading
+                          ? () => _load(
+                              page: state.page - 1,
+                              search: state.search,
+                            )
+                          : null,
+                      icon: const Icon(Icons.chevron_left),
+                    ),
+                    Text('Página ${state.page + 1} de ${state.totalPages}'),
+                    IconButton(
+                      tooltip: 'Más opciones',
+                      onPressed:
+                          state.page + 1 < state.totalPages &&
+                              state.status != CatalogFilterOptionsStatus.loading
+                          ? () => _load(
+                              page: state.page + 1,
+                              search: state.search,
+                            )
+                          : null,
+                      icon: const Icon(Icons.chevron_right),
+                    ),
+                  ],
+                ),
+            ],
+          );
+        },
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () {
+          widget.model.selectFilterOption(kind: widget.kind);
+          Navigator.of(context).pop();
+        },
+        child: const Text('Quitar filtro'),
+      ),
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Cerrar'),
+      ),
+    ],
+  );
 }
 
 final class _CatalogItemCard extends StatelessWidget {
@@ -136,48 +406,69 @@ final class _CatalogItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final detail = [
-      item.brandName,
+      if (item.brandName != null) 'Marca: ${item.brandName}',
+      if (item.categoryName != null) 'Tipo: ${item.categoryName}',
+      if (item.productFamilyName != null &&
+          item.productFamilyName != item.itemName)
+        'Grupo: ${item.productFamilyName}',
+      if (item.productVariantName != null)
+        'Variedad: ${item.productVariantName}',
       item.presentation,
       if (item.skuCode != null) 'SKU ${item.skuCode}',
     ].whereType<String>().where((value) => value.isNotEmpty).join(' · ');
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                item.itemName,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              if (detail.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(detail, style: Theme.of(context).textTheme.bodyMedium),
-              ],
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 12,
-                runSpacing: 6,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            NexaProductVisual(name: item.itemName, height: 108),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_availabilityLabel(item.availabilityStatus)),
-                  if (item.price case final price?)
-                    Text('Precio ${price.amount} ${price.currency}'),
-                  if (item.unitOfMeasure case final unit?)
-                    Text('Unidad: $unit'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item.itemName,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  ),
+                  if (detail.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(detail, style: Theme.of(context).textTheme.bodyMedium),
+                  ],
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      NexaStatusBadge(
+                        item.availabilityStatus,
+                        label: _availabilityLabel(item.availabilityStatus),
+                      ),
+                      if (item.price case final price?)
+                        Text(
+                          '${price.amount} ${price.currency}',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      if (item.unitOfMeasure case final unit?)
+                        Text('Unidad: $unit'),
+                    ],
+                  ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Ver detalle',
-                style: Theme.of(context).textTheme.labelLarge
-                    ?.copyWith(color: Theme.of(context).colorScheme.primary),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

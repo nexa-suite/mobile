@@ -73,9 +73,42 @@ final class CatalogPageProjection {
   final int totalPages;
 }
 
+enum CatalogFilterKind { brand, category }
+
+final class CatalogFilterOptionProjection {
+  const CatalogFilterOptionProjection({required this.id, required this.name});
+
+  final String id;
+  final String name;
+}
+
+final class CatalogFilterOptionPageProjection {
+  const CatalogFilterOptionPageProjection({
+    required this.items,
+    required this.page,
+    required this.size,
+    required this.total,
+  });
+
+  final List<CatalogFilterOptionProjection> items;
+  final int page;
+  final int size;
+  final int total;
+
+  int get totalPages => size == 0 ? 0 : (total / size).ceil();
+}
+
 abstract interface class CatalogRepository {
   Future<CatalogPageProjection> list({
     required String query,
+    required int page,
+    String brand = '',
+    String category = '',
+  });
+
+  Future<CatalogFilterOptionPageProjection> filterOptions({
+    required CatalogFilterKind kind,
+    required String search,
     required int page,
   });
 

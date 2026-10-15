@@ -1,18 +1,23 @@
 package com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters
 
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.CandidateConfirmationResult
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductFilterOptionsResult
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductSearchResult
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.WarehouseCatalogFilterChoice
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.WarehouseCatalogFilterKind
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.WarehouseCatalogFilterPage
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.warehouse.WarehouseGateway
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.CatalogOperationsContext
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transport.CatalogDetailOutcome
 import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transport.CatalogDetailProjection
-import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transport.NexaOperationsCatalogGateway
-import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transport.OperationsCatalogDetailOutcome
-import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transport.OperationsCatalogDetailProjection
-import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transport.OperationsCatalogSearchOutcome
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transport.CatalogFilterOptionsOutcome
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transport.CatalogSearchOutcome
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transport.NexaCatalogGateway
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.contextIsCurrent
+import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.PermissionHint
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.catalogReadHint
 import javax.inject.Inject
@@ -22,17 +27,21 @@ import kotlinx.coroutines.flow.map
 @Singleton
 class OperationsCatalogIdentificationGateway @Inject constructor(
     private val sessions: SessionCoordinator,
-    private val operationsCatalog: NexaOperationsCatalogGateway
+    calls: ProtectedCallExecutor
 ) : WarehouseGateway {
+    private val catalog = NexaCatalogGateway(calls)
+
     override suspend fun search(
         query: String,
+        brandName: String?,
+        categoryName: String?,
         pageKey: String?,
         authorityEpoch: Long
     ): ProductSearchResult {
         val access = sessions.currentAccess() ?: return ProductSearchResult.SessionInvalidated
         val context = sessions.verifiedSession.value
             ?: return ProductSearchResult.ContextInvalidated
-        val result = operationsCatalog.search(query, pageKey)
+        val result = catalog.search(query, pageKey, brandName, categoryName)
         if (!sessions.isEpochCurrent(access.epoch)) return ProductSearchResult.SessionInvalidated
         val current = sessions.verifiedSession.value
             ?: return ProductSearchResult.ContextInvalidated
@@ -43,7 +52,7 @@ class OperationsCatalogIdentificationGateway @Inject constructor(
             return ProductSearchResult.PermissionDenied
         }
         return when (result) {
-            is OperationsCatalogSearchOutcome.Page -> ProductSearchResult.Page(
+            is CatalogSearchOutcome.Page -> ProductSearchResult.Page(
                 result.value.candidates.map {
                     ProductCandidate(
                         key = it.catalogItemId,
@@ -52,28 +61,81 @@ class OperationsCatalogIdentificationGateway @Inject constructor(
                         presentation = it.presentation,
                         sku = it.skuCode,
                         imageFileName = it.imageFileName,
-                        detailKey = it.productId
+                        detailKey = it.catalogItemId
                     )
                 },
                 result.value.nextPageKey
             )
 
-            OperationsCatalogSearchOutcome.InvalidQuery -> ProductSearchResult.InvalidQuery
+            CatalogSearchOutcome.InvalidQuery -> ProductSearchResult.InvalidQuery
 
-            OperationsCatalogSearchOutcome.NetworkUnavailable ->
+            CatalogSearchOutcome.NetworkUnavailable ->
                 ProductSearchResult.NetworkUnavailable
 
-            OperationsCatalogSearchOutcome.ServiceUnavailable ->
+            CatalogSearchOutcome.ServiceUnavailable ->
                 ProductSearchResult.ServiceUnavailable
 
-            OperationsCatalogSearchOutcome.PermissionDenied -> ProductSearchResult.PermissionDenied
+            CatalogSearchOutcome.PermissionDenied -> ProductSearchResult.PermissionDenied
 
-            OperationsCatalogSearchOutcome.ContextInvalidated -> {
+            CatalogSearchOutcome.ContextInvalidated -> {
                 sessions.invalidateContext()
                 ProductSearchResult.ContextInvalidated
             }
 
-            OperationsCatalogSearchOutcome.SessionExpired -> ProductSearchResult.SessionInvalidated
+            CatalogSearchOutcome.SessionExpired -> ProductSearchResult.SessionInvalidated
+        }
+    }
+
+    override suspend fun filterOptions(
+        kind: WarehouseCatalogFilterKind,
+        search: String,
+        page: Int,
+        authorityEpoch: Long
+    ): ProductFilterOptionsResult {
+        val access =
+            sessions.currentAccess() ?: return ProductFilterOptionsResult.SessionInvalidated
+        val context = sessions.verifiedSession.value
+            ?: return ProductFilterOptionsResult.ContextInvalidated
+        val result = catalog.filterOptions(kind.wireValue, search, page)
+        if (!sessions.isEpochCurrent(access.epoch)) {
+            return ProductFilterOptionsResult.SessionInvalidated
+        }
+        val current = sessions.verifiedSession.value
+            ?: return ProductFilterOptionsResult.ContextInvalidated
+        if (!contextIsCurrent(context, current)) {
+            return ProductFilterOptionsResult.ContextInvalidated
+        }
+        if (catalogReadHint(current.permissions) == PermissionHint.Unavailable) {
+            return ProductFilterOptionsResult.PermissionDenied
+        }
+        return when (result) {
+            is CatalogFilterOptionsOutcome.Page -> ProductFilterOptionsResult.Page(
+                WarehouseCatalogFilterPage(
+                    items = result.items.map { WarehouseCatalogFilterChoice(it.id, it.name) },
+                    page = result.page,
+                    size = result.size,
+                    total = result.total
+                )
+            )
+
+            CatalogFilterOptionsOutcome.InvalidQuery -> ProductFilterOptionsResult.InvalidQuery
+
+            CatalogFilterOptionsOutcome.NetworkUnavailable ->
+                ProductFilterOptionsResult.NetworkUnavailable
+
+            CatalogFilterOptionsOutcome.ServiceUnavailable ->
+                ProductFilterOptionsResult.ServiceUnavailable
+
+            CatalogFilterOptionsOutcome.PermissionDenied ->
+                ProductFilterOptionsResult.PermissionDenied
+
+            CatalogFilterOptionsOutcome.ContextInvalidated -> {
+                sessions.invalidateContext()
+                ProductFilterOptionsResult.ContextInvalidated
+            }
+
+            CatalogFilterOptionsOutcome.SessionExpired ->
+                ProductFilterOptionsResult.SessionInvalidated
         }
     }
 
@@ -86,9 +148,7 @@ class OperationsCatalogIdentificationGateway @Inject constructor(
             ?: return CandidateConfirmationResult.SessionInvalidated
         val verified = sessions.verifiedSession.value
             ?: return CandidateConfirmationResult.ContextInvalidated
-        val detailKey = candidate.detailKey
-        if (detailKey == null) return CandidateConfirmationResult.CandidateUnavailable
-        val result = operationsCatalog.loadDetail(detailKey)
+        val result = catalog.loadDetail(candidate.key)
         if (!sessions.isEpochCurrent(access.epoch)) {
             return CandidateConfirmationResult.SessionInvalidated
         }
@@ -107,50 +167,35 @@ class OperationsCatalogIdentificationGateway @Inject constructor(
             return CandidateConfirmationResult.PermissionDenied
         }
         return when (result) {
-            is OperationsCatalogDetailOutcome.Found -> mapConfirmedCatalogDetail(
+            is CatalogDetailOutcome.Found -> mapConfirmedCatalogDetail(
                 candidate = candidate,
-                detail = result.value.toCatalogDetailProjection(),
+                detail = result.value,
                 context = context,
                 authorityEpoch = authorityEpoch
             )
 
-            OperationsCatalogDetailOutcome.CandidateUnavailable ->
+            CatalogDetailOutcome.CandidateUnavailable ->
                 CandidateConfirmationResult.CandidateUnavailable
 
-            OperationsCatalogDetailOutcome.NetworkUnavailable ->
+            CatalogDetailOutcome.NetworkUnavailable ->
                 CandidateConfirmationResult.NetworkUnavailable
 
-            OperationsCatalogDetailOutcome.ServiceUnavailable ->
+            CatalogDetailOutcome.ServiceUnavailable ->
                 CandidateConfirmationResult.ServiceUnavailable
 
-            OperationsCatalogDetailOutcome.PermissionDenied ->
+            CatalogDetailOutcome.PermissionDenied ->
                 CandidateConfirmationResult.PermissionDenied
 
-            OperationsCatalogDetailOutcome.ContextInvalidated -> {
+            CatalogDetailOutcome.ContextInvalidated -> {
                 sessions.invalidateContext()
                 CandidateConfirmationResult.ContextInvalidated
             }
 
-            OperationsCatalogDetailOutcome.SessionExpired ->
+            CatalogDetailOutcome.SessionExpired ->
                 CandidateConfirmationResult.SessionInvalidated
         }
     }
 }
-
-private fun OperationsCatalogDetailProjection.toCatalogDetailProjection(): CatalogDetailProjection =
-    CatalogDetailProjection(
-        catalogItemId = catalogItemId,
-        itemName = itemName,
-        presentation = presentation,
-        skuCode = skuCode,
-        brandName = brandName,
-        productVariantName = null,
-        productFamilyName = null,
-        unitOfMeasure = unitOfMeasure,
-        packagingType = null,
-        coldChainRequirement = storageTemperature,
-        imageFileName = imageFileName
-    )
 
 fun mapConfirmedCatalogDetail(
     candidate: ProductCandidate,

@@ -61,7 +61,9 @@ data class InboundReceiptCommand(
     val unit: String,
     val temperatureReading: BigDecimal? = null,
     val notes: String? = null,
-    val temperatureEvidenceObjectId: String? = null
+    val temperatureEvidenceObjectId: String? = null,
+    val productionDate: LocalDate? = null,
+    val receivedAt: Instant? = null
 ) {
     init {
         require(uuidPattern.matches(warehouseId) && uuidPattern.matches(zoneId))
@@ -89,7 +91,8 @@ data class ReceivingLotProjection(
     val available: BigDecimal,
     val unit: String,
     val status: String,
-    val version: Long
+    val version: Long,
+    val productionDate: LocalDate? = null
 ) {
     override fun toString(): String =
         "ReceivingLotProjection(id=REDACTED, quantity=$onHand, unit=$unit)"
@@ -351,6 +354,8 @@ class NexaReceivingGateway(private val protectedCalls: ProtectedCallExecutor) {
         skuId?.let { put("skuId", it) }
         put("batchNumber", batchNumber)
         put("expirationDate", expirationDate.toString())
+        productionDate?.let { put("productionDate", it.toString()) }
+        receivedAt?.let { put("receivedAt", it.toString()) }
         // JsonPrimitive(Number) writes BigDecimal directly, preserving numeric JSON and scale.
         put("quantity", JsonPrimitive(quantity))
         put("unit", unit)
@@ -421,6 +426,11 @@ class NexaReceivingGateway(private val protectedCalls: ProtectedCallExecutor) {
         val safeUnit = unit.requiredText() ?: return null
         val safeStatus = status.requiredText() ?: return null
         val expiry = expirationDate.requiredText()?.parseLocalDate() ?: return null
+        val production = if (productionDate.isNullOrBlank()) {
+            null
+        } else {
+            productionDate.parseLocalDate() ?: return null
+        }
         val onHandValue = onHand.decimalValue() ?: return null
         val reservedValue = reserved.decimalValue() ?: return null
         val availableValue = available.decimalValue() ?: return null
@@ -440,6 +450,7 @@ class NexaReceivingGateway(private val protectedCalls: ProtectedCallExecutor) {
             skuId = skuId,
             batchNumber = safeBatch,
             expirationDate = expiry,
+            productionDate = production,
             receivedAt = safeReceived,
             onHand = onHandValue,
             reserved = reservedValue,
@@ -546,6 +557,7 @@ private data class LotWire(
     val skuId: String? = null,
     val batchNumber: String? = null,
     val expirationDate: String? = null,
+    val productionDate: String? = null,
     val receivedAt: String? = null,
     val onHand: JsonElement? = null,
     val reserved: JsonElement? = null,

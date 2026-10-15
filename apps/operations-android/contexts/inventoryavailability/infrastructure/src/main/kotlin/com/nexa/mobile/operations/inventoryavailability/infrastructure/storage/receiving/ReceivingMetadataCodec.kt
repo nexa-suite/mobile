@@ -16,7 +16,7 @@ internal data class ReceivingMetadataSnapshot(
 )
 
 internal object ReceivingMetadataCodec {
-    private const val SCHEMA_VERSION = 2
+    private const val SCHEMA_VERSION = 3
     private const val MAX_RECORD_BYTES = 64 * 1024
     private const val MAX_FIELD_BYTES = 8 * 1024
     private val MAGIC =
@@ -82,6 +82,8 @@ internal object ReceivingMetadataCodec {
         writeField(draft.temperatureReadingText, 128)
         writeNullableField(draft.notes, MAX_FIELD_BYTES)
         writeNullableField(draft.temperatureEvidenceObjectId, 128)
+        writeField(draft.productionDateText, 64)
+        writeField(draft.receivedAtText, 64)
     }
 
     private fun DataInputStream.readDraft(schemaVersion: Int): ReceivingDraftMetadataRecord {
@@ -105,6 +107,8 @@ internal object ReceivingMetadataCodec {
         val temperatureReadingText = readField(128)
         val notes = readNullableField(MAX_FIELD_BYTES)
         val temperatureEvidenceObjectId = if (schemaVersion >= 2) readNullableField(128) else null
+        val productionDateText = if (schemaVersion >= 3) readField(64) else ""
+        val receivedAtText = if (schemaVersion >= 3) readField(64) else ""
         return ReceivingDraftMetadataRecord(
             selectedProduct = product,
             warehouseId = warehouseId,
@@ -115,7 +119,9 @@ internal object ReceivingMetadataCodec {
             unit = unit,
             temperatureReadingText = temperatureReadingText,
             notes = notes,
-            temperatureEvidenceObjectId = temperatureEvidenceObjectId
+            temperatureEvidenceObjectId = temperatureEvidenceObjectId,
+            productionDateText = productionDateText,
+            receivedAtText = receivedAtText
         )
     }
 
@@ -133,6 +139,8 @@ internal object ReceivingMetadataCodec {
         writeNullableField(payload.temperatureReading, 128)
         writeNullableField(payload.notes, MAX_FIELD_BYTES)
         writeNullableField(payload.temperatureEvidenceObjectId, 128)
+        writeNullableField(payload.productionDate, 64)
+        writeNullableField(payload.receivedAt, 64)
         writeByte(
             when (intent.status) {
                 ReceivingIntentStatus.Pending -> 1
@@ -157,6 +165,8 @@ internal object ReceivingMetadataCodec {
         val temperatureReading = readNullableField(128)
         val notes = readNullableField(MAX_FIELD_BYTES)
         val temperatureEvidenceObjectId = if (schemaVersion >= 2) readNullableField(128) else null
+        val productionDate = if (schemaVersion >= 3) readNullableField(64) else null
+        val receivedAt = if (schemaVersion >= 3) readNullableField(64) else null
         val payload = ReceivingIntentPayload(
             warehouseId = warehouseId,
             zoneId = zoneId,
@@ -168,7 +178,9 @@ internal object ReceivingMetadataCodec {
             unit = unit,
             temperatureReading = temperatureReading,
             notes = notes,
-            temperatureEvidenceObjectId = temperatureEvidenceObjectId
+            temperatureEvidenceObjectId = temperatureEvidenceObjectId,
+            productionDate = productionDate,
+            receivedAt = receivedAt
         )
         val status = when (readUnsignedByte()) {
             1 -> ReceivingIntentStatus.Pending

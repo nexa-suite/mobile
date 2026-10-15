@@ -16,6 +16,8 @@ import kotlinx.serialization.json.Json
 private const val CATALOG_ITEMS_PATH = "/api/v1/catalog-items"
 private const val CATALOG_PAGE_SIZE = 20
 private const val MAX_QUERY_LENGTH = 120
+private const val MAX_FILTER_LENGTH = 120
+private const val FILTER_OPTIONS_PAGE_SIZE = 100
 private val pageKeyPattern = Regex("(?:0|[1-9][0-9]*)")
 private val catalogItemIdPattern = Regex("(?i)CAT-[A-Z0-9-]{1,63}")
 private val catalogJson = Json { ignoreUnknownKeys = true }
@@ -29,7 +31,9 @@ data class CatalogCandidateProjection(
     val brandName: String?,
     val productVariantName: String?,
     val productFamilyName: String?,
-    val imageFileName: String? = null
+    val imageFileName: String? = null,
+    val categoryName: String? = null,
+    val productFamilyId: String? = null
 ) {
     override fun toString(): String =
         "CatalogCandidateProjection(itemName=$itemName, catalogItemId=REDACTED, skuCode=REDACTED)"
@@ -56,7 +60,9 @@ data class CatalogDetailProjection(
     val unitOfMeasure: String?,
     val packagingType: String?,
     val coldChainRequirement: String?,
-    val imageFileName: String? = null
+    val imageFileName: String? = null,
+    val categoryName: String? = null,
+    val productFamilyId: String? = null
 ) {
     override fun toString(): String =
         "CatalogDetailProjection(itemName=$itemName, catalogItemId=REDACTED, skuCode=REDACTED)"
@@ -82,11 +88,64 @@ sealed interface CatalogDetailOutcome {
     data object SessionExpired : CatalogDetailOutcome
 }
 
+data class CatalogFilterOption(val id: String, val name: String)
+
+sealed interface CatalogFilterOptionsOutcome {
+    data class Page(
+        val items: List<CatalogFilterOption>,
+        val page: Int,
+        val size: Int,
+        val total: Long
+    ) : CatalogFilterOptionsOutcome
+    data object InvalidQuery : CatalogFilterOptionsOutcome
+    data object NetworkUnavailable : CatalogFilterOptionsOutcome
+    data object ServiceUnavailable : CatalogFilterOptionsOutcome
+    data object PermissionDenied : CatalogFilterOptionsOutcome
+    data object ContextInvalidated : CatalogFilterOptionsOutcome
+    data object SessionExpired : CatalogFilterOptionsOutcome
+}
+
 /** Protected native read adapter for the catalog list and selected-item routes. */
 class NexaCatalogGateway(private val protectedCalls: ProtectedCallExecutor) {
-    suspend fun search(query: String, pageKey: String?): CatalogSearchOutcome {
+    suspend fun filterOptions(
+        kind: String,
+        search: String,
+        page: Int
+    ): CatalogFilterOptionsOutcome {
+        val normalizedKind = kind.trim().lowercase()
+        val normalizedSearch = search.trim()
+        if (normalizedKind !in setOf("brand", "category") || page < 0 ||
+            normalizedSearch.length > MAX_FILTER_LENGTH
+        ) {
+            return CatalogFilterOptionsOutcome.InvalidQuery
+        }
+        val encodedSearch = URLEncoder.encode(normalizedSearch, StandardCharsets.UTF_8.name())
+        val path = "$CATALOG_ITEMS_PATH/filter-options?kind=$normalizedKind&search=$encodedSearch" +
+            "&page=$page&size=$FILTER_OPTIONS_PAGE_SIZE"
+        return when (
+            val result = protectedCalls.execute(ProtectedRequest(ProtectedMethod.GET, path))
+        ) {
+            is ProtectedResult.Failure -> result.error.toFilterOptionsOutcome()
+            is ProtectedResult.Success -> parseFilterOptions(result.body, page)
+        }
+    }
+
+    suspend fun search(
+        query: String,
+        pageKey: String?,
+        brandName: String? = null,
+        categoryName: String? = null
+    ): CatalogSearchOutcome {
         val normalizedQuery = query.trim()
-        if (normalizedQuery.isEmpty() || normalizedQuery.length > MAX_QUERY_LENGTH) {
+        val normalizedBrand = brandName.normalizedFilter()
+        val normalizedCategory = categoryName.normalizedFilter()
+        if (normalizedQuery.length > MAX_QUERY_LENGTH ||
+            normalizedBrand.invalidFilter() || normalizedCategory.invalidFilter() ||
+            (
+                normalizedQuery.isEmpty() && normalizedBrand.isNullOrEmpty() &&
+                    normalizedCategory.isNullOrEmpty()
+                )
+        ) {
             return CatalogSearchOutcome.InvalidQuery
         }
         val page = if (pageKey == null) {
@@ -95,8 +154,17 @@ class NexaCatalogGateway(private val protectedCalls: ProtectedCallExecutor) {
             parsePageKey(pageKey) ?: return CatalogSearchOutcome.InvalidQuery
         }
 
-        val encodedQuery = URLEncoder.encode(normalizedQuery, StandardCharsets.UTF_8.name())
-        val path = "$CATALOG_ITEMS_PATH?q=$encodedQuery&page=$page&size=$CATALOG_PAGE_SIZE"
+        val parameters = buildList {
+            if (normalizedQuery.isNotEmpty()) add("q" to normalizedQuery)
+            normalizedBrand?.let { add("brand" to it) }
+            normalizedCategory?.let { add("category" to it) }
+            add("page" to page.toString())
+            add("size" to CATALOG_PAGE_SIZE.toString())
+        }.joinToString("&") { (key, value) ->
+            val encoded = URLEncoder.encode(value, StandardCharsets.UTF_8.name())
+            "$key=$encoded"
+        }
+        val path = "$CATALOG_ITEMS_PATH?$parameters"
         return when (
             val result = protectedCalls.execute(ProtectedRequest(ProtectedMethod.GET, path))
         ) {
@@ -140,6 +208,33 @@ class NexaCatalogGateway(private val protectedCalls: ProtectedCallExecutor) {
         return CatalogSearchOutcome.Page(CatalogSearchPage(candidates, nextPageKey))
     }
 
+    private fun parseFilterOptions(body: String?, requestedPage: Int): CatalogFilterOptionsOutcome {
+        val response = body.decode<CatalogFilterOptionsWire>()
+            ?: return CatalogFilterOptionsOutcome.ServiceUnavailable
+        val wireItems = response.items ?: return CatalogFilterOptionsOutcome.ServiceUnavailable
+        val page = response.page ?: return CatalogFilterOptionsOutcome.ServiceUnavailable
+        val size = response.size ?: return CatalogFilterOptionsOutcome.ServiceUnavailable
+        val total = response.total ?: return CatalogFilterOptionsOutcome.ServiceUnavailable
+        if (page != requestedPage || size != FILTER_OPTIONS_PAGE_SIZE || total < 0 ||
+            wireItems.size > size || total < wireItems.size
+        ) {
+            return CatalogFilterOptionsOutcome.ServiceUnavailable
+        }
+        val items = wireItems.map { row ->
+            val id = row.id.requiredText()?.takeIf { it.length <= 128 }
+                ?: return CatalogFilterOptionsOutcome.ServiceUnavailable
+            val name = row.name.requiredText()?.takeIf { it.length <= MAX_FILTER_LENGTH }
+                ?: return CatalogFilterOptionsOutcome.ServiceUnavailable
+            CatalogFilterOption(id, name)
+        }
+        if (items.map { it.id }.toSet().size != items.size ||
+            items.map { it.name.lowercase() }.toSet().size != items.size
+        ) {
+            return CatalogFilterOptionsOutcome.ServiceUnavailable
+        }
+        return CatalogFilterOptionsOutcome.Page(items, page, size, total)
+    }
+
     private fun parseDetail(body: String?, requestedId: String): CatalogDetailOutcome {
         val response =
             body.decode<CatalogDetailWire>() ?: return CatalogDetailOutcome.ServiceUnavailable
@@ -162,8 +257,10 @@ class NexaCatalogGateway(private val protectedCalls: ProtectedCallExecutor) {
             presentation = safePresentation,
             skuCode = safeSkuCode,
             brandName = brandName.optionalText(),
-            productVariantName = productVariantName.optionalText(),
-            productFamilyName = productFamilyName.optionalText(),
+            categoryName = categoryName.optionalText(),
+            productVariantName = variantName.optionalText() ?: productVariantName.optionalText(),
+            productFamilyName = familyName.optionalText() ?: productFamilyName.optionalText(),
+            productFamilyId = familyId.optionalText(),
             imageFileName = image?.fileName.optionalText()
         )
     }
@@ -180,8 +277,10 @@ class NexaCatalogGateway(private val protectedCalls: ProtectedCallExecutor) {
             presentation = safePresentation,
             skuCode = safeSkuCode,
             brandName = brandName.optionalText(),
-            productVariantName = productVariantName.optionalText(),
-            productFamilyName = productFamilyName.optionalText(),
+            categoryName = categoryName.optionalText(),
+            productVariantName = variantName.optionalText() ?: productVariantName.optionalText(),
+            productFamilyName = familyName.optionalText() ?: productFamilyName.optionalText(),
+            productFamilyId = familyId.optionalText(),
             unitOfMeasure = unitOfMeasure.optionalText(),
             packagingType = packagingType.optionalText(),
             coldChainRequirement = coldChainRequirement.optionalText(),
@@ -221,12 +320,32 @@ class NexaCatalogGateway(private val protectedCalls: ProtectedCallExecutor) {
         else -> CatalogDetailOutcome.ServiceUnavailable
     }
 
+    private fun ClientFailure.toFilterOptionsOutcome(): CatalogFilterOptionsOutcome = when {
+        httpStatus == 400 -> CatalogFilterOptionsOutcome.InvalidQuery
+
+        kind == FailureKind.AuthenticationRequired -> CatalogFilterOptionsOutcome.SessionExpired
+
+        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
+            CatalogFilterOptionsOutcome.ContextInvalidated
+
+        kind == FailureKind.AuthorizationFailure -> CatalogFilterOptionsOutcome.PermissionDenied
+
+        kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
+            CatalogFilterOptionsOutcome.NetworkUnavailable
+
+        else -> CatalogFilterOptionsOutcome.ServiceUnavailable
+    }
+
     private fun parsePageKey(pageKey: String): Int? =
         if (pageKeyPattern.matches(pageKey)) pageKey.toIntOrNull() else null
 
     private fun String?.requiredText(): String? = this?.takeIf { it.isNotBlank() }
 
     private fun String?.optionalText(): String? = this?.takeIf { it.isNotBlank() }
+
+    private fun String?.normalizedFilter(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
+
+    private fun String?.invalidFilter(): Boolean = this != null && this.length > MAX_FILTER_LENGTH
 
     private inline fun <reified T> String?.decode(): T? = try {
         this?.let { catalogJson.decodeFromString<T>(it) }
@@ -259,10 +378,25 @@ private data class CatalogCandidateWire(
     val presentation: String? = null,
     val skuCode: String? = null,
     val brandName: String? = null,
+    val categoryName: String? = null,
+    val familyId: String? = null,
+    val familyName: String? = null,
+    val variantName: String? = null,
     val productVariantName: String? = null,
     val productFamilyName: String? = null,
     val image: CatalogMediaWire? = null
 )
+
+@Serializable
+private data class CatalogFilterOptionsWire(
+    val items: List<CatalogFilterOptionWire>? = null,
+    val page: Int? = null,
+    val size: Int? = null,
+    val total: Long? = null
+)
+
+@Serializable
+private data class CatalogFilterOptionWire(val id: String? = null, val name: String? = null)
 
 @Serializable
 private data class CatalogDetailWire(
@@ -271,6 +405,10 @@ private data class CatalogDetailWire(
     val presentation: String? = null,
     val skuCode: String? = null,
     val brandName: String? = null,
+    val categoryName: String? = null,
+    val familyId: String? = null,
+    val familyName: String? = null,
+    val variantName: String? = null,
     val productVariantName: String? = null,
     val productFamilyName: String? = null,
     val unitOfMeasure: String? = null,

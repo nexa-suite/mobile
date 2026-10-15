@@ -9,7 +9,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.CandidateConfirmationResult
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductFilterOptionsResult
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductSearchResult
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.WarehouseCatalogFilterKind
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.warehouse.WarehouseGateway
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.CatalogOperationsContext
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
@@ -118,9 +120,18 @@ class RootCapabilityInvalidationTest {
     private object NoRemoteCalls : WarehouseGateway {
         override suspend fun search(
             query: String,
+            brandName: String?,
+            categoryName: String?,
             pageKey: String?,
             authorityEpoch: Long
         ): ProductSearchResult = error("Navigation must not dispatch a search")
+
+        override suspend fun filterOptions(
+            kind: WarehouseCatalogFilterKind,
+            search: String,
+            page: Int,
+            authorityEpoch: Long
+        ): ProductFilterOptionsResult = error("Navigation must not load filter options")
 
         override suspend fun confirm(
             candidate: ProductCandidate,

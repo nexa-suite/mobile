@@ -2,6 +2,12 @@ package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundReceiptRequest
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingAuthority
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingCatalogCandidate
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingCatalogFilterChoice
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingCatalogFilterKind
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingCatalogFilterPage
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingCatalogOutcome
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingCatalogPage
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingDraftMetadata
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingEvidenceCandidate
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingEvidenceResult
@@ -14,6 +20,7 @@ import com.nexa.mobile.operations.inventoryavailability.application.model.wareho
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingSubmitResult
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingGateway
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingProductCatalogGateway
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseEvidenceFileCandidate
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseEvidenceFileSelectionPort
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseEvidenceSelectionCoordinator
@@ -25,6 +32,7 @@ import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.R
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivingZoneChoice
 import java.io.File
 import java.math.BigDecimal
+import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -77,6 +85,216 @@ class ReceivingViewModelTest {
     }
 
     @Test
+    fun receivingPickerUsesServerFiltersPagesAndConfirmedCatalogUnit() = runTest {
+        val brand = ReceivingCatalogFilterChoice("brand-1", "Brand One")
+        val category = ReceivingCatalogFilterChoice("category-1", "Cold goods")
+        val first = ReceivingCatalogCandidate(
+            "CAT-0001",
+            "Milk",
+            "1 L",
+            "MILK-1L",
+            brand.name,
+            category.name
+        )
+        val second = ReceivingCatalogCandidate(
+            "CAT-0002",
+            "Cream",
+            "500 mL",
+            "CREAM-500",
+            brand.name,
+            category.name
+        )
+        val catalog = FakeReceivingProductCatalogGateway().apply {
+            filterResults += ReceivingCatalogOutcome.Success(
+                ReceivingCatalogFilterPage(listOf(brand), page = 0, size = 100, total = 101)
+            )
+            filterResults += ReceivingCatalogOutcome.Success(
+                ReceivingCatalogFilterPage(listOf(brand.copy(id = "brand-2")), 1, 100, 101)
+            )
+            filterResults += ReceivingCatalogOutcome.Success(
+                ReceivingCatalogFilterPage(listOf(category), page = 0, size = 100, total = 1)
+            )
+            searchResults += ReceivingCatalogOutcome.Success(
+                ReceivingCatalogPage(listOf(first), nextPageKey = "1")
+            )
+            searchResults += ReceivingCatalogOutcome.Success(
+                ReceivingCatalogPage(listOf(second), nextPageKey = null)
+            )
+            detailResults[first.catalogItemId] = ReceivingCatalogOutcome.Success(
+                ReceivingProductReference(
+                    first.catalogItemId,
+                    null,
+                    first.itemName,
+                    first.skuCode,
+                    "L"
+                )
+            )
+        }
+        val store = FakeReceivingMetadataStore()
+        val viewModel = ReceivingViewModel(
+            FakeReceivingGateway(),
+            store,
+            productCatalog = catalog
+        )
+        viewModel.activate(authority(permissions = setOf("inventory.receive", "catalog.read")))
+        advanceUntilIdle()
+
+        viewModel.openProductPicker()
+        viewModel.openProductFilterOptions(ReceivingCatalogFilterKind.Brand)
+        advanceUntilIdle()
+        assertEquals(1, viewModel.state.value.productPicker.nextFilterPage)
+        viewModel.loadProductFilterOptions(
+            ReceivingCatalogFilterKind.Brand,
+            "",
+            page = 1,
+            append = true
+        )
+        advanceUntilIdle()
+        assertEquals(2, viewModel.state.value.productPicker.filterOptions.size)
+        viewModel.selectProductFilter(ReceivingCatalogFilterKind.Brand, brand)
+
+        viewModel.openProductFilterOptions(ReceivingCatalogFilterKind.Category)
+        advanceUntilIdle()
+        viewModel.selectProductFilter(ReceivingCatalogFilterKind.Category, category)
+        viewModel.productPickerQueryChanged("  milk  ")
+        viewModel.searchProductCatalog()
+        advanceUntilIdle()
+        assertEquals("milk", catalog.searchRequests.first().query)
+        assertEquals(brand.name, catalog.searchRequests.first().brandName)
+        assertEquals(category.name, catalog.searchRequests.first().categoryName)
+        assertNull(catalog.searchRequests.first().pageKey)
+        assertEquals("1", viewModel.state.value.productPicker.nextPageKey)
+
+        viewModel.loadMoreProductCatalog()
+        advanceUntilIdle()
+        assertEquals("1", catalog.searchRequests.last().pageKey)
+        assertEquals(
+            listOf("CAT-0001", "CAT-0002"),
+            viewModel.state.value.productPicker
+                .candidates.map { it.catalogItemId }
+        )
+
+        viewModel.selectProductCatalogCandidate(first.catalogItemId)
+        advanceUntilIdle()
+        assertEquals(first.catalogItemId, viewModel.state.value.product?.catalogItemId)
+        assertEquals("L", viewModel.state.value.product?.unit)
+        assertEquals("L", viewModel.state.value.unit)
+        assertEquals(1L, viewModel.state.value.productVerifiedEpoch)
+        assertFalse(viewModel.state.value.productPicker.isOpen)
+        assertEquals(
+            first.catalogItemId,
+            store.drafts.values.single().selectedProduct?.catalogItemId
+        )
+    }
+
+    @Test
+    fun receivingPickerRejectsProductDetailWithoutConfirmedUnit() = runTest {
+        val candidate = ReceivingCatalogCandidate(
+            "CAT-0003",
+            "Coffee",
+            "250 g",
+            "COFFEE-250",
+            null,
+            null
+        )
+        val catalog = FakeReceivingProductCatalogGateway().apply {
+            searchResults += ReceivingCatalogOutcome.Success(
+                ReceivingCatalogPage(listOf(candidate), nextPageKey = null)
+            )
+            detailResults[candidate.catalogItemId] = ReceivingCatalogOutcome.Success(
+                ReceivingProductReference(
+                    candidate.catalogItemId,
+                    null,
+                    candidate.itemName,
+                    candidate.skuCode,
+                    ""
+                )
+            )
+        }
+        val viewModel = ReceivingViewModel(
+            FakeReceivingGateway(),
+            FakeReceivingMetadataStore(),
+            productCatalog = catalog
+        )
+        viewModel.activate(authority(permissions = setOf("inventory.receive", "catalog.read")))
+        advanceUntilIdle()
+        viewModel.openProductPicker()
+        viewModel.productPickerQueryChanged("coffee")
+        viewModel.searchProductCatalog()
+        advanceUntilIdle()
+        viewModel.selectProductCatalogCandidate(candidate.catalogItemId)
+        advanceUntilIdle()
+
+        assertNull(viewModel.state.value.product)
+        assertNull(viewModel.state.value.productVerifiedEpoch)
+        assertEquals(
+            ReceivingCatalogSelectionNotice.ServiceUnavailable,
+            viewModel.state.value.productPicker.selectionNotice
+        )
+        assertTrue(viewModel.state.value.productPicker.isOpen)
+    }
+
+    @Test
+    fun receivingPickerClearsResultsWhenServerRevokesCatalogRead() = runTest {
+        val brand = ReceivingCatalogFilterChoice("brand-1", "Brand One")
+        val candidate = ReceivingCatalogCandidate(
+            "CAT-0004",
+            "Tea",
+            "100 g",
+            "TEA-100",
+            brand.name,
+            null
+        )
+        val catalog = FakeReceivingProductCatalogGateway().apply {
+            searchResults += ReceivingCatalogOutcome.Success(
+                ReceivingCatalogPage(listOf(candidate), nextPageKey = "1")
+            )
+            searchResults += ReceivingCatalogOutcome.PermissionDenied
+            filterResults += ReceivingCatalogOutcome.Success(
+                ReceivingCatalogFilterPage(listOf(brand), page = 0, size = 100, total = 101)
+            )
+            filterResults += ReceivingCatalogOutcome.PermissionDenied
+        }
+        val viewModel = ReceivingViewModel(
+            FakeReceivingGateway(),
+            FakeReceivingMetadataStore(),
+            productCatalog = catalog
+        )
+        viewModel.activate(authority(permissions = setOf("inventory.receive", "catalog.read")))
+        advanceUntilIdle()
+        viewModel.openProductPicker()
+        viewModel.productPickerQueryChanged("tea")
+        viewModel.searchProductCatalog()
+        advanceUntilIdle()
+        assertEquals(1, viewModel.state.value.productPicker.candidates.size)
+        viewModel.loadMoreProductCatalog()
+        advanceUntilIdle()
+        assertEquals(
+            ReceivingCatalogSearchStatus.PermissionDenied,
+            viewModel.state.value.productPicker.searchStatus
+        )
+        assertTrue(viewModel.state.value.productPicker.candidates.isEmpty())
+        assertNull(viewModel.state.value.productPicker.nextPageKey)
+
+        viewModel.openProductFilterOptions(ReceivingCatalogFilterKind.Brand)
+        advanceUntilIdle()
+        assertEquals(1, viewModel.state.value.productPicker.filterOptions.size)
+        viewModel.loadProductFilterOptions(
+            ReceivingCatalogFilterKind.Brand,
+            "",
+            page = 1,
+            append = true
+        )
+        advanceUntilIdle()
+        assertEquals(
+            ReceivingCatalogFilterStatus.PermissionDenied,
+            viewModel.state.value.productPicker.filterStatus
+        )
+        assertTrue(viewModel.state.value.productPicker.filterOptions.isEmpty())
+        assertNull(viewModel.state.value.productPicker.nextFilterPage)
+    }
+
+    @Test
     fun unknownOutcomeRequiresExplicitReplayWithTheSameKeyAndFrozenDecimalPayload() = runTest {
         val gateway = FakeReceivingGateway().apply {
             submitResults += ReceivingSubmitResult.UnknownOutcome
@@ -98,6 +316,8 @@ class ReceivingViewModelTest {
         val frozen = storage.intent ?: error("intent metadata should be persisted")
         assertEquals("0.0100", frozen.request.quantity.toPlainString())
         assertEquals("-1.250", frozen.request.temperatureReading?.toPlainString())
+        assertEquals(LocalDate.parse("2026-09-29"), frozen.request.productionDate)
+        assertEquals(Instant.parse("2026-09-30T15:00:00Z"), frozen.request.receivedAt)
         assertEquals("LOT-REAL-7", frozen.request.batchNumber)
 
         viewModel.retryUnknownOutcome()
@@ -491,8 +711,9 @@ class ReceivingViewModelTest {
         viewModel.selectZone(zone.id)
         viewModel.batchNumberChanged("LOT-REAL-7")
         viewModel.expirationDateChanged("2099-06-30")
+        viewModel.productionDateChanged("2026-09-29")
+        viewModel.receivedAtChanged("2026-09-30T15:00:00Z")
         viewModel.quantityChanged("0.0100")
-        viewModel.unitChanged("KG")
         advanceUntilIdle()
         return viewModel
     }
@@ -518,6 +739,8 @@ class ReceivingViewModelTest {
             skuId = product.skuId,
             batchNumber = batch,
             expirationDate = LocalDate.parse("2099-06-30"),
+            productionDate = LocalDate.parse("2026-09-29"),
+            receivedAt = Instant.parse("2026-09-30T15:00:00Z"),
             quantity = BigDecimal(quantity),
             unit = "KG",
             temperatureReading = BigDecimal("-1.250")
@@ -531,7 +754,8 @@ class ReceivingViewModelTest {
         skuId = request.skuId,
         batchNumber = request.batchNumber,
         expirationDate = request.expirationDate,
-        receivedAt = "2026-09-30T15:00:00Z",
+        productionDate = request.productionDate,
+        receivedAt = request.receivedAt?.toString() ?: "2026-09-30T15:00:00Z",
         onHand = request.quantity,
         reserved = BigDecimal.ZERO,
         available = request.quantity,
@@ -596,6 +820,50 @@ class ReceivingViewModelTest {
             warehouseId: String,
             authority: ReceivingAuthority
         ): ReceivingEvidenceResult = evidenceStatusResult
+    }
+
+    private class FakeReceivingProductCatalogGateway : ReceivingProductCatalogGateway {
+        data class SearchRequest(
+            val query: String,
+            val brandName: String?,
+            val categoryName: String?,
+            val pageKey: String?
+        )
+
+        val searchRequests = mutableListOf<SearchRequest>()
+        val searchResults = mutableListOf<ReceivingCatalogOutcome<ReceivingCatalogPage>>()
+        val filterResults = mutableListOf<ReceivingCatalogOutcome<ReceivingCatalogFilterPage>>()
+        val detailResults = mutableMapOf<
+            String,
+            ReceivingCatalogOutcome<ReceivingProductReference>
+            >()
+
+        override suspend fun search(
+            query: String,
+            brandName: String?,
+            categoryName: String?,
+            pageKey: String?,
+            authority: ReceivingAuthority
+        ): ReceivingCatalogOutcome<ReceivingCatalogPage> {
+            searchRequests += SearchRequest(query, brandName, categoryName, pageKey)
+            return searchResults.removeFirstOrNull()
+                ?: ReceivingCatalogOutcome.ServiceUnavailable
+        }
+
+        override suspend fun filterOptions(
+            kind: ReceivingCatalogFilterKind,
+            search: String,
+            page: Int,
+            authority: ReceivingAuthority
+        ): ReceivingCatalogOutcome<ReceivingCatalogFilterPage> =
+            filterResults.removeFirstOrNull() ?: ReceivingCatalogOutcome.ServiceUnavailable
+
+        override suspend fun detail(
+            candidate: ReceivingCatalogCandidate,
+            authority: ReceivingAuthority
+        ): ReceivingCatalogOutcome<ReceivingProductReference> =
+            detailResults[candidate.catalogItemId]
+                ?: ReceivingCatalogOutcome.CandidateUnavailable
     }
 
     private class MemoryWarehouseEvidenceSelection : WarehouseEvidenceFileSelectionPort {

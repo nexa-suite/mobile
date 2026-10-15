@@ -15,7 +15,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -39,9 +44,14 @@ fun OperationsWorkEntryScreen(
     onViewStock: () -> Unit = {},
     onLogout: (() -> Unit)? = null,
     capabilities: List<WorkEntryCapability> = listOf(WorkEntryCapability.CatalogIdentification),
+    hasAdditionalWork: Boolean = false,
+    promoteAdditionalWork: Boolean = false,
     additionalWorkContent: @Composable () -> Unit = {}
 ) {
     val capabilityLabels = defaultCapabilityLabels() + additionalCapabilityLabels
+    var showWarehouseTools by remember(state.authorityEpoch, promoteAdditionalWork) {
+        mutableStateOf(!promoteAdditionalWork)
+    }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -62,15 +72,7 @@ fun OperationsWorkEntryScreen(
                     onClick = onChangeContext
                 )
             }
-            onLogout?.let { logout ->
-                OutlinedButton(
-                    onClick = logout,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                ) {
-                    Text(stringResource(CatalogR.string.warehouse_logout))
-                }
-            }
-            if (state.activeContext != null &&
+            if (promoteAdditionalWork && hasAdditionalWork &&
                 state.workEntryStatus == WorkEntryStatus.TaskAvailable
             ) {
                 additionalWorkContent()
@@ -82,23 +84,38 @@ fun OperationsWorkEntryScreen(
                         style = MaterialTheme.typography.titleMedium,
                         color = NexaColors.TextPrimary
                     )
-                    capabilities.forEach { capability ->
-                        val label = requireNotNull(capabilityLabels[capability]) {
-                            "Missing work-entry label for $capability"
+                    if (promoteAdditionalWork) {
+                        TextButton(onClick = { showWarehouseTools = !showWarehouseTools }) {
+                            Text(stringResource(CatalogR.string.warehouse_work_toggle))
                         }
-                        NexaTaskRow(
-                            title = label.title,
-                            description = label.description,
-                            onClick = when (capability) {
-                                WorkEntryCapability.CatalogIdentification -> onIdentifyProduct
-                                WorkEntryCapability.BarcodeIdentification -> onScanProductCode
-                                WorkEntryCapability.Receiving -> onReceiveStock
-                                WorkEntryCapability.StockCondition -> onViewStock
-                                WorkEntryCapability.Picking -> onPickStock
-                            }
-                        )
                     }
-                } else {
+                    if (showWarehouseTools) {
+                        capabilities.sortedBy { capability ->
+                            when (capability) {
+                                WorkEntryCapability.Picking -> 0
+                                WorkEntryCapability.Receiving -> 1
+                                WorkEntryCapability.StockCondition -> 2
+                                WorkEntryCapability.BarcodeIdentification -> 3
+                                WorkEntryCapability.CatalogIdentification -> 4
+                            }
+                        }.forEach { capability ->
+                            val label = requireNotNull(capabilityLabels[capability]) {
+                                "Missing work-entry label for $capability"
+                            }
+                            NexaTaskRow(
+                                title = label.title,
+                                description = label.description,
+                                onClick = when (capability) {
+                                    WorkEntryCapability.CatalogIdentification -> onIdentifyProduct
+                                    WorkEntryCapability.BarcodeIdentification -> onScanProductCode
+                                    WorkEntryCapability.Receiving -> onReceiveStock
+                                    WorkEntryCapability.StockCondition -> onViewStock
+                                    WorkEntryCapability.Picking -> onPickStock
+                                }
+                            )
+                        }
+                    }
+                } else if (!hasAdditionalWork) {
                     NexaStatePanel(
                         title = stringResource(CatalogR.string.warehouse_no_task_title),
                         description = stringResource(CatalogR.string.warehouse_no_task_body)
@@ -133,6 +150,19 @@ fun OperationsWorkEntryScreen(
                         CatalogR.string.warehouse_catalog_session_invalid_body
                     )
                 )
+            }
+            if (!promoteAdditionalWork && hasAdditionalWork && state.activeContext != null &&
+                state.workEntryStatus == WorkEntryStatus.TaskAvailable
+            ) {
+                additionalWorkContent()
+            }
+            onLogout?.let { logout ->
+                OutlinedButton(
+                    onClick = logout,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                ) {
+                    Text(stringResource(CatalogR.string.warehouse_logout))
+                }
             }
         }
     }

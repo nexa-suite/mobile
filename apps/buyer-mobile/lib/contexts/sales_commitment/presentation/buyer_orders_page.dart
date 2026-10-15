@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/presentation/nexa_buyer_components.dart';
+import '../../../core/presentation/buyer_visible_route_poller.dart';
 import '../application/buyer_orders_repository.dart';
 import 'buyer_orders_view_model.dart';
 
@@ -13,6 +15,23 @@ final class BuyerOrdersPage extends StatefulWidget {
 }
 
 final class _BuyerOrdersPageState extends State<BuyerOrdersPage> {
+  GoRouter? _router;
+  BuyerVisibleRoutePoller? _poller;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final router = GoRouter.of(context);
+    if (identical(router, _router)) return;
+    _poller?.dispose();
+    _router = router;
+    _poller = BuyerVisibleRoutePoller(
+      router: router,
+      routePath: '/orders',
+      onRefresh: () => context.read<BuyerOrdersViewModel>().refresh(),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -22,18 +41,29 @@ final class _BuyerOrdersPageState extends State<BuyerOrdersPage> {
   }
 
   @override
+  void dispose() {
+    _poller?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final orders = context.watch<BuyerOrdersViewModel>();
     if (orders.status == BuyerOrdersLoadStatus.loading &&
         orders.items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (orders.status == BuyerOrdersLoadStatus.unavailable &&
+    if ((orders.status == BuyerOrdersLoadStatus.unavailable ||
+            orders.status == BuyerOrdersLoadStatus.permissionDenied) &&
         orders.items.isEmpty) {
       return _OrdersEmptyState(
         message: orders.message ?? 'No se pudieron consultar tus pedidos.',
-        action: 'Reintentar',
-        onAction: orders.refresh,
+        action: orders.status == BuyerOrdersLoadStatus.permissionDenied
+            ? null
+            : 'Reintentar',
+        onAction: orders.status == BuyerOrdersLoadStatus.permissionDenied
+            ? null
+            : orders.refresh,
       );
     }
     if (orders.status == BuyerOrdersLoadStatus.current &&
@@ -41,29 +71,47 @@ final class _BuyerOrdersPageState extends State<BuyerOrdersPage> {
       return const _OrdersEmptyState(message: 'Todavía no tienes pedidos.');
     }
 
-    return RefreshIndicator(
-      onRefresh: orders.refresh,
-      child: ListView.builder(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-        itemCount: orders.items.length + 1,
-        itemBuilder: (context, index) {
-          if (index == orders.items.length) {
-            return _OrdersPageControls(
-              page: orders.page,
-              size: orders.size,
-              total: orders.total,
-              onPrevious: orders.previousPage,
-              onNext: orders.nextPage,
-            );
-          }
-          final order = orders.items[index];
-          return _OrderCard(
-            order: order,
-            onTap: () =>
-                context.push('/orders/${Uri.encodeComponent(order.id)}'),
-          );
-        },
+    return NexaPageWidth(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          const NexaSectionHeader(
+            eyebrow: 'Compras',
+            title: 'Pedidos',
+            description: 'Estado y detalle de tus pedidos confirmados.',
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: orders.refresh,
+              child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                itemCount: orders.items.length + 1,
+                itemBuilder: (context, index) {
+                  if (index == orders.items.length) {
+                    return _OrdersPageControls(
+                      page: orders.page,
+                      size: orders.size,
+                      total: orders.total,
+                      onPrevious: orders.previousPage,
+                      onNext: orders.nextPage,
+                    );
+                  }
+                  final order = orders.items[index];
+                  return NexaPageWidth(
+                    padding: EdgeInsets.zero,
+                    child: _OrderCard(
+                      order: order,
+                      onTap: () => context.push(
+                        '/orders/${Uri.encodeComponent(order.id)}',
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -76,26 +124,19 @@ final class _OrderCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Card(
-    margin: const EdgeInsets.only(bottom: 12),
-    child: ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      title: Text('Pedido ${order.number}'),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Estado: ${_statusLabel(order.status)}'),
-            if (order.createdAt != null) Text(_dateLabel(order.createdAt!)),
-            if (order.total != null && order.currency != null)
-              Text('Total ${order.total} ${order.currency}'),
-          ],
-        ),
-      ),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: onTap,
-    ),
+  Widget build(BuildContext context) => NexaRecordCard(
+    title: 'Pedido ${order.number}',
+    status: order.status,
+    icon: Icons.receipt_long_outlined,
+    subtitle: order.createdAt == null ? null : _dateLabel(order.createdAt!),
+    footer: order.total == null || order.currency == null
+        ? null
+        : NexaFactTile(
+            label: 'Total',
+            value: '${order.total} ${order.currency}',
+            emphasis: true,
+          ),
+    onTap: onTap,
   );
 }
 
@@ -163,8 +204,6 @@ final class _OrdersEmptyState extends StatelessWidget {
     ),
   );
 }
-
-String _statusLabel(String status) => status.replaceAll('_', ' ').toLowerCase();
 
 String _dateLabel(String value) {
   final date = DateTime.tryParse(value)?.toLocal();

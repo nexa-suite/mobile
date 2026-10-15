@@ -1,5 +1,9 @@
 package com.nexa.mobile.operations
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
@@ -9,6 +13,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.ui.NavDisplay
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.WarehouseCatalogFilterChoice
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.WarehouseCatalogFilterKind
 import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.CatalogOperationsContextAdapter
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ConfirmedSkuScreen
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductScannerScreen
@@ -81,6 +87,16 @@ internal fun RootNavigation(
     onSearch: () -> Unit = {},
     onLoadMore: () -> Unit = {},
     onQueryChanged: (String) -> Unit = {},
+    onOpenFilterOptions: (WarehouseCatalogFilterKind) -> Unit = {},
+    onCloseFilterOptions: () -> Unit = {},
+    onFilterSearchChanged: (String) -> Unit = {},
+    onLoadFilterOptions: () -> Unit = {},
+    onLoadMoreFilterOptions: () -> Unit = {},
+    onRetryFilterOptions: () -> Unit = {},
+    onSelectFilter: (
+        WarehouseCatalogFilterKind,
+        WarehouseCatalogFilterChoice?
+    ) -> Unit = { _, _ -> },
     onSelectCandidate: (String) -> Unit = {},
     scannerState: ProductScannerUiState = ProductScannerUiState.PermissionNotRequested(0),
     scannerCameraPreview: @Composable (Modifier) -> Unit = {},
@@ -158,6 +174,12 @@ internal fun RootNavigation(
         accessState,
         warehouseState,
         scannerState
+    )
+    val visibleConnectedEntries = ConnectedOperationsNavigation.visibleEntries(
+        connectedOperationEntries,
+        state,
+        accessState,
+        warehouseState
     )
 
     val destination = when {
@@ -333,14 +355,13 @@ internal fun RootNavigation(
                                 additionalCapabilityLabels =
                                     operationsWorkEntryAdditionalCapabilityLabels(),
                                 onLogout = onLogout,
+                                hasAdditionalWork = visibleConnectedEntries.isNotEmpty(),
+                                promoteAdditionalWork = currentContext?.verifiedAuthority?.roles
+                                    ?.any { it == "DRIVER" || it == "LOGISTICS" } == true,
                                 additionalWorkContent = {
                                     ConnectedOperationsEntries(
-                                        entries = ConnectedOperationsNavigation.visibleEntries(
-                                            connectedOperationEntries,
-                                            state,
-                                            accessState,
-                                            warehouseState
-                                        ),
+                                        entries = visibleConnectedEntries,
+                                        roles = currentContext?.verifiedAuthority?.roles.orEmpty(),
                                         onOpen = onOpenConnectedOperation
                                     )
                                     additionalWorkContent()
@@ -455,6 +476,83 @@ internal fun RootNavigation(
                                             onLoadMore()
                                         }
                                     },
+                                    onOpenFilterOptions = { kind ->
+                                        if (OperationsCapabilities.permits(
+                                                WarehouseRoute.ProductSearch,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            onOpenFilterOptions(kind)
+                                        }
+                                    },
+                                    onCloseFilterOptions = {
+                                        if (OperationsCapabilities.permits(
+                                                WarehouseRoute.ProductSearch,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            onCloseFilterOptions()
+                                        }
+                                    },
+                                    onFilterSearchChanged = { value ->
+                                        if (OperationsCapabilities.permits(
+                                                WarehouseRoute.ProductSearch,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            onFilterSearchChanged(value)
+                                        }
+                                    },
+                                    onLoadFilterOptions = {
+                                        if (OperationsCapabilities.permits(
+                                                WarehouseRoute.ProductSearch,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            onLoadFilterOptions()
+                                        }
+                                    },
+                                    onLoadMoreFilterOptions = {
+                                        if (OperationsCapabilities.permits(
+                                                WarehouseRoute.ProductSearch,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            onLoadMoreFilterOptions()
+                                        }
+                                    },
+                                    onRetryFilterOptions = {
+                                        if (OperationsCapabilities.permits(
+                                                WarehouseRoute.ProductSearch,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            onRetryFilterOptions()
+                                        }
+                                    },
+                                    onSelectFilter = { kind, choice ->
+                                        if (OperationsCapabilities.permits(
+                                                WarehouseRoute.ProductSearch,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            onSelectFilter(kind, choice)
+                                        }
+                                    },
                                     onSelectCandidate = { key ->
                                         if (OperationsCapabilities.permits(
                                                 WarehouseRoute.ProductSearch,
@@ -541,6 +639,9 @@ internal fun RootNavigation(
             }
         )
         NavDisplay(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing),
             backStack = backStack,
             onBack = {
                 when (destination) {

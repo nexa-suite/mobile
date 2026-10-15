@@ -43,6 +43,10 @@ jobs:
         working-directory: apps/buyer-mobile
     steps:
       - uses: actions/checkout@v7
+      - name: Verify client architecture boundaries
+        run: |
+          python3 scripts/test-context-architecture.py
+          python3 scripts/verify-context-architecture.py
       - uses: actions/setup-java@v6
         with:
           distribution: temurin

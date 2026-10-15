@@ -33,6 +33,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.core.designsystem.NexaWorkSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
 
 @Composable
@@ -70,20 +71,15 @@ fun DeliveryLoadScreen(
         ) {
             item {
                 TextButton(onClick = onBack) { Text(stringResource(R.string.delivery_load_back)) }
-                Text(
-                    stringResource(R.string.delivery_load_title),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    stringResource(
+                NexaWorkSummary(
+                    title = stringResource(R.string.delivery_load_title),
+                    description = stringResource(
                         if (state.driverMode) {
                             R.string.delivery_load_driver_intro
                         } else {
                             R.string.delivery_load_dispatch_intro
                         }
-                    ),
-                    style = MaterialTheme.typography.bodyMedium
+                    )
                 )
             }
             item { LoadStatus(state) }

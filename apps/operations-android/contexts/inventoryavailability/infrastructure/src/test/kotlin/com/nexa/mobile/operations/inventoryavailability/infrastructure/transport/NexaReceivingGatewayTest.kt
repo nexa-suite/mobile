@@ -8,6 +8,7 @@ import com.nexa.mobile.operations.core.network.ApiHttpClient
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import java.io.File
 import java.math.BigDecimal
+import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -115,6 +116,7 @@ class NexaReceivingGatewayTest {
             assertEquals(ZONE_A, outcome.lot.zoneId)
             assertEquals("0.0100", outcome.lot.onHand.toPlainString())
             assertEquals("KG", outcome.lot.unit)
+            assertEquals(LocalDate.parse("2026-09-29"), outcome.lot.productionDate)
             assertEquals("POST", request.method)
             assertEquals("/api/v1/inventory/inbound-receipts", request.path)
             assertEquals("arrival-intent-01", request.getHeader("Idempotency-Key"))
@@ -130,6 +132,8 @@ class NexaReceivingGatewayTest {
             )
             assertTrue(body.contains("\"catalogItemId\":\"CAT-0017\""))
             assertTrue(body.contains("\"skuId\":\"$SKU_ID\""))
+            assertTrue(body.contains("\"productionDate\":\"2026-09-29\""))
+            assertTrue(body.contains("\"receivedAt\":\"2026-09-30T15:00:00Z\""))
             assertFalse(body.contains("NaN"))
             assertNull(request.getHeader("X-Nexa-Client"))
             assertNull(request.getHeader("X-Nexa-Surface"))
@@ -339,6 +343,8 @@ class NexaReceivingGatewayTest {
         skuId = skuId,
         batchNumber = "LOT-REAL-7",
         expirationDate = LocalDate.parse("2099-06-30"),
+        productionDate = LocalDate.parse("2026-09-29"),
+        receivedAt = Instant.parse("2026-09-30T15:00:00Z"),
         quantity = BigDecimal(quantity),
         unit = "kg",
         temperatureReading = temperatureReading?.let(::BigDecimal)
@@ -350,7 +356,7 @@ class NexaReceivingGatewayTest {
         catalogItemId: String? = "CAT-0017",
         skuId: String? = NexaReceivingGatewayTest.SKU_ID
     ): String =
-        """{"id":"$LOT_ID","warehouseId":"$WAREHOUSE_A","zoneId":"$ZONE_A","catalogItemId":${catalogItemId.jsonOrNull()},"skuId":${skuId.jsonOrNull()},"batchNumber":"LOT-REAL-7","expirationDate":"2099-06-30","receivedAt":"2026-09-30T15:00:00Z","onHand":$onHand,"reserved":0,"available":$onHand,"unit":"$unit","status":"AVAILABLE","version":1}"""
+        """{"id":"$LOT_ID","warehouseId":"$WAREHOUSE_A","zoneId":"$ZONE_A","catalogItemId":${catalogItemId.jsonOrNull()},"skuId":${skuId.jsonOrNull()},"batchNumber":"LOT-REAL-7","expirationDate":"2099-06-30","productionDate":"2026-09-29","receivedAt":"2026-09-30T15:00:00Z","onHand":$onHand,"reserved":0,"available":$onHand,"unit":"$unit","status":"AVAILABLE","version":1}"""
 
     private fun evidenceJson(warehouseId: String) =
         """{"id":"$EVIDENCE_ID","subjectType":"WAREHOUSE","subjectId":"$warehouseId","lifecycleStatus":"AVAILABLE","declaredContentType":"image/jpeg","checksumSha256":"${"a".repeat(

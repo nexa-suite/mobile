@@ -135,6 +135,7 @@ class ReceivingIntentCoordinator(
             (request.catalogItemId == null || catalogItemId == request.catalogItemId) &&
             (request.skuId == null || skuId == request.skuId) &&
             batchNumber == request.batchNumber && expirationDate == request.expirationDate &&
+            productionDate == request.productionDate &&
             onHand.compareTo(request.quantity) == 0 && unit.equals(request.unit, ignoreCase = true)
 }
 

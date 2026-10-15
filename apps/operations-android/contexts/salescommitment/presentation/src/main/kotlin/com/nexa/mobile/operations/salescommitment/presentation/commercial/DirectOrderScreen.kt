@@ -33,7 +33,8 @@ import com.nexa.mobile.operations.salescommitment.presentation.R
 fun DirectOrderScreen(
     state: DirectOrderState,
     onBack: () -> Unit,
-    viewModel: DirectOrderViewModel
+    viewModel: DirectOrderViewModel,
+    onOpenCatalog: () -> Unit = {}
 ) {
     val draft = state.record.draft
     val editable = state.record.intent == null && state.status !in setOf(
@@ -79,6 +80,12 @@ fun DirectOrderScreen(
         OutlinedTextField(state.productId, viewModel::productChanged, enabled = editable, label = {
             Text(stringResource(R.string.direct_order_catalog_product))
         })
+        TextButton(
+            onClick = onOpenCatalog,
+            enabled = editable && draft.customerId.isNotBlank()
+        ) {
+            Text(stringResource(R.string.direct_order_choose_catalog_product))
+        }
         OutlinedTextField(state.quantity, viewModel::quantityChanged, enabled = editable, label = {
             Text(stringResource(R.string.direct_order_quantity))
         })

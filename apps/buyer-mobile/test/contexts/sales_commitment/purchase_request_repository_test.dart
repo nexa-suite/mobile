@@ -175,6 +175,7 @@ void main() {
               'missing': [],
               'draft': _draft(
                 version: 4,
+                status: 'READY_TO_SUBMIT',
                 lines: [_line()],
                 destination: {'addressId': _addressId},
                 route: {'provider': 'LOCAL_ESTIMATE', 'estimated': true},

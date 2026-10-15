@@ -1,9 +1,36 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="connected_operation_open_support">Abrir esta opción de trabajo en el contexto actual.</string>
+    <string name="work_hub_title">Tu espacio de trabajo</string>
+    <string name="work_hub_support">Elige una tarea para continuar en el espacio actual.</string>
+    <string name="work_hub_warehouse">Almacén</string>
+    <string name="work_hub_dispatch">Despacho</string>
+    <string name="work_hub_driver">Ruta</string>
+    <string name="work_hub_commercial">Comercial</string>
+    <string name="work_hub_other">Otras</string>
     <string name="picking_manual_reference">Abrir por referencia</string>
     <string name="local_network_permission_title">Acceso al API local</string>
     <string name="local_network_permission_reason">Esta compilación local necesita acceso a dispositivos cercanos para conectar con tu API de desarrollo. Concédelo al iniciar sesión o habilítalo en los ajustes de la app. No se reintentará la conexión automáticamente.</string>
     <string name="local_network_permission_back">Volver al acceso</string>
     <string name="local_network_permission_settings">Ajustes de la app</string>
+    <string name="work_hub_search">Buscar opción de trabajo</string>
+    <string name="work_hub_search_hint">Nombre de tarea o consulta</string>
+    <string name="work_hub_no_results">Sin coincidencias. Prueba otro nombre.</string>
+    <string name="work_hub_supporting">Ver consultas y herramientas (%1$d)</string>
+    <string name="work_hub_picking_support">Preparar varios trabajos y revisar su avance.</string>
+    <string name="work_hub_readiness_support">Revisar preparación, evidencia y próximos pasos de salida.</string>
+    <string name="work_hub_loads_support">Organizar cargas y revisar sus paradas.</string>
+    <string name="work_hub_accept_load_support">Revisar y aceptar la carga asignada.</string>
+    <string name="work_hub_deliveries_support">Abrir una entrega, consultar instrucciones y registrar su resultado.</string>
+    <string name="work_hub_overview_support">Consultar situación actual del trabajo de despacho.</string>
+    <string name="work_hub_exceptions_support">Revisar impedimentos y coordinar su seguimiento.</string>
+    <string name="work_hub_customers_support">Buscar cliente y continuar su atención.</string>
+    <string name="work_hub_request_support">Guardar una intención local sin enviar ni reservar.</string>
+    <string name="work_hub_direct_order_support">Revisar y enviar un pedido directo autorizado.</string>
+    <string name="work_hub_count_support">Registrar conteo y revisar diferencias de existencias.</string>
+    <string name="work_hub_transfer_support">Consultar y registrar traslado entre ubicaciones.</string>
+    <string name="work_hub_condition_support">Registrar evidencia y consultar condición de existencias.</string>
+    <string name="work_hub_documents_support">Consultar documentos disponibles del cliente.</string>
+    <string name="work_hub_notifications_support">Revisar avisos del espacio actual.</string>
+    <string name="work_hub_hide_supporting">Ocultar consultas y herramientas (%1$d)</string>
 </resources>

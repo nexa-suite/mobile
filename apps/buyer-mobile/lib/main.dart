@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
+import 'app/buyer_workspace_navigation.dart';
 import 'contexts/business_documents/application/business_documents_repository.dart';
 import 'contexts/business_documents/infrastructure/business_documents_repository_impl.dart';
 import 'contexts/business_documents/presentation/business_document_detail_page.dart';
@@ -41,10 +42,15 @@ import 'contexts/payments/presentation/buyer_wallet_page.dart';
 import 'contexts/payments/presentation/buyer_wallet_view_model.dart';
 import 'contexts/fulfillment_delivery/infrastructure/buyer_deliveries_repository_impl.dart';
 import 'contexts/fulfillment_delivery/application/buyer_deliveries_repository.dart';
+import 'contexts/fulfillment_delivery/application/buyer_receipt_idempotency_store.dart';
+import 'contexts/fulfillment_delivery/application/buyer_receipt_evidence_idempotency_store.dart';
+import 'contexts/fulfillment_delivery/infrastructure/file_buyer_receipt_idempotency_store.dart';
+import 'contexts/fulfillment_delivery/infrastructure/file_buyer_receipt_evidence_idempotency_store.dart';
 import 'contexts/fulfillment_delivery/presentation/buyer_deliveries_page.dart';
 import 'contexts/fulfillment_delivery/presentation/buyer_delivery_detail_page.dart';
 import 'contexts/fulfillment_delivery/presentation/buyer_deliveries_view_model.dart';
 import 'contexts/sales_commitment/application/buyer_orders_repository.dart';
+import 'contexts/sales_commitment/application/buyer_purchase_workspace_repository.dart';
 import 'contexts/sales_commitment/application/purchase_request_repository.dart';
 import 'contexts/sales_commitment/infrastructure/buyer_orders_repository_impl.dart';
 import 'contexts/sales_commitment/infrastructure/file_purchase_request_idempotency_store.dart';
@@ -54,6 +60,11 @@ import 'contexts/sales_commitment/presentation/buyer_orders_page.dart';
 import 'contexts/sales_commitment/presentation/buyer_orders_view_model.dart';
 import 'contexts/sales_commitment/presentation/purchase_request_composer_page.dart';
 import 'contexts/sales_commitment/presentation/purchase_request_composer_view_model.dart';
+import 'contexts/sales_commitment/presentation/buyer_requests_view_model.dart';
+import 'contexts/sales_commitment/presentation/buyer_requests_page.dart';
+import 'contexts/sales_commitment/presentation/buyer_request_detail_page.dart';
+import 'contexts/sales_commitment/presentation/buyer_draft_view_model.dart';
+import 'contexts/sales_commitment/presentation/buyer_draft_page.dart';
 import 'contexts/tenant_access_governance/application/buyer_access_repository.dart';
 import 'contexts/tenant_access_governance/infrastructure/buyer_access_repository_impl.dart';
 import 'contexts/tenant_access_governance/presentation/buyer_access_view_model.dart';
@@ -67,11 +78,26 @@ Future<void> main() async {
   final walletCheckout = await StripeBuyerWalletCheckout.configure(
     const String.fromEnvironment('NEXA_STRIPE_PUBLISHABLE_KEY'),
   );
+  const publicOsmTiles = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  const configuredMapTiles = String.fromEnvironment(
+    'NEXA_MAP_TILE_URL_TEMPLATE',
+  );
+  const configuredMapAttribution = String.fromEnvironment(
+    'NEXA_MAP_ATTRIBUTION',
+  );
+  final mapTileUrlTemplate = configuredMapTiles;
+  final mapAttribution = configuredMapAttribution.isNotEmpty
+      ? configuredMapAttribution
+      : mapTileUrlTemplate == publicOsmTiles
+      ? '© OpenStreetMap contributors'
+      : '';
   runApp(
     BuyerMobileApp(
       apiBaseUrl: const String.fromEnvironment('NEXA_API_BASE_URL'),
       allowLocalHttp: kDebugMode,
       walletCheckout: walletCheckout,
+      mapTileUrlTemplate: mapTileUrlTemplate,
+      mapAttribution: mapAttribution,
     ),
   );
 }
@@ -81,12 +107,16 @@ final class BuyerMobileApp extends StatefulWidget {
     super.key,
     required this.apiBaseUrl,
     required this.allowLocalHttp,
+    this.mapTileUrlTemplate = '',
+    this.mapAttribution = '',
     this.httpClient,
     this.walletCheckout,
   });
 
   final String apiBaseUrl;
   final bool allowLocalHttp;
+  final String mapTileUrlTemplate;
+  final String mapAttribution;
   final http.Client? httpClient;
   final BuyerWalletCheckoutPort? walletCheckout;
 
@@ -105,6 +135,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
   FileBuyerWalletRechargeCommandStore? _walletRechargeCommandStore;
   FilePaymentReportIdempotencyStore? _paymentIdempotencyStore;
   BuyerDeliveriesRepositoryImpl? _deliveriesRepository;
+  FileBuyerReceiptIdempotencyStore? _buyerReceiptIdempotencyStore;
+  FileBuyerReceiptEvidenceIdempotencyStore?
+  _buyerReceiptEvidenceIdempotencyStore;
   BuyerOrdersRepositoryImpl? _ordersRepository;
   PurchaseRequestRepositoryImpl? _purchaseRequestRepository;
   BusinessDocumentsRepositoryImpl? _businessDocumentsRepository;
@@ -133,6 +166,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
       _walletRechargeCommandStore = FileBuyerWalletRechargeCommandStore();
       _paymentIdempotencyStore = FilePaymentReportIdempotencyStore();
       _deliveriesRepository = BuyerDeliveriesRepositoryImpl(api);
+      _buyerReceiptIdempotencyStore = FileBuyerReceiptIdempotencyStore();
+      _buyerReceiptEvidenceIdempotencyStore =
+          FileBuyerReceiptEvidenceIdempotencyStore();
       _ordersRepository = BuyerOrdersRepositoryImpl(api);
       _purchaseRequestRepository = PurchaseRequestRepositoryImpl(
         api,
@@ -148,6 +184,8 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         _accessViewModel!,
         _paymentsRepository!,
         _paymentIdempotencyStore!,
+        widget.mapTileUrlTemplate,
+        widget.mapAttribution,
       );
     } on FormatException {
       _configurationInvalid = true;
@@ -175,6 +213,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
     final walletRechargeCommandStore = _walletRechargeCommandStore;
     final paymentIdempotencyStore = _paymentIdempotencyStore;
     final deliveries = _deliveriesRepository;
+    final buyerReceiptIdempotencyStore = _buyerReceiptIdempotencyStore;
+    final buyerReceiptEvidenceIdempotencyStore =
+        _buyerReceiptEvidenceIdempotencyStore;
     final orders = _ordersRepository;
     final purchaseRequests = _purchaseRequestRepository;
     final businessDocuments = _businessDocumentsRepository;
@@ -191,6 +232,8 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         walletRechargeCommandStore == null ||
         paymentIdempotencyStore == null ||
         deliveries == null ||
+        buyerReceiptIdempotencyStore == null ||
+        buyerReceiptEvidenceIdempotencyStore == null ||
         orders == null ||
         purchaseRequests == null ||
         businessDocuments == null ||
@@ -215,8 +258,17 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
           value: paymentIdempotencyStore,
         ),
         Provider<BuyerDeliveriesRepository>.value(value: deliveries),
+        Provider<BuyerReceiptIdempotencyStore>.value(
+          value: buyerReceiptIdempotencyStore,
+        ),
+        Provider<BuyerReceiptEvidenceIdempotencyStore>.value(
+          value: buyerReceiptEvidenceIdempotencyStore,
+        ),
         Provider<BuyerOrdersRepository>.value(value: orders),
         Provider<PurchaseRequestRepository>.value(value: purchaseRequests),
+        Provider<BuyerPurchaseWorkspaceRepository>.value(
+          value: purchaseRequests,
+        ),
         Provider<BusinessDocumentsRepository>.value(value: businessDocuments),
         Provider<BuyerNotificationsRepository>.value(value: notifications),
         ChangeNotifierProvider<BuyerAccessViewModel>.value(
@@ -237,6 +289,13 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         ChangeNotifierProvider<BuyerDeliveriesViewModel>(
           create: (context) => BuyerDeliveriesViewModel(
             context.read<BuyerDeliveriesRepository>(),
+            context.read<BuyerAccessRepository>(),
+          ),
+        ),
+        ChangeNotifierProvider<BuyerRequestsViewModel>(
+          create: (context) => BuyerRequestsViewModel(
+            context.read<BuyerPurchaseWorkspaceRepository>(),
+            context.read<PurchaseRequestRepository>(),
             context.read<BuyerAccessRepository>(),
           ),
         ),
@@ -278,75 +337,25 @@ GoRouter _createRouter(
   BuyerAccessViewModel access,
   BuyerPaymentsRepository payments,
   PaymentReportIdempotencyStore paymentIdempotencyStore,
+  String mapTileUrlTemplate,
+  String mapAttribution,
 ) => GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/catalog',
   refreshListenable: access,
-  redirect: (context, state) {
-    final status = access.snapshot.status;
-    final path = state.uri.path;
-    if (status == BuyerAccessStatus.signedOut && path != '/sign-in') {
-      return '/sign-in';
-    }
-    if (status == BuyerAccessStatus.choosingContext &&
-        path != '/choose-context') {
-      return '/choose-context';
-    }
-    if (status == BuyerAccessStatus.signedIn &&
-        (path == '/sign-in' || path == '/choose-context')) {
-      return '/catalog';
-    }
-    if (status == BuyerAccessStatus.signedIn &&
-        path.startsWith('/notifications') &&
-        !(access.snapshot.currentContext?.permissions.contains(
-              BuyerNotificationsViewModel.readPermission,
-            ) ??
-            false)) {
-      return '/catalog';
-    }
-    if (status == BuyerAccessStatus.signedIn &&
-        (path == '/deliveries' || path.startsWith('/deliveries/')) &&
-        !(access.snapshot.currentContext?.permissions.contains(
-              BuyerDeliveriesViewModel.readPermission,
-            ) ??
-            false)) {
-      return '/orders';
-    }
-    if (status == BuyerAccessStatus.signedIn &&
-        path.startsWith('/credit/receivables/') &&
-        !(access.snapshot.currentContext?.permissions.contains(
-              BuyerPaymentActivityViewModel.readPermission,
-            ) ??
-            false) &&
-        !(access.snapshot.currentContext?.permissions.contains(
-              BuyerPaymentActivityViewModel.createPermission,
-            ) ??
-            false)) {
-      return '/credit';
-    }
-    if (status == BuyerAccessStatus.signedIn &&
-        path == '/wallet' &&
-        (!(access.snapshot.currentContext?.roles.contains(
-                  BuyerWalletViewModel.buyerRole,
-                ) ??
-                false) ||
-            !((access.snapshot.currentContext?.permissions.contains(
-                      BuyerWalletViewModel.readPermission,
-                    ) ??
-                    false) ||
-                (access.snapshot.currentContext?.permissions.contains(
-                      BuyerWalletViewModel.createPermission,
-                    ) ??
-                    false)))) {
-      return '/credit';
-    }
-    return null;
-  },
+  redirect: (context, state) => BuyerWorkspaceNavigation.redirectLocation(
+    access.snapshot,
+    state.uri.path,
+  ),
   routes: [
     GoRoute(path: '/sign-in', builder: (context, state) => const SignInPage()),
     GoRoute(
       path: '/choose-context',
       builder: (context, state) => const ContextSelectionPage(),
+    ),
+    GoRoute(
+      path: '/workspace-unavailable',
+      builder: (context, state) => const _WorkspaceUnavailablePage(),
     ),
     GoRoute(
       path: '/notifications',
@@ -527,10 +536,55 @@ GoRouter _createRouter(
                         context.read<BuyerDeliveriesRepository>(),
                         context.read<BuyerAccessRepository>(),
                         deliveryId,
+                        receiptStore: context
+                            .read<BuyerReceiptIdempotencyStore>(),
+                        evidenceStore: context
+                            .read<BuyerReceiptEvidenceIdempotencyStore>(),
                       )..load(),
-                      child: const BuyerDeliveryDetailPage(),
+                      child: BuyerDeliveryDetailPage(
+                        mapTileUrlTemplate: mapTileUrlTemplate,
+                        mapAttribution: mapAttribution,
+                      ),
                     );
                   },
+                ),
+              ],
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/requests',
+              builder: (context, state) => const BuyerRequestsPage(),
+              routes: [
+                GoRoute(
+                  path: 'drafts/:draftId',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) =>
+                      ChangeNotifierProvider<BuyerDraftViewModel>(
+                        create: (context) => BuyerDraftViewModel(
+                          context.read<PurchaseRequestRepository>(),
+                          context.read<BuyerPurchaseWorkspaceRepository>(),
+                          context.read<BuyerAccessRepository>(),
+                          context.read<BuyerOrderPaymentCapabilityQuery>(),
+                          state.pathParameters['draftId']!,
+                        )..load(),
+                        child: const BuyerDraftPage(),
+                      ),
+                ),
+                GoRoute(
+                  path: ':requestId',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) =>
+                      ChangeNotifierProvider<BuyerRequestDetailViewModel>(
+                        create: (context) => BuyerRequestDetailViewModel(
+                          context.read<BuyerPurchaseWorkspaceRepository>(),
+                          context.read<BuyerAccessRepository>(),
+                          state.pathParameters['requestId']!,
+                        )..load(),
+                        child: const BuyerRequestDetailPage(),
+                      ),
                 ),
               ],
             ),
@@ -547,111 +601,313 @@ final _rootNavigatorKey = GlobalKey<NavigatorState>(
 
 final class _BuyerNavigationShell extends StatelessWidget {
   const _BuyerNavigationShell({required this.navigationShell});
-
   final StatefulNavigationShell navigationShell;
 
   @override
   Widget build(BuildContext context) {
     final access = context.watch<BuyerAccessViewModel>();
     final current = access.snapshot.currentContext;
-    final destinations = <NavigationDestination>[
-      const NavigationDestination(
-        icon: Icon(Icons.inventory_2_outlined),
-        selectedIcon: Icon(Icons.inventory_2),
-        label: 'Catálogo',
-      ),
-      const NavigationDestination(
-        icon: Icon(Icons.receipt_long_outlined),
-        selectedIcon: Icon(Icons.receipt_long),
-        label: 'Mis pedidos',
-      ),
-      const NavigationDestination(
-        icon: Icon(Icons.account_balance_wallet_outlined),
-        selectedIcon: Icon(Icons.account_balance_wallet),
-        label: 'Crédito y pagos',
-      ),
-      const NavigationDestination(
-        icon: Icon(Icons.description_outlined),
-        selectedIcon: Icon(Icons.description),
-        label: 'Documentos',
-      ),
+    final options = BuyerWorkspaceNavigation.destinations(access.snapshot);
+    const primaryOrder = [
+      BuyerWorkspaceDestination.catalog,
+      BuyerWorkspaceDestination.requests,
+      BuyerWorkspaceDestination.orders,
+      BuyerWorkspaceDestination.deliveries,
     ];
-    final branchIndices = <int>[0, 1, 2, 3];
-    if (current?.roles.contains(BuyerWalletViewModel.buyerRole) == true &&
-        (current?.permissions.contains(BuyerWalletViewModel.readPermission) ==
-                true ||
-            current?.permissions.contains(
-                  BuyerWalletViewModel.createPermission,
-                ) ==
-                true)) {
-      destinations.add(
-        const NavigationDestination(
-          icon: Icon(Icons.account_balance_wallet_outlined),
-          selectedIcon: Icon(Icons.account_balance_wallet),
-          label: 'Billetera',
-        ),
-      );
-      branchIndices.add(4);
-    }
-    if (current?.permissions.contains(
-          BuyerDeliveriesViewModel.readPermission,
-        ) ??
-        false) {
-      destinations.add(
-        const NavigationDestination(
-          icon: Icon(Icons.local_shipping_outlined),
-          selectedIcon: Icon(Icons.local_shipping),
-          label: 'Mis entregas',
-        ),
-      );
-      branchIndices.add(5);
-    }
-    final visibleSelectedIndex = branchIndices.indexOf(
-      navigationShell.currentIndex,
+    final primary = primaryOrder.where(options.contains).toList();
+    final secondary = options
+        .where((option) => !primary.contains(option))
+        .toList();
+    final selected = primary.indexWhere(
+      (option) => option.branchIndex == navigationShell.currentIndex,
     );
-    final selectedIndex = visibleSelectedIndex >= 0 ? visibleSelectedIndex : 0;
+    final count = primary.length + (secondary.isEmpty ? 0 : 1);
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            const Text('Nexa Buyer'),
-            if (current != null)
-              Text(
-                '${current.tenantName} · ${current.workspaceName}',
-                style: Theme.of(context).textTheme.labelSmall,
-                overflow: TextOverflow.ellipsis,
+            Image.asset(
+              'assets/brand/nexa-mobile.png',
+              width: 36,
+              height: 36,
+              semanticLabel: 'Nexa',
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Nexa Buyer'),
+                  if (current != null)
+                    Text(
+                      current.tenantName,
+                      style: Theme.of(context).textTheme.labelSmall,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
               ),
+            ),
           ],
         ),
         actions: [
-          if (current?.permissions.contains(
-                BuyerNotificationsViewModel.readPermission,
-              ) ==
-              true)
+          if (count < 2 && secondary.isNotEmpty)
+            IconButton(
+              tooltip: 'Opciones de compra',
+              icon: const Icon(Icons.grid_view_outlined),
+              onPressed: () => _more(context, secondary),
+            ),
+          if (BuyerWorkspaceNavigation.canReadNotifications(access.snapshot))
             IconButton(
               tooltip: 'Notificaciones',
               onPressed: () => context.push('/notifications'),
               icon: const Icon(Icons.notifications_outlined),
             ),
           IconButton(
-            tooltip: 'Cerrar sesión',
-            onPressed: access.busy ? null : access.signOut,
-            icon: const Icon(Icons.logout),
+            tooltip: 'Mi cuenta',
+            icon: const Icon(Icons.account_circle_outlined),
+            onPressed: () => _account(context, access),
           ),
         ],
       ),
-      body: navigationShell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (index) {
-          final branchIndex = branchIndices[index];
-          navigationShell.goBranch(
-            branchIndex,
-            initialLocation: branchIndex == navigationShell.currentIndex,
+      body: SafeArea(top: false, bottom: count < 2, child: navigationShell),
+      bottomNavigationBar: count < 2
+          ? null
+          : NavigationBar(
+              selectedIndex: selected >= 0
+                  ? selected
+                  : secondary.isNotEmpty
+                  ? primary.length
+                  : 0,
+              onDestinationSelected: (index) {
+                if (index == primary.length) {
+                  _more(context, secondary);
+                  return;
+                }
+                _open(primary[index]);
+              },
+              destinations: [
+                ...primary.map(_navigationDestination),
+                if (secondary.isNotEmpty)
+                  const NavigationDestination(
+                    icon: Icon(Icons.grid_view_outlined),
+                    selectedIcon: Icon(Icons.grid_view),
+                    label: 'Más',
+                  ),
+              ],
+            ),
+    );
+  }
+
+  void _open(BuyerWorkspaceDestination option) => navigationShell.goBranch(
+    option.branchIndex,
+    initialLocation: option.branchIndex == navigationShell.currentIndex,
+  );
+
+  Future<void> _more(
+    BuildContext context,
+    List<BuyerWorkspaceDestination> options,
+  ) async {
+    final access = context.read<BuyerAccessViewModel>();
+    final openedAuthority = _authorityKey(access);
+    final selected = await showModalBottomSheet<BuyerWorkspaceDestination>(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (context) => Consumer<BuyerAccessViewModel>(
+        builder: (context, access, child) => SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Tu espacio de compra',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  for (final option in options.where(
+                    BuyerWorkspaceNavigation.destinations(access.snapshot)
+                        .contains,
+                  ))
+                    ListTile(
+                      leading: _navigationDestination(option).icon,
+                      title: Text(option.label),
+                      trailing: const Icon(Icons.chevron_right),
+                      selected:
+                          option.branchIndex == navigationShell.currentIndex,
+                      onTap: () => Navigator.pop(context, option),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (selected != null &&
+        context.mounted &&
+        BuyerWorkspaceNavigation.destinations(
+          context.read<BuyerAccessViewModel>().snapshot,
+        ).contains(selected) &&
+        openedAuthority ==
+            _authorityKey(context.read<BuyerAccessViewModel>())) {
+      _open(selected);
+    }
+  }
+
+  Future<void> _account(
+    BuildContext context,
+    BuyerAccessViewModel access,
+  ) async {
+    final openedAuthority = _authorityKey(access);
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (sheetContext) => Consumer<BuyerAccessViewModel>(
+        builder: (sheetContext, access, child) {
+          final current = access.snapshot.currentContext;
+          final sameAuthority = openedAuthority == _authorityKey(access);
+          return SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      sameAuthority
+                          ? current?.displayName ?? 'Mi cuenta Buyer'
+                          : 'Mi cuenta Buyer',
+                      style: Theme.of(sheetContext).textTheme.titleLarge,
+                    ),
+                    if (!sameAuthority)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 12),
+                        child: Text(
+                          'El contexto de acceso cambió. Cierra este panel y vuelve a abrir Mi cuenta.',
+                        ),
+                      )
+                    else ...[
+                      if (current?.email != null) Text(current!.email!),
+                      const SizedBox(height: 24),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.business_outlined),
+                        title: Text(current?.tenantName ?? ''),
+                        subtitle: Text(current?.workspaceName ?? ''),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: access.busy || !sameAuthority
+                            ? null
+                            : () {
+                                Navigator.pop(sheetContext);
+                                access.signOut();
+                              },
+                        icon: const Icon(Icons.logout),
+                        label: const Text('Cerrar sesión'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           );
         },
-        destinations: destinations,
+      ),
+    );
+  }
+}
+
+String _authorityKey(BuyerAccessViewModel access) =>
+    '${access.snapshot.authorityEpoch}:${access.snapshot.currentContext?.authorityFingerprint}';
+
+NavigationDestination _navigationDestination(
+  BuyerWorkspaceDestination destination,
+) => switch (destination) {
+  BuyerWorkspaceDestination.requests => const NavigationDestination(
+    icon: Icon(Icons.shopping_bag_outlined),
+    selectedIcon: Icon(Icons.shopping_bag),
+    label: 'Solicitudes',
+  ),
+  BuyerWorkspaceDestination.catalog => const NavigationDestination(
+    icon: Icon(Icons.inventory_2_outlined),
+    selectedIcon: Icon(Icons.inventory_2),
+    label: 'Catálogo',
+  ),
+  BuyerWorkspaceDestination.orders => const NavigationDestination(
+    icon: Icon(Icons.receipt_long_outlined),
+    selectedIcon: Icon(Icons.receipt_long),
+    label: 'Mis pedidos',
+  ),
+  BuyerWorkspaceDestination.credit => const NavigationDestination(
+    icon: Icon(Icons.account_balance_wallet_outlined),
+    selectedIcon: Icon(Icons.account_balance_wallet),
+    label: 'Crédito y pagos',
+  ),
+  BuyerWorkspaceDestination.documents => const NavigationDestination(
+    icon: Icon(Icons.description_outlined),
+    selectedIcon: Icon(Icons.description),
+    label: 'Documentos',
+  ),
+  BuyerWorkspaceDestination.wallet => const NavigationDestination(
+    icon: Icon(Icons.account_balance_wallet_outlined),
+    selectedIcon: Icon(Icons.account_balance_wallet),
+    label: 'Billetera',
+  ),
+  BuyerWorkspaceDestination.deliveries => const NavigationDestination(
+    icon: Icon(Icons.local_shipping_outlined),
+    selectedIcon: Icon(Icons.local_shipping),
+    label: 'Mis entregas',
+  ),
+};
+
+final class _WorkspaceUnavailablePage extends StatelessWidget {
+  const _WorkspaceUnavailablePage();
+
+  @override
+  Widget build(BuildContext context) {
+    final access = context.watch<BuyerAccessViewModel>();
+    return Scaffold(
+      appBar: AppBar(title: const Text('Espacio de trabajo')),
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Tu acceso actual no tiene opciones disponibles en este espacio.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                if (BuyerWorkspaceNavigation.canReadNotifications(
+                  access.snapshot,
+                ))
+                  OutlinedButton.icon(
+                    onPressed: () => context.push('/notifications'),
+                    icon: const Icon(Icons.notifications_outlined),
+                    label: const Text('Ver notificaciones'),
+                  ),
+                TextButton(
+                  onPressed: access.busy ? null : access.signOut,
+                  child: const Text('Cerrar sesión'),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

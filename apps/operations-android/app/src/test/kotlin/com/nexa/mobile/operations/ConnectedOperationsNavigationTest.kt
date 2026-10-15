@@ -84,6 +84,54 @@ class ConnectedOperationsNavigationTest {
         )
     }
 
+    @Test fun identicalEntriesAreShownOnceAndConflictingKeysFailClosed() {
+        val duplicate = listOf(entry, entry)
+        assertEquals(
+            listOf(entry),
+            ConnectedOperationsNavigation.visibleEntries(
+                duplicate,
+                SessionState.Active,
+                access,
+                warehouse
+            )
+        )
+        val route = ConnectedOperationsNavigation.open(
+            entry,
+            SessionState.Active,
+            access,
+            warehouse
+        )!!
+        assertTrue(
+            ConnectedOperationsNavigation.permits(
+                route,
+                duplicate,
+                SessionState.Active,
+                access,
+                warehouse
+            )
+        )
+
+        val conflicting = entry.copy(readPermissions = setOf("other.read"))
+        val conflictingEntries = listOf(entry, conflicting)
+        assertTrue(
+            ConnectedOperationsNavigation.visibleEntries(
+                conflictingEntries,
+                SessionState.Active,
+                access,
+                warehouse
+            ).isEmpty()
+        )
+        assertFalse(
+            ConnectedOperationsNavigation.permits(
+                route,
+                conflictingEntries,
+                SessionState.Active,
+                access,
+                warehouse
+            )
+        )
+    }
+
     @Test fun routeCannotSurviveRevalidationOrScopeReplacement() {
         val route = ConnectedOperationsNavigation.open(
             entry,
@@ -129,6 +177,83 @@ class ConnectedOperationsNavigationTest {
                     warehouse
                 )
             )
+        }
+    }
+
+    @Test fun commercialRequestRequiresCustomerSalesAndCatalogReadPermissions() {
+        val requestEntry = ConnectedOperationEntry(
+            key = "commercial.request",
+            label = "Preparar solicitud",
+            readPermissions = setOf("catalog.read", "catalog:read"),
+            requiredReadPermissionGroups = listOf(setOf("client.read"), setOf("sales:read"))
+        )
+        for (catalogPermission in listOf("catalog.read", "catalog:read")) {
+            val requestAuthority = authority.copy(
+                permissions = setOf("client.read", "sales:read", catalogPermission)
+            )
+            val requestAccess = access.copy(
+                activeContext = access.activeContext!!.copy(verifiedAuthority = requestAuthority)
+            )
+            val requestWarehouse = warehouse.copy(
+                activeContext = warehouse.activeContext!!.copy(
+                    verifiedIdentity = warehouse.activeContext!!.verifiedIdentity!!.copy(
+                        permissions = requestAuthority.permissions
+                    )
+                )
+            )
+
+            val route = ConnectedOperationsNavigation.open(
+                requestEntry,
+                SessionState.Active,
+                requestAccess,
+                requestWarehouse
+            )
+            assertNotNull(route)
+            assertEquals(
+                listOf(requestEntry),
+                ConnectedOperationsNavigation.visibleEntries(
+                    listOf(requestEntry),
+                    SessionState.Active,
+                    requestAccess,
+                    requestWarehouse
+                )
+            )
+
+            for (permissions in listOf(
+                requestAuthority.permissions - "client.read",
+                requestAuthority.permissions - "sales:read",
+                requestAuthority.permissions - setOf("catalog.read", "catalog:read")
+            )) {
+                val deniedAccess = requestAccess.copy(
+                    activeContext = requestAccess.activeContext!!.copy(
+                        verifiedAuthority = requestAuthority.copy(permissions = permissions)
+                    )
+                )
+                val deniedWarehouse = requestWarehouse.copy(
+                    activeContext = requestWarehouse.activeContext!!.copy(
+                        verifiedIdentity = requestWarehouse.activeContext!!.verifiedIdentity!!.copy(
+                            permissions = permissions
+                        )
+                    )
+                )
+                assertTrue(
+                    ConnectedOperationsNavigation.visibleEntries(
+                        listOf(requestEntry),
+                        SessionState.Active,
+                        deniedAccess,
+                        deniedWarehouse
+                    ).isEmpty()
+                )
+                assertEquals(
+                    null,
+                    ConnectedOperationsNavigation.open(
+                        requestEntry,
+                        SessionState.Active,
+                        deniedAccess,
+                        deniedWarehouse
+                    )
+                )
+            }
         }
     }
 

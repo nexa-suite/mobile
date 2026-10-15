@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/presentation/nexa_buyer_components.dart';
 import 'buyer_access_view_model.dart';
 
 final class SignInPage extends StatefulWidget {
@@ -14,6 +15,7 @@ final class _SignInPageState extends State<SignInPage> {
   final _formKey = GlobalKey<FormState>();
   final _identifier = TextEditingController();
   final _password = TextEditingController();
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -23,7 +25,10 @@ final class _SignInPageState extends State<SignInPage> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (context.read<BuyerAccessViewModel>().busy ||
+        !_formKey.currentState!.validate()) {
+      return;
+    }
     FocusScope.of(context).unfocus();
     await context.read<BuyerAccessViewModel>().signIn(
       _identifier.text,
@@ -41,7 +46,7 @@ final class _SignInPageState extends State<SignInPage> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
             child: ListView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
               shrinkWrap: true,
               children: [
                 Align(
@@ -53,23 +58,24 @@ final class _SignInPageState extends State<SignInPage> {
                     semanticLabel: 'Nexa',
                   ),
                 ),
+                const SizedBox(height: 32),
+                const NexaPageIntro(
+                  title: 'Bienvenido a Nexa',
+                  description:
+                      'Accede a tu espacio de compra con tus credenciales.',
+                ),
+                Text(
+                  'Iniciar sesión',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
                 const SizedBox(height: 16),
-                Text(
-                  'Nexa Buyer',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Inicia sesión para consultar el catálogo y tus pedidos.',
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-                const SizedBox(height: 24),
                 Form(
                   key: _formKey,
                   child: Column(
                     children: [
                       TextFormField(
                         controller: _identifier,
+                        enabled: !access.busy,
                         autofillHints: const [
                           AutofillHints.username,
                           AutofillHints.email,
@@ -87,12 +93,28 @@ final class _SignInPageState extends State<SignInPage> {
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _password,
-                        obscureText: true,
+                        enabled: !access.busy,
+                        obscureText: _obscurePassword,
                         autofillHints: const [AutofillHints.password],
                         textInputAction: TextInputAction.done,
                         onFieldSubmitted: (_) => _submit(),
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Contraseña',
+                          suffixIcon: IconButton(
+                            tooltip: _obscurePassword
+                                ? 'Mostrar contraseña'
+                                : 'Ocultar contraseña',
+                            onPressed: access.busy
+                                ? null
+                                : () => setState(
+                                    () => _obscurePassword = !_obscurePassword,
+                                  ),
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                          ),
                         ),
                         validator: (value) => value == null || value.isEmpty
                             ? 'Escribe tu contraseña.'
@@ -103,9 +125,9 @@ final class _SignInPageState extends State<SignInPage> {
                 ),
                 if (access.message case final message?) ...[
                   const SizedBox(height: 16),
-                  _InlineMessage(message: message, isError: true),
+                  NexaNotice(message, isError: true),
                 ],
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 FilledButton(
                   onPressed: access.busy ? null : _submit,
                   child: access.busy
@@ -122,19 +144,4 @@ final class _SignInPageState extends State<SignInPage> {
       ),
     );
   }
-}
-
-final class _InlineMessage extends StatelessWidget {
-  const _InlineMessage({required this.message, this.isError = false});
-
-  final String message;
-  final bool isError;
-
-  @override
-  Widget build(BuildContext context) => Text(
-    message,
-    style: TextStyle(
-      color: isError ? Theme.of(context).colorScheme.error : null,
-    ),
-  );
 }

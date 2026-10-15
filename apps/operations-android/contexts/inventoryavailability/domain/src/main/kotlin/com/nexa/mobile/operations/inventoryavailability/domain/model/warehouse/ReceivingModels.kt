@@ -79,5 +79,6 @@ data class ReceivedLotFacts(
     val available: BigDecimal,
     val unit: String,
     val status: String,
-    val version: Long
+    val version: Long,
+    val productionDate: LocalDate? = null
 )

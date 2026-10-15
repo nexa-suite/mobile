@@ -11,6 +11,7 @@ import javax.inject.Inject
 /** Factory entry for routing without coupling the feature to auth/network/Hilt. */
 internal class ReceivingGatewayBindings @Inject constructor(
     private val gateway: OperationsReceivingGateway,
+    private val productCatalog: OperationsReceivingProductCatalogGateway,
     private val metadataStore: ReceivingMetadataStore,
     private val evidenceSelection: WarehouseEvidenceSelectionCoordinator
 ) {
@@ -18,7 +19,12 @@ internal class ReceivingGatewayBindings @Inject constructor(
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass.isAssignableFrom(ReceivingViewModel::class.java))
-            return ReceivingViewModel(gateway, metadataStore, evidenceSelection) as T
+            return ReceivingViewModel(
+                gateway,
+                metadataStore,
+                evidenceSelection,
+                productCatalog
+            ) as T
         }
     }
 }

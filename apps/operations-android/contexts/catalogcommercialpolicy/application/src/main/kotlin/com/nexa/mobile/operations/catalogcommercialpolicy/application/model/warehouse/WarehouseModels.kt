@@ -15,6 +15,30 @@ sealed interface ProductSearchResult {
     data object IntegrationUnavailable : ProductSearchResult
 }
 
+enum class WarehouseCatalogFilterKind(val wireValue: String) {
+    Brand("brand"),
+    Category("category")
+}
+
+data class WarehouseCatalogFilterChoice(val id: String, val name: String)
+
+data class WarehouseCatalogFilterPage(
+    val items: List<WarehouseCatalogFilterChoice>,
+    val page: Int,
+    val size: Int,
+    val total: Long
+)
+
+sealed interface ProductFilterOptionsResult {
+    data class Page(val value: WarehouseCatalogFilterPage) : ProductFilterOptionsResult
+    data object InvalidQuery : ProductFilterOptionsResult
+    data object NetworkUnavailable : ProductFilterOptionsResult
+    data object ServiceUnavailable : ProductFilterOptionsResult
+    data object PermissionDenied : ProductFilterOptionsResult
+    data object ContextInvalidated : ProductFilterOptionsResult
+    data object SessionInvalidated : ProductFilterOptionsResult
+}
+
 sealed interface CandidateConfirmationResult {
     data class Confirmed(val sku: ConfirmedSkuProjection) : CandidateConfirmationResult
     data object CandidateUnavailable : CandidateConfirmationResult
