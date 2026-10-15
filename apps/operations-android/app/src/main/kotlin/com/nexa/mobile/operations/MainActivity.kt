@@ -4417,7 +4417,8 @@ private val CONNECTED_OPERATIONS = listOf(
     ConnectedOperationEntry(
         "commercial.request",
         "Preparar solicitud",
-        setOf("client.read", "sales:read")
+        setOf("catalog.read", "catalog:read"),
+        requiredReadPermissionGroups = listOf(setOf("client.read"), setOf("sales:read"))
     ),
     ConnectedOperationEntry(
         "commercial.direct-order",

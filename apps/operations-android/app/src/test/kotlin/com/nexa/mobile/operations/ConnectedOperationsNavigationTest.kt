@@ -180,6 +180,83 @@ class ConnectedOperationsNavigationTest {
         }
     }
 
+    @Test fun commercialRequestRequiresCustomerSalesAndCatalogReadPermissions() {
+        val requestEntry = ConnectedOperationEntry(
+            key = "commercial.request",
+            label = "Preparar solicitud",
+            readPermissions = setOf("catalog.read", "catalog:read"),
+            requiredReadPermissionGroups = listOf(setOf("client.read"), setOf("sales:read"))
+        )
+        for (catalogPermission in listOf("catalog.read", "catalog:read")) {
+            val requestAuthority = authority.copy(
+                permissions = setOf("client.read", "sales:read", catalogPermission)
+            )
+            val requestAccess = access.copy(
+                activeContext = access.activeContext!!.copy(verifiedAuthority = requestAuthority)
+            )
+            val requestWarehouse = warehouse.copy(
+                activeContext = warehouse.activeContext!!.copy(
+                    verifiedIdentity = warehouse.activeContext!!.verifiedIdentity!!.copy(
+                        permissions = requestAuthority.permissions
+                    )
+                )
+            )
+
+            val route = ConnectedOperationsNavigation.open(
+                requestEntry,
+                SessionState.Active,
+                requestAccess,
+                requestWarehouse
+            )
+            assertNotNull(route)
+            assertEquals(
+                listOf(requestEntry),
+                ConnectedOperationsNavigation.visibleEntries(
+                    listOf(requestEntry),
+                    SessionState.Active,
+                    requestAccess,
+                    requestWarehouse
+                )
+            )
+
+            for (permissions in listOf(
+                requestAuthority.permissions - "client.read",
+                requestAuthority.permissions - "sales:read",
+                requestAuthority.permissions - setOf("catalog.read", "catalog:read")
+            )) {
+                val deniedAccess = requestAccess.copy(
+                    activeContext = requestAccess.activeContext!!.copy(
+                        verifiedAuthority = requestAuthority.copy(permissions = permissions)
+                    )
+                )
+                val deniedWarehouse = requestWarehouse.copy(
+                    activeContext = requestWarehouse.activeContext!!.copy(
+                        verifiedIdentity = requestWarehouse.activeContext!!.verifiedIdentity!!.copy(
+                            permissions = permissions
+                        )
+                    )
+                )
+                assertTrue(
+                    ConnectedOperationsNavigation.visibleEntries(
+                        listOf(requestEntry),
+                        SessionState.Active,
+                        deniedAccess,
+                        deniedWarehouse
+                    ).isEmpty()
+                )
+                assertEquals(
+                    null,
+                    ConnectedOperationsNavigation.open(
+                        requestEntry,
+                        SessionState.Active,
+                        deniedAccess,
+                        deniedWarehouse
+                    )
+                )
+            }
+        }
+    }
+
     @Test fun walletRefundRequiresAllowedVerifiedMembershipRoleAndPermission() {
         val refundEntry = ConnectedOperationEntry(
             "payments.wallet-refund",

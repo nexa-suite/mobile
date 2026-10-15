@@ -34,10 +34,12 @@ internal data class ConnectedOperationEntry(
     val label: String,
     val readPermissions: Set<String>,
     val visibleInHub: Boolean = true,
-    val readRoles: Set<String> = emptySet()
+    val readRoles: Set<String> = emptySet(),
+    val requiredReadPermissionGroups: List<Set<String>> = emptyList()
 ) {
     init {
         require(key.isNotBlank() && label.isNotBlank() && readPermissions.isNotEmpty())
+        require(requiredReadPermissionGroups.all { it.isNotEmpty() })
     }
 }
 
@@ -134,6 +136,9 @@ internal object ConnectedOperationsNavigation {
 
     private fun permits(authority: VerifiedContextAuthority, entry: ConnectedOperationEntry) =
         authority.permissions.any(entry.readPermissions::contains) &&
+            entry.requiredReadPermissionGroups.all { group ->
+                authority.permissions.any(group::contains)
+            } &&
             (entry.readRoles.isEmpty() || authority.roles.any(entry.readRoles::contains))
 
     /** Identical declarations collapse; conflicting declarations for a key fail closed. */
