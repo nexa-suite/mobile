@@ -25,7 +25,8 @@
     <string name="work_hub_overview_support">Consultar situación actual del trabajo de despacho.</string>
     <string name="work_hub_exceptions_support">Revisar impedimentos y coordinar su seguimiento.</string>
     <string name="work_hub_customers_support">Buscar cliente y continuar su atención.</string>
-    <string name="work_hub_request_support">Preparar una solicitud para revisión del servidor.</string>
+    <string name="work_hub_request_support">Guardar una intención local sin enviar ni reservar.</string>
+    <string name="work_hub_direct_order_support">Revisar y enviar un pedido directo autorizado.</string>
     <string name="work_hub_count_support">Registrar conteo y revisar diferencias de existencias.</string>
     <string name="work_hub_transfer_support">Consultar y registrar traslado entre ubicaciones.</string>
     <string name="work_hub_condition_support">Registrar evidencia y consultar condición de existencias.</string>

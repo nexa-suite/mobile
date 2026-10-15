@@ -4,7 +4,13 @@ data class CommercialProductChoice(
     val id: String,
     val name: String,
     val skuCode: String,
-    val imageFileName: String? = null
+    val imageFileName: String? = null,
+    val brandName: String? = null,
+    val categoryName: String? = null,
+    val familyName: String? = null,
+    val variantName: String? = null,
+    val presentation: String? = null,
+    val familyId: String? = null
 )
 
 data class CommercialProductFacts(
@@ -20,5 +26,10 @@ data class CommercialProductFacts(
     val availabilityStatus: String?,
     val sellableAvailability: String?,
     val availabilityAsOf: String?,
-    val imageFileName: String? = null
+    val imageFileName: String? = null,
+    val brandName: String? = null,
+    val categoryName: String? = null,
+    val familyName: String? = null,
+    val variantName: String? = null,
+    val familyId: String? = null
 )

@@ -1,5 +1,7 @@
 package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -26,25 +28,42 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingCatalogFilterChoice
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingCatalogFilterKind
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivedLotFacts
 import com.nexa.mobile.operations.inventoryavailability.presentation.R
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 
 @Composable
 fun ReceivingScreen(
     state: ReceivingUiState,
     onBack: () -> Unit,
     onChooseProduct: () -> Unit,
+    onCloseProductPicker: () -> Unit,
+    onProductPickerQueryChanged: (String) -> Unit,
+    onSearchProductCatalog: () -> Unit,
+    onLoadMoreProductCatalog: () -> Unit,
+    onRetryProductCatalogSearch: () -> Unit,
+    onOpenProductFilterOptions: (ReceivingCatalogFilterKind) -> Unit,
+    onProductFilterSearchChanged: (ReceivingCatalogFilterKind, String) -> Unit,
+    onLoadProductFilterOptions: (ReceivingCatalogFilterKind, String, Int, Boolean) -> Unit,
+    onSelectProductFilter: (ReceivingCatalogFilterKind, ReceivingCatalogFilterChoice?) -> Unit,
+    onSelectProductCatalogCandidate: (String) -> Unit,
     onSelectWarehouse: (String) -> Unit,
     onSelectZone: (String) -> Unit,
     onBatchNumberChanged: (String) -> Unit,
     onExpirationDateChanged: (String) -> Unit,
+    onProductionDateChanged: (String) -> Unit,
+    onReceivedAtChanged: (String) -> Unit,
     onQuantityChanged: (String) -> Unit,
-    onUnitChanged: (String) -> Unit,
     onTemperatureReadingChanged: (String) -> Unit,
     onReloadWarehouses: () -> Unit,
     onReloadZones: () -> Unit,
@@ -56,6 +75,22 @@ fun ReceivingScreen(
     onChooseTemperatureEvidence: (() -> Unit)? = null,
     onRefreshTemperatureEvidence: (() -> Unit)? = null
 ) {
+    if (state.productPicker.isOpen) {
+        ReceivingProductPickerScreen(
+            state = state.productPicker,
+            onBack = onCloseProductPicker,
+            onQueryChanged = onProductPickerQueryChanged,
+            onSearch = onSearchProductCatalog,
+            onLoadMore = onLoadMoreProductCatalog,
+            onRetry = onRetryProductCatalogSearch,
+            onOpenFilterOptions = onOpenProductFilterOptions,
+            onFilterSearchChanged = onProductFilterSearchChanged,
+            onLoadFilterOptions = onLoadProductFilterOptions,
+            onSelectFilter = onSelectProductFilter,
+            onSelectCandidate = onSelectProductCatalogCandidate
+        )
+        return
+    }
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -175,15 +210,25 @@ fun ReceivingScreen(
                     label = { Text(stringResource(R.string.receiving_batch_label)) },
                     singleLine = true
                 )
-                OutlinedTextField(
+                ReceivingDateButton(
+                    label = stringResource(R.string.receiving_expiry_label),
                     value = state.expirationDateText,
-                    onValueChange = onExpirationDateChanged,
-                    enabled =
-                        !state.isIntentFrozen && state.command != ReceivingCommandStatus.Confirmed,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.receiving_expiry_label)) },
-                    supportingText = { Text(stringResource(R.string.receiving_expiry_support)) },
-                    singleLine = true
+                    enabled = !state.isIntentFrozen &&
+                        state.command != ReceivingCommandStatus.Confirmed,
+                    onDateSelected = onExpirationDateChanged
+                )
+                ReceivingDateButton(
+                    label = stringResource(R.string.receiving_production_label),
+                    value = state.productionDateText,
+                    enabled = !state.isIntentFrozen &&
+                        state.command != ReceivingCommandStatus.Confirmed,
+                    onDateSelected = onProductionDateChanged
+                )
+                ReceivingDateTimeButton(
+                    value = state.receivedAtText,
+                    enabled = !state.isIntentFrozen &&
+                        state.command != ReceivingCommandStatus.Confirmed,
+                    onDateTimeSelected = onReceivedAtChanged
                 )
                 OutlinedTextField(
                     value = state.quantityText,
@@ -194,14 +239,12 @@ fun ReceivingScreen(
                     label = { Text(stringResource(R.string.receiving_quantity_label)) },
                     singleLine = true
                 )
-                OutlinedTextField(
-                    value = state.unit,
-                    onValueChange = onUnitChanged,
-                    enabled =
-                        !state.isIntentFrozen && state.command != ReceivingCommandStatus.Confirmed,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.receiving_unit_label)) },
-                    singleLine = true
+                Text(
+                    stringResource(
+                        R.string.receiving_unit_value,
+                        state.product?.unit?.takeIf(String::isNotBlank)
+                            ?: stringResource(R.string.receiving_unit_missing)
+                    )
                 )
                 OutlinedTextField(
                     value = state.temperatureReadingText,
@@ -521,6 +564,10 @@ private fun ConfirmedLotCard(lot: ReceivedLotFacts) {
         Fact(stringResource(R.string.receiving_lot_id), lot.id)
         Fact(stringResource(R.string.receiving_batch_label), lot.batchNumber)
         Fact(stringResource(R.string.receiving_expiry_label), lot.expirationDate.toString())
+        lot.productionDate?.let {
+            Fact(stringResource(R.string.receiving_production_label), it.toString())
+        }
+        Fact(stringResource(R.string.receiving_received_at_label), lot.receivedAt)
         Fact(
             stringResource(R.string.receiving_quantity_label),
             "${lot.onHand.toPlainString()} ${lot.unit}"
@@ -530,6 +577,87 @@ private fun ConfirmedLotCard(lot: ReceivedLotFacts) {
             "${lot.available.toPlainString()} ${lot.unit}"
         )
         Fact(stringResource(R.string.receiving_status_label), lot.status)
+    }
+}
+
+@Composable
+private fun ReceivingDateButton(
+    label: String,
+    value: String,
+    enabled: Boolean,
+    onDateSelected: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val selected = runCatching { LocalDate.parse(value) }.getOrElse { LocalDate.now() }
+    OutlinedButton(
+        onClick = {
+            DatePickerDialog(
+                context,
+                { _, year, month, day ->
+                    onDateSelected(LocalDate.of(year, month + 1, day).toString())
+                },
+                selected.year,
+                selected.monthValue - 1,
+                selected.dayOfMonth
+            ).show()
+        },
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            if (value.isBlank()) {
+                "$label · ${stringResource(
+                    R.string.receiving_select_date
+                )}"
+            } else {
+                "$label · $value"
+            }
+        )
+    }
+}
+
+@Composable
+private fun ReceivingDateTimeButton(
+    value: String,
+    enabled: Boolean,
+    onDateTimeSelected: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val selected = runCatching { Instant.parse(value).atZone(ZoneId.systemDefault()) }
+        .getOrElse { java.time.ZonedDateTime.now() }
+    OutlinedButton(
+        onClick = {
+            DatePickerDialog(
+                context,
+                { _, year, month, day ->
+                    val date = LocalDate.of(year, month + 1, day)
+                    TimePickerDialog(
+                        context,
+                        { _, hour, minute ->
+                            onDateTimeSelected(
+                                date.atTime(hour, minute).atZone(ZoneId.systemDefault())
+                                    .toInstant().toString()
+                            )
+                        },
+                        selected.hour,
+                        selected.minute,
+                        true
+                    ).show()
+                },
+                selected.year,
+                selected.monthValue - 1,
+                selected.dayOfMonth
+            ).show()
+        },
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            stringResource(
+                R.string.receiving_received_at_button,
+                value.ifBlank { stringResource(R.string.receiving_select_received_at) }
+            )
+        )
     }
 }
 
@@ -571,6 +699,27 @@ private fun ReceivingValidationError.stringResource(): Int = when (this) {
     ReceivingValidationError.ExpiryRequired -> R.string.receiving_error_expiry
 
     ReceivingValidationError.ExpiryMalformed -> R.string.receiving_error_expiry_format
+
+    ReceivingValidationError.ExpiryNotFuture ->
+        R.string.receiving_error_expiry_not_future
+
+    ReceivingValidationError.ProductionRequired ->
+        R.string.receiving_error_production
+
+    ReceivingValidationError.ProductionMalformed ->
+        R.string.receiving_error_production_format
+
+    ReceivingValidationError.ProductionAfterReceipt ->
+        R.string.receiving_error_production_after_receipt
+
+    ReceivingValidationError.ExpiryBeforeProduction ->
+        R.string.receiving_error_expiry_before_production
+
+    ReceivingValidationError.ReceivedAtRequired -> R.string.receiving_error_received_at
+
+    ReceivingValidationError.ReceivedAtMalformed -> R.string.receiving_error_received_at_format
+
+    ReceivingValidationError.ReceivedAtFuture -> R.string.receiving_error_received_at_future
 
     ReceivingValidationError.QuantityRequired -> R.string.receiving_error_quantity
 

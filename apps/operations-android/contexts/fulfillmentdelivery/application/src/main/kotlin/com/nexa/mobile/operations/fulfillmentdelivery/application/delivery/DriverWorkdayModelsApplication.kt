@@ -54,7 +54,7 @@ data class DriverWorkdayCommandIntent(
         require(runCatching { Instant.parse(initiatedAt) }.isSuccess)
         when (action) {
             DriverWorkdayCommandAction.START -> require(
-                workdayId == null && expectedVersion == null && locationAvailable == true
+                workdayId == null && expectedVersion == null && locationAvailable != null
             )
 
             DriverWorkdayCommandAction.END -> require(

@@ -207,6 +207,7 @@ internal fun ConnectedOperationsEntries(
             "driver.deliveries",
             "commercial.customers",
             "commercial.request",
+            "commercial.direct-order",
             "operations.notifications"
         )
         val primary = matching.filter { it.key in primaryKeys }
@@ -281,6 +282,7 @@ private fun ConnectedOperationEntry.descriptionResource(): Int = when (key) {
     "operations.exceptions", "bom.exceptions" -> R.string.work_hub_exceptions_support
     "commercial.customers" -> R.string.work_hub_customers_support
     "commercial.request" -> R.string.work_hub_request_support
+    "commercial.direct-order" -> R.string.work_hub_direct_order_support
     "warehouse.cycle-count" -> R.string.work_hub_count_support
     "warehouse.transfer", "warehouse.transfer-receipt" -> R.string.work_hub_transfer_support
     "warehouse.temperature", "warehouse.disposition" -> R.string.work_hub_condition_support

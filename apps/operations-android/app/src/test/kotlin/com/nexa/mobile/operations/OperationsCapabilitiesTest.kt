@@ -44,13 +44,14 @@ class OperationsCapabilitiesTest {
         authorityEpoch = 3
     )
 
-    @Test fun receivingPermissionIsIndependentOfCatalogAndRequiresExactScope() {
+    @Test fun customReceiveOnlyRoleDoesNotOfferReceiving() {
         val verified = VerifiedContextAuthority(
             "user",
             "tenant",
             "workspace",
             "membership",
-            setOf("inventory.receive", "warehouse.read")
+            setOf("inventory.receive"),
+            setOf("CUSTOM_RECEIVE_ONLY")
         )
         val receivingAccess = access.copy(
             activeContext = access.activeContext!!.copy(
@@ -70,7 +71,7 @@ class OperationsCapabilitiesTest {
                 )
             )
         )
-        assertTrue(
+        assertFalse(
             OperationsCapabilities.permitsEntry(
                 WarehouseRoute.Receiving,
                 SessionState.Active,
@@ -99,11 +100,69 @@ class OperationsCapabilitiesTest {
             )
         )
         assertEquals(
-            listOf(WorkEntryCapability.StockCondition, WorkEntryCapability.Receiving),
+            emptyList<WorkEntryCapability>(),
             OperationsCapabilities.workEntryCapabilities(
                 SessionState.Active,
                 receivingAccess,
                 receivingWarehouse
+            )
+        )
+    }
+
+    @Test fun prebuiltWarehouseRoleWithCatalogReadCanOfferReceiving() {
+        val verified = VerifiedContextAuthority(
+            "user",
+            "tenant",
+            "workspace",
+            "membership",
+            setOf("warehouse:write", "catalog:read"),
+            setOf("WAREHOUSE_OPERATOR")
+        )
+        val warehouseAccess = access.copy(
+            activeContext = access.activeContext!!.copy(
+                permissionHint = PermissionHint.Available,
+                verifiedAuthority = verified
+            )
+        )
+        val warehouseContext = warehouse.copy(
+            route = WarehouseRoute.Receiving,
+            activeContext = warehouse.activeContext!!.copy(
+                verifiedIdentity = VerifiedOperationsIdentity(
+                    verified.userId,
+                    verified.tenantId,
+                    verified.workspaceId,
+                    verified.membershipId,
+                    verified.permissions,
+                    verified.roles
+                )
+            )
+        )
+
+        assertTrue(
+            OperationsCapabilities.permitsEntry(
+                WarehouseRoute.Receiving,
+                SessionState.Active,
+                warehouseAccess,
+                warehouseContext
+            )
+        )
+        assertTrue(
+            OperationsCapabilities.workEntryCapabilities(
+                SessionState.Active,
+                warehouseAccess,
+                warehouseContext
+            ).contains(WorkEntryCapability.Receiving)
+        )
+        assertFalse(
+            OperationsCapabilities.permitsEntry(
+                WarehouseRoute.Receiving,
+                SessionState.Active,
+                warehouseAccess.copy(
+                    activeContext = warehouseAccess.activeContext!!.copy(
+                        verifiedAuthority = verified.copy(membershipId = "other")
+                    )
+                ),
+                warehouseContext
             )
         )
     }

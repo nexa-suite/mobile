@@ -8,7 +8,6 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.Drive
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayCommandScope
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayCommandStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayGateway
-import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayLocationAcquisition
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayLocationCapture
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayLocationEventStream
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayReadResult
@@ -63,7 +62,7 @@ class DriverWorkdayViewModelTest {
         }
 
     @Test
-    fun startOnlyCapturesAfterFreshCurrentReadConfirmsActiveWorkday() =
+    fun startingWorkdayDoesNotEnableLocationBeforeDeliveryOptIn() =
         runTestWithViewModelCleanup {
             val events = mutableListOf<String>()
             val capture = FakeCapture(events)
@@ -80,15 +79,36 @@ class DriverWorkdayViewModelTest {
             viewModel.startWorkday()
             runCurrent()
 
-            assertEquals(
-                listOf("get", "get", "start", "get", "capture.start"),
-                events.filter {
-                    it !=
-                        "capture.stop"
-                }
-            )
+            assertEquals(listOf("get", "get", "start", "get"), events.filter { it != "capture.stop" })
             assertEquals("ACTIVE", viewModel.state.value.workday?.status?.name)
+            assertFalse(viewModel.state.value.workday!!.locationAvailable)
+            assertFalse(viewModel.state.value.captureRequested)
+            assertEquals(0, capture.starts)
+        }
+
+    @Test
+    fun locationCaptureStartsOnlyAfterActiveDeliveryOptInIsConfirmedByServer() =
+        runTestWithViewModelCleanup {
+            val events = mutableListOf<String>()
+            val capture = FakeCapture(events)
+            val gateway = FakeGateway(events).apply {
+                reads += DriverWorkdayReadResult.Current(activeWorkday())
+                reads += DriverWorkdayReadResult.Current(activeWorkday(locationAvailable = true))
+                commands += DriverWorkdayCommandResult.Accepted
+            }
+            val viewModel = track(DriverWorkdayViewModel(gateway, capture, FakeCommandStore()))
+            viewModel.activate(AUTHORITY, hasFineLocationPermission = true)
+            runCurrent()
+            viewModel.updateDelivery(activeDelivery(), detailReady = true)
+            events.clear()
+
+            viewModel.enableLocation()
+            runCurrent()
+
+            assertEquals(listOf("availability", "get", "capture.stop", "capture.start"), events)
+            assertEquals("ACTIVE-DELIVERY", viewModel.state.value.eligibleDeliveryId)
             assertTrue(viewModel.state.value.captureRequested)
+            assertEquals(1, capture.starts)
         }
 
     @Test
@@ -96,7 +116,7 @@ class DriverWorkdayViewModelTest {
         val events = mutableListOf<String>()
         val capture = FakeCapture(events)
         val gateway = FakeGateway(events).apply {
-            reads += DriverWorkdayReadResult.Current(activeWorkday())
+            reads += DriverWorkdayReadResult.Current(activeWorkday(locationAvailable = true))
         }
         val viewModel = track(DriverWorkdayViewModel(gateway, capture, FakeCommandStore()))
         val readOnly = AUTHORITY.copy(permissions = setOf("dispatch.read", "logistics:read"))
@@ -107,6 +127,7 @@ class DriverWorkdayViewModelTest {
         assertEquals(0, capture.starts)
         assertFalse(viewModel.state.value.captureRequested)
         assertEquals(DriverWorkdayNotice.PERMISSION_DENIED, viewModel.state.value.notice)
+        assertEquals(listOf("get"), events.filter { it != "capture.stop" })
     }
 
     @Test
@@ -145,9 +166,9 @@ class DriverWorkdayViewModelTest {
         runCurrent()
 
         assertEquals(listOf(IDEMPOTENCY_KEY, IDEMPOTENCY_KEY), gateway.startKeys)
-        assertEquals(1, capture.starts)
+        assertEquals(0, capture.starts)
         assertEquals(null, commandStore.intent)
-        assertTrue(viewModel.state.value.captureRequested)
+        assertFalse(viewModel.state.value.captureRequested)
     }
 
     @Test
@@ -243,9 +264,6 @@ class DriverWorkdayViewModelTest {
         private val mutableEvents = MutableSharedFlow<DriverWorkdayLocationEvent>()
         override val events: Flow<DriverWorkdayLocationEvent> = mutableEvents
         var starts = 0
-        override suspend fun acquireFreshLocation(
-            timeoutMillis: Long
-        ): DriverWorkdayLocationAcquisition = DriverWorkdayLocationAcquisition.SAMPLE_AVAILABLE
         override fun start(workdayId: String): Boolean {
             starts += 1
             log += "capture.start"
@@ -256,14 +274,29 @@ class DriverWorkdayViewModelTest {
         }
     }
 
-    private fun activeWorkday() = DriverWorkday(
+    private fun activeWorkday(locationAvailable: Boolean = false) = DriverWorkday(
         WORKDAY_ID,
         4,
         DriverWorkdayStatus.ACTIVE,
         "2026-10-01T17:00:00Z",
         null,
-        true
+        locationAvailable
     )
+
+    private fun activeDelivery() =
+        com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliverySnapshot(
+            id = "ACTIVE-DELIVERY",
+            fulfillmentId = null,
+            salesOrderId = null,
+            status = "IN_TRANSIT",
+            destination = "Destination supplied by Nexa",
+            scheduledAt = null,
+            dispatchedAt = "2026-10-01T17:00:00Z",
+            deliveredAt = null,
+            updatedAt = null,
+            version = 3,
+            activeAttempt = null
+        )
 
     private fun sampleEvent() = DriverWorkdayLocationEvent.Sample(
         captureId = WORKDAY_ID,

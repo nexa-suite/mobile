@@ -23,6 +23,7 @@ import kotlinx.coroutines.withContext
 enum class ScopedMetadataPurpose {
     DriverAttemptStart,
     FieldPurchaseRequest,
+    FieldRequestDraft,
     FieldVisit,
     StockTransfer,
     DispatchAssignment,

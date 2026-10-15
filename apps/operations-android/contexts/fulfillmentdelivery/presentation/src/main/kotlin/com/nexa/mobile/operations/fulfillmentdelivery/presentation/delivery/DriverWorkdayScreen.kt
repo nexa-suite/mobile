@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkdayStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverLiveLocation
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
 import java.time.Instant
 import java.time.ZoneId
@@ -28,6 +29,7 @@ fun DriverWorkdayScreen(
     onBack: () -> Unit,
     onStart: () -> Unit,
     onEnableLocation: () -> Unit,
+    onDisableLocation: () -> Unit,
     onEnd: () -> Unit,
     onRefresh: () -> Unit,
     onRetryPending: () -> Unit
@@ -117,10 +119,134 @@ fun DriverWorkdayScreen(
                 Text(stringResource(R.string.driver_workday_start))
             }
         } else {
-            if (state.workday.status == DriverWorkdayStatus.LOCATION_UNAVAILABLE ||
-                !state.workday.locationAvailable
-            ) {
+            if (state.workday.locationAvailable) {
+                OutlinedButton(onClick = onDisableLocation, enabled = actionEnabled) {
+                    Text(stringResource(R.string.driver_workday_disable_location))
+                }
+            } else {
                 Button(onClick = onEnableLocation, enabled = actionEnabled) {
+                    Text(stringResource(R.string.driver_workday_enable_location))
+                }
+            }
+            Button(onClick = onEnd, enabled = actionEnabled) {
+                Text(stringResource(R.string.driver_workday_end))
+            }
+        }
+        OutlinedButton(onClick = onRefresh, enabled = !state.loading && !state.commandPending) {
+            Text(stringResource(R.string.driver_workday_refresh))
+        }
+    }
+}
+
+@Composable
+fun DriverWorkdayPanel(
+    state: DriverWorkdayUiState,
+    onStart: () -> Unit,
+    onEnableLocation: () -> Unit,
+    onDisableLocation: () -> Unit,
+    onEnd: () -> Unit,
+    onRefresh: () -> Unit,
+    onRetryPending: () -> Unit,
+    onShowMap: @Composable (DriverLiveLocation) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            stringResource(R.string.driver_workday_title),
+            style = MaterialTheme.typography.titleLarge
+        )
+        Text(
+            stringResource(R.string.driver_workday_privacy_note),
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                when {
+                    state.loading -> Text(stringResource(R.string.driver_workday_loading))
+                    state.workday == null -> Text(stringResource(R.string.driver_workday_no_active))
+                    state.workday.status == DriverWorkdayStatus.CLOSED -> Text(
+                        stringResource(
+                            R.string.driver_workday_closed,
+                            (state.workday.endedAt ?: state.workday.startedAt).displayTime()
+                        )
+                    )
+                    state.workday.locationAvailable && state.captureRequested &&
+                        state.locationReady -> Text(
+                        stringResource(
+                            R.string.driver_workday_active_tracking,
+                            state.workday.startedAt.displayTime()
+                        )
+                    )
+                    state.workday.locationAvailable -> Text(
+                        stringResource(
+                            R.string.driver_workday_active_starting,
+                            state.workday.startedAt.displayTime()
+                        )
+                    )
+                    else -> Text(stringResource(R.string.driver_workday_active_without_location))
+                }
+                Text(
+                    stringResource(
+                        if (state.eligibleDeliveryId == null) {
+                            R.string.driver_workday_no_active_delivery
+                        } else {
+                            R.string.driver_workday_active_delivery_ready
+                        }
+                    )
+                )
+                state.lastSampleAt?.let {
+                    Text(stringResource(R.string.driver_workday_last_sample, it.displayTime()))
+                }
+            }
+        }
+        if (state.pendingCommand == null ||
+            state.notice == DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
+        ) {
+            noticeText(state.notice)?.let {
+                Text(stringResource(it), color = MaterialTheme.colorScheme.error)
+            }
+        }
+        if (state.commandPending) {
+            Text(
+                stringResource(
+                    if (state.notice == DriverWorkdayNotice.LOCATION_ACQUIRING) {
+                        R.string.driver_workday_location_acquiring
+                    } else {
+                        R.string.driver_workday_command_pending
+                    }
+                )
+            )
+        }
+        if (state.pendingCommand != null) {
+            Text(stringResource(R.string.driver_workday_unknown_command_pending))
+            Button(onClick = onRetryPending, enabled = !state.commandPending) {
+                Text(stringResource(R.string.driver_workday_retry_pending))
+            }
+        }
+        state.liveLocation?.let {
+            Text(stringResource(R.string.driver_map_point_self))
+            onShowMap(it)
+        }
+        val actionEnabled = !state.loading && !state.commandPending &&
+            state.pendingCommand == null &&
+            state.notice != DriverWorkdayNotice.END_PENDING_CONFIRMATION &&
+            state.notice != DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
+        if (state.workday == null || state.workday.status == DriverWorkdayStatus.CLOSED) {
+            Button(onClick = onStart, enabled = actionEnabled) {
+                Text(stringResource(R.string.driver_workday_start))
+            }
+        } else {
+            if (state.workday.locationAvailable) {
+                OutlinedButton(onClick = onDisableLocation, enabled = actionEnabled) {
+                    Text(stringResource(R.string.driver_workday_disable_location))
+                }
+            } else {
+                Button(
+                    onClick = onEnableLocation,
+                    enabled = actionEnabled && state.eligibleDeliveryId != null
+                ) {
                     Text(stringResource(R.string.driver_workday_enable_location))
                 }
             }
@@ -137,6 +263,7 @@ fun DriverWorkdayScreen(
 private fun noticeText(notice: DriverWorkdayNotice): Int? = when (notice) {
     DriverWorkdayNotice.NONE -> null
     DriverWorkdayNotice.LOCATION_PERMISSION_REQUIRED -> R.string.driver_workday_permission_required
+    DriverWorkdayNotice.ACTIVE_DELIVERY_REQUIRED -> R.string.driver_workday_active_delivery_required
     DriverWorkdayNotice.LOCATION_ACQUIRING -> null
     DriverWorkdayNotice.CURRENT_UNAVAILABLE -> R.string.driver_workday_current_unavailable
     DriverWorkdayNotice.START_UNKNOWN -> R.string.driver_workday_start_unknown

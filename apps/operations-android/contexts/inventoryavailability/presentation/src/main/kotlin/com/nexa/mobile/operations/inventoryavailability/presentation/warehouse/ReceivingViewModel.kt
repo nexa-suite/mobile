@@ -4,6 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.InboundReceiptRequest
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingAuthority
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingCatalogCandidate
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingCatalogFilterChoice
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingCatalogFilterKind
+import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingCatalogOutcome
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingDraftMetadata
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingEvidenceCandidate
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingEvidenceResult
@@ -18,6 +22,8 @@ import com.nexa.mobile.operations.inventoryavailability.application.warehouse.Re
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingIntentCoordinator
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingIntentExecution
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingMetadataStore
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.ReceivingProductCatalogGateway
+import com.nexa.mobile.operations.inventoryavailability.application.warehouse.UnavailableReceivingProductCatalogGateway
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseEvidenceSelectionCoordinator
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ConfirmedReceivingProduct
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivedLotFacts
@@ -26,7 +32,9 @@ import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.R
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivingWarehouseChoice
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivingZoneChoice
 import java.math.BigDecimal
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
 import java.time.format.DateTimeParseException
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -84,6 +92,14 @@ enum class ReceivingValidationError {
     BatchRequired,
     ExpiryRequired,
     ExpiryMalformed,
+    ExpiryNotFuture,
+    ProductionRequired,
+    ProductionMalformed,
+    ProductionAfterReceipt,
+    ExpiryBeforeProduction,
+    ReceivedAtRequired,
+    ReceivedAtMalformed,
+    ReceivedAtFuture,
     QuantityRequired,
     QuantityInvalid,
     QuantityMustBePositive,
@@ -121,7 +137,10 @@ data class ReceivingUiState(
     val rejectionCode: String? = null,
     val confirmedLot: ReceivedLotFacts? = null,
     val intentCleanupPending: Boolean = false,
-    val notice: ReceivingSubmitNotice? = null
+    val notice: ReceivingSubmitNotice? = null,
+    val productionDateText: String = "",
+    val receivedAtText: String = "",
+    val productPicker: ReceivingProductPickerState = ReceivingProductPickerState()
 ) {
     val isIntentFrozen: Boolean
         get() = command in setOf(
@@ -145,11 +164,70 @@ enum class ReceivingSubmitNotice {
     IntentMetadataUnavailable
 }
 
+enum class ReceivingCatalogSearchStatus {
+    Idle,
+    Typing,
+    Loading,
+    Ready,
+    Empty,
+    LoadingMore,
+    LoadMoreFailed,
+    InvalidQuery,
+    NetworkUnavailable,
+    ServiceUnavailable,
+    PermissionDenied,
+    ContextInvalidated,
+    SessionInvalidated
+}
+
+enum class ReceivingCatalogFilterStatus {
+    Idle,
+    Loading,
+    Ready,
+    Empty,
+    InvalidQuery,
+    NetworkUnavailable,
+    ServiceUnavailable,
+    PermissionDenied,
+    ContextInvalidated,
+    SessionInvalidated
+}
+
+enum class ReceivingCatalogSelectionNotice {
+    CandidateUnavailable,
+    NetworkUnavailable,
+    ServiceUnavailable,
+    PermissionDenied,
+    ContextInvalidated,
+    SessionInvalidated
+}
+
+data class ReceivingProductPickerState(
+    val isOpen: Boolean = false,
+    val query: String = "",
+    val brand: ReceivingCatalogFilterChoice? = null,
+    val category: ReceivingCatalogFilterChoice? = null,
+    val candidates: List<ReceivingCatalogCandidate> = emptyList(),
+    val nextPageKey: String? = null,
+    val searchStatus: ReceivingCatalogSearchStatus = ReceivingCatalogSearchStatus.Idle,
+    val selectedCandidateId: String? = null,
+    val selectionNotice: ReceivingCatalogSelectionNotice? = null,
+    val filterKind: ReceivingCatalogFilterKind? = null,
+    val filterSearch: String = "",
+    val filterOptions: List<ReceivingCatalogFilterChoice> = emptyList(),
+    val filterPage: Int = 0,
+    val nextFilterPage: Int? = null,
+    val filterTotal: Long = 0,
+    val filterStatus: ReceivingCatalogFilterStatus = ReceivingCatalogFilterStatus.Idle
+)
+
 /** Connected Receiving controller. It never treats a locally prepared draft as stock. */
 class ReceivingViewModel(
     private val gateway: ReceivingGateway,
     private val metadataStore: ReceivingMetadataStore,
-    private val evidenceSelection: WarehouseEvidenceSelectionCoordinator? = null
+    private val evidenceSelection: WarehouseEvidenceSelectionCoordinator? = null,
+    private val productCatalog: ReceivingProductCatalogGateway =
+        UnavailableReceivingProductCatalogGateway
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(ReceivingUiState())
     val state = mutableState.asStateFlow()
@@ -160,6 +238,9 @@ class ReceivingViewModel(
     private var draftWriteGeneration = 0L
     private var warehouseLookupGeneration = 0L
     private var zoneLookupGeneration = 0L
+    private var productSearchGeneration = 0L
+    private var productFilterGeneration = 0L
+    private var productDetailGeneration = 0L
 
     /** Serializes scoped metadata access so reactivation cannot miss a late old-epoch write. */
     private val metadataMutex = Mutex()
@@ -190,6 +271,7 @@ class ReceivingViewModel(
                 ?.takeIf { it.verifiedAuthorityEpoch == currentAuthority.authorityEpoch }
                 ?.verifiedAuthorityEpoch,
             unit = initialProduct?.reference?.unit.orEmpty(),
+            receivedAtText = Instant.now().toString(),
             metadata = ReceivingMetadataStatus.Loading,
             warehouseLookup = if (currentAuthority.canLookUpWarehouses) {
                 ReceivingLookupStatus.Loading
@@ -225,6 +307,10 @@ class ReceivingViewModel(
                         selectedZoneId = restoredIntent.request.zoneId,
                         batchNumber = restoredIntent.request.batchNumber,
                         expirationDateText = restoredIntent.request.expirationDate.toString(),
+                        productionDateText = restoredIntent.request.productionDate?.toString()
+                            .orEmpty(),
+                        receivedAtText = restoredIntent.request.receivedAt?.toString()
+                            ?: current.receivedAtText,
                         quantityText = restoredIntent.request.quantity.toPlainString(),
                         unit = restoredIntent.request.unit,
                         temperatureEvidenceObjectId =
@@ -264,7 +350,7 @@ class ReceivingViewModel(
                         }
                         ?.verifiedAuthorityEpoch,
                     unit = if (restoredIntent != null) {
-                        restoredIntent.request.unit
+                        product?.unit.orEmpty()
                     } else {
                         if (initialProduct != null) initialProduct.reference.unit else base.unit
                     },
@@ -340,7 +426,7 @@ class ReceivingViewModel(
     fun selectProduct(product: ConfirmedReceivingProduct) {
         if (!canEdit()) return
         val epoch = authority?.authorityEpoch ?: return
-        if (product.verifiedAuthorityEpoch != epoch) return
+        if (product.verifiedAuthorityEpoch != epoch || product.reference.unit.isBlank()) return
         mutableState.update {
             it.copy(
                 product = product.reference,
@@ -357,6 +443,604 @@ class ReceivingViewModel(
             )
         }
         persistDraft()
+    }
+
+    fun openProductPicker() {
+        if (!canEdit()) return
+        val current = mutableState.value
+        if (!current.canReceive) return
+        productSearchGeneration++
+        productFilterGeneration++
+        productDetailGeneration++
+        mutableState.update {
+            it.copy(
+                productPicker = it.productPicker.copy(
+                    isOpen = true,
+                    selectedCandidateId = null,
+                    selectionNotice = null
+                )
+            )
+        }
+    }
+
+    fun closeProductPicker() {
+        productSearchGeneration++
+        productFilterGeneration++
+        productDetailGeneration++
+        mutableState.update {
+            it.copy(
+                productPicker = it.productPicker.copy(
+                    isOpen = false,
+                    selectedCandidateId = null,
+                    filterKind = null,
+                    selectionNotice = null
+                )
+            )
+        }
+    }
+
+    fun productPickerQueryChanged(value: String) {
+        val picker = mutableState.value.productPicker
+        if (!picker.isOpen || !canEdit()) return
+        productSearchGeneration++
+        mutableState.update {
+            it.copy(
+                productPicker = it.productPicker.copy(
+                    query = value.take(120),
+                    candidates = emptyList(),
+                    nextPageKey = null,
+                    searchStatus = if (value.isBlank()) {
+                        ReceivingCatalogSearchStatus.Idle
+                    } else {
+                        ReceivingCatalogSearchStatus.Typing
+                    },
+                    selectedCandidateId = null,
+                    selectionNotice = null
+                )
+            )
+        }
+    }
+
+    fun openProductFilterOptions(kind: ReceivingCatalogFilterKind) {
+        val picker = mutableState.value.productPicker
+        if (!picker.isOpen || !canEdit()) return
+        productFilterGeneration++
+        mutableState.update {
+            it.copy(
+                productPicker = it.productPicker.copy(
+                    filterKind = kind,
+                    filterSearch = "",
+                    filterOptions = emptyList(),
+                    filterPage = 0,
+                    nextFilterPage = null,
+                    filterTotal = 0,
+                    filterStatus = ReceivingCatalogFilterStatus.Idle
+                )
+            )
+        }
+        loadProductFilterOptions(kind, search = "", page = 0, append = false)
+    }
+
+    fun productFilterSearchChanged(kind: ReceivingCatalogFilterKind, value: String) {
+        val picker = mutableState.value.productPicker
+        if (!picker.isOpen || picker.filterKind != kind || !canEdit()) return
+        productFilterGeneration++
+        mutableState.update {
+            it.copy(
+                productPicker = it.productPicker.copy(
+                    filterSearch = value.take(120),
+                    filterOptions = emptyList(),
+                    filterPage = 0,
+                    nextFilterPage = null,
+                    filterTotal = 0,
+                    filterStatus = ReceivingCatalogFilterStatus.Idle
+                )
+            )
+        }
+    }
+
+    fun loadProductFilterOptions(
+        kind: ReceivingCatalogFilterKind,
+        search: String,
+        page: Int,
+        append: Boolean
+    ) {
+        val currentAuthority = authority ?: return
+        val current = mutableState.value
+        val picker = current.productPicker
+        if (!picker.isOpen || picker.filterKind != kind || !current.canReceive || !canEdit() ||
+            page < 0 || (append && picker.nextFilterPage != page)
+        ) {
+            return
+        }
+        val normalizedSearch = search.trim().take(120)
+        val activationGeneration = generation
+        val epoch = current.authorityEpoch
+        val requestGeneration = ++productFilterGeneration
+        mutableState.update {
+            it.copy(
+                productPicker = it.productPicker.copy(
+                    filterSearch = normalizedSearch,
+                    filterOptions = if (append) it.productPicker.filterOptions else emptyList(),
+                    nextFilterPage = null,
+                    filterStatus = ReceivingCatalogFilterStatus.Loading
+                )
+            )
+        }
+        viewModelScope.launch {
+            val result = try {
+                productCatalog.filterOptions(kind, normalizedSearch, page, currentAuthority)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                ReceivingCatalogOutcome.ServiceUnavailable
+            }
+            if (!isCurrentProductFilterRequest(
+                    activationGeneration,
+                    epoch,
+                    requestGeneration,
+                    kind,
+                    normalizedSearch
+                )
+            ) {
+                return@launch
+            }
+            when (result) {
+                is ReceivingCatalogOutcome.Success -> {
+                    val items = if (append) {
+                        (mutableState.value.productPicker.filterOptions + result.value.items)
+                            .distinctBy { it.id }
+                    } else {
+                        result.value.items
+                    }
+                    val nextPage = result.value.page + 1
+                    mutableState.update {
+                        it.copy(
+                            productPicker = it.productPicker.copy(
+                                filterOptions = items,
+                                filterPage = result.value.page,
+                                nextFilterPage = nextPage.takeIf {
+                                    it.toLong() * result.value.size < result.value.total
+                                },
+                                filterTotal = result.value.total,
+                                filterStatus = if (items.isEmpty()) {
+                                    ReceivingCatalogFilterStatus.Empty
+                                } else {
+                                    ReceivingCatalogFilterStatus.Ready
+                                }
+                            )
+                        )
+                    }
+                }
+
+                ReceivingCatalogOutcome.InvalidQuery -> setProductFilterFailure(
+                    ReceivingCatalogFilterStatus.InvalidQuery,
+                    append
+                )
+
+                ReceivingCatalogOutcome.NetworkUnavailable -> setProductFilterFailure(
+                    ReceivingCatalogFilterStatus.NetworkUnavailable,
+                    append
+                )
+
+                ReceivingCatalogOutcome.ServiceUnavailable -> setProductFilterFailure(
+                    ReceivingCatalogFilterStatus.ServiceUnavailable,
+                    append
+                )
+
+                ReceivingCatalogOutcome.PermissionDenied -> setProductFilterFailure(
+                    ReceivingCatalogFilterStatus.PermissionDenied,
+                    append
+                )
+
+                ReceivingCatalogOutcome.ContextInvalidated -> setProductFilterFailure(
+                    ReceivingCatalogFilterStatus.ContextInvalidated,
+                    append
+                )
+
+                ReceivingCatalogOutcome.SessionInvalidated -> setProductFilterFailure(
+                    ReceivingCatalogFilterStatus.SessionInvalidated,
+                    append
+                )
+
+                ReceivingCatalogOutcome.CandidateUnavailable -> setProductFilterFailure(
+                    ReceivingCatalogFilterStatus.ServiceUnavailable,
+                    append
+                )
+            }
+        }
+    }
+
+    fun selectProductFilter(
+        kind: ReceivingCatalogFilterKind,
+        choice: ReceivingCatalogFilterChoice?
+    ) {
+        val picker = mutableState.value.productPicker
+        if (!picker.isOpen || picker.filterKind != kind || !canEdit()) return
+        if (choice != null && picker.filterOptions.none { it.id == choice.id }) return
+        productFilterGeneration++
+        productSearchGeneration++
+        mutableState.update {
+            val currentPicker = it.productPicker
+            it.copy(
+                productPicker = currentPicker.copy(
+                    brand = if (kind == ReceivingCatalogFilterKind.Brand) {
+                        choice
+                    } else {
+                        currentPicker.brand
+                    },
+                    category = if (kind == ReceivingCatalogFilterKind.Category) {
+                        choice
+                    } else {
+                        currentPicker.category
+                    },
+                    candidates = emptyList(),
+                    nextPageKey = null,
+                    searchStatus = ReceivingCatalogSearchStatus.Idle,
+                    selectedCandidateId = null,
+                    selectionNotice = null,
+                    filterKind = null,
+                    filterOptions = emptyList(),
+                    filterPage = 0,
+                    nextFilterPage = null,
+                    filterTotal = 0,
+                    filterStatus = ReceivingCatalogFilterStatus.Idle
+                )
+            )
+        }
+    }
+
+    fun searchProductCatalog() {
+        val picker = mutableState.value.productPicker
+        if (!picker.isOpen || !canEdit()) return
+        val query = picker.query.trim()
+        if (query.length > 120 || (
+                query.isEmpty() && picker.brand == null &&
+                    picker.category == null
+                )
+        ) {
+            mutableState.update {
+                it.copy(
+                    productPicker = it.productPicker.copy(
+                        searchStatus = ReceivingCatalogSearchStatus.InvalidQuery,
+                        candidates = emptyList(),
+                        nextPageKey = null,
+                        selectionNotice = null
+                    )
+                )
+            }
+            return
+        }
+        if (picker.searchStatus in setOf(
+                ReceivingCatalogSearchStatus.Loading,
+                ReceivingCatalogSearchStatus.LoadingMore
+            )
+        ) {
+            return
+        }
+        runProductCatalogSearch(query, pageKey = null, append = false)
+    }
+
+    fun loadMoreProductCatalog() {
+        val picker = mutableState.value.productPicker
+        if (!picker.isOpen || picker.nextPageKey == null || !canEdit() ||
+            picker.searchStatus !in setOf(
+                ReceivingCatalogSearchStatus.Ready,
+                ReceivingCatalogSearchStatus.LoadMoreFailed
+            )
+        ) {
+            return
+        }
+        runProductCatalogSearch(picker.query.trim(), picker.nextPageKey, append = true)
+    }
+
+    fun retryProductCatalogSearch() {
+        if (mutableState.value.productPicker.searchStatus ==
+            ReceivingCatalogSearchStatus.LoadMoreFailed
+        ) {
+            loadMoreProductCatalog()
+        } else {
+            searchProductCatalog()
+        }
+    }
+
+    fun selectProductCatalogCandidate(catalogItemId: String) {
+        val current = mutableState.value
+        val picker = current.productPicker
+        val currentAuthority = authority ?: return
+        if (!picker.isOpen || !current.canReceive || !canEdit() ||
+            picker.searchStatus !in setOf(
+                ReceivingCatalogSearchStatus.Ready,
+                ReceivingCatalogSearchStatus.LoadMoreFailed
+            )
+        ) {
+            return
+        }
+        val candidate = picker.candidates.firstOrNull {
+            it.catalogItemId == catalogItemId
+        } ?: return
+        val activationGeneration = generation
+        val epoch = current.authorityEpoch
+        val requestGeneration = ++productDetailGeneration
+        mutableState.update {
+            it.copy(
+                productPicker = it.productPicker.copy(
+                    selectedCandidateId = catalogItemId,
+                    selectionNotice = null
+                )
+            )
+        }
+        viewModelScope.launch {
+            val result = try {
+                productCatalog.detail(candidate, currentAuthority)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                ReceivingCatalogOutcome.ServiceUnavailable
+            }
+            if (!isCurrent(activationGeneration, epoch) ||
+                requestGeneration != productDetailGeneration ||
+                !mutableState.value.productPicker.isOpen ||
+                mutableState.value.productPicker.selectedCandidateId != catalogItemId
+            ) {
+                return@launch
+            }
+            when (result) {
+                is ReceivingCatalogOutcome.Success -> {
+                    val product = result.value
+                    if (product.catalogItemId != candidate.catalogItemId ||
+                        product.skuCode != candidate.skuCode || product.unit.isBlank()
+                    ) {
+                        setProductSelectionFailure(
+                            ReceivingCatalogSelectionNotice.ServiceUnavailable
+                        )
+                    } else {
+                        selectProduct(ConfirmedReceivingProduct(product, epoch))
+                        mutableState.update {
+                            it.copy(productPicker = ReceivingProductPickerState())
+                        }
+                    }
+                }
+
+                ReceivingCatalogOutcome.InvalidQuery,
+                ReceivingCatalogOutcome.ServiceUnavailable -> setProductSelectionFailure(
+                    ReceivingCatalogSelectionNotice.ServiceUnavailable
+                )
+
+                ReceivingCatalogOutcome.CandidateUnavailable -> setProductSelectionFailure(
+                    ReceivingCatalogSelectionNotice.CandidateUnavailable
+                )
+
+                ReceivingCatalogOutcome.NetworkUnavailable -> setProductSelectionFailure(
+                    ReceivingCatalogSelectionNotice.NetworkUnavailable
+                )
+
+                ReceivingCatalogOutcome.PermissionDenied -> setProductSelectionFailure(
+                    ReceivingCatalogSelectionNotice.PermissionDenied
+                )
+
+                ReceivingCatalogOutcome.ContextInvalidated -> setProductSelectionFailure(
+                    ReceivingCatalogSelectionNotice.ContextInvalidated
+                )
+
+                ReceivingCatalogOutcome.SessionInvalidated -> setProductSelectionFailure(
+                    ReceivingCatalogSelectionNotice.SessionInvalidated
+                )
+            }
+        }
+    }
+
+    private fun runProductCatalogSearch(query: String, pageKey: String?, append: Boolean) {
+        val current = mutableState.value
+        val picker = current.productPicker
+        val currentAuthority = authority ?: return
+        if (!picker.isOpen || !current.canReceive || !canEdit()) return
+        val brandName = picker.brand?.name
+        val categoryName = picker.category?.name
+        val activationGeneration = generation
+        val epoch = current.authorityEpoch
+        val requestGeneration = ++productSearchGeneration
+        mutableState.update {
+            it.copy(
+                productPicker = it.productPicker.copy(
+                    candidates = if (append) it.productPicker.candidates else emptyList(),
+                    nextPageKey = if (append) it.productPicker.nextPageKey else null,
+                    searchStatus = if (append) {
+                        ReceivingCatalogSearchStatus.LoadingMore
+                    } else {
+                        ReceivingCatalogSearchStatus.Loading
+                    },
+                    selectionNotice = null
+                )
+            )
+        }
+        viewModelScope.launch {
+            val result = try {
+                productCatalog.search(
+                    query,
+                    brandName,
+                    categoryName,
+                    pageKey,
+                    currentAuthority
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                ReceivingCatalogOutcome.ServiceUnavailable
+            }
+            if (!isCurrentProductSearchRequest(
+                    activationGeneration,
+                    epoch,
+                    requestGeneration,
+                    query,
+                    brandName,
+                    categoryName
+                )
+            ) {
+                return@launch
+            }
+            when (result) {
+                is ReceivingCatalogOutcome.Success -> {
+                    val items = if (append) {
+                        (mutableState.value.productPicker.candidates + result.value.items)
+                            .distinctBy { it.catalogItemId }
+                    } else {
+                        result.value.items.distinctBy { it.catalogItemId }
+                    }
+                    mutableState.update {
+                        it.copy(
+                            productPicker = it.productPicker.copy(
+                                candidates = items,
+                                nextPageKey = result.value.nextPageKey,
+                                searchStatus = if (items.isEmpty()) {
+                                    ReceivingCatalogSearchStatus.Empty
+                                } else {
+                                    ReceivingCatalogSearchStatus.Ready
+                                }
+                            )
+                        )
+                    }
+                }
+
+                ReceivingCatalogOutcome.InvalidQuery -> setProductSearchFailure(
+                    ReceivingCatalogSearchStatus.InvalidQuery,
+                    append
+                )
+
+                ReceivingCatalogOutcome.NetworkUnavailable -> setProductSearchFailure(
+                    ReceivingCatalogSearchStatus.NetworkUnavailable,
+                    append
+                )
+
+                ReceivingCatalogOutcome.ServiceUnavailable,
+                ReceivingCatalogOutcome.CandidateUnavailable -> setProductSearchFailure(
+                    ReceivingCatalogSearchStatus.ServiceUnavailable,
+                    append
+                )
+
+                ReceivingCatalogOutcome.PermissionDenied -> setProductSearchFailure(
+                    ReceivingCatalogSearchStatus.PermissionDenied,
+                    append
+                )
+
+                ReceivingCatalogOutcome.ContextInvalidated -> setProductSearchFailure(
+                    ReceivingCatalogSearchStatus.ContextInvalidated,
+                    append
+                )
+
+                ReceivingCatalogOutcome.SessionInvalidated -> setProductSearchFailure(
+                    ReceivingCatalogSearchStatus.SessionInvalidated,
+                    append
+                )
+            }
+        }
+    }
+
+    private fun setProductSearchFailure(status: ReceivingCatalogSearchStatus, append: Boolean) {
+        mutableState.update {
+            it.copy(
+                productPicker = it.productPicker.copy(
+                    candidates = if (append && status in setOf(
+                            ReceivingCatalogSearchStatus.NetworkUnavailable,
+                            ReceivingCatalogSearchStatus.ServiceUnavailable
+                        )
+                    ) {
+                        it.productPicker.candidates
+                    } else {
+                        emptyList()
+                    },
+                    nextPageKey = null,
+                    searchStatus = if (append && status in setOf(
+                            ReceivingCatalogSearchStatus.NetworkUnavailable,
+                            ReceivingCatalogSearchStatus.ServiceUnavailable
+                        )
+                    ) {
+                        ReceivingCatalogSearchStatus.LoadMoreFailed
+                    } else {
+                        status
+                    }
+                )
+            )
+        }
+    }
+
+    private fun setProductFilterFailure(status: ReceivingCatalogFilterStatus, append: Boolean) {
+        mutableState.update {
+            it.copy(
+                productPicker = it.productPicker.copy(
+                    filterOptions = if (append && status in setOf(
+                            ReceivingCatalogFilterStatus.NetworkUnavailable,
+                            ReceivingCatalogFilterStatus.ServiceUnavailable
+                        )
+                    ) {
+                        it.productPicker.filterOptions
+                    } else {
+                        emptyList()
+                    },
+                    nextFilterPage = null,
+                    filterStatus = status
+                )
+            )
+        }
+    }
+
+    private fun setProductSelectionFailure(notice: ReceivingCatalogSelectionNotice) {
+        mutableState.update {
+            it.copy(
+                productPicker = it.productPicker.copy(
+                    selectedCandidateId = null,
+                    candidates = if (notice in setOf(
+                            ReceivingCatalogSelectionNotice.PermissionDenied,
+                            ReceivingCatalogSelectionNotice.ContextInvalidated,
+                            ReceivingCatalogSelectionNotice.SessionInvalidated
+                        )
+                    ) {
+                        emptyList()
+                    } else {
+                        it.productPicker.candidates
+                    },
+                    nextPageKey = if (notice in setOf(
+                            ReceivingCatalogSelectionNotice.PermissionDenied,
+                            ReceivingCatalogSelectionNotice.ContextInvalidated,
+                            ReceivingCatalogSelectionNotice.SessionInvalidated
+                        )
+                    ) {
+                        null
+                    } else {
+                        it.productPicker.nextPageKey
+                    },
+                    selectionNotice = notice
+                )
+            )
+        }
+    }
+
+    private fun isCurrentProductSearchRequest(
+        activationGeneration: Long,
+        epoch: Long,
+        requestGeneration: Long,
+        query: String,
+        brandName: String?,
+        categoryName: String?
+    ): Boolean {
+        val picker = mutableState.value.productPicker
+        return isCurrent(activationGeneration, epoch) &&
+            requestGeneration == productSearchGeneration && picker.isOpen &&
+            picker.query.trim() == query && picker.brand?.name == brandName &&
+            picker.category?.name == categoryName
+    }
+
+    private fun isCurrentProductFilterRequest(
+        activationGeneration: Long,
+        epoch: Long,
+        requestGeneration: Long,
+        kind: ReceivingCatalogFilterKind,
+        search: String
+    ): Boolean {
+        val picker = mutableState.value.productPicker
+        return isCurrent(activationGeneration, epoch) &&
+            requestGeneration == productFilterGeneration && picker.isOpen &&
+            picker.filterKind == kind && picker.filterSearch.trim() == search
     }
 
     fun selectWarehouse(warehouseId: String) {
@@ -448,9 +1132,11 @@ class ReceivingViewModel(
 
     fun expirationDateChanged(value: String) = updateDraft { it.copy(expirationDateText = value) }
 
-    fun quantityChanged(value: String) = updateDraft { it.copy(quantityText = value) }
+    fun productionDateChanged(value: String) = updateDraft { it.copy(productionDateText = value) }
 
-    fun unitChanged(value: String) = updateDraft { it.copy(unit = value) }
+    fun receivedAtChanged(value: String) = updateDraft { it.copy(receivedAtText = value) }
+
+    fun quantityChanged(value: String) = updateDraft { it.copy(quantityText = value) }
 
     fun temperatureReadingChanged(value: String) = updateDraft {
         it.copy(
@@ -1028,6 +1714,8 @@ class ReceivingViewModel(
             it.copy(
                 batchNumber = "",
                 expirationDateText = "",
+                productionDateText = "",
+                receivedAtText = Instant.now().toString(),
                 quantityText = "",
                 temperatureReadingText = "",
                 temperatureEvidenceObjectId = null,
@@ -1266,6 +1954,34 @@ class ReceivingViewModel(
         } catch (_: DateTimeParseException) {
             return invalid(ReceivingValidationError.ExpiryMalformed)
         }
+        if (!expiry.isAfter(LocalDate.now(ZoneOffset.UTC))) {
+            return invalid(ReceivingValidationError.ExpiryNotFuture)
+        }
+        if (productionDateText.isBlank()) {
+            return invalid(ReceivingValidationError.ProductionRequired)
+        }
+        val productionDate = try {
+            LocalDate.parse(productionDateText)
+        } catch (_: DateTimeParseException) {
+            return invalid(ReceivingValidationError.ProductionMalformed)
+        }
+        if (receivedAtText.isBlank()) {
+            return invalid(ReceivingValidationError.ReceivedAtRequired)
+        }
+        val receivedAt = try {
+            Instant.parse(receivedAtText)
+        } catch (_: DateTimeParseException) {
+            return invalid(ReceivingValidationError.ReceivedAtMalformed)
+        }
+        if (receivedAt.isAfter(Instant.now())) {
+            return invalid(ReceivingValidationError.ReceivedAtFuture)
+        }
+        if (productionDate.isAfter(receivedAt.atZone(ZoneOffset.UTC).toLocalDate())) {
+            return invalid(ReceivingValidationError.ProductionAfterReceipt)
+        }
+        if (!productionDate.isBefore(expiry)) {
+            return invalid(ReceivingValidationError.ExpiryBeforeProduction)
+        }
         if (quantityText.isBlank()) return invalid(ReceivingValidationError.QuantityRequired)
         val quantity = try {
             BigDecimal(quantityText)
@@ -1296,7 +2012,7 @@ class ReceivingViewModel(
         ) {
             return invalid(ReceivingValidationError.TemperatureEvidenceNotAvailable)
         }
-        val selectedUnit = unit.takeIf { it.isNotBlank() }
+        val selectedUnit = selectedProduct.unit.takeIf { it.isNotBlank() }
             ?: return invalid(ReceivingValidationError.UnitRequired)
         return InboundReceiptRequest(
             warehouseId = warehouseId,
@@ -1308,7 +2024,9 @@ class ReceivingViewModel(
             quantity = quantity,
             unit = selectedUnit,
             temperatureReading = temperature,
-            temperatureEvidenceObjectId = temperatureEvidenceObjectId
+            temperatureEvidenceObjectId = temperatureEvidenceObjectId,
+            productionDate = productionDate,
+            receivedAt = receivedAt
         )
     }
 
@@ -1321,7 +2039,9 @@ class ReceivingViewModel(
         quantityText = quantityText,
         unit = unit,
         temperatureReadingText = temperatureReadingText,
-        temperatureEvidenceObjectId = temperatureEvidenceObjectId
+        temperatureEvidenceObjectId = temperatureEvidenceObjectId,
+        productionDateText = productionDateText,
+        receivedAtText = receivedAtText
     )
 
     private fun ReceivingDraftMetadata.toUiState(
@@ -1336,8 +2056,10 @@ class ReceivingViewModel(
             selectedZoneId = request?.zoneId ?: zoneId,
             batchNumber = request?.batchNumber ?: batchNumber,
             expirationDateText = request?.expirationDate?.toString() ?: expirationDateText,
+            productionDateText = request?.productionDate?.toString() ?: productionDateText,
+            receivedAtText = request?.receivedAt?.toString() ?: receivedAtText,
             quantityText = request?.quantity?.toPlainString() ?: quantityText,
-            unit = request?.unit ?: unit,
+            unit = restoredProduct?.unit ?: current.product?.unit ?: unit,
             temperatureReadingText = request?.temperatureReading?.toPlainString()
                 ?: temperatureReadingText,
             temperatureEvidenceObjectId = request?.temperatureEvidenceObjectId

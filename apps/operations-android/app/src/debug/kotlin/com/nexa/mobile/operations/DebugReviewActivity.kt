@@ -232,6 +232,13 @@ private fun DebugReviewExperience(initialScenario: ReviewScenario, cleanCapture:
                             },
                             onSearch = { scenario = ReviewScenario.SearchLoading },
                             onLoadMore = { scenario = ReviewScenario.LoadingMore },
+                            onOpenFilterOptions = {},
+                            onCloseFilterOptions = {},
+                            onFilterSearchChanged = {},
+                            onLoadFilterOptions = {},
+                            onLoadMoreFilterOptions = {},
+                            onRetryFilterOptions = {},
+                            onSelectFilter = { _, _ -> },
                             onSelectCandidate = { scenario = ReviewScenario.ConfirmationPending }
                         )
                     }

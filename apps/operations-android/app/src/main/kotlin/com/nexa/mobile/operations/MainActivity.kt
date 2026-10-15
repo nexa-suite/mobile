@@ -80,6 +80,8 @@ import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.Driv
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverExecutionTemperatureViewModel as TemperatureViewModel
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverHandoffTokenScreen
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverHandoffTokenViewModel as HandoffTokenViewModel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverWorkdayPanel
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverWorkdayViewModel
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.BusinessOperationalExceptionsScreen
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.BusinessOperationalExceptionsViewModel as ExceptionsViewModel
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DeliveryLoadScreen
@@ -133,9 +135,7 @@ import com.nexa.mobile.operations.inventoryavailability.application.warehouse.St
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferReceiptMetadataStore
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferReceiptObservationMetadataStore
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseEvidenceSelectionCoordinator
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ConfirmedReceivingProduct
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionWork
-import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivingProductReference
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.AppTemperatureEvidencePhotoArtifactStore
 import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.CycleCountScreen
 import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.CycleCountViewModel
@@ -169,6 +169,8 @@ import com.nexa.mobile.operations.salescommitment.presentation.commercial.Custom
 import com.nexa.mobile.operations.salescommitment.presentation.commercial.CustomerProgressViewModel
 import com.nexa.mobile.operations.salescommitment.presentation.commercial.DirectOrderScreen
 import com.nexa.mobile.operations.salescommitment.presentation.commercial.DirectOrderViewModel
+import com.nexa.mobile.operations.salescommitment.presentation.commercial.FieldRequestDraftScreen
+import com.nexa.mobile.operations.salescommitment.presentation.commercial.FieldRequestDraftViewModel
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.PermissionHint
@@ -297,6 +299,11 @@ class MainActivity : ComponentActivity() {
         commercialCatalogFactory
     }
 
+    @Inject internal lateinit var fieldRequestDraftFactory: FieldRequestDraftViewModelFactory
+    private val fieldRequestDraftViewModel: FieldRequestDraftViewModel by viewModels {
+        fieldRequestDraftFactory
+    }
+
     @Inject internal lateinit var customerInstructionsFactory:
         CustomerDeliveryInstructionsViewModelFactory
     private val customerInstructionsViewModel: CustomerDeliveryInstructionsViewModel by viewModels {
@@ -356,6 +363,14 @@ class MainActivity : ComponentActivity() {
     @Inject internal lateinit var driverDeliveryBindings: DriverDeliveryGatewayBindings
     private val driverViewModel: DriverDeliveryViewModel by viewModels {
         driverDeliveryBindings.viewModelFactory()
+    }
+
+    @Inject internal lateinit var driverWorkdayBindings: DriverWorkdayGatewayBindings
+    private val driverLocationCapture by lazy {
+        AndroidDriverWorkdayLocationCapture(applicationContext)
+    }
+    private val driverWorkdayViewModel: DriverWorkdayViewModel by viewModels {
+        driverWorkdayBindings.viewModelFactory(driverLocationCapture)
     }
 
     @Inject internal lateinit var driverDeliveryInstructionsBindings:
@@ -488,13 +503,14 @@ class MainActivity : ComponentActivity() {
         mutableStateOf<PendingTemperatureDispositionSeed?>(null)
     private val warehouseBatchViewModel: WarehouseBatchViewModel by viewModels()
     private var connectedRoute by mutableStateOf<ConnectedOperationRoute?>(null)
+    private var showCatalogForRequest by mutableStateOf(false)
+    private var showCatalogForDirectOrder by mutableStateOf(false)
     private var pendingLoadDelivery by mutableStateOf<Pair<ConnectedOperationRoute, String>?>(null)
     private var showDriverInstructions by mutableStateOf(false)
     private var showDriverOperationalExceptions by mutableStateOf(false)
     private var pickingReference by mutableStateOf("")
     private var pickingOpened by mutableStateOf(false)
     private var pickingWorkListEpoch by mutableStateOf(0L)
-    private var choosingReceivingProduct by mutableStateOf(false)
 
     @Inject internal lateinit var operationsGateway: OperationsAccessGateway
 
@@ -568,6 +584,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (connectedRoute?.entryKey == "driver.deliveries") {
+            driverWorkdayViewModel.onLocationPermissionChanged(fineLocationPermissionGranted())
+            driverWorkdayViewModel.refresh()
+        }
         if (viewModel.state.value == SessionState.Active) {
             invalidateProtectedContentForForegroundReturn()
         }
@@ -592,6 +612,13 @@ class MainActivity : ComponentActivity() {
         verifyScannerForegroundReturn()
     }
 
+    override fun onPause() {
+        if (connectedRoute?.entryKey == "driver.deliveries") {
+            driverWorkdayViewModel.onAppBackgrounded()
+        }
+        super.onPause()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         privateImageFileSelection.discardAbandonedSelections()
@@ -599,6 +626,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             OperationsTheme {
+                val driverLocationPermissionLauncher =
+                    rememberLauncherForActivityResult(
+                        ActivityResultContracts.RequestPermission()
+                    ) { granted ->
+                        driverWorkdayViewModel.onLocationPermissionChanged(granted)
+                        driverWorkdayViewModel.enableLocation()
+                    }
                 if (localNetworkPermissionDenied) {
                     AlertDialog(
                         onDismissRequest = { localNetworkPermissionDenied = false },
@@ -810,6 +844,8 @@ class MainActivity : ComponentActivity() {
                     businessDocumentsViewModel.state.collectAsStateWithLifecycle()
                 val notificationsState by notificationsViewModel.state.collectAsStateWithLifecycle()
                 val directOrderState by directOrderViewModel.state.collectAsStateWithLifecycle()
+                val fieldRequestDraftState by
+                    fieldRequestDraftViewModel.state.collectAsStateWithLifecycle()
                 val walletRefundState by walletRefundViewModel.state.collectAsStateWithLifecycle()
                 val dispatchHandoffIdentityState by
                     dispatchHandoffIdentityViewModel.state.collectAsStateWithLifecycle()
@@ -821,6 +857,8 @@ class MainActivity : ComponentActivity() {
                     driverIncidentViewModel.state.collectAsStateWithLifecycle()
                 val driverDeliveryState by
                     driverViewModel.state.collectAsStateWithLifecycle()
+                val driverWorkdayState by
+                    driverWorkdayViewModel.state.collectAsStateWithLifecycle()
                 val driverInstructionsState by
                     driverInstructionsViewModel.state.collectAsStateWithLifecycle()
                 val driverOperationalExceptionsState by
@@ -829,6 +867,66 @@ class MainActivity : ComponentActivity() {
                     businessExceptionsViewModel.state.collectAsStateWithLifecycle()
                 val executionTemperatureState by
                     executionTemperatureViewModel.state.collectAsStateWithLifecycle()
+                LaunchedEffect(
+                    connectedRoute?.entryKey,
+                    connectedRoute?.authorityEpoch,
+                    state,
+                    accessState.authorityEpoch,
+                    warehouseState.authorityEpoch
+                ) {
+                    val route = connectedRoute
+                    if (route?.entryKey == "driver.deliveries" &&
+                        ConnectedOperationsNavigation.permits(
+                            route,
+                            CONNECTED_OPERATIONS,
+                            state,
+                            accessState,
+                            warehouseState
+                        )
+                    ) {
+                        val authority = route.authority
+                        driverWorkdayViewModel.activate(
+                            DriverDeliveryAuthority(
+                                authority.userId,
+                                authority.tenantId,
+                                authority.workspaceId,
+                                authority.membershipId,
+                                authority.permissions,
+                                route.authorityEpoch
+                            ),
+                            hasFineLocationPermission = fineLocationPermissionGranted()
+                        )
+                    } else {
+                        driverWorkdayViewModel.invalidate()
+                    }
+                }
+                LaunchedEffect(
+                    connectedRoute?.entryKey,
+                    driverDeliveryState.selectedDelivery,
+                    driverDeliveryState.detailStatus,
+                    state,
+                    accessState.authorityEpoch,
+                    warehouseState.authorityEpoch
+                ) {
+                    val route = connectedRoute
+                    if (route?.entryKey == "driver.deliveries" &&
+                        driverDeliveryState.detailStatus == DriverDeliveryLoadStatus.Ready &&
+                        ConnectedOperationsNavigation.permits(
+                            route,
+                            CONNECTED_OPERATIONS,
+                            state,
+                            accessState,
+                            warehouseState
+                        )
+                    ) {
+                        driverWorkdayViewModel.updateDelivery(
+                            driverDeliveryState.selectedDelivery,
+                            detailReady = driverDeliveryState.selectedDelivery != null
+                        )
+                    } else {
+                        driverWorkdayViewModel.updateDelivery(null, detailReady = false)
+                    }
+                }
                 LaunchedEffect(
                     connectedRoute,
                     state,
@@ -1319,7 +1417,6 @@ class MainActivity : ComponentActivity() {
                             it == "inventory.receive" || it == "warehouse:write"
                         }
                     ) {
-                        choosingReceivingProduct = false
                         receivingViewModel.invalidate()
                     }
                 }
@@ -1340,31 +1437,6 @@ class MainActivity : ComponentActivity() {
                         stockConditionViewModel.invalidateContext()
                     }
                 }
-                LaunchedEffect(
-                    warehouseState.confirmedSku,
-                    choosingReceivingProduct
-                ) {
-                    val product = warehouseState.confirmedSku
-                    if (choosingReceivingProduct && product != null &&
-                        product.authorityEpoch == accessState.authorityEpoch
-                    ) {
-                        receivingViewModel.selectProduct(
-                            ConfirmedReceivingProduct(
-                                ReceivingProductReference(
-                                    product.candidateKey,
-                                    null,
-                                    product.productDisplayName,
-                                    product.sku,
-                                    product.unit.orEmpty()
-                                ),
-                                product.authorityEpoch
-                            )
-                        )
-                        choosingReceivingProduct = false
-                        warehouseViewModel.openReceiving()
-                    }
-                }
-
                 LaunchedEffect(
                     state,
                     accessState.authorityEpoch,
@@ -1647,7 +1719,18 @@ class MainActivity : ComponentActivity() {
                                         )
                                     )
 
-                                    "commercial.request" -> directOrderViewModel.activate(
+                                    "commercial.request" -> fieldRequestDraftViewModel.activate(
+                                        CommercialAuthority(
+                                            authority.userId,
+                                            authority.tenantId,
+                                            authority.workspaceId,
+                                            authority.membershipId,
+                                            authority.permissions,
+                                            route.authorityEpoch
+                                        )
+                                    )
+
+                                    "commercial.direct-order" -> directOrderViewModel.activate(
                                         CommercialAuthority(
                                             authority.userId,
                                             authority.tenantId,
@@ -2401,11 +2484,119 @@ class MainActivity : ComponentActivity() {
                                 onPreferenceChanged = notificationsViewModel::setPreference
                             )
 
-                            "commercial.request" -> DirectOrderScreen(
-                                directOrderState,
-                                ::closeConnectedOperation,
-                                directOrderViewModel
-                            )
+                            "commercial.request" -> if (showCatalogForRequest) {
+                                CommercialCatalogScreen(
+                                    state = commercialCatalogState,
+                                    onBack = {
+                                        showCatalogForRequest = false
+                                        commercialCatalogViewModel.deactivate()
+                                    },
+                                    onCustomerIdChanged = { customerId ->
+                                        fieldRequestDraftViewModel.customerChanged(customerId)
+                                        commercialCatalogViewModel.customerIdChanged(customerId)
+                                    },
+                                    onQueryChanged = commercialCatalogViewModel::queryChanged,
+                                    onOpenFilterOptions =
+                                        commercialCatalogViewModel::openFilterOptions,
+                                    onSearchFilterChanged =
+                                        commercialCatalogViewModel::searchFilterOptions,
+                                    onSearchFilterOptions =
+                                        commercialCatalogViewModel::loadFilterOptions,
+                                    onSelectFilterOption =
+                                        commercialCatalogViewModel::selectFilterOption,
+                                    onSearch = commercialCatalogViewModel::search,
+                                    onNextPage = commercialCatalogViewModel::nextPage,
+                                    onSelectProduct = commercialCatalogViewModel::selectProduct,
+                                    onRouteClosed = commercialCatalogViewModel::deactivate,
+                                    onPrepareRequest = { _, productId ->
+                                        fieldRequestDraftViewModel.addProduct(productId)
+                                        showCatalogForRequest = false
+                                    }
+                                )
+                            } else {
+                                FieldRequestDraftScreen(
+                                    state = fieldRequestDraftState,
+                                    onBack = ::closeConnectedOperation,
+                                    onCustomerChanged = fieldRequestDraftViewModel::customerChanged,
+                                    onOpenCatalog = {
+                                        val route = connectedRoute ?: return@FieldRequestDraftScreen
+                                        val authority = route.authority
+                                        showCatalogForRequest = true
+                                        commercialCatalogViewModel.activate(
+                                            CommercialAuthority(
+                                                authority.userId,
+                                                authority.tenantId,
+                                                authority.workspaceId,
+                                                authority.membershipId,
+                                                authority.permissions,
+                                                route.authorityEpoch
+                                            )
+                                        )
+                                        commercialCatalogViewModel.customerIdChanged(
+                                            fieldRequestDraftState.draft.customerId
+                                        )
+                                    },
+                                    onQuantityChanged = fieldRequestDraftViewModel::quantityChanged,
+                                    onRemoveProduct = fieldRequestDraftViewModel::removeProduct,
+                                    onReview = fieldRequestDraftViewModel::review,
+                                    onRouteClosed = fieldRequestDraftViewModel::deactivate
+                                )
+                            }
+
+                            "commercial.direct-order" -> if (showCatalogForDirectOrder) {
+                                CommercialCatalogScreen(
+                                    state = commercialCatalogState,
+                                    onBack = {
+                                        showCatalogForDirectOrder = false
+                                        commercialCatalogViewModel.deactivate()
+                                    },
+                                    onCustomerIdChanged = { customerId ->
+                                        directOrderViewModel.customerChanged(customerId)
+                                        commercialCatalogViewModel.customerIdChanged(customerId)
+                                    },
+                                    onQueryChanged = commercialCatalogViewModel::queryChanged,
+                                    onOpenFilterOptions =
+                                        commercialCatalogViewModel::openFilterOptions,
+                                    onSearchFilterChanged =
+                                        commercialCatalogViewModel::searchFilterOptions,
+                                    onSearchFilterOptions =
+                                        commercialCatalogViewModel::loadFilterOptions,
+                                    onSelectFilterOption =
+                                        commercialCatalogViewModel::selectFilterOption,
+                                    onSearch = commercialCatalogViewModel::search,
+                                    onNextPage = commercialCatalogViewModel::nextPage,
+                                    onSelectProduct = commercialCatalogViewModel::selectProduct,
+                                    onRouteClosed = commercialCatalogViewModel::deactivate,
+                                    onCreateDirectOrder = { _, productId ->
+                                        directOrderViewModel.productChanged(productId)
+                                        showCatalogForDirectOrder = false
+                                    }
+                                )
+                            } else {
+                                DirectOrderScreen(
+                                    directOrderState,
+                                    ::closeConnectedOperation,
+                                    directOrderViewModel,
+                                    onOpenCatalog = {
+                                        val route = connectedRoute ?: return@DirectOrderScreen
+                                        val authority = route.authority
+                                        showCatalogForDirectOrder = true
+                                        commercialCatalogViewModel.activate(
+                                            CommercialAuthority(
+                                                authority.userId,
+                                                authority.tenantId,
+                                                authority.workspaceId,
+                                                authority.membershipId,
+                                                authority.permissions,
+                                                route.authorityEpoch
+                                            )
+                                        )
+                                        commercialCatalogViewModel.customerIdChanged(
+                                            directOrderState.record.draft.customerId
+                                        )
+                                    }
+                                )
+                            }
 
                             "driver.deliveries" -> if (showDriverOperationalExceptions) {
                                 ExceptionsScreen(
@@ -2652,6 +2843,36 @@ class MainActivity : ComponentActivity() {
                                         } else {
                                             launchDriverDirections(this@MainActivity, destination)
                                         }
+                                    },
+                                    workdayContent = {
+                                        DriverWorkdayPanel(
+                                            state = driverWorkdayState,
+                                            onStart = driverWorkdayViewModel::startWorkday,
+                                            onEnableLocation = {
+                                                if (fineLocationPermissionGranted()) {
+                                                    driverWorkdayViewModel
+                                                        .onLocationPermissionChanged(true)
+                                                    driverWorkdayViewModel.enableLocation()
+                                                } else {
+                                                    driverLocationPermissionLauncher.launch(
+                                                        Manifest.permission.ACCESS_FINE_LOCATION
+                                                    )
+                                                }
+                                            },
+                                            onDisableLocation =
+                                                driverWorkdayViewModel::disableLocationSharing,
+                                            onEnd = driverWorkdayViewModel::endWorkday,
+                                            onRefresh = driverWorkdayViewModel::refresh,
+                                            onRetryPending =
+                                                driverWorkdayViewModel::retryPendingCommand,
+                                            onShowMap = { location ->
+                                                DriverLiveLocationMap(
+                                                    location = location,
+                                                    tileUrlTemplate =
+                                                        BuildConfig.MAP_TILE_URL_TEMPLATE
+                                                )
+                                            }
+                                        )
                                     }
                                 )
                             }
@@ -2871,6 +3092,14 @@ class MainActivity : ComponentActivity() {
                                 onBack = ::closeConnectedOperation,
                                 onCustomerIdChanged = commercialCatalogViewModel::customerIdChanged,
                                 onQueryChanged = commercialCatalogViewModel::queryChanged,
+                                onOpenFilterOptions =
+                                    commercialCatalogViewModel::openFilterOptions,
+                                onSearchFilterChanged =
+                                    commercialCatalogViewModel::searchFilterOptions,
+                                onSearchFilterOptions =
+                                    commercialCatalogViewModel::loadFilterOptions,
+                                onSelectFilterOption =
+                                    commercialCatalogViewModel::selectFilterOption,
                                 onSearch = commercialCatalogViewModel::search,
                                 onNextPage = commercialCatalogViewModel::nextPage,
                                 onSelectProduct = commercialCatalogViewModel::selectProduct,
@@ -2889,7 +3118,7 @@ class MainActivity : ComponentActivity() {
                                         closeConnectedOperation()
                                         connectedRoute = route
                                         val authority = route.authority
-                                        directOrderViewModel.activate(
+                                        fieldRequestDraftViewModel.activate(
                                             CommercialAuthority(
                                                 authority.userId,
                                                 authority.tenantId,
@@ -2902,6 +3131,46 @@ class MainActivity : ComponentActivity() {
                                             productId
                                         )
                                     }
+                                },
+                                onCreateDirectOrder = if (
+                                    accessState.activeContext?.verifiedAuthority?.permissions
+                                        ?.any {
+                                            it in setOf(
+                                                "sales:write",
+                                                "sales.order.create_manual",
+                                                "sales.order.manage"
+                                            )
+                                        } == true
+                                ) {
+                                    { customerId, productId ->
+                                        val entry = CONNECTED_OPERATIONS.single {
+                                            it.key == "commercial.direct-order"
+                                        }
+                                        ConnectedOperationsNavigation.open(
+                                            entry,
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        )?.let { route ->
+                                            closeConnectedOperation()
+                                            connectedRoute = route
+                                            val authority = route.authority
+                                            directOrderViewModel.activate(
+                                                CommercialAuthority(
+                                                    authority.userId,
+                                                    authority.tenantId,
+                                                    authority.workspaceId,
+                                                    authority.membershipId,
+                                                    authority.permissions,
+                                                    route.authorityEpoch
+                                                ),
+                                                customerId,
+                                                productId
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    null
                                 }
                             )
 
@@ -2972,7 +3241,7 @@ class MainActivity : ComponentActivity() {
                                         closeConnectedOperation()
                                         connectedRoute = route
                                         val authority = route.authority
-                                        directOrderViewModel.activate(
+                                        fieldRequestDraftViewModel.activate(
                                             CommercialAuthority(
                                                 authority.userId,
                                                 authority.tenantId,
@@ -3661,16 +3930,31 @@ class MainActivity : ComponentActivity() {
                         ReceivingScreen(
                             state = receivingState,
                             onBack = warehouseViewModel::back,
-                            onChooseProduct = {
-                                choosingReceivingProduct = true
-                                warehouseViewModel.openProductSearch()
-                            },
+                            onChooseProduct = receivingViewModel::openProductPicker,
+                            onCloseProductPicker = receivingViewModel::closeProductPicker,
+                            onProductPickerQueryChanged =
+                                receivingViewModel::productPickerQueryChanged,
+                            onSearchProductCatalog = receivingViewModel::searchProductCatalog,
+                            onLoadMoreProductCatalog =
+                                receivingViewModel::loadMoreProductCatalog,
+                            onRetryProductCatalogSearch =
+                                receivingViewModel::retryProductCatalogSearch,
+                            onOpenProductFilterOptions =
+                                receivingViewModel::openProductFilterOptions,
+                            onProductFilterSearchChanged =
+                                receivingViewModel::productFilterSearchChanged,
+                            onLoadProductFilterOptions =
+                                receivingViewModel::loadProductFilterOptions,
+                            onSelectProductFilter = receivingViewModel::selectProductFilter,
+                            onSelectProductCatalogCandidate =
+                                receivingViewModel::selectProductCatalogCandidate,
                             onSelectWarehouse = receivingViewModel::selectWarehouse,
                             onSelectZone = receivingViewModel::selectZone,
                             onBatchNumberChanged = receivingViewModel::batchNumberChanged,
                             onExpirationDateChanged = receivingViewModel::expirationDateChanged,
+                            onProductionDateChanged = receivingViewModel::productionDateChanged,
+                            onReceivedAtChanged = receivingViewModel::receivedAtChanged,
                             onQuantityChanged = receivingViewModel::quantityChanged,
-                            onUnitChanged = receivingViewModel::unitChanged,
                             onTemperatureReadingChanged =
                                 receivingViewModel::temperatureReadingChanged,
                             onReloadWarehouses = receivingViewModel::reloadWarehouses,
@@ -3759,7 +4043,6 @@ class MainActivity : ComponentActivity() {
                     onLogout = {
                         closeConnectedOperation()
                         pendingScannerPermissionReturn = null
-                        choosingReceivingProduct = false
                         receivingViewModel.invalidate()
                         stockConditionViewModel.invalidateContext()
                         pickingViewModel.invalidate()
@@ -3778,7 +4061,6 @@ class MainActivity : ComponentActivity() {
                     onChangeContext = {
                         closeConnectedOperation()
                         pendingScannerPermissionReturn = null
-                        choosingReceivingProduct = false
                         receivingViewModel.invalidate()
                         stockConditionViewModel.invalidateContext()
                         pickingViewModel.invalidate()
@@ -3814,6 +4096,13 @@ class MainActivity : ComponentActivity() {
                     onSearch = warehouseViewModel::submitSearch,
                     onLoadMore = warehouseViewModel::loadMore,
                     onQueryChanged = warehouseViewModel::queryChanged,
+                    onOpenFilterOptions = warehouseViewModel::openFilterOptions,
+                    onCloseFilterOptions = warehouseViewModel::closeFilterOptions,
+                    onFilterSearchChanged = warehouseViewModel::filterSearchChanged,
+                    onLoadFilterOptions = warehouseViewModel::loadFilterOptions,
+                    onLoadMoreFilterOptions = warehouseViewModel::loadMoreFilterOptions,
+                    onRetryFilterOptions = warehouseViewModel::retryFilterOptions,
+                    onSelectFilter = warehouseViewModel::selectFilter,
                     onSelectCandidate = warehouseViewModel::selectCandidate,
                     onScannerPermissionRequest = {
                         val authority = accessState.activeContext?.verifiedAuthority
@@ -3861,6 +4150,10 @@ class MainActivity : ComponentActivity() {
     private fun cameraPermissionGranted(): Boolean =
         checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
+    private fun fineLocationPermissionGranted(): Boolean =
+        checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+
     private fun closeDriverDeliveryInstructions() {
         val deliveryId = driverInstructionsViewModel.state.value.deliveryId
         showDriverInstructions = false
@@ -3881,6 +4174,8 @@ class MainActivity : ComponentActivity() {
 
     private fun closeConnectedOperation() {
         pendingLoadDelivery = null
+        showCatalogForRequest = false
+        showCatalogForDirectOrder = false
         if (connectedRoute != null &&
             warehouseViewModel.state.value.route != WarehouseRoute.WorkEntry
         ) {
@@ -3920,6 +4215,8 @@ class MainActivity : ComponentActivity() {
         businessDocumentsViewModel.deactivate()
         notificationsViewModel.deactivate()
         directOrderViewModel.deactivate()
+        fieldRequestDraftViewModel.deactivate()
+        driverWorkdayViewModel.invalidate()
         driverViewModel.invalidate()
         dispatchHandoffIdentityViewModel.deactivate()
         dispatchTemperatureViewModel.deactivate()
@@ -3935,7 +4232,6 @@ class MainActivity : ComponentActivity() {
 
     private fun invalidateProtectedContentForForegroundReturn() {
         closeConnectedOperation()
-        choosingReceivingProduct = false
         receivingViewModel.invalidate()
         stockConditionViewModel.invalidateContext()
         pickingViewModel.invalidate()
@@ -4122,6 +4418,11 @@ private val CONNECTED_OPERATIONS = listOf(
         "commercial.request",
         "Preparar solicitud",
         setOf("client.read", "sales:read")
+    ),
+    ConnectedOperationEntry(
+        "commercial.direct-order",
+        "Crear pedido directo",
+        setOf("sales:write", "sales.order.create_manual", "sales.order.manage")
     ),
     ConnectedOperationEntry(
         "driver.handoff-code",

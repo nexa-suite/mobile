@@ -6,6 +6,9 @@
     </plurals>
     <string name="commercial_catalog_availability_missing">Availability or date unavailable.</string>
     <string name="commercial_catalog_availability_status">Server availability status: %1$s</string>
+    <string name="commercial_catalog_brand_filter">Brand</string>
+    <string name="commercial_catalog_brand_value">Brand: %1$s</string>
+    <string name="commercial_catalog_direct_order">Use in direct order</string>
     <string name="commercial_catalog_empty">No permitted products for this search.</string>
     <string name="commercial_catalog_idle">Select an active customer and search for a product.</string>
     <string name="commercial_catalog_no_commitment">Sellable availability is not physical stock or a reservation. Confirm current information when submitting a request.</string>
@@ -13,9 +16,13 @@
     <string name="commercial_catalog_price_missing">Price or date unavailable. No offer is confirmed.</string>
     <string name="commercial_catalog_product">Product: %1$s</string>
     <string name="commercial_catalog_query">Product or SKU</string>
+    <string name="commercial_catalog_group_value">Product group: %1$s</string>
     <string name="commercial_catalog_sellable">Sellable availability: %1$s</string>
     <string name="commercial_catalog_sku">SKU: %1$s</string>
+    <string name="commercial_catalog_type_filter">Type</string>
+    <string name="commercial_catalog_type_value">Type: %1$s</string>
     <string name="commercial_catalog_unit">Unit: %1$s</string>
+    <string name="commercial_catalog_variety_value">Variety: %1$s</string>
     <string name="warehouse_candidate_unavailable_body">Vuelve a buscar para comprobar los resultados actuales.</string>
     <string name="warehouse_candidate_unavailable_title">Este producto ya no se puede confirmar</string>
     <string name="warehouse_confirmation_pending_body">Estamos comprobando que el producto siga disponible en este contexto.</string>
@@ -24,6 +31,25 @@
     <string name="warehouse_context_invalid_title">El contexto de trabajo dejó de estar disponible</string>
     <string name="warehouse_integration_error">La búsqueda de productos todavía no está conectada en este entorno.</string>
     <string name="warehouse_inventory_disclaimer">No se realizó ninguna operación de inventario.</string>
+    <string name="warehouse_filter_all">Todos</string>
+    <string name="warehouse_filter_brand">Marca</string>
+    <string name="warehouse_filter_brand_value">Marca: %1$s</string>
+    <string name="warehouse_filter_category">Categoría</string>
+    <string name="warehouse_filter_category_value">Categoría: %1$s</string>
+    <string name="warehouse_filter_close">Cerrar</string>
+    <string name="warehouse_filter_empty">No hay opciones para estos filtros.</string>
+    <string name="warehouse_filter_idle">Busca opciones disponibles en el servidor.</string>
+    <string name="warehouse_filter_invalid">La búsqueda admite hasta 120 caracteres.</string>
+    <string name="warehouse_filter_load_more_failed">No se pudo cargar la siguiente página.</string>
+    <string name="warehouse_filter_loading">Consultando opciones…</string>
+    <string name="warehouse_filter_more">Ver más opciones</string>
+    <string name="warehouse_filter_network">Sin conexión para consultar opciones.</string>
+    <string name="warehouse_filter_permission">No tienes permiso para leer este catálogo.</string>
+    <string name="warehouse_filter_ready">Elige una opción o muestra todos los productos.</string>
+    <string name="warehouse_filter_retry">Reintentar</string>
+    <string name="warehouse_filter_search">Buscar opción</string>
+    <string name="warehouse_filter_search_action">Buscar opciones</string>
+    <string name="warehouse_filter_service">No se pudieron consultar las opciones.</string>
     <string name="warehouse_load_more_error">No se pudieron cargar más resultados. Los resultados actuales siguen disponibles.</string>
     <string name="warehouse_load_more_retry">Reintentar carga</string>
     <string name="warehouse_network_error">No pudimos conectar para buscar productos. Inténtalo otra vez.</string>
@@ -66,10 +92,10 @@
     <string name="warehouse_scanner_unverified_body">No se confirmó ningún producto. Puedes escanear otra vez o buscar manualmente.</string>
     <string name="warehouse_search_empty_body">Prueba con otro nombre, SKU o presentación.</string>
     <string name="warehouse_search_empty_title">No encontramos productos</string>
-    <string name="warehouse_search_helper">Escribe nombre, SKU o presentación. La búsqueda empieza al pulsar Buscar.</string>
+    <string name="warehouse_search_helper">Escribe nombre, SKU o presentación y combina marca o categoría. Buscar consulta el servidor.</string>
     <string name="warehouse_search_initial_body">Los resultados aparecerán aquí después de una búsqueda.</string>
     <string name="warehouse_search_initial_title">Busca un producto</string>
-    <string name="warehouse_search_invalid">Ingresa un nombre, SKU o presentación de hasta 120 caracteres.</string>
+    <string name="warehouse_search_invalid">Ingresa un nombre, SKU o presentación, o elige marca/categoría. Máximo 120 caracteres.</string>
     <string name="warehouse_search_loading_body">Estamos consultando productos permitidos en el contexto actual.</string>
     <string name="warehouse_search_loading_title">Buscando productos</string>
     <string name="warehouse_search_retry">Buscar de nuevo</string>
@@ -97,4 +123,7 @@
     <string name="warehouse_catalog_session_invalid_body">Inicia sesión otra vez para continuar.</string>
     <string name="warehouse_work_available">Trabajo disponible</string>
     <string name="warehouse_work_toggle">Mostrar u ocultar tareas de almacén</string>
+    <string name="commercial_catalog_filter_all">All types</string>
+    <string name="commercial_catalog_filter_idle">Search the server list to choose a value.</string>
+    <string name="commercial_catalog_filter_search">Find an option</string>
 </resources>

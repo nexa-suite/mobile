@@ -71,7 +71,8 @@ fun DriverDeliveryScreen(
     onOpenOperationalExceptions: ((String) -> Unit)? = null,
     onOpenExecutionTemperature: ((String) -> Unit)? = null,
     onOpenIncident: ((String, String, Long, Boolean) -> Unit)? = null,
-    onOpenHandoffCode: ((String, String, Long) -> Unit)? = null
+    onOpenHandoffCode: ((String, String, Long) -> Unit)? = null,
+    workdayContent: (@Composable () -> Unit)? = null
 ) {
     var navigationUnavailable by remember { mutableStateOf(false) }
     var showDeliveryList by remember(state.selectedDelivery?.id) {
@@ -92,6 +93,7 @@ fun DriverDeliveryScreen(
                 title = stringResource(R.string.driver_delivery_title),
                 description = stringResource(R.string.driver_work_support)
             )
+            workdayContent?.invoke()
             if (!state.canRead) {
                 Notice(stringResource(R.string.driver_delivery_read_permission), isError = true)
             }

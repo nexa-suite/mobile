@@ -8,6 +8,7 @@ import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WorkEntryStatus
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.PermissionHint
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.catalogReadHint
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.permissionHintProjection
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
@@ -239,6 +240,12 @@ internal object OperationsCapabilities {
             if (capability.guardBehavior ==
                 CapabilityGuardBehavior.ReceivingInCurrentAuthorityEpoch &&
                 authority.permissions.none { it == "inventory.receive" || it == "warehouse:write" }
+            ) {
+                return false
+            }
+            if (capability.guardBehavior ==
+                CapabilityGuardBehavior.ReceivingInCurrentAuthorityEpoch &&
+                catalogReadHint(authority.permissions) != PermissionHint.Available
             ) {
                 return false
             }
