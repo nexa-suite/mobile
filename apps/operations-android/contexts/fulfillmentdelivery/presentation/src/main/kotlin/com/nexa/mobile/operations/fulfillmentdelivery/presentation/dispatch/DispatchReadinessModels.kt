@@ -5,6 +5,8 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.Dispa
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.SealDispatchPodCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
 import java.time.Instant
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 enum class DispatchReadinessStatus {
     Initial,
@@ -65,7 +67,8 @@ data class DispatchReadinessUiState(
     val deliveryPod: DispatchDeliveryPodSnapshot? = null,
     val deliveryPodStatus: DispatchDeliveryPodStatus = DispatchDeliveryPodStatus.NotRequested,
     val podSealStatus: DispatchPodSealStatus = DispatchPodSealStatus.Idle,
-    val pendingPodSeal: SealDispatchPodCommand? = null
+    val pendingPodSeal: SealDispatchPodCommand? = null,
+    val changeFeedSignals: Flow<Unit> = emptyFlow()
 ) {
     override fun toString(): String = "DispatchReadinessUiState(status=$status, " +
         "items=${items.size}, detailStatus=$detailStatus, deliveryPodStatus=$deliveryPodStatus, " +

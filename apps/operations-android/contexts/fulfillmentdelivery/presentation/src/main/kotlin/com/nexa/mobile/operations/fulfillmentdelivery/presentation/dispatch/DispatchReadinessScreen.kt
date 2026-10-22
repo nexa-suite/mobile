@@ -1,23 +1,29 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -30,12 +36,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.core.designsystem.NexaColors
+import com.nexa.mobile.operations.core.designsystem.NexaShapes
 import com.nexa.mobile.operations.core.designsystem.NexaWorkSection
 import com.nexa.mobile.operations.core.designsystem.NexaWorkSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
@@ -62,6 +76,11 @@ fun DispatchReadinessScreen(
     onRetryPodSeal: (() -> Unit)? = null,
     canSealPod: Boolean = false
 ) {
+    DispatchReadinessAutoRefresh(
+        state = state,
+        onRefresh = onRefresh,
+        enabled = state.selectedFulfillmentId == null
+    )
     val closeAction = rememberUpdatedState(onRouteClosed)
     var showWorkList by remember(state.selectedFulfillmentId) {
         mutableStateOf(state.selectedFulfillmentId == null)
@@ -447,65 +466,217 @@ private fun DetailStatusPanel(status: DispatchReadinessDetailStatus, onClose: ()
 
 @Composable
 private fun ReadinessCard(item: DispatchReadiness, selected: Boolean, onClick: () -> Unit) {
+    val statusResource = if (item.ready) {
+        R.string.dispatch_readiness_ready
+    } else {
+        R.string.dispatch_readiness_not_ready
+    }
+    val statusLabel = stringResource(statusResource)
+    val statusColor = if (item.ready) NexaColors.Success else NexaColors.Warning
+    val statusSurface = if (item.ready) NexaColors.SuccessSurface else NexaColors.WarningSurface
+    val statusBorder = if (item.ready) NexaColors.SuccessBorder else NexaColors.WarningBorder
+    val accessibilityLabel = stringResource(
+        R.string.dispatch_readiness_card_accessibility,
+        item.fulfillmentId,
+        statusLabel,
+        stringResource(
+            if (item.allocationComplete) {
+                R.string.dispatch_readiness_complete
+            } else {
+                R.string.dispatch_readiness_pending
+            }
+        ),
+        stringResource(
+            if (item.pickingComplete) {
+                R.string.dispatch_readiness_complete
+            } else {
+                R.string.dispatch_readiness_pending
+            }
+        ),
+        stringResource(
+            if (item.pickingEvidenceComplete) {
+                R.string.dispatch_readiness_complete
+            } else {
+                R.string.dispatch_readiness_pending
+            }
+        ),
+        item.lines.size,
+        item.deliveryId ?: stringResource(R.string.dispatch_readiness_no_delivery)
+    )
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .semantics { contentDescription = "${item.fulfillmentId}, ${item.fulfillmentStatus}" },
+            .semantics(mergeDescendants = true) {
+                contentDescription = accessibilityLabel
+                role = Role.Button
+            },
         colors = CardDefaults.cardColors(
             containerColor = if (selected) {
-                MaterialTheme.colorScheme.secondaryContainer
+                NexaColors.InfoSurface
             } else {
-                MaterialTheme.colorScheme.surfaceVariant
+                NexaColors.Surface
             }
         ),
-        shape = RoundedCornerShape(16.dp)
+        border = BorderStroke(
+            1.dp,
+            if (selected) {
+                NexaColors.Primary
+            } else if (item.ready) {
+                NexaColors.SuccessBorder
+            } else {
+                NexaColors.Border
+            }
+        ),
+        shape = NexaShapes.card
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                stringResource(R.string.dispatch_readiness_fulfillment, item.fulfillmentId),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(item.fulfillmentStatus, style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    stringResource(
-                        if (item.ready) {
-                            R.string.dispatch_readiness_ready
-                        } else {
-                            R.string.dispatch_readiness_not_ready
-                        }
-                    ),
-                    color = if (item.ready) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.error
-                    },
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-            Text(
-                stringResource(R.string.dispatch_readiness_version, item.fulfillmentVersion),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (!item.ready) {
-                for (reason in item.reasons) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     Text(
-                        reasonLabel(reason),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
+                        stringResource(R.string.dispatch_readiness_card_eyebrow),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = NexaColors.PrimaryStrong,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        item.fulfillmentId,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = NexaColors.TextPrimary,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Surface(
+                    shape = NexaShapes.pill,
+                    color = statusSurface,
+                    contentColor = statusColor,
+                    border = BorderStroke(1.dp, statusBorder)
+                ) {
+                    Text(
+                        statusLabel,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
-            Text(
-                stringResource(R.string.dispatch_readiness_open_detail),
-                style = MaterialTheme.typography.labelLarge
-            )
+
+            HorizontalDivider(color = NexaColors.Border)
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    stringResource(R.string.dispatch_readiness_lines, item.lines.size),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = NexaColors.TextPrimary,
+                    fontWeight = FontWeight.SemiBold
+                )
+                item.deliveryId?.let { deliveryId ->
+                    Text(
+                        stringResource(
+                            R.string.dispatch_readiness_delivery,
+                            deliveryId,
+                            item.deliveryStatus.orEmpty()
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = NexaColors.TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            ReadinessProgress(item)
+
+            if (item.reasons.isNotEmpty()) {
+                Surface(
+                    shape = NexaShapes.control,
+                    color = NexaColors.WarningSurface,
+                    border = BorderStroke(1.dp, NexaColors.WarningBorder)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        item.reasons.take(2).forEach { reason ->
+                            Text(
+                                reasonLabel(reason),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = NexaColors.Warning
+                            )
+                        }
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Text(
+                    stringResource(R.string.dispatch_readiness_open_detail) + "  →",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = NexaColors.PrimaryStrong,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReadinessProgress(item: DispatchReadiness) {
+    val steps = listOf(
+        stringResource(R.string.dispatch_readiness_step_allocation) to item.allocationComplete,
+        stringResource(R.string.dispatch_readiness_step_picking) to item.pickingComplete,
+        stringResource(R.string.dispatch_readiness_step_evidence) to item.pickingEvidenceComplete
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        steps.forEach { (label, complete) ->
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .clip(CircleShape)
+                        .background(if (complete) NexaColors.Success else NexaColors.BorderStrong)
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        if (complete) "✓" else "–",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (complete) NexaColors.Success else NexaColors.TextMuted,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (complete) NexaColors.Success else NexaColors.TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
     }
 }
