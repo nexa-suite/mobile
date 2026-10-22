@@ -139,6 +139,7 @@ fun AccessScreen(
         val scrollableLogin = loginStage &&
             (keyboardVisible || largeFont || landscape || maxHeight < 480.dp)
         val heroHeight = when {
+            showWelcome && largeFont -> maxHeight * 0.28f
             showWelcome -> maxHeight * 0.63f
             keyboardVisible || landscape || maxHeight < 480.dp -> 0.dp
             largeFont -> 96.dp.coerceAtMost(maxHeight * 0.22f)
@@ -155,7 +156,7 @@ fun AccessScreen(
             if (heroHeight > 0.dp) {
                 AccessBrandPlane(
                     modifier = Modifier.fillMaxWidth().height(heroHeight),
-                    compact = largeFont && !showWelcome
+                    compact = largeFont
                 )
             }
             Box(
