@@ -123,6 +123,18 @@ physical-device acceptance is claimed. Local sign-out clears protected state
 even when server revocation cannot be confirmed. Product Acceptance, System
 Acceptance and production readiness remain separate gates.
 
+## v1.3.0 source release
+
+Source-only release for controlled Nexa Suite validation. Operations Android
+is version `1.3.0` (`versionCode 12`); Buyer Mobile is independently versioned
+`1.2.0+3`. No signed Android APK, Buyer distribution artifact or iOS package
+is included. Local technical verification passed for the recorded Android
+and Flutter source checks; CI and release promotion checks must pass before
+publication. Full cross-client Product/System Acceptance, physical-device
+acceptance and Production Readiness remain unverified. See the [GitHub
+Release](https://github.com/nexa-suite/mobile/releases/tag/v1.3.0) for the
+published source boundary and limits.
+
 ## v1.2.0 source release
 
 Local technical verification passed for the v1.2.0 application source: strict
