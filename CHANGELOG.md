@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Add Buyer biometric sign-in and password recovery; scan the Driver's QR to
+  record receipt and finalize its linked proof of delivery in one server
+  operation. Keep retries idempotent and show order completion from the API.
 - Build a consistent Buyer experience using Nexa presentation tokens across
   access, catalog, orders, finance, documents, notifications and deliveries.
 - Add Buyer request history, recoverable multi-product drafts and explicit
