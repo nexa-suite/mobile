@@ -5,12 +5,23 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../tenant_access_governance/application/buyer_change_feed_repository.dart';
 import '../../../core/presentation/buyer_visible_route_poller.dart';
 import '../../../core/presentation/nexa_buyer_components.dart';
-import '../../../core/network/nexa_api_client.dart';
+import '../../../core/application/evidence_upload_policy.dart';
 import '../application/buyer_deliveries_repository.dart';
 import 'buyer_live_delivery_map.dart';
 import 'buyer_deliveries_view_model.dart';
+
+const _deliveryChangeEvents = {
+  'logistics.dispatch.route-started',
+  'logistics.delivery.attempt-failed',
+  'logistics.delivery.continuation-created',
+  'logistics.pod.completed',
+  'logistics.dispatch.buyer-temperature-review',
+  'logistics.dispatch.incident-recorded',
+  'resync-required',
+};
 
 final class BuyerDeliveryDetailPage extends StatefulWidget {
   const BuyerDeliveryDetailPage({
@@ -58,6 +69,11 @@ final class _BuyerDeliveryDetailPageState
       router: router,
       routePath: '/deliveries/${Uri.encodeComponent(_detail.deliveryId)}',
       onRefresh: _detail.refresh,
+      changes: () => context
+          .read<BuyerChangeFeedRepository>()
+          .watch(readPermission: BuyerDeliveriesViewModel.readPermission)
+          .where((event) => _deliveryChangeEvents.contains(event.type))
+          .map<void>((_) {}),
     );
   }
 
@@ -139,6 +155,10 @@ final class _BuyerDeliveryDetailPageState
                     label: const Text('Actualizar'),
                   ),
                 ),
+                if (detail.message case final message?) ...[
+                  NexaNotice(message),
+                  const SizedBox(height: 12),
+                ],
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -635,7 +655,7 @@ final class _BuyerDeliveryDetailPageState
         _showPickerMessage('No se pudo leer el archivo seleccionado.');
         return;
       }
-      if (size <= 0 || size > NexaApiClient.maxEvidenceUploadBytes) {
+      if (size <= 0 || size > evidenceUploadMaximumBytes) {
         _showPickerMessage('El archivo excede el límite técnico de 10 MiB.');
         return;
       }
@@ -655,8 +675,7 @@ final class _BuyerDeliveryDetailPageState
       }
       final builder = BytesBuilder(copy: false);
       await for (final chunk in file.readAsByteStream()) {
-        if (chunk.length >
-            NexaApiClient.maxEvidenceUploadBytes - builder.length) {
+        if (chunk.length > evidenceUploadMaximumBytes - builder.length) {
           _showPickerMessage('El archivo excede el límite técnico de 10 MiB.');
           return;
         }

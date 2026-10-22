@@ -181,7 +181,7 @@ final class BuyerDeliveriesRepositoryImpl implements BuyerDeliveriesRepository {
   }
 
   @override
-  Future<BuyerDeliveryTrackingProjection> liveLocation(
+  Future<BuyerDeliveryTrackingProjection?> liveLocation(
     String deliveryId,
   ) async {
     if (!_isUuid(deliveryId)) _invalidResponse();
@@ -190,17 +190,20 @@ final class BuyerDeliveriesRepositoryImpl implements BuyerDeliveriesRepository {
       refreshAfterUnauthorized: true,
     );
     final body = _map(response.body);
-    final location = body == null ? null : _map(body['location']);
-    if (body == null || location == null) _invalidResponse();
+    if (body == null) _invalidResponse();
     final responseDeliveryId = _string(body['deliveryId']);
+    if (responseDeliveryId != deliveryId) _invalidResponse();
+    final rawLocation = body['location'];
+    if (rawLocation == null) return null;
+    final location = _map(rawLocation);
+    if (location == null) _invalidResponse();
     final sampleId = _string(location['sampleId']);
     final latitude = _double(location['latitude']);
     final longitude = _double(location['longitude']);
     final accuracyMeters = _double(location['accuracyMeters']);
     final capturedAt = _dateTime(location['capturedAt']);
     final expiresAt = _dateTime(location['expiresAt']);
-    if (responseDeliveryId != deliveryId ||
-        sampleId == null ||
+    if (sampleId == null ||
         !_isUuid(sampleId) ||
         latitude == null ||
         !latitude.isFinite ||

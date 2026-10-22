@@ -177,7 +177,7 @@ abstract interface class BuyerDeliveriesRepository {
 
   Future<BuyerDeliveryDetailProjection> detail(String deliveryId);
 
-  Future<BuyerDeliveryTrackingProjection> liveLocation(String deliveryId);
+  Future<BuyerDeliveryTrackingProjection?> liveLocation(String deliveryId);
 
   Future<BuyerHandoffValidationProjection> validateHandoff(String token);
 

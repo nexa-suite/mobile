@@ -44,6 +44,8 @@ enum BuyerLiveLocationStatus {
   idle,
   loading,
   current,
+  noSignal,
+  stale,
   unavailable,
   permissionDenied,
   inactive,
@@ -71,12 +73,15 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
   late final StreamSubscription<BuyerAccessSnapshot> _subscription;
   String? _leaseKey;
   int _requestGeneration = 0;
+  int? _activeListRequest;
 
   BuyerDeliveriesStatus status = BuyerDeliveriesStatus.idle;
   List<BuyerDeliveryProjection> items = const [];
   int page = 0;
   int total = 0;
   String? message;
+  bool get isRefreshing =>
+      _activeListRequest != null && status == BuyerDeliveriesStatus.current;
 
   Future<void> refresh() => _load(page);
 
@@ -96,6 +101,7 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
   }
 
   Future<void> _load(int requestedPage) async {
+    if (_activeListRequest != null) return;
     final lease = _leaseKey;
     if (lease == null) {
       _clear(
@@ -121,11 +127,18 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
     }
 
     final generation = ++_requestGeneration;
-    status = BuyerDeliveriesStatus.loading;
-    items = const [];
-    total = 0;
-    page = requestedPage;
-    message = null;
+    _activeListRequest = generation;
+    final keepCurrent =
+        status == BuyerDeliveriesStatus.current && requestedPage == page;
+    if (keepCurrent) {
+      message = null;
+    } else {
+      status = BuyerDeliveriesStatus.loading;
+      items = const [];
+      total = 0;
+      page = requestedPage;
+      message = null;
+    }
     notifyListeners();
     try {
       final result = await _repository.list(page: requestedPage);
@@ -141,16 +154,34 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
         _invalidateCurrentAuthority();
         return;
       }
-      status = failure.statusCode == 403
-          ? BuyerDeliveriesStatus.permissionDenied
-          : BuyerDeliveriesStatus.unavailable;
-      message = failure.statusCode == 403
-          ? 'No tienes permiso para consultar el seguimiento de entregas.'
-          : failure.userMessage;
+      if (failure.statusCode == 403) {
+        _clear(
+          BuyerDeliveriesStatus.permissionDenied,
+          'No tienes permiso para consultar el seguimiento de entregas.',
+        );
+      } else if (failure.statusCode == 404) {
+        _clear(
+          BuyerDeliveriesStatus.unavailable,
+          'No se pudieron consultar tus entregas.',
+        );
+      } else if (keepCurrent) {
+        status = BuyerDeliveriesStatus.current;
+        message = 'No se pudo actualizar; se muestra la lista recibida.';
+      } else {
+        status = BuyerDeliveriesStatus.unavailable;
+        message = failure.userMessage;
+      }
     } catch (_) {
       if (!_isCurrent(generation, lease)) return;
-      status = BuyerDeliveriesStatus.unavailable;
-      message = 'No se pudieron consultar tus entregas.';
+      if (keepCurrent) {
+        status = BuyerDeliveriesStatus.current;
+        message = 'No se pudo actualizar; se muestra la lista recibida.';
+      } else {
+        status = BuyerDeliveriesStatus.unavailable;
+        message = 'No se pudieron consultar tus entregas.';
+      }
+    } finally {
+      if (_activeListRequest == generation) _activeListRequest = null;
     }
     notifyListeners();
   }
@@ -170,6 +201,7 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
     if (nextLease == _leaseKey) return;
     _leaseKey = nextLease;
     _requestGeneration++;
+    _activeListRequest = null;
     _clear(
       snapshot.isSignedIn && !_hasPermission(snapshot)
           ? BuyerDeliveriesStatus.permissionDenied
@@ -182,6 +214,7 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
 
   void _invalidateCurrentAuthority() {
     _requestGeneration++;
+    _activeListRequest = null;
     _clear(
       BuyerDeliveriesStatus.unavailable,
       'El acceso activo cambió. Inicia sesión nuevamente.',
@@ -210,6 +243,7 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _requestGeneration++;
+    _activeListRequest = null;
     _subscription.cancel();
     super.dispose();
   }
@@ -243,6 +277,7 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
   late final StreamSubscription<BuyerAccessSnapshot> _subscription;
   String? _leaseKey;
   int _requestGeneration = 0;
+  int? _activeDetailRequest;
   int _commandGeneration = 0;
   int _evidenceGeneration = 0;
   int _locationGeneration = 0;
@@ -338,15 +373,25 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
     return value;
   }
 
-  Future<void> refresh() => load();
+  Future<void> refresh() => load(
+    preserveCurrent:
+        status == BuyerDeliveryDetailStatus.current && delivery != null,
+  );
 
-  Future<void> load() async {
-    _evidenceGeneration++;
-    _locationGeneration++;
-    _locationExpiryTimer?.cancel();
-    location = null;
-    locationStatus = BuyerLiveLocationStatus.idle;
-    locationMessage = null;
+  Future<void> load({bool preserveCurrent = false}) async {
+    if (_activeDetailRequest != null) return;
+    final keepCurrent =
+        preserveCurrent &&
+        status == BuyerDeliveryDetailStatus.current &&
+        delivery != null;
+    if (!keepCurrent) {
+      _evidenceGeneration++;
+      _locationGeneration++;
+      _locationExpiryTimer?.cancel();
+      location = null;
+      locationStatus = BuyerLiveLocationStatus.idle;
+      locationMessage = null;
+    }
     final lease = _leaseKey;
     if (lease == null) {
       _clear(
@@ -364,14 +409,19 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
       return;
     }
     final generation = ++_requestGeneration;
-    status = BuyerDeliveryDetailStatus.loading;
-    delivery = null;
-    events = const [];
-    receipts = const [];
-    evidenceReceiptId = null;
-    evidenceStatus = BuyerReceiptEvidenceStatus.idle;
-    evidenceMessage = null;
-    message = null;
+    _activeDetailRequest = generation;
+    if (!keepCurrent) {
+      status = BuyerDeliveryDetailStatus.loading;
+      delivery = null;
+      events = const [];
+      receipts = const [];
+      evidenceReceiptId = null;
+      evidenceStatus = BuyerReceiptEvidenceStatus.idle;
+      evidenceMessage = null;
+      message = null;
+    } else {
+      message = null;
+    }
     notifyListeners();
     try {
       final result = await _repository.detail(deliveryId);
@@ -380,10 +430,15 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
       events = result.events;
       receipts = List.unmodifiable(result.receipts);
       status = BuyerDeliveryDetailStatus.current;
+      message = null;
+      _locationGeneration++;
       if (_supportsLiveLocation(result.delivery.status)) {
         unawaited(refreshLocation());
       } else {
-        locationStatus = BuyerLiveLocationStatus.inactive;
+        _clearLocation(
+          BuyerLiveLocationStatus.inactive,
+          'La ubicación solo está disponible durante una entrega activa.',
+        );
       }
     } on NexaApiFailure catch (failure) {
       if (!_isCurrent(generation, lease)) return;
@@ -392,16 +447,36 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
         _invalidateCurrentAuthority();
         return;
       }
-      status = failure.statusCode == 403
-          ? BuyerDeliveryDetailStatus.permissionDenied
-          : BuyerDeliveryDetailStatus.unavailable;
-      message = failure.statusCode == 403
-          ? 'No tienes permiso para consultar esta entrega.'
-          : failure.userMessage;
+      if (failure.statusCode == 403) {
+        _clear(
+          BuyerDeliveryDetailStatus.permissionDenied,
+          'No tienes permiso para consultar el seguimiento de entregas.',
+        );
+      } else if (failure.statusCode == 404) {
+        _clear(
+          BuyerDeliveryDetailStatus.unavailable,
+          'Esta entrega ya no está disponible.',
+        );
+      } else if (keepCurrent) {
+        status = BuyerDeliveryDetailStatus.current;
+        message =
+            'No se pudo actualizar; se muestra el último estado recibido.';
+      } else {
+        status = BuyerDeliveryDetailStatus.unavailable;
+        message = failure.userMessage;
+      }
     } catch (_) {
       if (!_isCurrent(generation, lease)) return;
-      status = BuyerDeliveryDetailStatus.unavailable;
-      message = 'Esta entrega no está disponible.';
+      if (keepCurrent) {
+        status = BuyerDeliveryDetailStatus.current;
+        message =
+            'No se pudo actualizar; se muestra el último estado recibido.';
+      } else {
+        status = BuyerDeliveryDetailStatus.unavailable;
+        message = 'Esta entrega no está disponible.';
+      }
+    } finally {
+      if (_activeDetailRequest == generation) _activeDetailRequest = null;
     }
     notifyListeners();
   }
@@ -437,11 +512,18 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
     try {
       final result = await _repository.liveLocation(deliveryId);
       if (!_isCurrentLocation(generation, lease, deliveryScope)) return;
+      if (result == null) {
+        _clearLocation(
+          BuyerLiveLocationStatus.noSignal,
+          'Sin señal GPS. La ubicación de esta entrega no está disponible por ahora.',
+        );
+        return;
+      }
       if (result.deliveryId != deliveryId ||
           !result.expiresAt.isAfter(DateTime.now().toUtc())) {
         _clearLocation(
-          BuyerLiveLocationStatus.inactive,
-          'La ubicación ya no está disponible.',
+          BuyerLiveLocationStatus.stale,
+          'La última ubicación está antigua y ya no se muestra.',
         );
         return;
       }
@@ -494,8 +576,8 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
       () {
         if (location?.sampleId != value.sampleId) return;
         _clearLocation(
-          BuyerLiveLocationStatus.inactive,
-          'La ubicación ya no está disponible.',
+          BuyerLiveLocationStatus.stale,
+          'La última ubicación está antigua y ya no se muestra.',
         );
       },
     );
@@ -1007,6 +1089,7 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
     if (nextLease == _leaseKey) return;
     _leaseKey = nextLease;
     _requestGeneration++;
+    _activeDetailRequest = null;
     _commandGeneration++;
     _evidenceGeneration++;
     _locationGeneration++;
@@ -1039,6 +1122,7 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
 
   void _invalidateCurrentAuthority() {
     _requestGeneration++;
+    _activeDetailRequest = null;
     _commandGeneration++;
     _locationGeneration++;
     _locationExpiryTimer?.cancel();
@@ -1051,6 +1135,9 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
 
   void _clear(BuyerDeliveryDetailStatus nextStatus, String? nextMessage) {
     _evidenceGeneration++;
+    _locationGeneration++;
+    _locationExpiryTimer?.cancel();
+    _locationExpiryTimer = null;
     status = nextStatus;
     delivery = null;
     events = const [];
@@ -1076,6 +1163,7 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _requestGeneration++;
+    _activeDetailRequest = null;
     _commandGeneration++;
     _evidenceGeneration++;
     _locationGeneration++;

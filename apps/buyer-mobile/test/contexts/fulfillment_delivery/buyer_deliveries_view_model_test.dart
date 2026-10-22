@@ -648,7 +648,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(viewModel.currentLocation, isNull);
-    expect(viewModel.locationStatus, BuyerLiveLocationStatus.inactive);
+    expect(viewModel.locationStatus, BuyerLiveLocationStatus.stale);
     expect(repository.locationCalls, 1);
 
     viewModel.dispose();

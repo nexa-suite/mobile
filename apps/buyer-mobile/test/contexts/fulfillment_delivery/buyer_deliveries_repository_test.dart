@@ -212,8 +212,8 @@ void main() {
       );
     });
 
-    final location = await BuyerDeliveriesRepositoryImpl(api)
-        .liveLocation(_deliveryId);
+    final location = (await BuyerDeliveriesRepositoryImpl(api)
+        .liveLocation(_deliveryId))!;
 
     expect(request!.method, 'GET');
     expect(

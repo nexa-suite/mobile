@@ -2,10 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../tenant_access_governance/application/buyer_change_feed_repository.dart';
 import '../../../core/presentation/nexa_buyer_components.dart';
 import '../../../core/presentation/buyer_visible_route_poller.dart';
 import '../application/buyer_deliveries_repository.dart';
 import 'buyer_deliveries_view_model.dart';
+
+const _deliveryChangeEvents = {
+  'logistics.dispatch.route-started',
+  'logistics.delivery.attempt-failed',
+  'logistics.delivery.continuation-created',
+  'logistics.pod.completed',
+  'logistics.dispatch.buyer-temperature-review',
+  'logistics.dispatch.incident-recorded',
+  'resync-required',
+};
 
 final class BuyerDeliveriesPage extends StatefulWidget {
   const BuyerDeliveriesPage({super.key});
@@ -29,6 +40,11 @@ final class _BuyerDeliveriesPageState extends State<BuyerDeliveriesPage> {
       router: router,
       routePath: '/deliveries',
       onRefresh: () => context.read<BuyerDeliveriesViewModel>().refresh(),
+      changes: () => context
+          .read<BuyerChangeFeedRepository>()
+          .watch(readPermission: BuyerDeliveriesViewModel.readPermission)
+          .where((event) => _deliveryChangeEvents.contains(event.type))
+          .map<void>((_) {}),
     );
   }
 
@@ -68,7 +84,7 @@ final class _BuyerDeliveriesPageState extends State<BuyerDeliveriesPage> {
     }
     if (deliveries.items.isEmpty) {
       return _DeliveryMessage(
-        message: 'Todavía no hay entregas registradas.',
+        message: deliveries.message ?? 'Todavía no hay entregas registradas.',
         showRefresh: true,
         onRefresh: deliveries.refresh,
       );
@@ -92,7 +108,9 @@ final class _BuyerDeliveriesPageState extends State<BuyerDeliveriesPage> {
                 ),
                 IconButton(
                   tooltip: 'Actualizar entregas',
-                  onPressed: deliveries.status == BuyerDeliveriesStatus.loading
+                  onPressed:
+                      deliveries.status == BuyerDeliveriesStatus.loading ||
+                          deliveries.isRefreshing
                       ? null
                       : deliveries.refresh,
                   icon: const Icon(Icons.refresh),
@@ -100,6 +118,7 @@ final class _BuyerDeliveriesPageState extends State<BuyerDeliveriesPage> {
               ],
             ),
           ),
+          if (deliveries.isRefreshing) const LinearProgressIndicator(),
           if (deliveries.message != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
