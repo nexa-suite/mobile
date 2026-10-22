@@ -58,6 +58,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -531,6 +532,7 @@ private fun AccessCredentialsForm(
             Column(verticalArrangement = Arrangement.spacedBy(if (compact) 0.dp else 8.dp)) {
                 Text(
                     stringResource(R.string.access_sign_in_title),
+                    modifier = Modifier.semantics { heading() },
                     style = MaterialTheme.typography.headlineSmall.copy(
                         fontWeight = FontWeight.SemiBold
                     ),

@@ -102,7 +102,9 @@ class RootNavigationSecurityTest {
         composeRule.onNodeWithText(targetString(CatalogR.string.warehouse_identify_product))
             .performScrollTo()
             .assertIsDisplayed()
-        composeRule.onNodeWithText("Almacén Principal").assertIsDisplayed()
+        composeRule.onNodeWithText("Almacén Principal")
+            .performScrollTo()
+            .assertIsDisplayed()
         composeRule.onNodeWithText(targetString(AccessR.string.access_sign_in_title))
             .assertDoesNotExist()
     }
