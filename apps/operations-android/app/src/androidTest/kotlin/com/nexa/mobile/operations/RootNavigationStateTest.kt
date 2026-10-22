@@ -77,6 +77,9 @@ class RootNavigationStateTest {
             }
         }
 
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(AccessR.string.access_welcome_continue)
+        ).performScrollTo().performClick()
         composeRule.onNodeWithText("Almacén Principal").assertDoesNotExist()
         val identityFields = composeRule.onAllNodes(hasSetTextAction(), useUnmergedTree = true)
         identityFields.assertCountEquals(2)
@@ -145,17 +148,33 @@ class RootNavigationStateTest {
             companyName = "Nexa Demo Distribución",
             workspaceName = "Almacén Principal",
             permissionHint = PermissionHint.Available,
-            isCurrent = true
+            isCurrent = true,
+            verifiedAuthority = VerifiedContextAuthority(
+                userId = "user-1",
+                tenantId = "tenant-1",
+                workspaceId = "workspace-1",
+                membershipId = "membership-1",
+                permissions = setOf("catalog.read"),
+                roles = setOf("WAREHOUSE")
+            )
         )
         val activeContext = ActiveOperationsContext(
             companyName = workforceContext.companyName,
             workspaceName = workforceContext.workspaceName,
-            authorityEpoch = 0
+            authorityEpoch = 4,
+            verifiedIdentity = VerifiedOperationsIdentity(
+                userId = "user-1",
+                tenantId = "tenant-1",
+                workspaceId = "workspace-1",
+                membershipId = "membership-1",
+                permissions = setOf("catalog.read"),
+                roles = setOf("WAREHOUSE")
+            )
         )
         val accessState = AccessUiState(
             stage = AccessStage.WorkAuthorized,
             activeContext = workforceContext,
-            authorityEpoch = 0
+            authorityEpoch = 4
         )
         val candidate = ProductCandidate(
             key = "candidate-key",
@@ -173,9 +192,9 @@ class RootNavigationStateTest {
                 search = ProductSearchUiState(
                     query = "",
                     status = ProductSearchStatus.Initial,
-                    authorityEpoch = 0
+                    authorityEpoch = 4
                 ),
-                authorityEpoch = 0
+                authorityEpoch = 4
             )
         )
         var searchCalls = 0
@@ -218,8 +237,8 @@ class RootNavigationStateTest {
             assertEquals("queso", warehouseState.value.search?.query)
             assertEquals(ProductSearchStatus.Typing, warehouseState.value.search?.status)
             assertEquals(WarehouseRoute.ProductSearch, warehouseState.value.route)
-            assertEquals(0L, warehouseState.value.authorityEpoch)
-            assertEquals(0L, warehouseState.value.search?.authorityEpoch)
+            assertEquals(4L, warehouseState.value.authorityEpoch)
+            assertEquals(4L, warehouseState.value.search?.authorityEpoch)
         }
 
         dismissKeyboard()
@@ -265,9 +284,9 @@ class RootNavigationStateTest {
             assertEquals(ProductSearchStatus.OneCandidate, warehouseState.value.search?.status)
             assertEquals(1, warehouseState.value.search?.candidates?.size)
             assertEquals(WarehouseRoute.ProductSearch, warehouseState.value.route)
-            assertEquals(0L, accessState.authorityEpoch)
-            assertEquals(0L, warehouseState.value.authorityEpoch)
-            assertEquals(0L, warehouseState.value.search?.authorityEpoch)
+            assertEquals(4L, accessState.authorityEpoch)
+            assertEquals(4L, warehouseState.value.authorityEpoch)
+            assertEquals(4L, warehouseState.value.search?.authorityEpoch)
             assertNull(warehouseState.value.confirmedSku)
             assertNull(selectedCandidate)
             assertEquals(RootDestination.Active, session.rootDestination())
@@ -283,7 +302,8 @@ class RootNavigationStateTest {
             tenantId = "tenant",
             workspaceId = "workspace",
             membershipId = "member",
-            permissions = permissions
+            permissions = permissions,
+            roles = setOf("SALES")
         )
         val accessState = AccessUiState(
             stage = AccessStage.WorkAuthorized,
@@ -309,7 +329,8 @@ class RootNavigationStateTest {
                     tenantId = authority.tenantId,
                     workspaceId = authority.workspaceId,
                     membershipId = authority.membershipId,
-                    permissions = permissions
+                    permissions = permissions,
+                    roles = authority.roles
                 )
             ),
             authorityEpoch = 4
