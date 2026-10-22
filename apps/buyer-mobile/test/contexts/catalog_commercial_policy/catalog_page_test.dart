@@ -30,10 +30,13 @@ void main() {
     expect(find.text('Variedad'), findsOneWidget);
     expect(
       find.textContaining(
-        'Marca: Valle · Tipo: Bebidas · Familia: Lácteos · Variedad: Descremada',
+        'Marca: Valle · Tipo: Bebidas · Conservación: Refrigerado · '
+        'Familia: Lácteos · Variedad: Descremada · Disponible: 12,5 KG',
       ),
       findsOneWidget,
     );
+    expect(find.textContaining('Conservación: Refrigerado'), findsOneWidget);
+    expect(find.textContaining('Disponible: 12,5 KG'), findsOneWidget);
 
     await tester.enterText(
       find.byKey(const Key('catalog-product-query')),
@@ -174,8 +177,11 @@ final class _RecordingCatalogRepository implements CatalogRepository {
           availabilityStatus: 'AVAILABLE',
           brandName: 'Valle',
           categoryName: 'Bebidas',
+          coldChainRequirement: 'REFRIGERATED',
           productFamilyName: 'Lácteos',
           productVariantName: 'Descremada',
+          unitOfMeasure: 'KG',
+          sellableAvailability: 12.5,
         ),
       ],
       page: page,

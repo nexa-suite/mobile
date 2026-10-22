@@ -59,7 +59,15 @@ void main() {
         request = value;
         return http.Response(
           jsonEncode({
-            'items': [],
+            'items': [
+              {
+                'catalogItemId': 'CAT-0001',
+                'itemName': 'Yogurt natural',
+                'coldChainRequirement': 'REFRIGERATED',
+                'unitOfMeasure': 'KG',
+                'sellableAvailability': 12.5,
+              },
+            ],
             'page': 2,
             'size': 20,
             'totalItems': 41,
@@ -95,6 +103,9 @@ void main() {
     expect(result.page, 2);
     expect(result.totalItems, 41);
     expect(result.totalPages, 3);
+    expect(result.items.single.coldChainRequirement, 'REFRIGERATED');
+    expect(result.items.single.unitOfMeasure, 'KG');
+    expect(result.items.single.sellableAvailability, 12.5);
     api.close();
   });
 

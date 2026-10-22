@@ -472,11 +472,16 @@ final class _CatalogItemCard extends StatelessWidget {
     final detail = [
       if (item.brandName != null) 'Marca: ${item.brandName}',
       if (item.categoryName != null) 'Tipo: ${item.categoryName}',
+      if (item.coldChainRequirement != null)
+        'Conservación: ${_coldChainLabel(item.coldChainRequirement!)}',
       if (item.productFamilyName != null &&
           item.productFamilyName != item.itemName)
         'Familia: ${item.productFamilyName}',
       if (item.productVariantName != null)
         'Variedad: ${item.productVariantName}',
+      if (item.sellableAvailability case final available?)
+        'Disponible: ${_quantityLabel(available)}'
+            '${item.unitOfMeasure == null ? '' : ' ${item.unitOfMeasure}'}',
       item.presentation,
       if (item.skuCode != null) 'SKU ${item.skuCode}',
     ].whereType<String>().where((value) => value.isNotEmpty).join(' · ');
@@ -526,7 +531,8 @@ final class _CatalogItemCard extends StatelessWidget {
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                       if (item.unitOfMeasure case final unit?)
-                        Text('Unidad: $unit'),
+                        if (item.sellableAvailability == null)
+                          Text('Unidad: $unit'),
                     ],
                   ),
                 ],
@@ -544,6 +550,20 @@ final class _CatalogItemCard extends StatelessWidget {
     'UNAVAILABLE' => 'No disponible',
     _ => 'Disponibilidad por confirmar',
   };
+
+  String _coldChainLabel(String requirement) =>
+      switch (requirement.trim().toUpperCase()) {
+        'NONE' => 'No requiere frío',
+        'REFRIGERATED' => 'Refrigerado',
+        'FROZEN' => 'Congelado',
+        _ => 'Por confirmar',
+      };
+
+  String _quantityLabel(num quantity) {
+    final value = quantity.toString();
+    if (value.endsWith('.0')) return value.substring(0, value.length - 2);
+    return value.replaceAll('.', ',');
+  }
 }
 
 final class _PageControls extends StatelessWidget {
