@@ -9,9 +9,11 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -27,6 +29,7 @@ import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WorkEntryStatus
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
+import com.nexa.mobile.operations.core.designsystem.R as CoreR
 import com.nexa.mobile.operations.core.designsystem.R as DesignSystemR
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.VerifiedOperationsIdentity
@@ -258,11 +261,23 @@ class RootNavigationStateTest {
             assertNull(warehouseState.value.confirmedSku)
             assertNull(selectedCandidate)
         }
+        val candidateDetails = listOf(
+            candidate.productDisplayName,
+            candidate.brandOrVariant,
+            candidate.presentation,
+            composeRule.activity.getString(CoreR.string.nexa_candidate_sku, candidate.sku)
+        ).joinToString()
+        val candidateActionDescription = composeRule.activity.getString(
+            CoreR.string.nexa_candidate_row_action_description,
+            candidateDetails
+        )
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodes(hasText("Queso Gouda Demo"))
+            composeRule.onAllNodesWithContentDescription(candidateActionDescription)
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithText("Queso Gouda Demo")
+        composeRule.onNode(
+            hasContentDescription(candidateActionDescription) and hasClickAction()
+        )
             .performScrollTo()
             .assertIsDisplayed()
         composeRule.onNodeWithText(
