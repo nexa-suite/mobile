@@ -124,6 +124,8 @@
     <string name="warehouse_catalog_session_invalid_body">Inicia sesión otra vez para continuar.</string>
     <string name="warehouse_work_available">Trabajo disponible</string>
     <string name="warehouse_work_toggle">Mostrar u ocultar tareas de almacén</string>
+    <string name="warehouse_profile_action">Perfil y sesión</string>
+    <string name="warehouse_other_tasks_hint">Tus opciones están en la barra de navegación y en el botón +.</string>
     <string name="commercial_catalog_filter_all">Todos</string>
     <string name="commercial_catalog_filter_idle">Busca la lista del servidor y elige un valor.</string>
     <string name="commercial_catalog_filter_search">Buscar opción</string>

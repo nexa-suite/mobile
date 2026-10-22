@@ -27,6 +27,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -34,6 +41,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingCatalogFilterChoice
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingCatalogFilterKind
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivedLotFacts
@@ -41,6 +51,80 @@ import com.nexa.mobile.operations.inventoryavailability.presentation.R
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.debounce
+
+@OptIn(FlowPreview::class)
+@Composable
+private fun ReceivingLookupAutoRefresh(state: ReceivingUiState, onReloadWarehouses: () -> Unit) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var isResumed by remember(lifecycleOwner) {
+        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> isResumed = true
+
+                Lifecycle.Event.ON_PAUSE,
+                Lifecycle.Event.ON_STOP,
+                Lifecycle.Event.ON_DESTROY -> isResumed = false
+
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val latestState = rememberUpdatedState(state)
+    val reloadAction = rememberUpdatedState(onReloadWarehouses)
+    val authorityEpoch = state.authorityEpoch
+    val enabled = state.canLookUpWarehouses
+    val changeSignals = state.receivingLookupChangeSignals
+    LaunchedEffect(lifecycleOwner, isResumed, authorityEpoch, enabled, changeSignals) {
+        if (!isResumed || !enabled || authorityEpoch <= 0) return@LaunchedEffect
+        changeSignals.debounce(RECEIVING_LOOKUP_CHANGE_COALESCE_MILLIS).collect {
+            while (true) {
+                val current = latestState.value
+                if (current.authorityEpoch != authorityEpoch ||
+                    !current.canLookUpWarehouses || current.isIntentFrozen ||
+                    current.command == ReceivingCommandStatus.Confirmed
+                ) {
+                    return@collect
+                }
+                if (current.metadata == ReceivingMetadataStatus.Loading ||
+                    current.warehouseLookup == ReceivingLookupStatus.Loading ||
+                    (
+                        current.selectedWarehouseId != null &&
+                            current.zoneLookup == ReceivingLookupStatus.Loading
+                        )
+                ) {
+                    delay(RECEIVING_LOOKUP_LOADING_RECHECK_MILLIS)
+                    continue
+                }
+                if (current.metadata != ReceivingMetadataStatus.Available ||
+                    current.warehouseLookup !in RECEIVING_LOOKUP_REFRESHABLE_STATUSES
+                ) {
+                    return@collect
+                }
+                reloadAction.value()
+                return@collect
+            }
+        }
+    }
+}
+
+private const val RECEIVING_LOOKUP_CHANGE_COALESCE_MILLIS = 250L
+private const val RECEIVING_LOOKUP_LOADING_RECHECK_MILLIS = 100L
+private val RECEIVING_LOOKUP_REFRESHABLE_STATUSES = setOf(
+    ReceivingLookupStatus.Ready,
+    ReceivingLookupStatus.Empty,
+    ReceivingLookupStatus.NetworkUnavailable,
+    ReceivingLookupStatus.ServiceUnavailable
+)
 
 @Composable
 fun ReceivingScreen(
@@ -75,6 +159,7 @@ fun ReceivingScreen(
     onChooseTemperatureEvidence: (() -> Unit)? = null,
     onRefreshTemperatureEvidence: (() -> Unit)? = null
 ) {
+    ReceivingLookupAutoRefresh(state, onReloadWarehouses)
     if (state.productPicker.isOpen) {
         ReceivingProductPickerScreen(
             state = state.productPicker,
@@ -169,7 +254,7 @@ fun ReceivingScreen(
                     ChoiceRow(
                         label = "${warehouse.name} · ${warehouse.code}",
                         selected = state.selectedWarehouseId == warehouse.id,
-                        enabled = !state.isIntentFrozen,
+                        enabled = !state.isIntentFrozen && warehouse.isSelectable,
                         onClick = { onSelectWarehouse(warehouse.id) }
                     )
                 }
@@ -178,7 +263,7 @@ fun ReceivingScreen(
                     ChoiceRow(
                         label = "${zone.name} · ${zone.code}",
                         selected = state.selectedZoneId == zone.id,
-                        enabled = !state.isIntentFrozen,
+                        enabled = !state.isIntentFrozen && zone.isSelectable,
                         onClick = { onSelectZone(zone.id) }
                     )
                 }
@@ -222,7 +307,8 @@ fun ReceivingScreen(
                     value = state.productionDateText,
                     enabled = !state.isIntentFrozen &&
                         state.command != ReceivingCommandStatus.Confirmed,
-                    onDateSelected = onProductionDateChanged
+                    onDateSelected = onProductionDateChanged,
+                    onClear = { onProductionDateChanged("") }
                 )
                 ReceivingDateTimeButton(
                     value = state.receivedAtText,
@@ -585,34 +671,43 @@ private fun ReceivingDateButton(
     label: String,
     value: String,
     enabled: Boolean,
-    onDateSelected: (String) -> Unit
+    onDateSelected: (String) -> Unit,
+    onClear: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val selected = runCatching { LocalDate.parse(value) }.getOrElse { LocalDate.now() }
-    OutlinedButton(
-        onClick = {
-            DatePickerDialog(
-                context,
-                { _, year, month, day ->
-                    onDateSelected(LocalDate.of(year, month + 1, day).toString())
-                },
-                selected.year,
-                selected.monthValue - 1,
-                selected.dayOfMonth
-            ).show()
-        },
-        enabled = enabled,
-        modifier = Modifier.fillMaxWidth()
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        Text(
-            if (value.isBlank()) {
-                "$label · ${stringResource(
-                    R.string.receiving_select_date
-                )}"
-            } else {
-                "$label · $value"
+        OutlinedButton(
+            onClick = {
+                DatePickerDialog(
+                    context,
+                    { _, year, month, day ->
+                        onDateSelected(LocalDate.of(year, month + 1, day).toString())
+                    },
+                    selected.year,
+                    selected.monthValue - 1,
+                    selected.dayOfMonth
+                ).show()
+            },
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                if (value.isBlank()) {
+                    "$label · ${stringResource(R.string.receiving_select_date)}"
+                } else {
+                    "$label · $value"
+                }
+            )
+        }
+        if (enabled && value.isNotBlank() && onClear != null) {
+            TextButton(onClick = onClear) {
+                Text(stringResource(R.string.receiving_clear_optional_date))
             }
-        )
+        }
     }
 }
 
@@ -702,9 +797,6 @@ private fun ReceivingValidationError.stringResource(): Int = when (this) {
 
     ReceivingValidationError.ExpiryNotFuture ->
         R.string.receiving_error_expiry_not_future
-
-    ReceivingValidationError.ProductionRequired ->
-        R.string.receiving_error_production
 
     ReceivingValidationError.ProductionMalformed ->
         R.string.receiving_error_production_format

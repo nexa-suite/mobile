@@ -65,7 +65,11 @@ class StockConditionViewModelTest {
                 )
             )
         }
-        val viewModel = StockConditionViewModel(gateway) { Instant.parse("2026-09-30T10:16:00Z") }
+        val viewModel =
+            StockConditionViewModel(
+                gateway,
+                now = { Instant.parse("2026-09-30T10:16:00Z") }
+            )
         viewModel.activate(context(epoch = 1))
         advanceUntilIdle()
         viewModel.selectLot(LOT_ID)

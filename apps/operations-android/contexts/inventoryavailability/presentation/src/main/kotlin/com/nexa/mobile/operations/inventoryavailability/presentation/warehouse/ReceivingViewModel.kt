@@ -38,8 +38,10 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeParseException
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -93,7 +95,6 @@ enum class ReceivingValidationError {
     ExpiryRequired,
     ExpiryMalformed,
     ExpiryNotFuture,
-    ProductionRequired,
     ProductionMalformed,
     ProductionAfterReceipt,
     ExpiryBeforeProduction,
@@ -140,7 +141,8 @@ data class ReceivingUiState(
     val notice: ReceivingSubmitNotice? = null,
     val productionDateText: String = "",
     val receivedAtText: String = "",
-    val productPicker: ReceivingProductPickerState = ReceivingProductPickerState()
+    val productPicker: ReceivingProductPickerState = ReceivingProductPickerState(),
+    val receivingLookupChangeSignals: Flow<Unit> = emptyFlow()
 ) {
     val isIntentFrozen: Boolean
         get() = command in setOf(
@@ -227,7 +229,8 @@ class ReceivingViewModel(
     private val metadataStore: ReceivingMetadataStore,
     private val evidenceSelection: WarehouseEvidenceSelectionCoordinator? = null,
     private val productCatalog: ReceivingProductCatalogGateway =
-        UnavailableReceivingProductCatalogGateway
+        UnavailableReceivingProductCatalogGateway,
+    private val receivingLookupChangeSignals: Flow<Unit> = emptyFlow()
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(ReceivingUiState())
     val state = mutableState.asStateFlow()
@@ -277,6 +280,11 @@ class ReceivingViewModel(
                 ReceivingLookupStatus.Loading
             } else {
                 ReceivingLookupStatus.PermissionDenied
+            },
+            receivingLookupChangeSignals = if (currentAuthority.canLookUpWarehouses) {
+                receivingLookupChangeSignals
+            } else {
+                emptyFlow()
             }
         )
         reloadWarehouses()
@@ -428,10 +436,19 @@ class ReceivingViewModel(
         val epoch = authority?.authorityEpoch ?: return
         if (product.verifiedAuthorityEpoch != epoch || product.reference.unit.isBlank()) return
         mutableState.update {
+            val productChanged = it.product?.let { currentProduct ->
+                currentProduct.catalogItemId != product.reference.catalogItemId ||
+                    currentProduct.skuId != product.reference.skuId
+            } == true
             it.copy(
                 product = product.reference,
                 productVerifiedEpoch = product.verifiedAuthorityEpoch,
                 unit = product.reference.unit,
+                batchNumber = if (productChanged) "" else it.batchNumber,
+                expirationDateText = if (productChanged) "" else it.expirationDateText,
+                productionDateText = if (productChanged) "" else it.productionDateText,
+                quantityText = if (productChanged) "" else it.quantityText,
+                temperatureReadingText = if (productChanged) "" else it.temperatureReadingText,
                 temperatureEvidenceObjectId = null,
                 temperatureEvidenceStatus = ReceivingEvidenceStatus.None,
                 temperatureEvidenceFailureCode = null,
@@ -1461,18 +1478,29 @@ class ReceivingViewModel(
             when (result) {
                 is ReceivingLookupResult.Warehouses -> {
                     val safeWarehouses = result.items.filter { it.isSelectable }
-                    val existingId = mutableState.value.selectedWarehouseId
-                    val selectedStillAvailable = safeWarehouses.any { it.id == existingId }
-                    mutableState.update {
-                        it.copy(
-                            warehouses = safeWarehouses,
-                            selectedWarehouseId = if (selectedStillAvailable) existingId else null,
-                            selectedZoneId = if (selectedStillAvailable) {
-                                it.selectedZoneId
+                    mutableState.update { current ->
+                        val selectedStillAvailable = safeWarehouses.any {
+                            it.id == current.selectedWarehouseId
+                        }
+                        val selectedWarehouse = current.selectedWarehouseId?.let { id ->
+                            current.warehouses.firstOrNull { it.id == id }
+                                ?.takeUnless { selectedStillAvailable }
+                                ?.copy(status = "UNAVAILABLE")
+                        }
+                        current.copy(
+                            warehouses = safeWarehouses + listOfNotNull(selectedWarehouse),
+                            zones = if (selectedStillAvailable) {
+                                current.zones
                             } else {
-                                null
+                                current.zones.map { it.copy(status = "UNAVAILABLE") }
                             },
-                            zones = if (selectedStillAvailable) it.zones else emptyList(),
+                            zoneLookup = if (current.selectedWarehouseId != null &&
+                                !selectedStillAvailable
+                            ) {
+                                ReceivingLookupStatus.Empty
+                            } else {
+                                current.zoneLookup
+                            },
                             warehouseLookup = if (safeWarehouses.isEmpty()) {
                                 ReceivingLookupStatus.Empty
                             } else {
@@ -1480,8 +1508,9 @@ class ReceivingViewModel(
                             }
                         )
                     }
-                    if (selectedStillAvailable && mutableState.value.zones.isEmpty()) {
-                        selectWarehouse(existingId!!)
+                    val selectedId = mutableState.value.selectedWarehouseId
+                    if (selectedId != null && safeWarehouses.any { it.id == selectedId }) {
+                        reloadZones()
                     }
                 }
 
@@ -1523,12 +1552,18 @@ class ReceivingViewModel(
                     val safeZones = result.items.filter {
                         it.warehouseId == warehouseId && it.isSelectable
                     }
-                    val selectedZoneId = mutableState.value.selectedZoneId
-                    val stillAvailable = safeZones.any { it.id == selectedZoneId }
-                    mutableState.update {
-                        it.copy(
-                            zones = safeZones,
-                            selectedZoneId = if (stillAvailable) selectedZoneId else null,
+                    mutableState.update { current ->
+                        val selectedStillAvailable = safeZones.any {
+                            it.id == current.selectedZoneId
+                        }
+                        val selectedZone = current.selectedZoneId?.let { id ->
+                            current.zones.firstOrNull {
+                                it.id == id && it.warehouseId == warehouseId
+                            }?.takeUnless { selectedStillAvailable }
+                                ?.copy(status = "UNAVAILABLE")
+                        }
+                        current.copy(
+                            zones = safeZones + listOfNotNull(selectedZone),
                             zoneLookup = if (safeZones.isEmpty()) {
                                 ReceivingLookupStatus.Empty
                             } else {
@@ -1918,9 +1953,17 @@ class ReceivingViewModel(
         }
         mutableState.update {
             if (zones) {
-                it.copy(zoneLookup = status, zones = emptyList())
+                val selectedZone = it.selectedZoneId?.let { id ->
+                    it.zones.firstOrNull { zone -> zone.id == id }
+                        ?.copy(status = "UNAVAILABLE")
+                }
+                it.copy(zoneLookup = status, zones = listOfNotNull(selectedZone))
             } else {
-                it.copy(warehouseLookup = status, warehouses = emptyList())
+                val selectedWarehouse = it.selectedWarehouseId?.let { id ->
+                    it.warehouses.firstOrNull { warehouse -> warehouse.id == id }
+                        ?.copy(status = "UNAVAILABLE")
+                }
+                it.copy(warehouseLookup = status, warehouses = listOfNotNull(selectedWarehouse))
             }
         }
     }
@@ -1957,13 +2000,14 @@ class ReceivingViewModel(
         if (!expiry.isAfter(LocalDate.now(ZoneOffset.UTC))) {
             return invalid(ReceivingValidationError.ExpiryNotFuture)
         }
-        if (productionDateText.isBlank()) {
-            return invalid(ReceivingValidationError.ProductionRequired)
-        }
-        val productionDate = try {
-            LocalDate.parse(productionDateText)
-        } catch (_: DateTimeParseException) {
-            return invalid(ReceivingValidationError.ProductionMalformed)
+        val productionDate = if (productionDateText.isBlank()) {
+            null
+        } else {
+            try {
+                LocalDate.parse(productionDateText)
+            } catch (_: DateTimeParseException) {
+                return invalid(ReceivingValidationError.ProductionMalformed)
+            }
         }
         if (receivedAtText.isBlank()) {
             return invalid(ReceivingValidationError.ReceivedAtRequired)
@@ -1976,10 +2020,12 @@ class ReceivingViewModel(
         if (receivedAt.isAfter(Instant.now())) {
             return invalid(ReceivingValidationError.ReceivedAtFuture)
         }
-        if (productionDate.isAfter(receivedAt.atZone(ZoneOffset.UTC).toLocalDate())) {
+        if (productionDate != null &&
+            productionDate.isAfter(receivedAt.atZone(ZoneOffset.UTC).toLocalDate())
+        ) {
             return invalid(ReceivingValidationError.ProductionAfterReceipt)
         }
-        if (!productionDate.isBefore(expiry)) {
+        if (productionDate != null && !productionDate.isBefore(expiry)) {
             return invalid(ReceivingValidationError.ExpiryBeforeProduction)
         }
         if (quantityText.isBlank()) return invalid(ReceivingValidationError.QuantityRequired)

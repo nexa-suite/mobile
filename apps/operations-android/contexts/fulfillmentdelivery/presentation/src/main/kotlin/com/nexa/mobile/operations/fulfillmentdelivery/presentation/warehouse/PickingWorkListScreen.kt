@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackBanner
@@ -39,6 +40,7 @@ fun PickingWorkListScreen(
     onOpenByReference: () -> Unit = {},
     onSelectFulfillment: (String) -> Unit
 ) {
+    val totalItems = state.totalItems.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
             modifier = Modifier
@@ -85,7 +87,11 @@ fun PickingWorkListScreen(
                 PickingWorkListStatus.Ready -> {
                     NexaWorkSection(stringResource(R.string.picking_work_queue)) {
                         Text(
-                            stringResource(R.string.picking_work_total, state.totalItems),
+                            pluralStringResource(
+                                R.plurals.picking_work_total,
+                                totalItems,
+                                totalItems
+                            ),
                             style = MaterialTheme.typography.headlineSmall
                         )
                         Text(stringResource(R.string.picking_work_selection_support))

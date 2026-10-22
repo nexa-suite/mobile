@@ -154,7 +154,6 @@
     <string name="receiving_error_expiry">Ingresa la fecha de vencimiento.</string>
     <string name="receiving_error_expiry_format">Usa una fecha válida con formato AAAA-MM-DD.</string>
     <string name="receiving_error_expiry_not_future">La fecha de vencimiento debe ser posterior a hoy.</string>
-    <string name="receiving_error_production">Selecciona la fecha de producción.</string>
     <string name="receiving_error_production_format">La fecha de producción no es válida.</string>
     <string name="receiving_error_production_after_receipt">La fecha de producción no puede ser posterior a la recepción.</string>
     <string name="receiving_error_expiry_before_production">El vencimiento debe ser posterior a la producción.</string>
@@ -171,7 +170,8 @@
     <string name="receiving_error_warehouse">Selecciona un almacén activo de la lista.</string>
     <string name="receiving_error_zone">Selecciona una zona activa del almacén.</string>
     <string name="receiving_expiry_label">Fecha de vencimiento</string>
-    <string name="receiving_production_label">Fecha de producción</string>
+    <string name="receiving_production_label">Fecha de producción (opcional)</string>
+    <string name="receiving_clear_optional_date">Quitar fecha</string>
     <string name="receiving_received_at_label">Fecha y hora de recepción</string>
     <string name="receiving_received_at_button">Recepción: %1$s</string>
     <string name="receiving_select_date">Elegir fecha</string>
@@ -223,8 +223,8 @@
     <string name="receiving_temperature_evidence_unavailable">No se pudo comprobar la foto o falta el permiso actual para hacerlo.</string>
     <string name="receiving_temperature_evidence_unknown">No pudimos confirmar la carga de la foto. Selecciónala de nuevo para reintentar.</string>
     <string name="receiving_temperature_evidence_uploading">Subiendo la foto asociada al almacén seleccionado…</string>
-    <string name="receiving_temperature_label">Lectura manual de temperatura (°C, opcional)</string>
-    <string name="receiving_temperature_support">Ingresa la lectura en grados Celsius. Nexa determina si el producto requiere evidencia y valida la excepción.</string>
+    <string name="receiving_temperature_label">Lectura manual de temperatura (°C)</string>
+    <string name="receiving_temperature_support">La lectura en °C es obligatoria para productos con cadena de frío. Si queda fuera del rango permitido, adjunta evidencia fotográfica; el servidor valida la recepción.</string>
     <string name="receiving_title">Registrar llegada</string>
     <string name="receiving_unit_label">Unidad</string>
     <string name="receiving_unit_value">Unidad del SKU: %1$s</string>

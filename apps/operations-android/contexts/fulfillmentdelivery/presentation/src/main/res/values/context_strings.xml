@@ -413,6 +413,8 @@
     <string name="dispatch_readiness_allocation">Asignación física %1$s</string>
     <string name="dispatch_readiness_allocation_version">Asignación: versión %1$d · %2$s</string>
     <string name="dispatch_readiness_as_of">Datos del servidor: %1$s</string>
+    <string name="dispatch_readiness_card_accessibility">Fulfillment %1$s. Status: %2$s. Allocation: %3$s. Picking: %4$s. Evidence: %5$s. Lines: %6$d. Delivery: %7$s.</string>
+    <string name="dispatch_readiness_card_eyebrow">FULFILLMENT</string>
     <string name="dispatch_readiness_authority_note">Estado confirmado por Nexa. Esta vista no cambia asignaciones ni existencias; vuelve a consultar antes de iniciar otra operación.</string>
     <string name="dispatch_readiness_back">Volver</string>
     <string name="dispatch_readiness_change_selection">Cambiar preparación</string>
@@ -444,6 +446,7 @@
     <string name="dispatch_readiness_loading_title">Consultando preparación</string>
     <string name="dispatch_readiness_network_body">No se pudo actualizar la preparación. Inténtalo cuando vuelva la conexión.</string>
     <string name="dispatch_readiness_network_title">Sin conexión</string>
+    <string name="dispatch_readiness_no_delivery">not linked</string>
     <string name="dispatch_readiness_not_ready">No está lista</string>
     <string name="dispatch_readiness_open_detail">Consultar detalle actual</string>
     <string name="dispatch_readiness_open_instructions">Delivery instructions</string>
@@ -463,6 +466,9 @@
     <string name="dispatch_readiness_refresh">Consultar estado actual</string>
     <string name="dispatch_readiness_service_body">Nexa no confirmó el estado actual. Consulta otra vez antes de continuar.</string>
     <string name="dispatch_readiness_service_title">Estado no disponible</string>
+    <string name="dispatch_readiness_step_allocation">Allocation</string>
+    <string name="dispatch_readiness_step_evidence">Evidence</string>
+    <string name="dispatch_readiness_step_picking">Picking</string>
     <string name="dispatch_readiness_session_body">Inicia sesión otra vez para consultar despacho.</string>
     <string name="dispatch_readiness_session_title">La sesión dejó de estar disponible</string>
     <string name="dispatch_readiness_title">Preparación de despacho</string>
@@ -845,7 +851,8 @@
     <string name="driver_workday_location_unavailable">Location is unavailable. Sharing has stopped.</string>
     <string name="driver_workday_no_active">Nexa has no active workday for this driver.</string>
     <string name="driver_workday_permission_required">Allow precise location before opting into sharing during an active assigned delivery.</string>
-    <string name="driver_workday_privacy_note">Nexa receives GPS only after you opt in while one of your assigned deliveries is dispatched or in transit. Sharing stops when the delivery ends, permission is removed, the app goes to the background, or your access context changes. Samples stay in memory and are not queued offline.</string>
+    <string name="driver_workday_notification_permission_required">Allow app notifications so the visible location-sharing notice can stay on.</string>
+    <string name="driver_workday_privacy_note">Nexa receives GPS only after you opt in while one of your assigned deliveries is dispatched or in transit. Sharing continues while the app is in the background with a visible ongoing notification. It stops when the delivery ends, permission or access changes, or you stop sharing. Samples stay in memory and are not queued offline.</string>
     <string name="driver_workday_refresh">Refresh current workday</string>
     <string name="driver_workday_retry_pending">Retry pending action</string>
     <string name="driver_workday_session">Session ended. Location sharing stopped.</string>
@@ -961,7 +968,10 @@
     <string name="warehouse_context_invalid_body">Vuelve a elegir un contexto antes de continuar.</string>
     <string name="warehouse_session_invalid_body">Inicia sesión otra vez para continuar.</string>
     <string name="picking_work_queue">Picking queue</string>
-    <string name="picking_work_total">%1$d available jobs</string>
+    <plurals name="picking_work_total">
+        <item quantity="one">%1$d available job</item>
+        <item quantity="other">%1$d available jobs</item>
+    </plurals>
     <string name="picking_work_selection_support">Choose a job to review its items and current allocation.</string>
     <string name="dispatch_work_actions">Prepare this departure</string>
     <string name="dispatch_work_outgoing">Verify outgoing lot and quantity</string>

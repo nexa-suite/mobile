@@ -3,15 +3,13 @@ package com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -23,6 +21,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R as CatalogR
 import com.nexa.mobile.operations.core.designsystem.NexaActiveContextBar
@@ -36,12 +36,16 @@ fun OperationsWorkEntryScreen(
     state: WarehouseUiState,
     modifier: Modifier = Modifier,
     additionalCapabilityLabels: Map<WorkEntryCapability, WorkEntryCapabilityLabel> = emptyMap(),
+    tenantLabel: String? = null,
+    workspaceLabel: String? = null,
+    roleLabel: String? = null,
     onChangeContext: () -> Unit,
     onIdentifyProduct: () -> Unit,
     onScanProductCode: () -> Unit = {},
     onReceiveStock: () -> Unit = {},
     onPickStock: () -> Unit = {},
     onViewStock: () -> Unit = {},
+    onOpenProfile: (() -> Unit)? = null,
     onLogout: (() -> Unit)? = null,
     capabilities: List<WorkEntryCapability> = listOf(WorkEntryCapability.CatalogIdentification),
     hasAdditionalWork: Boolean = false,
@@ -49,6 +53,7 @@ fun OperationsWorkEntryScreen(
     additionalWorkContent: @Composable () -> Unit = {}
 ) {
     val capabilityLabels = defaultCapabilityLabels() + additionalCapabilityLabels
+    val profileActionLabel = stringResource(CatalogR.string.warehouse_profile_action)
     var showWarehouseTools by remember(state.authorityEpoch, promoteAdditionalWork) {
         mutableStateOf(!promoteAdditionalWork)
     }
@@ -56,10 +61,24 @@ fun OperationsWorkEntryScreen(
         modifier = modifier
             .fillMaxSize()
             .background(NexaColors.Canvas)
-            .windowInsetsPadding(WindowInsets.safeDrawing)
             .verticalScroll(rememberScrollState())
     ) {
-        NexaTopAppBar(title = stringResource(CatalogR.string.warehouse_operations_title))
+        NexaTopAppBar(
+            title = stringResource(CatalogR.string.warehouse_operations_title),
+            actions = {
+                IconButton(
+                    onClick = {
+                        val openProfile = onOpenProfile
+                        if (openProfile != null) openProfile() else onLogout?.invoke()
+                    },
+                    modifier = Modifier.semantics {
+                        contentDescription = profileActionLabel
+                    }
+                ) {
+                    Text("⋮", style = MaterialTheme.typography.titleLarge)
+                }
+            }
+        )
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -68,6 +87,9 @@ fun OperationsWorkEntryScreen(
                 NexaActiveContextBar(
                     companyName = context.companyName,
                     workspaceName = context.workspaceName,
+                    tenantLabel = tenantLabel,
+                    workspaceLabel = workspaceLabel,
+                    roleLabel = roleLabel,
                     enabled = true,
                     onClick = onChangeContext
                 )
@@ -76,6 +98,13 @@ fun OperationsWorkEntryScreen(
                 state.workEntryStatus == WorkEntryStatus.TaskAvailable
             ) {
                 additionalWorkContent()
+            }
+            if (hasAdditionalWork && capabilities.isEmpty()) {
+                Text(
+                    stringResource(CatalogR.string.warehouse_other_tasks_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = NexaColors.TextSecondary
+                )
             }
             when (state.workEntryStatus) {
                 WorkEntryStatus.TaskAvailable -> if (capabilities.isNotEmpty()) {
@@ -122,10 +151,12 @@ fun OperationsWorkEntryScreen(
                     )
                 }
 
-                WorkEntryStatus.NoPermittedTask -> NexaStatePanel(
-                    title = stringResource(CatalogR.string.warehouse_no_task_title),
-                    description = stringResource(CatalogR.string.warehouse_no_task_body)
-                )
+                WorkEntryStatus.NoPermittedTask -> if (!hasAdditionalWork) {
+                    NexaStatePanel(
+                        title = stringResource(CatalogR.string.warehouse_no_task_title),
+                        description = stringResource(CatalogR.string.warehouse_no_task_body)
+                    )
+                }
 
                 WorkEntryStatus.PermissionUnavailable -> NexaStatePanel(
                     title = stringResource(CatalogR.string.warehouse_permission_title),
@@ -156,12 +187,14 @@ fun OperationsWorkEntryScreen(
             ) {
                 additionalWorkContent()
             }
-            onLogout?.let { logout ->
-                OutlinedButton(
-                    onClick = logout,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                ) {
-                    Text(stringResource(CatalogR.string.warehouse_logout))
+            if (onOpenProfile == null) {
+                onLogout?.let { logout ->
+                    OutlinedButton(
+                        onClick = logout,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    ) {
+                        Text(stringResource(CatalogR.string.warehouse_logout))
+                    }
                 }
             }
         }

@@ -416,6 +416,8 @@
     <string name="dispatch_readiness_allocation">Asignación física %1$s</string>
     <string name="dispatch_readiness_allocation_version">Asignación: versión %1$d · %2$s</string>
     <string name="dispatch_readiness_as_of">Datos del servidor: %1$s</string>
+    <string name="dispatch_readiness_card_accessibility">Preparación %1$s. Estado: %2$s. Asignación: %3$s. Picking: %4$s. Evidencia: %5$s. Líneas: %6$d. Entrega: %7$s.</string>
+    <string name="dispatch_readiness_card_eyebrow">PREPARACIÓN</string>
     <string name="dispatch_readiness_authority_note">Estado confirmado por Nexa. Esta vista no cambia asignaciones ni existencias; vuelve a consultar antes de iniciar otra operación.</string>
     <string name="dispatch_readiness_back">Volver</string>
     <string name="dispatch_readiness_change_selection">Cambiar preparación</string>
@@ -447,6 +449,7 @@
     <string name="dispatch_readiness_loading_title">Consultando preparación</string>
     <string name="dispatch_readiness_network_body">No se pudo actualizar la preparación. Inténtalo cuando vuelva la conexión.</string>
     <string name="dispatch_readiness_network_title">Sin conexión</string>
+    <string name="dispatch_readiness_no_delivery">no vinculada</string>
     <string name="dispatch_readiness_not_ready">No está lista</string>
     <string name="dispatch_readiness_open_detail">Consultar detalle actual</string>
     <string name="dispatch_readiness_open_instructions">Instrucciones de entrega</string>
@@ -466,6 +469,9 @@
     <string name="dispatch_readiness_refresh">Consultar estado actual</string>
     <string name="dispatch_readiness_service_body">Nexa no confirmó el estado actual. Consulta otra vez antes de continuar.</string>
     <string name="dispatch_readiness_service_title">Estado no disponible</string>
+    <string name="dispatch_readiness_step_allocation">Asignación</string>
+    <string name="dispatch_readiness_step_evidence">Evidencia</string>
+    <string name="dispatch_readiness_step_picking">Picking</string>
     <string name="dispatch_readiness_session_body">Inicia sesión otra vez para consultar despacho.</string>
     <string name="dispatch_readiness_session_title">La sesión dejó de estar disponible</string>
     <string name="dispatch_readiness_title">Preparación de despacho</string>
@@ -848,7 +854,8 @@
     <string name="driver_workday_location_unavailable">La ubicación no está disponible. El envío se detuvo.</string>
     <string name="driver_workday_no_active">Nexa no tiene una jornada activa para este conductor.</string>
     <string name="driver_workday_permission_required">Permite la ubicación precisa antes de activar el envío durante una entrega asignada activa.</string>
-    <string name="driver_workday_privacy_note">Nexa recibe GPS solo después de que actives el envío durante una entrega asignada en despacho o en tránsito. El envío se detiene cuando finaliza la entrega, se revoca el permiso, la app pasa a segundo plano o cambia tu contexto de acceso. Las muestras permanecen en memoria y no se encolan sin conexión.</string>
+    <string name="driver_workday_notification_permission_required">Permite las notificaciones de la app para mantener visible el aviso de envío de ubicación.</string>
+    <string name="driver_workday_privacy_note">Nexa recibe GPS solo después de que actives el envío durante una entrega asignada en despacho o en tránsito. El envío continúa en segundo plano con una notificación visible. Se detiene al finalizar la entrega, cambiar permisos o acceso, o cuando lo detengas. Las muestras permanecen en memoria y no se encolan sin conexión.</string>
     <string name="driver_workday_refresh">Actualizar jornada actual</string>
     <string name="driver_workday_retry_pending">Reintentar acción pendiente</string>
     <string name="driver_workday_session">La sesión terminó. El envío de ubicación se detuvo.</string>
@@ -964,7 +971,11 @@
     <string name="warehouse_context_invalid_body">Vuelve a elegir un contexto antes de continuar.</string>
     <string name="warehouse_session_invalid_body">Inicia sesión otra vez para continuar.</string>
     <string name="picking_work_queue">Cola de preparación</string>
-    <string name="picking_work_total">%1$d trabajos disponibles</string>
+    <plurals name="picking_work_total">
+        <item quantity="one">%1$d trabajo disponible</item>
+        <item quantity="other">%1$d trabajos disponibles</item>
+        <item quantity="many">%1$d trabajos disponibles</item>
+    </plurals>
     <string name="picking_work_selection_support">Elige un trabajo para revisar artículos y asignación actual.</string>
     <string name="dispatch_work_actions">Preparar esta salida</string>
     <string name="dispatch_work_outgoing">Verificar lote y cantidad de salida</string>
