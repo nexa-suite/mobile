@@ -38,6 +38,7 @@ void main() {
   testWidgets('hides delivery navigation without the exact tracking grant', (
     tester,
   ) async {
+    _useBuyerMobileViewport(tester);
     final paths = <String>[];
     final httpClient = MockClient((request) async {
       final path = request.url.path;
@@ -104,18 +105,20 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.bySemanticsLabel('Nexa'), findsOneWidget);
+    expect(find.bySemanticsLabel('Nexa mark'), findsOneWidget);
     final signInTheme = Theme.of(
-      tester.element(find.text('Bienvenido a Nexa')),
+      tester.element(find.text('Tu espacio de compra')),
     );
     expect(signInTheme.colorScheme.primary, const Color(0xFF2A67D9));
     expect(signInTheme.textTheme.bodyMedium?.fontFamily, 'Inter');
+    await tester.tap(find.text('Continuar'));
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.byType(TextFormField).at(0),
       'buyer@example.test',
     );
     await tester.enterText(find.byType(TextFormField).at(1), 'test-password');
-    await tester.tap(find.text('Continuar'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Iniciar sesión'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Empresa Norte'));
     await tester.pumpAndSettle();
@@ -123,7 +126,7 @@ void main() {
     expect(_navigationTab('Catálogo'), findsOneWidget);
     expect(_navigationTab('Mis entregas'), findsNothing);
     expect(_navigationTab('Billetera'), findsNothing);
-    await tester.tap(_navigationTab('Más'));
+    await tester.tap(find.byTooltip('Más opciones'));
     await tester.pumpAndSettle();
     expect(find.text('Documentos'), findsOneWidget);
     expect(find.text('Mis entregas'), findsNothing);
@@ -134,6 +137,7 @@ void main() {
   testWidgets(
     'signs in, selects a Buyer context, and opens catalog and order details',
     (tester) async {
+      _useBuyerMobileViewport(tester);
       final requests = <http.Request>[];
       var documentDownloads = 0;
       var walletReads = 0;
@@ -463,12 +467,16 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.tap(find.text('Continuar'));
+      await tester.pumpAndSettle();
+      expect(find.text('¿Olvidaste tu contraseña?'), findsOneWidget);
+      expect(find.text('Usar huella o Face ID'), findsOneWidget);
       await tester.enterText(
         find.byType(TextFormField).at(0),
         'buyer@example.test',
       );
       await tester.enterText(find.byType(TextFormField).at(1), 'test-password');
-      await tester.tap(find.text('Continuar'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Iniciar sesión'));
       await tester.pumpAndSettle();
       expect(find.text('Elige tu empresa'), findsOneWidget);
       expect(find.text('Empresa Norte'), findsOneWidget);
@@ -638,6 +646,13 @@ void main() {
   );
 }
 
+void _useBuyerMobileViewport(WidgetTester tester) {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(390, 844);
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
 Finder _navigationTab(String label) =>
     find.descendant(of: find.byType(NavigationBar), matching: find.text(label));
 
@@ -645,7 +660,7 @@ Future<void> _openMoreDestination(
   WidgetTester tester,
   String destination,
 ) async {
-  await tester.tap(_navigationTab('Más'));
+  await tester.tap(find.byTooltip('Más opciones'));
   await tester.pumpAndSettle();
   await tester.tap(find.text(destination));
   await tester.pumpAndSettle();

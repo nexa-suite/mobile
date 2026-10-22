@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../tenant_access_governance/application/buyer_change_feed_repository.dart';
+import '../../../core/presentation/buyer_visible_route_poller.dart';
 import '../../../core/presentation/nexa_buyer_components.dart';
 import 'buyer_notifications_view_model.dart';
 
@@ -15,10 +17,37 @@ final class BuyerNotificationsPage extends StatefulWidget {
 }
 
 final class _BuyerNotificationsPageState extends State<BuyerNotificationsPage> {
+  GoRouter? _router;
+  BuyerVisibleRoutePoller? _poller;
+
   @override
   void initState() {
     super.initState();
     unawaited(context.read<BuyerNotificationsViewModel>().refreshInbox());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final router = GoRouter.of(context);
+    if (identical(router, _router)) return;
+    _poller?.dispose();
+    _router = router;
+    _poller = BuyerVisibleRoutePoller(
+      router: router,
+      routePath: '/notifications',
+      onRefresh: context.read<BuyerNotificationsViewModel>().refreshInbox,
+      changes: () => context
+          .read<BuyerChangeFeedRepository>()
+          .watch(readPermission: BuyerNotificationsViewModel.readPermission)
+          .map<void>((_) {}),
+    );
+  }
+
+  @override
+  void dispose() {
+    _poller?.dispose();
+    super.dispose();
   }
 
   @override

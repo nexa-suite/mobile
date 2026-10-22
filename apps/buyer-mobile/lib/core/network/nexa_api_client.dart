@@ -4,6 +4,9 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+
+import '../application/evidence_upload_policy.dart';
+
 import 'package:http_parser/http_parser.dart';
 
 import '../application/error/nexa_api_failure.dart';
@@ -33,6 +36,12 @@ final class NexaApiResponse {
   final Map<String, Object?> body;
   final Map<String, String> headers;
   final Object? data;
+}
+
+final class NexaApiChangeFeedEvent {
+  const NexaApiChangeFeedEvent(this.type);
+
+  final String type;
 }
 
 final class NexaApiBinaryResponse {
@@ -90,7 +99,7 @@ final class NexaApiOrigin {
 
 final class NexaApiClient {
   static const int maxProtectedBinaryBytes = 8 * 1024 * 1024;
-  static const int maxEvidenceUploadBytes = 10 * 1024 * 1024;
+  static const int maxEvidenceUploadBytes = evidenceUploadMaximumBytes;
 
   NexaApiClient({
     required this.origin,
@@ -101,6 +110,7 @@ final class NexaApiClient {
   final NexaApiOrigin origin;
   final http.Client _httpClient;
   final Duration requestTimeout;
+  final Map<String, String> _changeFeedCursors = {};
   SessionCredentialProvider? sessionCredentials;
 
   Future<NexaApiResponse> get(
@@ -119,6 +129,182 @@ final class NexaApiClient {
     contextTicket: contextTicket,
     bearerToken: bearerToken,
   );
+
+  Stream<NexaApiChangeFeedEvent> watchChangeFeed({
+    required int authorityEpoch,
+    required String authorityFingerprint,
+  }) {
+    final session = sessionCredentials;
+    if (session == null ||
+        session.authorityEpoch != authorityEpoch ||
+        session.authorityFingerprint != authorityFingerprint ||
+        session.accessToken == null) {
+      return const Stream.empty();
+    }
+
+    final cursorKey = '$authorityEpoch|$authorityFingerprint';
+    return Stream.multi((controller) {
+      var cancelled = false;
+      var lastEventId = _changeFeedCursors[cursorKey];
+      var retryDelay = const Duration(seconds: 1);
+      Timer? retryTimer;
+      Completer<void>? activeAbort;
+
+      bool hasCurrentAuthority() =>
+          session.authorityEpoch == authorityEpoch &&
+          session.authorityFingerprint == authorityFingerprint;
+
+      void abortActiveRequest() {
+        final abort = activeAbort;
+        if (abort != null && !abort.isCompleted) abort.complete();
+      }
+
+      void stop() {
+        if (cancelled) return;
+        cancelled = true;
+        retryTimer?.cancel();
+        abortActiveRequest();
+        unawaited(controller.close());
+      }
+
+      late Future<void> Function(
+        String? tokenOverride,
+        bool retriedAfterUnauthorized,
+      )
+      connect;
+
+      void retryLater() {
+        if (cancelled || !hasCurrentAuthority()) {
+          stop();
+          return;
+        }
+        final delay = retryDelay;
+        retryDelay = Duration(
+          seconds: (retryDelay.inSeconds * 2).clamp(1, 15).toInt(),
+        );
+        retryTimer?.cancel();
+        retryTimer = Timer(delay, () => unawaited(connect(null, false)));
+      }
+
+      connect = (tokenOverride, retriedAfterUnauthorized) async {
+        if (cancelled) return;
+        if (!hasCurrentAuthority()) {
+          stop();
+          return;
+        }
+        final token = tokenOverride ?? session.accessToken;
+        if (token == null || token.isEmpty) {
+          stop();
+          return;
+        }
+
+        final abort = Completer<void>();
+        activeAbort = abort;
+        try {
+          final headers = <String, String>{
+            'Accept': 'text/event-stream',
+            'Authorization': 'Bearer $token',
+            'Cache-Control': 'no-cache',
+          };
+          final cursor = lastEventId;
+          if (cursor != null) headers['Last-Event-ID'] = cursor;
+          final request = http.AbortableRequest(
+            'GET',
+            origin.uri.resolve('/api/v1/change-feed/stream'),
+            abortTrigger: abort.future,
+          )..headers.addAll(headers);
+          final response = await _httpClient.send(request);
+          if (cancelled) return;
+          if (!hasCurrentAuthority()) {
+            stop();
+            return;
+          }
+
+          if (response.statusCode == 401) {
+            abortActiveRequest();
+            if (retriedAfterUnauthorized) {
+              stop();
+              return;
+            }
+            try {
+              final refreshed = await session.refreshIfCurrent(
+                token,
+                authorityEpoch,
+              );
+              if (!hasCurrentAuthority() ||
+                  refreshed == null ||
+                  refreshed.isEmpty ||
+                  refreshed == token) {
+                stop();
+                return;
+              }
+              await connect(refreshed, true);
+            } catch (_) {
+              stop();
+            }
+            return;
+          }
+
+          final contentType = response.headers['content-type']
+              ?.split(';')
+              .first
+              .trim()
+              .toLowerCase();
+          if (response.statusCode != 200 ||
+              contentType != 'text/event-stream') {
+            abortActiveRequest();
+            if (response.statusCode == 403 || response.statusCode == 404) {
+              stop();
+            } else {
+              retryLater();
+            }
+            return;
+          }
+
+          retryDelay = const Duration(seconds: 1);
+          await for (final event in _decodeServerSentEvents(response.stream)) {
+            if (cancelled) return;
+            if (!hasCurrentAuthority()) {
+              stop();
+              return;
+            }
+            if (event.hasId) {
+              lastEventId = event.id;
+              if (lastEventId == null) {
+                _changeFeedCursors.remove(cursorKey);
+              } else {
+                _changeFeedCursors[cursorKey] = lastEventId!;
+              }
+            }
+            if (event.type == 'resync-required') {
+              lastEventId = null;
+              _changeFeedCursors.remove(cursorKey);
+              controller.add(const NexaApiChangeFeedEvent('resync-required'));
+              break;
+            }
+            if (event.type != 'heartbeat') {
+              controller.add(NexaApiChangeFeedEvent(event.type));
+            }
+          }
+          if (!cancelled) retryLater();
+        } catch (_) {
+          if (!cancelled) retryLater();
+        } finally {
+          if (!abort.isCompleted) abort.complete();
+          if (identical(activeAbort, abort)) activeAbort = null;
+        }
+      };
+
+      controller.onCancel = () {
+        if (cancelled) return;
+        cancelled = true;
+        retryTimer?.cancel();
+        abortActiveRequest();
+      };
+
+      unawaited(connect(null, false));
+    }, isBroadcast: false);
+  }
 
   Future<NexaApiBinaryResponse> getBinary(
     String path, {
@@ -570,13 +756,15 @@ final class NexaApiClient {
     } on TimeoutException {
       throw const NexaApiFailure(
         code: 'network_timeout',
-        userMessage: 'Nexa did not respond. Check your connection and try again.',
+        userMessage:
+            'Nexa did not respond. Check your connection and try again.',
         retryable: true,
       );
     } on http.ClientException {
       throw const NexaApiFailure(
         code: 'network_unavailable',
-        userMessage: 'Nexa is unavailable. Check your connection and try again.',
+        userMessage:
+            'Nexa is unavailable. Check your connection and try again.',
         retryable: true,
       );
     }
@@ -714,4 +902,62 @@ final class NexaApiClient {
       value is String && value.isNotEmpty ? value : null;
 
   void close() => _httpClient.close();
+}
+
+Stream<_ServerSentEvent> _decodeServerSentEvents(
+  Stream<List<int>> source,
+) async* {
+  var type = 'message';
+  String? id;
+  var hasId = false;
+  var hasData = false;
+
+  await for (final line
+      in source.transform(utf8.decoder).transform(const LineSplitter())) {
+    if (line.isEmpty) {
+      if (hasData) {
+        yield _ServerSentEvent(type: type, id: id, hasId: hasId);
+      }
+      type = 'message';
+      id = null;
+      hasId = false;
+      hasData = false;
+      continue;
+    }
+    if (line.startsWith(':')) continue;
+
+    final separator = line.indexOf(':');
+    final field = separator < 0 ? line : line.substring(0, separator);
+    var value = separator < 0 ? '' : line.substring(separator + 1);
+    if (value.startsWith(' ')) value = value.substring(1);
+    switch (field) {
+      case 'event':
+        type = value.isEmpty ? 'message' : value;
+      case 'id':
+        if (!value.contains('\u0000')) {
+          id = value.isEmpty || RegExp(r'^\d+$').hasMatch(value)
+              ? value.isEmpty
+                    ? null
+                    : value
+              : null;
+          hasId = true;
+        }
+      case 'data':
+        hasData = true;
+    }
+  }
+
+  if (hasData) yield _ServerSentEvent(type: type, id: id, hasId: hasId);
+}
+
+final class _ServerSentEvent {
+  const _ServerSentEvent({
+    required this.type,
+    required this.id,
+    required this.hasId,
+  });
+
+  final String type;
+  final String? id;
+  final bool hasId;
 }
