@@ -39,6 +39,16 @@
     <string name="direct_order_comment">Comentario</string>
     <string name="direct_order_customer_reference">Referencia del cliente</string>
     <string name="direct_order_delivery_date">Fecha solicitada AAAA-MM-DD</string>
+    <string name="direct_order_policy_loading">Consultando el calendario de entregas del espacio…</string>
+    <plurals name="direct_order_policy_minimum">
+        <item quantity="one">Fecha mínima de entrega: %1$s · aviso mínimo de %2$d día</item>
+        <item quantity="other">Fecha mínima de entrega: %1$s · aviso mínimo de %2$d días</item>
+        <item quantity="many">Fecha mínima de entrega: %1$s · aviso mínimo de %2$d días</item>
+    </plurals>
+    <string name="direct_order_policy_date_too_early">Elige %1$s o una fecha de entrega posterior.</string>
+    <string name="direct_order_policy_permission_denied">Este rol no puede consultar el calendario de entregas del espacio. No se puede revisar el pedido directo.</string>
+    <string name="direct_order_policy_unavailable">No se pudo cargar el calendario de entregas del espacio. No se puede revisar el pedido directo.</string>
+    <string name="direct_order_policy_retry">Volver a consultar el calendario</string>
     <string name="direct_order_delivery_instructions">Instrucciones de entrega</string>
     <string name="direct_order_new_decision">Iniciar nueva decisión</string>
     <string name="direct_order_payment_bank_transfer">Transferencia bancaria</string>

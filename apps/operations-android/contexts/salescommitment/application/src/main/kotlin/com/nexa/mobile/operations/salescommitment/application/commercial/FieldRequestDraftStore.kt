@@ -1,7 +1,7 @@
 package com.nexa.mobile.operations.salescommitment.application.commercial
 
-import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestDraft
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestCustomerFacts
+import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestDraft
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestProductFacts
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 

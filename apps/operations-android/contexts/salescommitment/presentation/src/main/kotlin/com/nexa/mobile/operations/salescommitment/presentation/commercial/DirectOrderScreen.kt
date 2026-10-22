@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.isTraversalGroup
@@ -26,7 +27,6 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.core.designsystem.R as SharedR
-import com.nexa.mobile.operations.salescommitment.application.commercial.isValidForSubmission
 import com.nexa.mobile.operations.salescommitment.presentation.R
 
 @Composable
@@ -132,6 +132,45 @@ fun DirectOrderScreen(
                 Text(stringResource(R.string.direct_order_delivery_date))
             }
         )
+        if (state.record.intent == null) {
+            when (state.deliveryPolicyStatus) {
+                DirectOrderDeliveryPolicyStatus.Loading ->
+                    Text(stringResource(R.string.direct_order_policy_loading))
+
+                DirectOrderDeliveryPolicyStatus.Available -> {
+                    state.deliveryLeadPolicy?.let { policy ->
+                        Text(
+                            pluralStringResource(
+                                R.plurals.direct_order_policy_minimum,
+                                policy.minimumDeliveryLeadDays,
+                                policy.earliestAllowedDeliveryDate.toString(),
+                                policy.minimumDeliveryLeadDays
+                            )
+                        )
+                    }
+                    if (state.isDeliveryDateBeforeMinimum()) {
+                        Text(
+                            stringResource(
+                                R.string.direct_order_policy_date_too_early,
+                                state.deliveryLeadPolicy?.earliestAllowedDeliveryDate.toString()
+                            ),
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                        )
+                    }
+                }
+
+                DirectOrderDeliveryPolicyStatus.PermissionDenied ->
+                    Text(stringResource(R.string.direct_order_policy_permission_denied))
+
+                DirectOrderDeliveryPolicyStatus.Unavailable -> {
+                    Text(stringResource(R.string.direct_order_policy_unavailable))
+                    TextButton(onClick = viewModel::refreshDeliveryPolicy, enabled = editable) {
+                        Text(stringResource(R.string.direct_order_policy_retry))
+                    }
+                }
+            }
+        }
         OutlinedTextField(
             draft.deliveryProfile,
             viewModel::deliveryProfileChanged,
@@ -162,7 +201,7 @@ fun DirectOrderScreen(
         OutlinedTextField(draft.comment, viewModel::commentChanged, enabled = editable, label = {
             Text(stringResource(R.string.direct_order_comment))
         })
-        Button(onClick = viewModel::review, enabled = editable && draft.isValidForSubmission()) {
+        Button(onClick = viewModel::review, enabled = editable && state.canReviewDirectOrder()) {
             Text(stringResource(R.string.direct_order_review))
         }
         if (state.status == DirectOrderStatus.Changed) {

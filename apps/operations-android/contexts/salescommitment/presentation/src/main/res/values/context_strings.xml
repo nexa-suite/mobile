@@ -39,6 +39,15 @@
     <string name="direct_order_comment">Comment</string>
     <string name="direct_order_customer_reference">Customer reference</string>
     <string name="direct_order_delivery_date">Requested date YYYY-MM-DD</string>
+    <string name="direct_order_policy_loading">Checking the workspace delivery schedule…</string>
+    <plurals name="direct_order_policy_minimum">
+        <item quantity="one">Earliest delivery date: %1$s · %2$d day minimum notice</item>
+        <item quantity="other">Earliest delivery date: %1$s · %2$d days minimum notice</item>
+    </plurals>
+    <string name="direct_order_policy_date_too_early">Choose %1$s or a later delivery date.</string>
+    <string name="direct_order_policy_permission_denied">This role cannot read the delivery schedule for this workspace. Direct order review is unavailable.</string>
+    <string name="direct_order_policy_unavailable">The workspace delivery schedule could not be loaded. Direct order review is unavailable.</string>
+    <string name="direct_order_policy_retry">Retry schedule lookup</string>
     <string name="direct_order_delivery_instructions">Delivery instructions</string>
     <string name="direct_order_new_decision">Start a new decision</string>
     <string name="direct_order_payment_bank_transfer">Bank transfer</string>

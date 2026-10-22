@@ -5,10 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.nexa.mobile.operations.salescommitment.application.commercial.FieldRequestCustomerRead
 import com.nexa.mobile.operations.salescommitment.application.commercial.FieldRequestDraftGateway
 import com.nexa.mobile.operations.salescommitment.application.commercial.FieldRequestDraftRead
-import com.nexa.mobile.operations.salescommitment.application.commercial.FieldRequestProductRead
 import com.nexa.mobile.operations.salescommitment.application.commercial.FieldRequestDraftStore
-import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestDraft
+import com.nexa.mobile.operations.salescommitment.application.commercial.FieldRequestProductRead
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestCustomerFacts
+import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestDraft
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestDraftLine
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestProductFacts
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
@@ -44,6 +44,7 @@ class FieldRequestDraftViewModel(
                 if (!current(captured, epoch)) return@withLock
                 val stored = when (read) {
                     is FieldRequestDraftRead.Available -> read.draft
+
                     FieldRequestDraftRead.Unavailable -> {
                         mutableState.value = FieldRequestDraftState(
                             status = FieldRequestDraftStatus.MetadataUnavailable
@@ -77,8 +78,11 @@ class FieldRequestDraftViewModel(
     fun customerChanged(value: String) {
         val normalized = value.trim().take(200)
         editDraft { draft ->
-            if (draft.customerId == normalized) draft
-            else FieldRequestDraft(customerId = normalized)
+            if (draft.customerId == normalized) {
+                draft
+            } else {
+                FieldRequestDraft(customerId = normalized)
+            }
         }
     }
 
@@ -139,9 +143,17 @@ class FieldRequestDraftViewModel(
     fun quantityChanged(catalogItemId: String, value: String) {
         val quantity = value.take(32)
         editDraft { draft ->
-            draft.copy(lines = draft.lines.map { line ->
-                if (line.catalogItemId == catalogItemId) line.copy(quantity = quantity) else line
-            })
+            draft.copy(
+                lines = draft.lines.map { line ->
+                    if (line.catalogItemId ==
+                        catalogItemId
+                    ) {
+                        line.copy(quantity = quantity)
+                    } else {
+                        line
+                    }
+                }
+            )
         }
     }
 
@@ -182,8 +194,11 @@ class FieldRequestDraftViewModel(
                     FieldRequestProductRead.Unavailable
                 }
                 val current = (result as? FieldRequestProductRead.Current)?.facts
-                if (current == null) allProductsCurrent = false
-                else products[line.catalogItemId] = current
+                if (current == null) {
+                    allProductsCurrent = false
+                } else {
+                    products[line.catalogItemId] = current
+                }
             }
             mutex.withLock {
                 if (!current(captured, epoch) || state.value.draft != draft) return@withLock
@@ -191,8 +206,10 @@ class FieldRequestDraftViewModel(
                     ?.takeIf { it.status == "ACTIVE" }
                 val changedCustomer = customerFacts != null &&
                     draft.customerName != null &&
-                    (draft.customerName != customerFacts.businessName ||
-                        draft.customerVersion != customerFacts.version)
+                    (
+                        draft.customerName != customerFacts.businessName ||
+                            draft.customerVersion != customerFacts.version
+                        )
                 val changedProducts = draft.lines.mapNotNull { line ->
                     val current = products[line.catalogItemId] ?: return@mapNotNull null
                     line.catalogItemId.takeIf { !line.matches(current) }

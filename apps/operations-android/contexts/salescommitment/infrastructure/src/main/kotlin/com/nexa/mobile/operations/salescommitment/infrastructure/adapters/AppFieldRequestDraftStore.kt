@@ -29,6 +29,7 @@ class AppFieldRequestDraftStore @Inject constructor(@ApplicationContext context:
         mutex.withLock {
             when (val stored = local.load(authority.scope())) {
                 ScopedMetadataRead.Unavailable -> FieldRequestDraftRead.Unavailable
+
                 is ScopedMetadataRead.Value -> {
                     val payload = stored.payload
                         ?: return@withLock FieldRequestDraftRead.Available(FieldRequestDraft())
@@ -39,17 +40,15 @@ class AppFieldRequestDraftStore @Inject constructor(@ApplicationContext context:
             }
         }
 
-    override suspend fun save(
-        authority: CommercialAuthority,
-        draft: FieldRequestDraft
-    ): Boolean = mutex.withLock {
-        val scope = authority.scope()
-        val stored = local.load(scope)
-        if (stored !is ScopedMetadataRead.Value) return@withLock false
-        val storedPayload = stored.payload
-        if (storedPayload != null && FieldRequestDraftCodec.decode(storedPayload) == null) {
-            return@withLock false
+    override suspend fun save(authority: CommercialAuthority, draft: FieldRequestDraft): Boolean =
+        mutex.withLock {
+            val scope = authority.scope()
+            val stored = local.load(scope)
+            if (stored !is ScopedMetadataRead.Value) return@withLock false
+            val storedPayload = stored.payload
+            if (storedPayload != null && FieldRequestDraftCodec.decode(storedPayload) == null) {
+                return@withLock false
+            }
+            local.save(scope, FieldRequestDraftCodec.encode(draft))
         }
-        local.save(scope, FieldRequestDraftCodec.encode(draft))
-    }
 }

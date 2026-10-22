@@ -22,24 +22,26 @@ internal object FieldRequestDraftCodec {
         draft.customerVersion?.let { put("customerVersion", it) }
         putJsonArray("lines") {
             draft.lines.forEach { line ->
-                add(buildJsonObject {
-                    put("catalogItemId", line.catalogItemId)
-                    put("productId", line.productId)
-                    put("name", line.name)
-                    line.skuCode?.let { put("skuCode", it) }
-                    line.brandName?.let { put("brandName", it) }
-                    line.categoryName?.let { put("categoryName", it) }
-                    line.familyName?.let { put("familyName", it) }
-                    line.variantName?.let { put("variantName", it) }
-                    line.unit?.let { put("unit", it) }
-                    put("quantity", line.quantity)
-                    line.price?.let { put("price", it) }
-                    line.currency?.let { put("currency", it) }
-                    line.pricingAsOf?.let { put("pricingAsOf", it) }
-                    line.availability?.let { put("availability", it) }
-                    line.availabilityStatus?.let { put("availabilityStatus", it) }
-                    line.availabilityAsOf?.let { put("availabilityAsOf", it) }
-                })
+                add(
+                    buildJsonObject {
+                        put("catalogItemId", line.catalogItemId)
+                        put("productId", line.productId)
+                        put("name", line.name)
+                        line.skuCode?.let { put("skuCode", it) }
+                        line.brandName?.let { put("brandName", it) }
+                        line.categoryName?.let { put("categoryName", it) }
+                        line.familyName?.let { put("familyName", it) }
+                        line.variantName?.let { put("variantName", it) }
+                        line.unit?.let { put("unit", it) }
+                        put("quantity", line.quantity)
+                        line.price?.let { put("price", it) }
+                        line.currency?.let { put("currency", it) }
+                        line.pricingAsOf?.let { put("pricingAsOf", it) }
+                        line.availability?.let { put("availability", it) }
+                        line.availabilityStatus?.let { put("availabilityStatus", it) }
+                        line.availabilityAsOf?.let { put("availabilityAsOf", it) }
+                    }
+                )
             }
         }
     }.toString()

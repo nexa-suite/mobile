@@ -25,9 +25,9 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.core.designsystem.R as SharedR
+import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestDraftLine
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestProductFacts
 import com.nexa.mobile.operations.salescommitment.presentation.R
-import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestDraftLine
 
 @Composable
 fun FieldRequestDraftScreen(
@@ -73,15 +73,24 @@ fun FieldRequestDraftScreen(
                 stringResource(
                     when (state.status) {
                         FieldRequestDraftStatus.Loading -> R.string.field_request_loading
+
                         FieldRequestDraftStatus.Saved -> R.string.field_request_saved
+
                         FieldRequestDraftStatus.Saving -> R.string.field_request_saving
-                        FieldRequestDraftStatus.AddingProduct -> R.string.field_request_adding_product
+
+                        FieldRequestDraftStatus.AddingProduct ->
+                            R.string.field_request_adding_product
+
                         FieldRequestDraftStatus.Reviewing -> R.string.field_request_reviewing
+
                         FieldRequestDraftStatus.Reviewed -> R.string.field_request_reviewed
+
                         FieldRequestDraftStatus.ReviewUnavailable ->
                             R.string.field_request_review_unavailable
+
                         FieldRequestDraftStatus.ProductUnavailable ->
                             R.string.field_request_product_unavailable
+
                         FieldRequestDraftStatus.MetadataUnavailable ->
                             R.string.field_request_storage_unavailable
                     }
@@ -154,8 +163,10 @@ private fun FieldRequestDraftLineCard(
                 stringResource(
                     R.string.field_request_saved_availability,
                     line.availability ?: stringResource(SharedR.string.commercial_catalog_missing),
-                    line.availabilityStatus ?: stringResource(SharedR.string.commercial_catalog_missing),
-                    line.availabilityAsOf ?: stringResource(SharedR.string.commercial_catalog_missing)
+                    line.availabilityStatus
+                        ?: stringResource(SharedR.string.commercial_catalog_missing),
+                    line.availabilityAsOf
+                        ?: stringResource(SharedR.string.commercial_catalog_missing)
                 )
             )
             if (changed && current != null) {
@@ -163,7 +174,9 @@ private fun FieldRequestDraftLineCard(
                 Text(stringResource(R.string.field_request_current_name, current.name))
                 current.brandName?.let { Text(stringResource(R.string.field_request_brand, it)) }
                 current.categoryName?.let { Text(stringResource(R.string.field_request_type, it)) }
-                current.variantName?.let { Text(stringResource(R.string.field_request_variety, it)) }
+                current.variantName?.let {
+                    Text(stringResource(R.string.field_request_variety, it))
+                }
                 current.familyName?.let { Text(stringResource(R.string.field_request_group, it)) }
                 Text(
                     stringResource(

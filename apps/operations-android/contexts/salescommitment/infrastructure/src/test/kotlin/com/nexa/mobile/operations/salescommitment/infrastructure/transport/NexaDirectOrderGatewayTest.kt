@@ -6,9 +6,12 @@ import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.network.ApiEndpoint
 import com.nexa.mobile.operations.core.network.ApiHttpClient
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
+import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderDeliveryLeadPolicy
+import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderDeliveryLeadPolicyRead
 import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderSubmission
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.DirectOrderIntent
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
+import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
@@ -19,6 +22,85 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NexaDirectOrderGatewayTest {
+    @Test
+    fun readsWorkspaceDeliveryLeadPolicyWithoutCalculatingDateLocally() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(
+                response(
+                    200,
+                    """{"minimumDeliveryLeadDays":3,"earliestAllowedDeliveryDate":"2026-10-26"}"""
+                )
+            )
+
+            val result = gateway(server).deliveryLeadPolicy(WORKSPACE)
+
+            assertEquals(
+                DirectOrderDeliveryLeadPolicyRead.Available(
+                    DirectOrderDeliveryLeadPolicy(
+                        minimumDeliveryLeadDays = 3,
+                        earliestAllowedDeliveryDate = LocalDate.parse("2026-10-26")
+                    )
+                ),
+                result
+            )
+            val request = server.takeRequest()
+            assertEquals("GET", request.method)
+            assertEquals(
+                "/api/v1/direct-orders/delivery-policy",
+                request.path
+            )
+            assertEquals("", request.body.readUtf8())
+        }
+    }
+
+    @Test
+    fun malformedDeliveryLeadPoliciesFailClosed() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            listOf(
+                "not-json",
+                """{"minimumDeliveryLeadDays":-1,"earliestAllowedDeliveryDate":"2026-10-26"}""",
+                """{"minimumDeliveryLeadDays":3,"earliestAllowedDeliveryDate":"tomorrow"}""",
+                """{"minimumDeliveryLeadDays":3,"earliestAllowedDeliveryDate":"2026-02-31"}"""
+            ).forEach { body ->
+                server.enqueue(response(200, body))
+                assertEquals(
+                    DirectOrderDeliveryLeadPolicyRead.Unavailable,
+                    gateway(server).deliveryLeadPolicy(WORKSPACE)
+                )
+                server.takeRequest()
+            }
+            assertEquals(
+                DirectOrderDeliveryLeadPolicyRead.PermissionDenied,
+                gateway(server).deliveryLeadPolicy("not-a-workspace-id")
+            )
+            assertEquals(4, server.requestCount)
+        }
+    }
+
+    @Test
+    fun policyAuthorizationAndServiceFailuresRemainDistinct() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val gateway = gateway(server)
+            listOf(401, 403).forEach { status ->
+                server.enqueue(response(status, "{}"))
+                assertEquals(
+                    DirectOrderDeliveryLeadPolicyRead.PermissionDenied,
+                    gateway.deliveryLeadPolicy(WORKSPACE)
+                )
+            }
+            listOf(404, 500).forEach { status ->
+                server.enqueue(response(status, "{}"))
+                assertEquals(
+                    DirectOrderDeliveryLeadPolicyRead.Unavailable,
+                    gateway.deliveryLeadPolicy(WORKSPACE)
+                )
+            }
+        }
+    }
+
     @Test
     fun confirmedOrderPreservesServerReceiptAndFrozenRequest() = runTest {
         MockWebServer().use { server ->

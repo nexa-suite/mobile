@@ -5,6 +5,8 @@ import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.core.network.ProtectedMethod
 import com.nexa.mobile.operations.core.network.ProtectedRequest
 import com.nexa.mobile.operations.core.network.ProtectedResult
+import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderDeliveryLeadPolicy
+import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderDeliveryLeadPolicyRead
 import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderSubmission
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.DirectOrderIntent
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.DirectOrderReceipt
@@ -36,6 +38,41 @@ private val directOrderPaymentOptions =
 
 /** Protected transport for the API's atomic Direct Order command. */
 class NexaDirectOrderGateway(private val calls: ProtectedCallExecutor) {
+    suspend fun deliveryLeadPolicy(workspaceId: String): DirectOrderDeliveryLeadPolicyRead {
+        if (!workspaceId.isUuid()) return DirectOrderDeliveryLeadPolicyRead.PermissionDenied
+        return when (
+            val result = calls.execute(
+                ProtectedRequest(
+                    ProtectedMethod.GET,
+                    "$DIRECT_ORDER_PATH/delivery-policy"
+                )
+            )
+        ) {
+            is ProtectedResult.Success -> {
+                val policy = runCatching {
+                    directOrderJson.decodeFromString<DeliveryLeadPolicyWire>(result.body ?: "")
+                }.getOrNull()?.toPolicy()
+                if (policy != null) {
+                    DirectOrderDeliveryLeadPolicyRead.Available(policy)
+                } else {
+                    DirectOrderDeliveryLeadPolicyRead.Unavailable
+                }
+            }
+
+            is ProtectedResult.Failure -> when (result.error.kind) {
+                FailureKind.AuthenticationRequired,
+                FailureKind.AuthorizationFailure ->
+                    DirectOrderDeliveryLeadPolicyRead.PermissionDenied
+
+                else -> if (result.error.httpStatus == 401 || result.error.httpStatus == 403) {
+                    DirectOrderDeliveryLeadPolicyRead.PermissionDenied
+                } else {
+                    DirectOrderDeliveryLeadPolicyRead.Unavailable
+                }
+            }
+        }
+    }
+
     suspend fun submit(
         authority: CommercialAuthority,
         intent: DirectOrderIntent,
@@ -262,6 +299,22 @@ class NexaDirectOrderGateway(private val calls: ProtectedCallExecutor) {
         )
     }
 }
+
+private fun DeliveryLeadPolicyWire.toPolicy(): DirectOrderDeliveryLeadPolicy? {
+    if (minimumDeliveryLeadDays < 0) return null
+    val date = runCatching { LocalDate.parse(earliestAllowedDeliveryDate) }.getOrNull()
+        ?: return null
+    return DirectOrderDeliveryLeadPolicy(
+        minimumDeliveryLeadDays,
+        date
+    )
+}
+
+@Serializable
+private data class DeliveryLeadPolicyWire(
+    val minimumDeliveryLeadDays: Int,
+    val earliestAllowedDeliveryDate: String
+)
 
 private data class FrozenDirectOrderRequest(
     val clientAccountId: String,

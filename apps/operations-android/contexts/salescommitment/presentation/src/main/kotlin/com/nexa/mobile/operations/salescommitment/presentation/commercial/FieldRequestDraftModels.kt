@@ -1,8 +1,8 @@
 package com.nexa.mobile.operations.salescommitment.presentation.commercial
 
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestCustomerFacts
-import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestProductFacts
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestDraft
+import com.nexa.mobile.operations.salescommitment.application.model.commercial.FieldRequestProductFacts
 
 enum class FieldRequestDraftStatus {
     Loading,

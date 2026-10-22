@@ -6,6 +6,7 @@ import com.nexa.mobile.operations.salescommitment.application.model.commercial.D
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.DirectOrderDraft
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.DirectOrderLine
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
+import java.time.LocalDate
 
 sealed interface DirectOrderRead {
     data class Available(val record: DirectOrderRecord) : DirectOrderRead
@@ -34,7 +35,23 @@ sealed interface DirectOrderSubmission {
     data object UnknownOutcome : DirectOrderSubmission
 }
 
+data class DirectOrderDeliveryLeadPolicy(
+    val minimumDeliveryLeadDays: Int,
+    val earliestAllowedDeliveryDate: LocalDate
+)
+
+sealed interface DirectOrderDeliveryLeadPolicyRead {
+    data class Available(val policy: DirectOrderDeliveryLeadPolicy) :
+        DirectOrderDeliveryLeadPolicyRead
+    data object PermissionDenied : DirectOrderDeliveryLeadPolicyRead
+    data object Unavailable : DirectOrderDeliveryLeadPolicyRead
+}
+
 interface DirectOrderGateway {
+    suspend fun deliveryLeadPolicy(
+        authority: CommercialAuthority
+    ): DirectOrderDeliveryLeadPolicyRead = DirectOrderDeliveryLeadPolicyRead.Unavailable
+
     suspend fun quote(
         authority: CommercialAuthority,
         customerId: String,

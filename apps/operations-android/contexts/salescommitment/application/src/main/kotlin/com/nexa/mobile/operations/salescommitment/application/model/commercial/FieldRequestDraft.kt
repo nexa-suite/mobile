@@ -20,7 +20,11 @@ data class FieldRequestProductFacts(
     override fun toString(): String = "FieldRequestProductFacts(REDACTED)"
 }
 
-data class FieldRequestCustomerFacts(val businessName: String, val status: String, val version: Long) {
+data class FieldRequestCustomerFacts(
+    val businessName: String,
+    val status: String,
+    val version: Long
+) {
     override fun toString(): String = "FieldRequestCustomerFacts(REDACTED)"
 }
 
