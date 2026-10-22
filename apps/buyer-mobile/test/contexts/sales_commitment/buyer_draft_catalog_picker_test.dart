@@ -95,6 +95,10 @@ final class _RecordingCatalogRepository implements CatalogRepository {
     required int page,
     String brand = '',
     String category = '',
+    String brandId = '',
+    String categoryId = '',
+    String familyId = '',
+    String variantId = '',
   }) async {
     listCalls.add({
       'query': query,
@@ -116,6 +120,7 @@ final class _RecordingCatalogRepository implements CatalogRepository {
     required CatalogFilterKind kind,
     required String search,
     required int page,
+    String? familyId,
   }) async {
     lookups.add({'kind': kind, 'search': search, 'page': page});
     final option = switch (kind) {
@@ -126,6 +131,14 @@ final class _RecordingCatalogRepository implements CatalogRepository {
       CatalogFilterKind.category => const CatalogFilterOptionProjection(
         id: 'category-drinks',
         name: 'Bebidas',
+      ),
+      CatalogFilterKind.family => const CatalogFilterOptionProjection(
+        id: 'family-dairy',
+        name: 'Lácteos',
+      ),
+      CatalogFilterKind.variant => const CatalogFilterOptionProjection(
+        id: 'variant-skimmed',
+        name: 'Descremada',
       ),
     };
     return CatalogFilterOptionPageProjection(

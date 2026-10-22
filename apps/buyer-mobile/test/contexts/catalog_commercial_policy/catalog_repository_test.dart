@@ -48,54 +48,112 @@ void main() {
     },
   );
 
-  test(
-    'sends brand and type filters to the server alongside product query',
-    () async {
-      http.Request? request;
-      final api = NexaApiClient(
-        origin: NexaApiOrigin.parse(
-          'https://api.nexa.example',
-          allowLocalHttp: false,
-        ),
-        httpClient: MockClient((value) async {
-          request = value;
-          return http.Response(
-            jsonEncode({
-              'items': [],
-              'page': 2,
-              'size': 20,
-              'totalItems': 41,
-              'totalPages': 3,
-            }),
-            200,
-          );
-        }),
-      )..sessionCredentials = _FakeCredentials();
+  test('sends taxonomy IDs to the server alongside product query', () async {
+    http.Request? request;
+    final api = NexaApiClient(
+      origin: NexaApiOrigin.parse(
+        'https://api.nexa.example',
+        allowLocalHttp: false,
+      ),
+      httpClient: MockClient((value) async {
+        request = value;
+        return http.Response(
+          jsonEncode({
+            'items': [],
+            'page': 2,
+            'size': 20,
+            'totalItems': 41,
+            'totalPages': 3,
+          }),
+          200,
+        );
+      }),
+    )..sessionCredentials = _FakeCredentials();
 
-      final result = await CatalogRepositoryImpl(api).list(
-        query: ' leche ',
-        brand: ' Valle ',
-        category: ' Bebidas ',
-        page: 2,
-      );
+    final result = await CatalogRepositoryImpl(api).list(
+      query: ' leche ',
+      brandId: '00000000-0000-4000-8000-000000000031',
+      categoryId: '00000000-0000-4000-8000-000000000032',
+      familyId: '00000000-0000-4000-8000-000000000021',
+      variantId: '00000000-0000-4000-8000-000000000022',
+      page: 2,
+    );
 
-      expect(request!.method, 'GET');
-      expect(request!.url.path, '/api/v1/catalog-items');
-      expect(request!.url.queryParameters, {
-        'q': 'leche',
-        'brand': 'Valle',
-        'category': 'Bebidas',
-        'page': '2',
-        'size': '20',
-        'sort': 'itemName',
-        'direction': 'asc',
-      });
-      expect(result.page, 2);
-      expect(result.totalItems, 41);
-      expect(result.totalPages, 3);
-      api.close();
-    },
-  );
+    expect(request!.method, 'GET');
+    expect(request!.url.path, '/api/v1/catalog-items');
+    expect(request!.url.queryParameters, {
+      'q': 'leche',
+      'brandId': '00000000-0000-4000-8000-000000000031',
+      'categoryId': '00000000-0000-4000-8000-000000000032',
+      'familyId': '00000000-0000-4000-8000-000000000021',
+      'variantId': '00000000-0000-4000-8000-000000000022',
+      'page': '2',
+      'size': '20',
+      'sort': 'itemName',
+      'direction': 'asc',
+    });
+    expect(result.page, 2);
+    expect(result.totalItems, 41);
+    expect(result.totalPages, 3);
+    api.close();
+  });
+
+  test('scopes variety options to their selected family', () async {
+    http.Request? request;
+    final api = NexaApiClient(
+      origin: NexaApiOrigin.parse(
+        'https://api.nexa.example',
+        allowLocalHttp: false,
+      ),
+      httpClient: MockClient((value) async {
+        request = value;
+        return http.Response(
+          jsonEncode({
+            'items': [
+              {'id': '00000000-0000-4000-8000-000000000022', 'name': 'Edam'},
+            ],
+            'page': 0,
+            'size': 100,
+            'total': 1,
+          }),
+          200,
+        );
+      }),
+    )..sessionCredentials = _FakeCredentials();
+
+    final result = await CatalogRepositoryImpl(api).filterOptions(
+      kind: CatalogFilterKind.variant,
+      search: '',
+      page: 0,
+      familyId: '00000000-0000-4000-8000-000000000021',
+    );
+
+    expect(request!.url.queryParameters, {
+      'kind': 'variant',
+      'familyId': '00000000-0000-4000-8000-000000000021',
+      'page': '0',
+      'size': '100',
+    });
+    expect(result.items.single.name, 'Edam');
+    api.close();
+  });
+
+  test('requires a family before requesting variety options', () async {
+    final api = NexaApiClient(
+      origin: NexaApiOrigin.parse(
+        'https://api.nexa.example',
+        allowLocalHttp: false,
+      ),
+      httpClient: MockClient((_) async => http.Response('{}', 200)),
+    )..sessionCredentials = _FakeCredentials();
+
+    await expectLater(
+      CatalogRepositoryImpl(api)
+          .filterOptions(kind: CatalogFilterKind.variant, search: '', page: 0),
+      throwsA(isA<NexaApiFailure>()),
+    );
+    api.close();
+  });
 
   test(
     'loads Buyer-safe taxonomy options with search and pagination',

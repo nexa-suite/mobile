@@ -26,9 +26,11 @@ void main() {
 
     expect(find.text('Marca'), findsOneWidget);
     expect(find.text('Tipo'), findsOneWidget);
+    expect(find.text('Familia'), findsOneWidget);
+    expect(find.text('Variedad'), findsOneWidget);
     expect(
       find.textContaining(
-        'Marca: Valle · Tipo: Bebidas · Grupo: Lácteos · Variedad: Descremada',
+        'Marca: Valle · Tipo: Bebidas · Familia: Lácteos · Variedad: Descremada',
       ),
       findsOneWidget,
     );
@@ -45,26 +47,52 @@ void main() {
     await tester.tap(find.text('Valle').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('catalog-type-filter')));
+    await tester.tap(find.byKey(const Key('catalog-category-filter')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Bebidas').last);
     await tester.pumpAndSettle();
 
+    await tester.tap(find.byKey(const Key('catalog-family-filter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lácteos').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('catalog-variant-filter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Descremada').last);
+    await tester.pumpAndSettle();
+
+    expect(repository.lookupCalls.last, {
+      'kind': CatalogFilterKind.variant,
+      'search': '',
+      'page': 0,
+      'familyId': '00000000-0000-4000-8000-000000000021',
+    });
+
     expect(repository.calls.last, {
       'query': 'leche',
       'brand': 'Valle',
+      'brandId': '00000000-0000-4000-8000-000000000031',
       'category': 'Bebidas',
+      'categoryId': '00000000-0000-4000-8000-000000000032',
+      'familyId': '00000000-0000-4000-8000-000000000021',
+      'variantId': '00000000-0000-4000-8000-000000000022',
       'page': 0,
     });
 
-    await tester.ensureVisible(find.byTooltip('Página siguiente'));
+    await tester.drag(find.byType(ListView).last, const Offset(0, -420));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Página siguiente'));
     await tester.pumpAndSettle();
 
     expect(repository.calls.last, {
       'query': 'leche',
       'brand': 'Valle',
+      'brandId': '00000000-0000-4000-8000-000000000031',
       'category': 'Bebidas',
+      'categoryId': '00000000-0000-4000-8000-000000000032',
+      'familyId': '00000000-0000-4000-8000-000000000021',
+      'variantId': '00000000-0000-4000-8000-000000000022',
       'page': 1,
     });
 
@@ -110,7 +138,7 @@ void main() {
 
 final class _RecordingCatalogRepository implements CatalogRepository {
   final calls = <Map<String, Object>>[];
-  final lookupCalls = <Map<String, Object>>[];
+  final lookupCalls = <Map<String, Object?>>[];
   bool failNextList = false;
 
   @override
@@ -119,11 +147,19 @@ final class _RecordingCatalogRepository implements CatalogRepository {
     required int page,
     String brand = '',
     String category = '',
+    String brandId = '',
+    String categoryId = '',
+    String familyId = '',
+    String variantId = '',
   }) async {
     calls.add({
       'query': query,
       'brand': brand,
+      'brandId': brandId,
       'category': category,
+      'categoryId': categoryId,
+      'familyId': familyId,
+      'variantId': variantId,
       'page': page,
     });
     if (failNextList) {
@@ -154,15 +190,28 @@ final class _RecordingCatalogRepository implements CatalogRepository {
     required CatalogFilterKind kind,
     required String search,
     required int page,
+    String? familyId,
   }) async {
-    lookupCalls.add({'kind': kind, 'search': search, 'page': page});
+    lookupCalls.add({
+      'kind': kind,
+      'search': search,
+      'page': page,
+      'familyId': familyId,
+    });
+    final id = switch (kind) {
+      CatalogFilterKind.family => '00000000-0000-4000-8000-000000000021',
+      CatalogFilterKind.variant => '00000000-0000-4000-8000-000000000022',
+      CatalogFilterKind.brand => '00000000-0000-4000-8000-000000000031',
+      CatalogFilterKind.category => '00000000-0000-4000-8000-000000000032',
+    };
+    final name = switch (kind) {
+      CatalogFilterKind.brand => 'Valle',
+      CatalogFilterKind.category => 'Bebidas',
+      CatalogFilterKind.family => 'Lácteos',
+      CatalogFilterKind.variant => 'Descremada',
+    };
     return CatalogFilterOptionPageProjection(
-      items: [
-        CatalogFilterOptionProjection(
-          id: 'option-${kind.name}',
-          name: kind == CatalogFilterKind.brand ? 'Valle' : 'Bebidas',
-        ),
-      ],
+      items: [CatalogFilterOptionProjection(id: id, name: name)],
       page: page,
       size: 100,
       total: 1,
