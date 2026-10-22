@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/application/error/nexa_api_failure.dart';
 import '../../tenant_access_governance/application/buyer_access_repository.dart';
@@ -256,6 +257,7 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
   String? message;
   BuyerHandoffStatus handoffStatus = BuyerHandoffStatus.idle;
   BuyerHandoffValidationProjection? handoff;
+  BuyerReceiptAcceptanceProjection? handoffAcceptance;
   String? handoffMessage;
   BuyerReceiptStatus receiptStatus = BuyerReceiptStatus.idle;
   BuyerReceiptProjection? receipt;
@@ -268,6 +270,7 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
   String? locationMessage;
   String? _validatedToken;
   _PendingBuyerReceipt? _pendingReceipt;
+  _PendingBuyerHandoffAcceptance? _pendingHandoffAcceptance;
 
   static const receiptPermission = 'buyer.order.read';
   static const evidencePermission = 'buyer.receipt.evidence.attach';
@@ -290,7 +293,23 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
         snapshot.hasActiveBuyerScope &&
         snapshot.currentContext!.permissions.contains(receiptPermission) &&
         handoff != null &&
-        _validatedToken != null;
+        _validatedToken != null &&
+        _pendingHandoffAcceptance == null &&
+        handoffAcceptance == null;
+  }
+
+  bool get canAcceptHandoff {
+    final snapshot = _access.snapshot;
+    return status == BuyerDeliveryDetailStatus.current &&
+        delivery?.id == deliveryId &&
+        _leaseKey != null &&
+        snapshot.hasActiveBuyerScope &&
+        snapshot.currentContext!.permissions.contains(receiptPermission) &&
+        _pendingReceipt == null &&
+        _pendingHandoffAcceptance == null &&
+        handoffAcceptance == null &&
+        receiptStatus != BuyerReceiptStatus.accepted &&
+        receiptStatus != BuyerReceiptStatus.disputed;
   }
 
   bool canAttachEvidenceTo(BuyerReceiptProjection receipt) {
@@ -321,7 +340,12 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
       receiptStatus == BuyerReceiptStatus.unavailable &&
       _pendingReceipt != null;
 
-  bool get receiptAttemptLocked => _pendingReceipt != null;
+  bool get canRetryHandoffAcceptance =>
+      receiptStatus == BuyerReceiptStatus.unavailable &&
+      _pendingHandoffAcceptance != null;
+
+  bool get receiptAttemptLocked =>
+      _pendingReceipt != null || _pendingHandoffAcceptance != null;
 
   bool get hasActiveDeliveryLocationScope =>
       status == BuyerDeliveryDetailStatus.current &&
@@ -528,11 +552,139 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
   static bool _supportsLiveLocation(String status) =>
       status == 'DISPATCHED' || status == 'IN_TRANSIT';
 
+  /// Accepts the Driver's one-time QR through the API's atomic handoff route.
+  /// The idempotency key is deterministic; raw QR token stays in memory only.
+  Future<void> acceptHandoff(String token) async {
+    if (_pendingHandoffAcceptance != null ||
+        receiptStatus == BuyerReceiptStatus.preparing ||
+        receiptStatus == BuyerReceiptStatus.submitting) {
+      return;
+    }
+    final lease = _leaseKey;
+    final normalizedToken = token.trim();
+    if (lease == null) {
+      handoffStatus = BuyerHandoffStatus.unavailable;
+      receiptStatus = BuyerReceiptStatus.unavailable;
+      receiptMessage = 'Inicia sesión para registrar la recepción.';
+      notifyListeners();
+      return;
+    }
+    if (!canAcceptHandoff) {
+      handoffStatus = BuyerHandoffStatus.permissionDenied;
+      receiptStatus = BuyerReceiptStatus.permissionDenied;
+      receiptMessage = 'No tienes permiso para registrar la recepción.';
+      notifyListeners();
+      return;
+    }
+    if (normalizedToken.isEmpty || normalizedToken.length > 400) {
+      handoffStatus = BuyerHandoffStatus.invalid;
+      handoffMessage = 'El QR no contiene un código de entrega válido.';
+      receiptStatus = BuyerReceiptStatus.conflict;
+      receiptMessage = 'No se registró la recepción.';
+      notifyListeners();
+      return;
+    }
+
+    final scopeKey = _access.snapshot.currentContext!.scopeKey;
+    final tokenFingerprint = sha256.convert(utf8.encode(normalizedToken));
+    final idempotencyKey = const Uuid().v5(
+      Namespace.url.value,
+      'nexa-buyer-handoff-acceptance-v1|$scopeKey|$deliveryId|$tokenFingerprint',
+    );
+    final command = _PendingBuyerHandoffAcceptance(
+      token: normalizedToken,
+      idempotencyKey: idempotencyKey,
+      deliveryId: deliveryId,
+    );
+    _pendingHandoffAcceptance = command;
+    final generation = ++_commandGeneration;
+    handoff = null;
+    handoffAcceptance = null;
+    _validatedToken = null;
+    handoffStatus = BuyerHandoffStatus.validating;
+    handoffMessage = null;
+    receipt = null;
+    receiptStatus = BuyerReceiptStatus.submitting;
+    receiptMessage = null;
+    notifyListeners();
+    await _sendHandoffAcceptance(command, generation: generation, lease: lease);
+  }
+
+  Future<void> retryHandoffAcceptance() async {
+    final command = _pendingHandoffAcceptance;
+    final lease = _leaseKey;
+    if (command == null || lease == null) return;
+    final generation = ++_commandGeneration;
+    await _sendHandoffAcceptance(command, generation: generation, lease: lease);
+  }
+
+  Future<void> _sendHandoffAcceptance(
+    _PendingBuyerHandoffAcceptance command, {
+    required int generation,
+    required String lease,
+  }) async {
+    if (!_isCurrentCommand(generation, lease)) return;
+    receiptStatus = BuyerReceiptStatus.submitting;
+    receiptMessage = null;
+    notifyListeners();
+    try {
+      final result = await _repository.acceptHandoff(
+        token: command.token,
+        expectedDeliveryId: command.deliveryId,
+        idempotencyKey: command.idempotencyKey,
+      );
+      if (!_isCurrentCommand(generation, lease)) return;
+      if (result.deliveryId != deliveryId) {
+        receiptStatus = BuyerReceiptStatus.unavailable;
+        receiptMessage =
+            'La respuesta no coincide con esta entrega. Reintenta el mismo QR.';
+      } else {
+        handoffAcceptance = result;
+        _pendingHandoffAcceptance = null;
+        handoffStatus = BuyerHandoffStatus.verified;
+        handoffMessage = 'El código corresponde a esta entrega.';
+        receiptStatus = BuyerReceiptStatus.accepted;
+        receiptMessage = result.orderCompleted
+            ? 'Recepción confirmada. El pedido está completo.'
+            : 'Recepción confirmada. El pedido sigue pendiente de completar.';
+      }
+    } on NexaApiFailure catch (failure) {
+      if (!_isCurrentCommand(generation, lease)) return;
+      if (_isAuthorityFailure(failure)) {
+        _invalidateCurrentAuthority();
+        return;
+      }
+      if (failure.statusCode == 403) {
+        _pendingHandoffAcceptance = null;
+        handoffStatus = BuyerHandoffStatus.permissionDenied;
+        receiptStatus = BuyerReceiptStatus.permissionDenied;
+        receiptMessage = 'No tienes permiso para registrar la recepción.';
+      } else if ({400, 404, 409, 412, 422}.contains(failure.statusCode)) {
+        _pendingHandoffAcceptance = null;
+        handoffStatus = BuyerHandoffStatus.invalid;
+        handoffMessage = 'El QR no está vigente para esta entrega.';
+        receiptStatus = BuyerReceiptStatus.conflict;
+        receiptMessage =
+            'No se registró la recepción ni el comprobante de entrega.';
+      } else {
+        receiptStatus = BuyerReceiptStatus.unavailable;
+        receiptMessage = 'No se confirmó la recepción. Reintenta el mismo QR.';
+      }
+    } catch (_) {
+      if (!_isCurrentCommand(generation, lease)) return;
+      receiptStatus = BuyerReceiptStatus.unavailable;
+      receiptMessage = 'No se confirmó la recepción. Reintenta el mismo QR.';
+    }
+    notifyListeners();
+  }
+
   Future<void> validateHandoff(String token) async {
     if (handoffStatus == BuyerHandoffStatus.validating ||
         receiptStatus == BuyerReceiptStatus.preparing ||
         receiptStatus == BuyerReceiptStatus.submitting ||
-        _pendingReceipt != null) {
+        _pendingReceipt != null ||
+        _pendingHandoffAcceptance != null ||
+        handoffAcceptance != null) {
       return;
     }
     final lease = _leaseKey;
@@ -613,7 +765,11 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
     required String acceptedQuantity,
     String reason = '',
   }) async {
-    if (_pendingReceipt != null) return;
+    if (_pendingReceipt != null ||
+        _pendingHandoffAcceptance != null ||
+        handoffAcceptance != null) {
+      return;
+    }
     final lease = _leaseKey;
     if (lease == null) {
       receiptStatus = BuyerReceiptStatus.unavailable;
@@ -1013,8 +1169,10 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
     _locationExpiryTimer?.cancel();
     authorityRevision++;
     handoff = null;
+    handoffAcceptance = null;
     _validatedToken = null;
     _pendingReceipt = null;
+    _pendingHandoffAcceptance = null;
     handoffStatus = BuyerHandoffStatus.idle;
     handoffMessage = null;
     receipt = null;
@@ -1057,8 +1215,10 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
     receipts = const [];
     message = nextMessage;
     handoff = null;
+    handoffAcceptance = null;
     _validatedToken = null;
     _pendingReceipt = null;
+    _pendingHandoffAcceptance = null;
     handoffStatus = BuyerHandoffStatus.idle;
     handoffMessage = null;
     receipt = null;
@@ -1107,4 +1267,16 @@ final class _PendingBuyerReceipt {
   final String deliveryId;
   final String attemptId;
   final String payloadFingerprint;
+}
+
+final class _PendingBuyerHandoffAcceptance {
+  const _PendingBuyerHandoffAcceptance({
+    required this.token,
+    required this.idempotencyKey,
+    required this.deliveryId,
+  });
+
+  final String token;
+  final String idempotencyKey;
+  final String deliveryId;
 }
