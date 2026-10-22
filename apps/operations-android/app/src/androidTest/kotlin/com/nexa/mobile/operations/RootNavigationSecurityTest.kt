@@ -10,6 +10,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R as CatalogR
@@ -99,6 +100,7 @@ class RootNavigationSecurityTest {
         }
 
         composeRule.onNodeWithText(targetString(CatalogR.string.warehouse_identify_product))
+            .performScrollTo()
             .assertIsDisplayed()
         composeRule.onNodeWithText("Almacén Principal").assertIsDisplayed()
         composeRule.onNodeWithText(targetString(AccessR.string.access_sign_in_title))
@@ -220,6 +222,7 @@ class RootNavigationSecurityTest {
             .assertIsDisplayed()
             .performClick()
         composeRule.onNodeWithText(targetString(R.string.work_nav_logout))
+            .performScrollTo()
             .assertIsDisplayed()
             .performClick()
 

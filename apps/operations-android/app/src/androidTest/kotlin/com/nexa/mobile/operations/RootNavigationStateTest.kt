@@ -111,6 +111,7 @@ class RootNavigationStateTest {
                 composeRule.activity.getString(AccessR.string.access_submit)
             )
         )
+            .performScrollTo()
             .assertIsDisplayed()
             .performClick()
 
@@ -120,7 +121,7 @@ class RootNavigationStateTest {
         composeRule.onNodeWithText(
             composeRule.activity.getString(AccessR.string.access_sign_in_loading_body)
         ).assertIsDisplayed()
-        composeRule.onNodeWithText(
+        composeRule.onNodeWithContentDescription(
             composeRule.activity.getString(AccessR.string.access_identifier_label)
         ).assertIsDisplayed()
         composeRule.onAllNodes(hasSetTextAction(), useUnmergedTree = true)
