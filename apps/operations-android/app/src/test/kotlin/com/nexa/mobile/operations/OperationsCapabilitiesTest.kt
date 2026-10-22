@@ -31,7 +31,15 @@ class OperationsCapabilitiesTest {
             "Company",
             "Workspace",
             PermissionHint.Available,
-            true
+            true,
+            VerifiedContextAuthority(
+                "user",
+                "tenant",
+                "workspace",
+                "membership",
+                setOf("catalog.read"),
+                setOf("WAREHOUSE")
+            )
         ),
         authorityEpoch = 3
     )
@@ -174,7 +182,8 @@ class OperationsCapabilitiesTest {
                 "tenant",
                 "workspace",
                 "membership",
-                setOf("warehouse.read")
+                setOf("warehouse.read"),
+                setOf("WAREHOUSE")
             )
         val stockAccess = access.copy(
             activeContext = access.activeContext!!.copy(
@@ -243,7 +252,8 @@ class OperationsCapabilitiesTest {
                 "tenant",
                 "workspace",
                 "membership",
-                setOf("fulfillment.read")
+                setOf("fulfillment.read"),
+                setOf("WAREHOUSE")
             )
         val stockAccess = access.copy(
             activeContext = access.activeContext!!.copy(
@@ -532,7 +542,8 @@ class OperationsCapabilitiesTest {
             tenantId = "tenant-1",
             workspaceId = "workspace-1",
             membershipId = "member-1",
-            permissions = setOf("catalog.read")
+            permissions = setOf("catalog.read"),
+            roles = setOf("WAREHOUSE")
         )
         val verifiedAccess = access.copy(
             activeContext = access.activeContext?.copy(verifiedAuthority = verified)

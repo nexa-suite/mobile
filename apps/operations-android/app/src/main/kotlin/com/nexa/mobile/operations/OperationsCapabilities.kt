@@ -197,7 +197,9 @@ internal object OperationsCapabilities {
         }
         val context = access.activeContext ?: return false
         val warehouseContext = warehouse.activeContext ?: return false
+        val authority = context.verifiedAuthority ?: return false
         if (!context.isCurrent ||
+            authority.roles.none { it in setOf("WAREHOUSE", "WAREHOUSE_OPERATOR") } ||
             (
                 capability.guardBehavior !=
                     CapabilityGuardBehavior.ReceivingInCurrentAuthorityEpoch &&
@@ -228,7 +230,6 @@ internal object OperationsCapabilities {
             CapabilityGuardBehavior.StockConditionInCurrentAuthorityEpoch ||
             capability.guardBehavior == CapabilityGuardBehavior.PickingInCurrentAuthorityEpoch
         ) {
-            val authority = context.verifiedAuthority ?: return false
             val scannerIdentity = warehouseContext.verifiedIdentity ?: return false
             if (
                 capability.guardBehavior ==

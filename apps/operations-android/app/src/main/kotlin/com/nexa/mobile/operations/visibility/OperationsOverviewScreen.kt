@@ -14,6 +14,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchReadinessAutoRefresh
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchReadinessStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchReadinessUiState
 
@@ -28,6 +29,7 @@ fun OperationsOverviewScreen(
     onRefresh: () -> Unit,
     onOpenOwningWork: (String) -> Unit
 ) {
+    DispatchReadinessAutoRefresh(state = state, onRefresh = onRefresh)
     Column(
         Modifier.fillMaxSize().verticalScroll(
             rememberScrollState()
@@ -49,9 +51,10 @@ fun OperationsOverviewScreen(
         Button(onClick = onRefresh, enabled = state.status != DispatchReadinessStatus.Loading) {
             Text("Actualizar hechos")
         }
-        if (state.status !in
-            setOf(DispatchReadinessStatus.Current, DispatchReadinessStatus.Empty)
-        ) {
+        val hasVisibleFacts = state.status in
+            setOf(DispatchReadinessStatus.Current, DispatchReadinessStatus.Empty) ||
+            (state.status == DispatchReadinessStatus.Loading && state.observedAt != null)
+        if (!hasVisibleFacts) {
             Text("Hechos vigentes no disponibles. No se calculan totales ni decisiones.")
             return@Column
         }

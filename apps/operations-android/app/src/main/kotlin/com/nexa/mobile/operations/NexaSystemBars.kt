@@ -10,19 +10,19 @@ import androidx.core.view.WindowCompat
 
 /** Match system icon contrast to the currently rendered native screen. */
 @Composable
-internal fun NexaSystemBars(authCanopyVisible: Boolean) {
+internal fun NexaSystemBars(lightSurfaceVisible: Boolean) {
     val view = LocalView.current
-    DisposableEffect(view, authCanopyVisible) {
+    DisposableEffect(view, lightSurfaceVisible) {
         val activity = view.context.findActivity()
         val controller = activity?.let { WindowCompat.getInsetsController(it.window, view) }
         val previousStatus = controller?.isAppearanceLightStatusBars
         val previousNavigation = controller?.isAppearanceLightNavigationBars
-        controller?.isAppearanceLightStatusBars = !authCanopyVisible
+        controller?.isAppearanceLightStatusBars = lightSurfaceVisible
         controller?.isAppearanceLightNavigationBars = true
         onDispose {
-            if (previousStatus != null) controller?.isAppearanceLightStatusBars = previousStatus
+            if (previousStatus != null) controller.isAppearanceLightStatusBars = previousStatus
             if (previousNavigation != null) {
-                controller?.isAppearanceLightNavigationBars = previousNavigation
+                controller.isAppearanceLightNavigationBars = previousNavigation
             }
         }
     }

@@ -21,6 +21,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -41,6 +42,7 @@ import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseRoute
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseViewModel
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WorkEntryStatus
+import com.nexa.mobile.operations.core.auth.biometric.BiometricSessionScope
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
 import com.nexa.mobile.operations.core.device.scanner.CameraXProductCodeScanner
@@ -510,7 +512,7 @@ class MainActivity : ComponentActivity() {
     private var showDriverOperationalExceptions by mutableStateOf(false)
     private var pickingReference by mutableStateOf("")
     private var pickingOpened by mutableStateOf(false)
-    private var pickingWorkListEpoch by mutableStateOf(0L)
+    private var pickingWorkListEpoch by mutableLongStateOf(0L)
 
     @Inject internal lateinit var operationsGateway: OperationsAccessGateway
 
@@ -586,6 +588,9 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         if (connectedRoute?.entryKey == "driver.deliveries") {
             driverWorkdayViewModel.onLocationPermissionChanged(fineLocationPermissionGranted())
+            driverWorkdayViewModel.onNotificationsPermissionChanged(
+                driverLocationNotificationsVisible()
+            )
             driverWorkdayViewModel.refresh()
         }
         if (viewModel.state.value == SessionState.Active) {
@@ -612,13 +617,6 @@ class MainActivity : ComponentActivity() {
         verifyScannerForegroundReturn()
     }
 
-    override fun onPause() {
-        if (connectedRoute?.entryKey == "driver.deliveries") {
-            driverWorkdayViewModel.onAppBackgrounded()
-        }
-        super.onPause()
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         privateImageFileSelection.discardAbandonedSelections()
@@ -626,13 +624,128 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             OperationsTheme {
-                val driverLocationPermissionLauncher =
+                var showDriverLocationDisclosure by remember { mutableStateOf(false) }
+                var showDriverLocationPermissionHelp by remember { mutableStateOf(false) }
+                val driverNotificationPermissionLauncher =
                     rememberLauncherForActivityResult(
                         ActivityResultContracts.RequestPermission()
                     ) { granted ->
-                        driverWorkdayViewModel.onLocationPermissionChanged(granted)
-                        driverWorkdayViewModel.enableLocation()
+                        if (granted && driverLocationNotificationsVisible()) {
+                            driverWorkdayViewModel.onLocationPermissionChanged(true)
+                            driverWorkdayViewModel.onNotificationsPermissionChanged(true)
+                            driverWorkdayViewModel.enableLocation()
+                        } else {
+                            driverWorkdayViewModel.onNotificationsPermissionChanged(false)
+                            showDriverLocationPermissionHelp = true
+                        }
                     }
+                val driverLocationPermissionLauncher =
+                    rememberLauncherForActivityResult(
+                        ActivityResultContracts.RequestMultiplePermissions()
+                    ) { permissions ->
+                        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
+                        driverWorkdayViewModel.onLocationPermissionChanged(granted)
+                        if (granted) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                                PackageManager.PERMISSION_GRANTED
+                            ) {
+                                driverNotificationPermissionLauncher.launch(
+                                    Manifest.permission.POST_NOTIFICATIONS
+                                )
+                            } else if (driverLocationNotificationsVisible()) {
+                                driverWorkdayViewModel.onNotificationsPermissionChanged(true)
+                                driverWorkdayViewModel.enableLocation()
+                            } else {
+                                driverWorkdayViewModel.onNotificationsPermissionChanged(false)
+                                showDriverLocationPermissionHelp = true
+                            }
+                        } else {
+                            showDriverLocationPermissionHelp = true
+                        }
+                    }
+                if (showDriverLocationDisclosure) {
+                    AlertDialog(
+                        onDismissRequest = { showDriverLocationDisclosure = false },
+                        title = {
+                            Text(stringResource(R.string.driver_location_consent_title))
+                        },
+                        text = {
+                            Text(stringResource(R.string.driver_location_consent_body))
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showDriverLocationDisclosure = false
+                                if (fineLocationPermissionGranted()) {
+                                    driverWorkdayViewModel.onLocationPermissionChanged(true)
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                        checkSelfPermission(
+                                            Manifest.permission.POST_NOTIFICATIONS
+                                        ) != PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        driverNotificationPermissionLauncher.launch(
+                                            Manifest.permission.POST_NOTIFICATIONS
+                                        )
+                                    } else if (driverLocationNotificationsVisible()) {
+                                        driverWorkdayViewModel
+                                            .onNotificationsPermissionChanged(true)
+                                        driverWorkdayViewModel.enableLocation()
+                                    } else {
+                                        driverWorkdayViewModel
+                                            .onNotificationsPermissionChanged(false)
+                                        showDriverLocationPermissionHelp = true
+                                    }
+                                } else {
+                                    driverLocationPermissionLauncher.launch(
+                                        arrayOf(
+                                            Manifest.permission.ACCESS_COARSE_LOCATION,
+                                            Manifest.permission.ACCESS_FINE_LOCATION
+                                        )
+                                    )
+                                }
+                            }) {
+                                Text(stringResource(R.string.driver_location_consent_continue))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = {
+                                showDriverLocationDisclosure = false
+                            }) {
+                                Text(stringResource(R.string.driver_location_consent_cancel))
+                            }
+                        }
+                    )
+                }
+                if (showDriverLocationPermissionHelp) {
+                    AlertDialog(
+                        onDismissRequest = { showDriverLocationPermissionHelp = false },
+                        title = {
+                            Text(stringResource(R.string.driver_location_permission_help_title))
+                        },
+                        text = {
+                            Text(stringResource(R.string.driver_location_permission_help_body))
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showDriverLocationPermissionHelp = false
+                                startActivity(
+                                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                        data = "package:$packageName".toUri()
+                                    }
+                                )
+                            }) {
+                                Text(stringResource(R.string.driver_location_permission_settings))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = {
+                                showDriverLocationPermissionHelp = false
+                            }) {
+                                Text(stringResource(R.string.driver_location_consent_cancel))
+                            }
+                        }
+                    )
+                }
                 if (localNetworkPermissionDenied) {
                     AlertDialog(
                         onDismissRequest = { localNetworkPermissionDenied = false },
@@ -1598,73 +1711,116 @@ class MainActivity : ComponentActivity() {
                 } else {
                     null
                 }
-                RootNavigation(
-                    state = state,
-                    accessState = accessState,
-                    warehouseState = warehouseState,
-                    scannerState = scannerState,
-                    connectedOperationRoute = connectedRoute,
-                    connectedOperationEntries = CONNECTED_OPERATIONS,
-                    onConnectedOperationBack = ::closeConnectedOperation,
-                    onOpenConnectedOperation = { entry ->
-                        ConnectedOperationsNavigation.open(
-                            entry,
-                            state,
-                            accessState,
-                            warehouseState
-                        )
-                            ?.let { route ->
-                                closeConnectedOperation()
-                                connectedRoute = route
-                                val authority = route.authority
-                                when (entry.key) {
-                                    "warehouse.cycle-count" -> cycleCountViewModel.activate(
-                                        CycleCountAuthority(
-                                            CycleCountScope(
-                                                authority.userId,
-                                                authority.tenantId,
-                                                authority.workspaceId,
-                                                authority.membershipId
-                                            ),
-                                            route.authorityEpoch,
-                                            authority.permissions
-                                        )
-                                    )
-
-                                    "warehouse.automation" -> warehouseState.activeContext?.let(
-                                        stockConditionViewModel::activate
-                                    )
-
-                                    "warehouse.batch" -> {
-                                        val proof =
-                                            PickingAuthority(
-                                                authority.userId,
-                                                authority.tenantId,
-                                                authority.workspaceId,
-                                                authority.membershipId,
-                                                authority.permissions,
-                                                route.authorityEpoch
-                                            )
-                                        warehouseBatchViewModel.activate(proof)
-                                        pickingWorkListEpoch = route.authorityEpoch
-                                        pickingWorkListViewModel.activate(proof)
-                                    }
-
-                                    "warehouse.inbound-discrepancy" ->
-                                        inboundCaseViewModel.activate(
-                                            InboundDiscrepancyAuthority(
-                                                InboundDiscrepancyScope(
+                val biometricAuthority = accessState.activeContext?.verifiedAuthority
+                    ?.takeIf { authority ->
+                        authority.userId.isNotBlank() && authority.tenantId.isNotBlank() &&
+                            authority.workspaceId.isNotBlank() &&
+                            authority.membershipId.isNotBlank()
+                    }
+                val biometricScope = biometricAuthority?.let { authority ->
+                    BiometricSessionScope(
+                        authority.userId,
+                        authority.tenantId,
+                        authority.workspaceId,
+                        authority.membershipId
+                    )
+                }
+                BiometricSessionGate(
+                    activity = this@MainActivity,
+                    sessionActive = state == SessionState.Active &&
+                        accessState.stage == AccessStage.WorkAuthorized,
+                    scope = biometricScope,
+                    onPasswordFallback = viewModel::logout,
+                    onVerifySession = { onVerified ->
+                        viewModel.verifyForegroundReturn(onVerified)
+                    }
+                ) {
+                    RootNavigation(
+                        state = state,
+                        accessState = accessState,
+                        warehouseState = warehouseState,
+                        scannerState = scannerState,
+                        connectedOperationRoute = connectedRoute,
+                        connectedOperationEntries = CONNECTED_OPERATIONS,
+                        onConnectedOperationBack = ::closeConnectedOperation,
+                        onNavigateHome = {
+                            while (warehouseViewModel.state.value.route !=
+                                WarehouseRoute.WorkEntry
+                            ) {
+                                warehouseViewModel.back()
+                            }
+                            closeConnectedOperation()
+                        },
+                        onOpenConnectedOperation = { entry ->
+                            ConnectedOperationsNavigation.open(
+                                entry,
+                                state,
+                                accessState,
+                                warehouseState
+                            )
+                                ?.let { route ->
+                                    closeConnectedOperation()
+                                    connectedRoute = route
+                                    val authority = route.authority
+                                    when (entry.key) {
+                                        "warehouse.cycle-count" -> cycleCountViewModel.activate(
+                                            CycleCountAuthority(
+                                                CycleCountScope(
                                                     authority.userId,
                                                     authority.tenantId,
                                                     authority.workspaceId,
                                                     authority.membershipId
                                                 ),
-                                                route.authorityEpoch
+                                                route.authorityEpoch,
+                                                authority.permissions
                                             )
                                         )
 
-                                    "warehouse.transfer-receipt" ->
-                                        transferReceiptViewModel.activate(
+                                        "warehouse.automation" -> warehouseState.activeContext?.let(
+                                            stockConditionViewModel::activate
+                                        )
+
+                                        "warehouse.batch" -> {
+                                            val proof =
+                                                PickingAuthority(
+                                                    authority.userId,
+                                                    authority.tenantId,
+                                                    authority.workspaceId,
+                                                    authority.membershipId,
+                                                    authority.permissions,
+                                                    route.authorityEpoch
+                                                )
+                                            warehouseBatchViewModel.activate(proof)
+                                            pickingWorkListEpoch = route.authorityEpoch
+                                            pickingWorkListViewModel.activate(proof)
+                                        }
+
+                                        "warehouse.inbound-discrepancy" ->
+                                            inboundCaseViewModel.activate(
+                                                InboundDiscrepancyAuthority(
+                                                    InboundDiscrepancyScope(
+                                                        authority.userId,
+                                                        authority.tenantId,
+                                                        authority.workspaceId,
+                                                        authority.membershipId
+                                                    ),
+                                                    route.authorityEpoch
+                                                )
+                                            )
+
+                                        "warehouse.transfer-receipt" ->
+                                            transferReceiptViewModel.activate(
+                                                StockTransferAuthority(
+                                                    authority.userId,
+                                                    authority.tenantId,
+                                                    authority.workspaceId,
+                                                    authority.membershipId,
+                                                    authority.permissions,
+                                                    route.authorityEpoch
+                                                )
+                                            )
+
+                                        "warehouse.transfer" -> stockTransferViewModel.activate(
                                             StockTransferAuthority(
                                                 authority.userId,
                                                 authority.tenantId,
@@ -1675,139 +1831,7 @@ class MainActivity : ComponentActivity() {
                                             )
                                         )
 
-                                    "warehouse.transfer" -> stockTransferViewModel.activate(
-                                        StockTransferAuthority(
-                                            authority.userId,
-                                            authority.tenantId,
-                                            authority.workspaceId,
-                                            authority.membershipId,
-                                            authority.permissions,
-                                            route.authorityEpoch
-                                        )
-                                    )
-
-                                    "commercial.visit" -> fieldVisitViewModel.activate(
-                                        CommercialAuthority(
-                                            authority.userId,
-                                            authority.tenantId,
-                                            authority.workspaceId,
-                                            authority.membershipId,
-                                            authority.permissions,
-                                            route.authorityEpoch
-                                        )
-                                    )
-
-                                    "commercial.documents" -> businessDocumentsViewModel.activate(
-                                        CommercialAuthority(
-                                            authority.userId,
-                                            authority.tenantId,
-                                            authority.workspaceId,
-                                            authority.membershipId,
-                                            authority.permissions,
-                                            route.authorityEpoch
-                                        )
-                                    )
-
-                                    "operations.notifications" -> notificationsViewModel.activate(
-                                        NotificationsAuthority(
-                                            authority.userId,
-                                            authority.tenantId,
-                                            authority.workspaceId,
-                                            authority.membershipId,
-                                            authority.permissions,
-                                            route.authorityEpoch
-                                        )
-                                    )
-
-                                    "commercial.request" -> fieldRequestDraftViewModel.activate(
-                                        CommercialAuthority(
-                                            authority.userId,
-                                            authority.tenantId,
-                                            authority.workspaceId,
-                                            authority.membershipId,
-                                            authority.permissions,
-                                            route.authorityEpoch
-                                        )
-                                    )
-
-                                    "commercial.direct-order" -> directOrderViewModel.activate(
-                                        CommercialAuthority(
-                                            authority.userId,
-                                            authority.tenantId,
-                                            authority.workspaceId,
-                                            authority.membershipId,
-                                            authority.permissions,
-                                            route.authorityEpoch
-                                        )
-                                    )
-
-                                    "dispatch.instructions" ->
-                                        dispatchInstructionsViewModel.activate(
-                                            DispatchAuthorityContext(
-                                                route.authorityEpoch,
-                                                DispatchAuthorityIdentity(
-                                                    authority.userId,
-                                                    authority.tenantId,
-                                                    authority.workspaceId,
-                                                    authority.membershipId,
-                                                    authority.permissions
-                                                )
-                                            )
-                                        )
-
-                                    "bom.exceptions" -> businessExceptionsViewModel.activate(
-                                        ExceptionAuthority(
-                                            route.authorityEpoch,
-                                            ExceptionScopeIdentity(
-                                                authority.userId,
-                                                authority.tenantId,
-                                                authority.workspaceId,
-                                                authority.membershipId
-                                            ),
-                                            authority.permissions
-                                        )
-                                    )
-
-                                    "dispatch.loads", "driver.loads" ->
-                                        deliveryLoadViewModel.activate(
-                                            DispatchAuthorityContext(
-                                                route.authorityEpoch,
-                                                DispatchAuthorityIdentity(
-                                                    authority.userId,
-                                                    authority.tenantId,
-                                                    authority.workspaceId,
-                                                    authority.membershipId,
-                                                    authority.permissions
-                                                )
-                                            ),
-                                            route.entryKey == "driver.loads"
-                                        )
-
-                                    "driver.deliveries" -> {
-                                        val driverAuthority = DriverDeliveryAuthority(
-                                            authority.userId,
-                                            authority.tenantId,
-                                            authority.workspaceId,
-                                            authority.membershipId,
-                                            authority.permissions,
-                                            route.authorityEpoch
-                                        )
-                                        driverViewModel.activate(driverAuthority)
-                                    }
-
-                                    "commercial.catalog" -> commercialCatalogViewModel.activate(
-                                        CommercialAuthority(
-                                            authority.userId,
-                                            authority.tenantId,
-                                            authority.workspaceId,
-                                            authority.membershipId,
-                                            authority.permissions,
-                                            route.authorityEpoch
-                                        )
-                                    )
-
-                                    "commercial.instructions" ->
-                                        customerInstructionsViewModel.activate(
+                                        "commercial.visit" -> fieldVisitViewModel.activate(
                                             CommercialAuthority(
                                                 authority.userId,
                                                 authority.tenantId,
@@ -1818,31 +1842,32 @@ class MainActivity : ComponentActivity() {
                                             )
                                         )
 
-                                    "commercial.progress" -> customerProgressViewModel.activate(
-                                        CommercialAuthority(
-                                            authority.userId,
-                                            authority.tenantId,
-                                            authority.workspaceId,
-                                            authority.membershipId,
-                                            authority.permissions,
-                                            route.authorityEpoch
-                                        )
-                                    )
+                                        "commercial.documents" ->
+                                            businessDocumentsViewModel.activate(
+                                                CommercialAuthority(
+                                                    authority.userId,
+                                                    authority.tenantId,
+                                                    authority.workspaceId,
+                                                    authority.membershipId,
+                                                    authority.permissions,
+                                                    route.authorityEpoch
+                                                )
+                                            )
 
-                                    "commercial.customers" -> customerSearchViewModel.activate(
-                                        CommercialAuthority(
-                                            authority.userId,
-                                            authority.tenantId,
-                                            authority.workspaceId,
-                                            authority.membershipId,
-                                            authority.permissions,
-                                            route.authorityEpoch
-                                        )
-                                    )
+                                        "operations.notifications" ->
+                                            notificationsViewModel.activate(
+                                                NotificationsAuthority(
+                                                    authority.userId,
+                                                    authority.tenantId,
+                                                    authority.workspaceId,
+                                                    authority.membershipId,
+                                                    authority.permissions,
+                                                    route.authorityEpoch
+                                                )
+                                            )
 
-                                    "warehouse.temperature" ->
-                                        temperatureEvidenceViewModel.activate(
-                                            TemperatureEvidenceAuthority(
+                                        "commercial.request" -> fieldRequestDraftViewModel.activate(
+                                            CommercialAuthority(
                                                 authority.userId,
                                                 authority.tenantId,
                                                 authority.workspaceId,
@@ -1852,305 +1877,19 @@ class MainActivity : ComponentActivity() {
                                             )
                                         )
 
-                                    "operations.overview", "operations.exceptions",
-                                    "dispatch.readiness" ->
-                                        readinessViewModel.activate(
-                                            DispatchAuthorityContext(
-                                                route.authorityEpoch,
-                                                DispatchAuthorityIdentity(
-                                                    authority.userId,
-                                                    authority.tenantId,
-                                                    authority.workspaceId,
-                                                    authority.membershipId,
-                                                    authority.permissions
-                                                )
+                                        "commercial.direct-order" -> directOrderViewModel.activate(
+                                            CommercialAuthority(
+                                                authority.userId,
+                                                authority.tenantId,
+                                                authority.workspaceId,
+                                                authority.membershipId,
+                                                authority.permissions,
+                                                route.authorityEpoch
                                             )
                                         )
 
-                                    "warehouse.disposition" -> dispositionViewModel.activate(
-                                        DispositionAuthority(
-                                            authority.userId,
-                                            authority.tenantId,
-                                            authority.workspaceId,
-                                            authority.membershipId,
-                                            authority.permissions,
-                                            route.authorityEpoch
-                                        )
-                                    )
-
-                                    "payments.wallet-refund" -> walletRefundViewModel.activate(
-                                        WalletRefundAuthority(
-                                            identity = VerifiedOperationsIdentity(
-                                                userId = authority.userId,
-                                                tenantId = authority.tenantId,
-                                                workspaceId = authority.workspaceId,
-                                                membershipId = authority.membershipId,
-                                                permissions = authority.permissions.toSet(),
-                                                roles = authority.roles.toSet()
-                                            ),
-                                            authorityEpoch = route.authorityEpoch
-                                        )
-                                    )
-                                }
-                            }
-                    },
-                    connectedOperationContent = {
-                        when (connectedRoute?.entryKey) {
-                            "payments.wallet-refund" -> WalletRefundScreen(
-                                state = walletRefundState,
-                                onBack = ::closeConnectedOperation,
-                                onRefresh = walletRefundViewModel::refresh,
-                                onSelectOrder = walletRefundViewModel::selectOrder,
-                                onAmountChanged = walletRefundViewModel::amountChanged,
-                                onUseRemaining = walletRefundViewModel::useServerRefundableAmount,
-                                onReasonChanged = walletRefundViewModel::reasonChanged,
-                                onSubmit = walletRefundViewModel::submit,
-                                onRetry = walletRefundViewModel::retry,
-                                onPreviousPage = walletRefundViewModel::previousPage,
-                                onNextPage = walletRefundViewModel::nextPage
-                            )
-
-                            "warehouse.lot-substitution" -> LotSubstitutionScreen(
-                                lotSubstitutionState,
-                                onBack = ::closeConnectedOperation,
-                                onLoadAlternatives = {
-                                    lotSubstitutionViewModel.loadAlternatives()
-                                },
-                                onSelectAlternative = lotSubstitutionViewModel::selectAlternative,
-                                onReasonChanged = lotSubstitutionViewModel::updateReason,
-                                onRequest = lotSubstitutionViewModel::requestSubstitution,
-                                onRecoverSameIntent = lotSubstitutionViewModel::retryUnknownOutcome,
-                                onRefreshCurrentAllocation =
-                                    lotSubstitutionViewModel::refreshCurrentAllocation
-                            )
-
-                            "driver.coordination-limits" -> OperationsCapabilityLimitsScreen(
-                                true,
-                                ::closeConnectedOperation
-                            )
-
-                            "dispatch.instructions" -> DispatchDeliveryInstructionsScreen(
-                                state = dispatchInstructionsState,
-                                onBack = ::closeConnectedOperation,
-                                onDeliveryIdChanged =
-                                    dispatchInstructionsViewModel::updateDeliveryId,
-                                onLoadDelivery = dispatchInstructionsViewModel::loadDelivery,
-                                onRefresh = dispatchInstructionsViewModel::refresh,
-                                onNewInstruction =
-                                    dispatchInstructionsViewModel::startNewInstruction,
-                                onEditInstruction =
-                                    dispatchInstructionsViewModel::editOperationalInstruction,
-                                onKindChanged = dispatchInstructionsViewModel::updateKind,
-                                onContentChanged = dispatchInstructionsViewModel::updateContent,
-                                onPublish = dispatchInstructionsViewModel::publish,
-                                onRetryUnknownOutcome =
-                                    dispatchInstructionsViewModel::retryUnknownOutcome,
-                                onRouteClosed = dispatchInstructionsViewModel::deactivate
-                            )
-
-                            "dispatch.loads", "driver.loads" -> DeliveryLoadScreen(
-                                state = deliveryLoadState,
-                                onBack = ::closeConnectedOperation,
-                                onRefresh = deliveryLoadViewModel::refresh,
-                                onToggleFulfillment = deliveryLoadViewModel::toggleFulfillment,
-                                onMoveStop = deliveryLoadViewModel::moveStop,
-                                onReasonChanged = deliveryLoadViewModel::setCreateReason,
-                                onAttestationChanged = deliveryLoadViewModel::setAttestation,
-                                onSelectDriver = deliveryLoadViewModel::setDriver,
-                                onCreate = deliveryLoadViewModel::createLoad,
-                                onSelectWindowPlan = deliveryLoadViewModel::selectWindowPlan,
-                                onWindowStartChanged = deliveryLoadViewModel::setWindowPlanStart,
-                                onWindowEndChanged = deliveryLoadViewModel::setWindowPlanEnd,
-                                onWindowReasonChanged = deliveryLoadViewModel::setWindowPlanReason,
-                                onPlanWindow = deliveryLoadViewModel::planWindow,
-                                onAssign = deliveryLoadViewModel::assign,
-                                onOffer = deliveryLoadViewModel::offer,
-                                onConfirmHandoff = deliveryLoadViewModel::confirmHandoff,
-                                onAccept = deliveryLoadViewModel::accept,
-                                onRetrySameCommand = deliveryLoadViewModel::retrySameCommand,
-                                onRouteClosed = deliveryLoadViewModel::deactivate,
-                                onOpenDelivery = { deliveryId ->
-                                    val currentRoute = connectedRoute
-                                    if (currentRoute?.entryKey == "driver.loads" &&
-                                        deliveryLoadState.loads.any { load ->
-                                            load.stops.any {
-                                                it.deliveryId ==
-                                                    deliveryId
-                                            }
-                                        } &&
-                                        ConnectedOperationsNavigation.permits(
-                                            currentRoute,
-                                            CONNECTED_OPERATIONS,
-                                            state,
-                                            accessState,
-                                            warehouseState
-                                        )
-                                    ) {
-                                        val entry = CONNECTED_OPERATIONS.single {
-                                            it.key ==
-                                                "driver.deliveries"
-                                        }
-                                        ConnectedOperationsNavigation.open(
-                                            entry,
-                                            state,
-                                            accessState,
-                                            warehouseState
-                                        )?.let { route ->
-                                            closeConnectedOperation()
-                                            connectedRoute = route
-                                            val authority = route.authority
-                                            driverViewModel.activate(
-                                                DriverDeliveryAuthority(
-                                                    authority.userId,
-                                                    authority.tenantId,
-                                                    authority.workspaceId,
-                                                    authority.membershipId,
-                                                    authority.permissions,
-                                                    route.authorityEpoch
-                                                )
-                                            )
-                                            pendingLoadDelivery = route to deliveryId
-                                        }
-                                    }
-                                }
-                            )
-
-                            "dispatch.coordination-limits" -> OperationsCapabilityLimitsScreen(
-                                false,
-                                ::closeConnectedOperation
-                            )
-
-                            "operations.overview", "operations.exceptions" ->
-                                OperationsOverviewScreen(
-                                    state = dispatchReadinessState,
-                                    tenantId = connectedRoute?.authority?.tenantId ?: "",
-                                    workspaceId = connectedRoute?.authority?.workspaceId ?: "",
-                                    exceptionsOnly =
-                                        connectedRoute?.entryKey == "operations.exceptions",
-                                    onBack = ::closeConnectedOperation,
-                                    onRefresh = readinessViewModel::refresh,
-                                    onOpenOwningWork = { fulfillmentId ->
-                                        val entry = CONNECTED_OPERATIONS.single {
-                                            it.key ==
-                                                "dispatch.readiness"
-                                        }
-                                        ConnectedOperationsNavigation.open(
-                                            entry,
-                                            state,
-                                            accessState,
-                                            warehouseState
-                                        )?.let { route ->
-                                            connectedRoute = route
-                                            readinessViewModel.selectFulfillment(
-                                                fulfillmentId
-                                            )
-                                        }
-                                    }
-                                )
-
-                            "dispatch.handover" -> androidx.compose.foundation.layout.Column {
-                                TextButton(
-                                    onClick = ::closeConnectedOperation
-                                ) {
-                                    androidx.compose.material3.Text("Volver")
-                                }
-                                DispatchHandoverScreen(
-                                    dispatchHandoverState,
-                                    dispatchHandoverViewModel::refresh,
-                                    dispatchHandoverViewModel::confirm,
-                                    dispatchHandoverViewModel::replayUnknownOutcome
-                                )
-                            }
-
-                            "dispatch.outgoing-goods" -> OutgoingGoodsScreen(
-                                state = dispatchOutgoingGoodsState,
-                                onBack = ::closeConnectedOperation,
-                                onRefresh = outgoingGoodsViewModel::refresh,
-                                onObservedLotChanged =
-                                    outgoingGoodsViewModel::changeObservedLot,
-                                onObservedQuantityChanged =
-                                    outgoingGoodsViewModel::changeObservedQuantity,
-                                onRecord = outgoingGoodsViewModel::record,
-                                onRetry = outgoingGoodsViewModel::retryUnknownOutcome,
-                                onRouteClosed = outgoingGoodsViewModel::deactivate,
-                                onResolutionReasonChanged =
-                                    outgoingGoodsViewModel::changeResolutionReason,
-                                onResolveDiscrepancy =
-                                    outgoingGoodsViewModel::resolveDiscrepancy
-                            )
-
-                            "dispatch.assignment" -> DispatchAssignmentScreen(
-                                state = dispatchAssignmentState, onBack = ::closeConnectedOperation,
-                                onRefresh = dispatchAssignmentViewModel::refresh,
-                                onSelectDriver = dispatchAssignmentViewModel::selectDriver,
-                                onAssign = dispatchAssignmentViewModel::assign,
-                                onReplay = dispatchAssignmentViewModel::retryUnknownOutcome,
-                                onRouteClosed = dispatchAssignmentViewModel::deactivate,
-                                onIdentifyHandoff =
-                                    if (connectedRoute?.authority?.permissions?.contains(
-                                            "logistics:read"
-                                        ) ==
-                                        true
-                                    ) {
-                                        {
-                                            val assignment = dispatchAssignmentState.assignment
-                                            val deliveryId = assignment?.deliveryId
-                                            if (assignment != null && assignment.current &&
-                                                deliveryId != null
-                                            ) {
-                                                val entry = CONNECTED_OPERATIONS.single {
-                                                    it.key ==
-                                                        "dispatch.handoff-identity"
-                                                }
-                                                ConnectedOperationsNavigation.open(
-                                                    entry,
-                                                    state,
-                                                    accessState,
-                                                    warehouseState
-                                                )?.let { route ->
-                                                    closeConnectedOperation()
-                                                    connectedRoute = route
-                                                    val authority = route.authority
-                                                    dispatchHandoffIdentityViewModel.activate(
-                                                        DispatchAuthorityContext(
-                                                            route.authorityEpoch,
-                                                            DispatchAuthorityIdentity(
-                                                                authority.userId,
-                                                                authority.tenantId,
-                                                                authority.workspaceId,
-                                                                authority.membershipId,
-                                                                authority.permissions
-                                                            )
-                                                        ),
-                                                        deliveryId,
-                                                        assignment.id
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    } else {
-                                        null
-                                    },
-                                onChangePlan = {
-                                    val fulfillmentId = dispatchAssignmentState.fulfillmentId
-                                    val entry = CONNECTED_OPERATIONS.single {
-                                        it.key ==
-                                            "dispatch.plan-change"
-                                    }
-                                    if (fulfillmentId !=
-                                        null
-                                    ) {
-                                        ConnectedOperationsNavigation.open(
-                                            entry,
-                                            state,
-                                            accessState,
-                                            warehouseState
-                                        )?.let { route ->
-                                            closeConnectedOperation()
-                                            connectedRoute = route
-                                            val authority = route.authority
-                                            dispatchPlanChangeViewModel.activate(
-                                                fulfillmentId,
+                                        "dispatch.instructions" ->
+                                            dispatchInstructionsViewModel.activate(
                                                 DispatchAuthorityContext(
                                                     route.authorityEpoch,
                                                     DispatchAuthorityIdentity(
@@ -2162,484 +1901,618 @@ class MainActivity : ComponentActivity() {
                                                     )
                                                 )
                                             )
+
+                                        "bom.exceptions" -> businessExceptionsViewModel.activate(
+                                            ExceptionAuthority(
+                                                route.authorityEpoch,
+                                                ExceptionScopeIdentity(
+                                                    authority.userId,
+                                                    authority.tenantId,
+                                                    authority.workspaceId,
+                                                    authority.membershipId
+                                                ),
+                                                authority.permissions
+                                            )
+                                        )
+
+                                        "dispatch.loads", "driver.loads" ->
+                                            deliveryLoadViewModel.activate(
+                                                DispatchAuthorityContext(
+                                                    route.authorityEpoch,
+                                                    DispatchAuthorityIdentity(
+                                                        authority.userId,
+                                                        authority.tenantId,
+                                                        authority.workspaceId,
+                                                        authority.membershipId,
+                                                        authority.permissions
+                                                    )
+                                                ),
+                                                route.entryKey == "driver.loads"
+                                            )
+
+                                        "driver.deliveries" -> {
+                                            val driverAuthority = DriverDeliveryAuthority(
+                                                authority.userId,
+                                                authority.tenantId,
+                                                authority.workspaceId,
+                                                authority.membershipId,
+                                                authority.permissions,
+                                                route.authorityEpoch
+                                            )
+                                            driverViewModel.activate(driverAuthority)
                                         }
+
+                                        "commercial.catalog" -> commercialCatalogViewModel.activate(
+                                            CommercialAuthority(
+                                                authority.userId,
+                                                authority.tenantId,
+                                                authority.workspaceId,
+                                                authority.membershipId,
+                                                authority.permissions,
+                                                route.authorityEpoch
+                                            )
+                                        )
+
+                                        "commercial.instructions" ->
+                                            customerInstructionsViewModel.activate(
+                                                CommercialAuthority(
+                                                    authority.userId,
+                                                    authority.tenantId,
+                                                    authority.workspaceId,
+                                                    authority.membershipId,
+                                                    authority.permissions,
+                                                    route.authorityEpoch
+                                                )
+                                            )
+
+                                        "commercial.progress" -> customerProgressViewModel.activate(
+                                            CommercialAuthority(
+                                                authority.userId,
+                                                authority.tenantId,
+                                                authority.workspaceId,
+                                                authority.membershipId,
+                                                authority.permissions,
+                                                route.authorityEpoch
+                                            )
+                                        )
+
+                                        "commercial.customers" -> customerSearchViewModel.activate(
+                                            CommercialAuthority(
+                                                authority.userId,
+                                                authority.tenantId,
+                                                authority.workspaceId,
+                                                authority.membershipId,
+                                                authority.permissions,
+                                                route.authorityEpoch
+                                            )
+                                        )
+
+                                        "warehouse.temperature" ->
+                                            temperatureEvidenceViewModel.activate(
+                                                TemperatureEvidenceAuthority(
+                                                    authority.userId,
+                                                    authority.tenantId,
+                                                    authority.workspaceId,
+                                                    authority.membershipId,
+                                                    authority.permissions,
+                                                    route.authorityEpoch
+                                                )
+                                            )
+
+                                        "operations.overview", "operations.exceptions",
+                                        "dispatch.readiness" ->
+                                            readinessViewModel.activate(
+                                                DispatchAuthorityContext(
+                                                    route.authorityEpoch,
+                                                    DispatchAuthorityIdentity(
+                                                        authority.userId,
+                                                        authority.tenantId,
+                                                        authority.workspaceId,
+                                                        authority.membershipId,
+                                                        authority.permissions
+                                                    )
+                                                )
+                                            )
+
+                                        "warehouse.disposition" -> dispositionViewModel.activate(
+                                            DispositionAuthority(
+                                                authority.userId,
+                                                authority.tenantId,
+                                                authority.workspaceId,
+                                                authority.membershipId,
+                                                authority.permissions,
+                                                route.authorityEpoch
+                                            )
+                                        )
+
+                                        "payments.wallet-refund" -> walletRefundViewModel.activate(
+                                            WalletRefundAuthority(
+                                                identity = VerifiedOperationsIdentity(
+                                                    userId = authority.userId,
+                                                    tenantId = authority.tenantId,
+                                                    workspaceId = authority.workspaceId,
+                                                    membershipId = authority.membershipId,
+                                                    permissions = authority.permissions.toSet(),
+                                                    roles = authority.roles.toSet()
+                                                ),
+                                                authorityEpoch = route.authorityEpoch
+                                            )
+                                        )
                                     }
                                 }
-                            )
+                        },
+                        connectedOperationContent = {
+                            when (connectedRoute?.entryKey) {
+                                "payments.wallet-refund" -> WalletRefundScreen(
+                                    state = walletRefundState,
+                                    onBack = ::closeConnectedOperation,
+                                    onRefresh = walletRefundViewModel::refresh,
+                                    onSelectOrder = walletRefundViewModel::selectOrder,
+                                    onAmountChanged = walletRefundViewModel::amountChanged,
+                                    onUseRemaining =
+                                        walletRefundViewModel::useServerRefundableAmount,
+                                    onReasonChanged = walletRefundViewModel::reasonChanged,
+                                    onSubmit = walletRefundViewModel::submit,
+                                    onRetry = walletRefundViewModel::retry,
+                                    onPreviousPage = walletRefundViewModel::previousPage,
+                                    onNextPage = walletRefundViewModel::nextPage
+                                )
 
-                            "dispatch.handoff-identity" ->
-                                androidx.compose.foundation.layout.Column {
+                                "warehouse.lot-substitution" -> LotSubstitutionScreen(
+                                    lotSubstitutionState,
+                                    onBack = ::closeConnectedOperation,
+                                    onLoadAlternatives = {
+                                        lotSubstitutionViewModel.loadAlternatives()
+                                    },
+                                    onSelectAlternative =
+                                        lotSubstitutionViewModel::selectAlternative,
+                                    onReasonChanged = lotSubstitutionViewModel::updateReason,
+                                    onRequest = lotSubstitutionViewModel::requestSubstitution,
+                                    onRecoverSameIntent =
+                                        lotSubstitutionViewModel::retryUnknownOutcome,
+                                    onRefreshCurrentAllocation =
+                                        lotSubstitutionViewModel::refreshCurrentAllocation
+                                )
+
+                                "driver.coordination-limits" -> OperationsCapabilityLimitsScreen(
+                                    true,
+                                    ::closeConnectedOperation
+                                )
+
+                                "dispatch.instructions" -> DispatchDeliveryInstructionsScreen(
+                                    state = dispatchInstructionsState,
+                                    onBack = ::closeConnectedOperation,
+                                    onDeliveryIdChanged =
+                                        dispatchInstructionsViewModel::updateDeliveryId,
+                                    onLoadDelivery = dispatchInstructionsViewModel::loadDelivery,
+                                    onRefresh = dispatchInstructionsViewModel::refresh,
+                                    onNewInstruction =
+                                        dispatchInstructionsViewModel::startNewInstruction,
+                                    onEditInstruction =
+                                        dispatchInstructionsViewModel::editOperationalInstruction,
+                                    onKindChanged = dispatchInstructionsViewModel::updateKind,
+                                    onContentChanged = dispatchInstructionsViewModel::updateContent,
+                                    onPublish = dispatchInstructionsViewModel::publish,
+                                    onRetryUnknownOutcome =
+                                        dispatchInstructionsViewModel::retryUnknownOutcome,
+                                    onRouteClosed = dispatchInstructionsViewModel::deactivate
+                                )
+
+                                "dispatch.loads", "driver.loads" -> DeliveryLoadScreen(
+                                    state = deliveryLoadState,
+                                    onBack = ::closeConnectedOperation,
+                                    onRefresh = deliveryLoadViewModel::refresh,
+                                    onToggleFulfillment = deliveryLoadViewModel::toggleFulfillment,
+                                    onMoveStop = deliveryLoadViewModel::moveStop,
+                                    onReasonChanged = deliveryLoadViewModel::setCreateReason,
+                                    onAttestationChanged = deliveryLoadViewModel::setAttestation,
+                                    onSelectDriver = deliveryLoadViewModel::setDriver,
+                                    onCreate = deliveryLoadViewModel::createLoad,
+                                    onSelectWindowPlan = deliveryLoadViewModel::selectWindowPlan,
+                                    onWindowStartChanged =
+                                        deliveryLoadViewModel::setWindowPlanStart,
+                                    onWindowEndChanged = deliveryLoadViewModel::setWindowPlanEnd,
+                                    onWindowReasonChanged =
+                                        deliveryLoadViewModel::setWindowPlanReason,
+                                    onPlanWindow = deliveryLoadViewModel::planWindow,
+                                    onAssign = deliveryLoadViewModel::assign,
+                                    onOffer = deliveryLoadViewModel::offer,
+                                    onConfirmHandoff = deliveryLoadViewModel::confirmHandoff,
+                                    onAccept = deliveryLoadViewModel::accept,
+                                    onRetrySameCommand = deliveryLoadViewModel::retrySameCommand,
+                                    onRouteClosed = deliveryLoadViewModel::deactivate,
+                                    onOpenDelivery = { deliveryId ->
+                                        val currentRoute = connectedRoute
+                                        if (currentRoute?.entryKey == "driver.loads" &&
+                                            deliveryLoadState.loads.any { load ->
+                                                load.stops.any {
+                                                    it.deliveryId ==
+                                                        deliveryId
+                                                }
+                                            } &&
+                                            ConnectedOperationsNavigation.permits(
+                                                currentRoute,
+                                                CONNECTED_OPERATIONS,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            val entry = CONNECTED_OPERATIONS.single {
+                                                it.key ==
+                                                    "driver.deliveries"
+                                            }
+                                            ConnectedOperationsNavigation.open(
+                                                entry,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )?.let { route ->
+                                                closeConnectedOperation()
+                                                connectedRoute = route
+                                                val authority = route.authority
+                                                driverViewModel.activate(
+                                                    DriverDeliveryAuthority(
+                                                        authority.userId,
+                                                        authority.tenantId,
+                                                        authority.workspaceId,
+                                                        authority.membershipId,
+                                                        authority.permissions,
+                                                        route.authorityEpoch
+                                                    )
+                                                )
+                                                pendingLoadDelivery = route to deliveryId
+                                            }
+                                        }
+                                    }
+                                )
+
+                                "dispatch.coordination-limits" -> OperationsCapabilityLimitsScreen(
+                                    false,
+                                    ::closeConnectedOperation
+                                )
+
+                                "operations.overview", "operations.exceptions" ->
+                                    OperationsOverviewScreen(
+                                        state = dispatchReadinessState,
+                                        tenantId = connectedRoute?.authority?.tenantId ?: "",
+                                        workspaceId = connectedRoute?.authority?.workspaceId ?: "",
+                                        exceptionsOnly =
+                                            connectedRoute?.entryKey == "operations.exceptions",
+                                        onBack = ::closeConnectedOperation,
+                                        onRefresh = readinessViewModel::refresh,
+                                        onOpenOwningWork = { fulfillmentId ->
+                                            val entry = CONNECTED_OPERATIONS.single {
+                                                it.key ==
+                                                    "dispatch.readiness"
+                                            }
+                                            ConnectedOperationsNavigation.open(
+                                                entry,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )?.let { route ->
+                                                connectedRoute = route
+                                                readinessViewModel.selectFulfillment(
+                                                    fulfillmentId
+                                                )
+                                            }
+                                        }
+                                    )
+
+                                "dispatch.handover" -> androidx.compose.foundation.layout.Column {
                                     TextButton(
                                         onClick = ::closeConnectedOperation
                                     ) {
                                         androidx.compose.material3.Text("Volver")
                                     }
-                                    HandoffIdentityScreen(
-                                        dispatchHandoffIdentityState,
-                                        dispatchHandoffIdentityViewModel::issue,
-                                        dispatchHandoffIdentityViewModel::retrySame,
-                                        dispatchHandoffIdentityViewModel::issueReplacement,
-                                        dispatchHandoffIdentityViewModel::validate,
-                                        dispatchHandoffIdentityViewModel::tokenChanged,
-                                        dispatchHandoffIdentityViewModel::hideToken,
-                                        dispatchHandoffIdentityViewModel::deactivate
+                                    DispatchHandoverScreen(
+                                        dispatchHandoverState,
+                                        dispatchHandoverViewModel::refresh,
+                                        dispatchHandoverViewModel::confirm,
+                                        dispatchHandoverViewModel::replayUnknownOutcome
                                     )
                                 }
 
-                            "dispatch.temperature" -> DispatchTemperatureScreen(
-                                dispatchTemperatureState, ::closeConnectedOperation,
-                                dispatchTemperatureViewModel::refresh,
-                                dispatchTemperatureViewModel::updateValue,
-                                onRecord = dispatchTemperatureViewModel::record,
-                                onRouteClosed = dispatchTemperatureViewModel::deactivate,
-                                onRetryUnknownOutcome =
-                                    dispatchTemperatureViewModel::retryUnknownOutcome,
-                                onRefreshExcursionEvidence =
-                                    dispatchTemperatureViewModel::refreshExcursionEvidenceStatus,
-                                onSelectExcursionEvidence = { lotId ->
-                                    dispatchTemperatureViewModel.excursionEvidenceSelectionContext(
-                                        lotId
-                                    )?.let { selection ->
-                                        pendingDispatchTemperaturePicker =
-                                            selection to
-                                            dispatchTemperatureState.valuesCelsius[lotId].orEmpty()
-                                        dispatchTemperaturePicker.launch("image/*")
-                                    }
-                                }
-                            )
+                                "dispatch.outgoing-goods" -> OutgoingGoodsScreen(
+                                    state = dispatchOutgoingGoodsState,
+                                    onBack = ::closeConnectedOperation,
+                                    onRefresh = outgoingGoodsViewModel::refresh,
+                                    onObservedLotChanged =
+                                        outgoingGoodsViewModel::changeObservedLot,
+                                    onObservedQuantityChanged =
+                                        outgoingGoodsViewModel::changeObservedQuantity,
+                                    onRecord = outgoingGoodsViewModel::record,
+                                    onRetry = outgoingGoodsViewModel::retryUnknownOutcome,
+                                    onRouteClosed = outgoingGoodsViewModel::deactivate,
+                                    onResolutionReasonChanged =
+                                        outgoingGoodsViewModel::changeResolutionReason,
+                                    onResolveDiscrepancy =
+                                        outgoingGoodsViewModel::resolveDiscrepancy
+                                )
 
-                            "dispatch.plan-change" -> DispatchPlanChangeScreen(
-                                state = dispatchPlanChangeState,
-                                onBack = ::closeConnectedOperation,
-                                onRefresh = dispatchPlanChangeViewModel::refresh,
-                                onSelectDriver = dispatchPlanChangeViewModel::selectDriver,
-                                onScheduleChanged =
-                                    dispatchPlanChangeViewModel::updatePlannedDispatchAt,
-                                onSave = dispatchPlanChangeViewModel::changePlan,
-                                onReplay = dispatchPlanChangeViewModel::retryUnknownOutcome,
-                                onRouteClosed = dispatchPlanChangeViewModel::deactivate
-                            )
-
-                            "warehouse.automation" -> WarehouseAutomationScreen(
-                                state = stockConditionState,
-                                onBack = ::closeConnectedOperation,
-                                onRefresh = stockConditionViewModel::refresh,
-                                onSelectLot = stockConditionViewModel::selectLot,
-                                canRecordTemperature =
-                                    connectedRoute?.authority?.permissions?.contains(
-                                        "inventory.receive"
-                                    ) ==
-                                        true,
-                                onManualTemperature = {
-                                    val entry = CONNECTED_OPERATIONS.single {
-                                        it.key ==
-                                            "warehouse.temperature"
-                                    }
-                                    ConnectedOperationsNavigation.open(
-                                        entry,
-                                        state,
-                                        accessState,
-                                        warehouseState
-                                    )?.let { route ->
-                                        closeConnectedOperation()
-                                        connectedRoute = route
-                                        val proof = route.authority
-                                        temperatureEvidenceViewModel.activate(
-                                            TemperatureEvidenceAuthority(
-                                                proof.userId,
-                                                proof.tenantId,
-                                                proof.workspaceId,
-                                                proof.membershipId,
-                                                proof.permissions,
-                                                route.authorityEpoch
-                                            )
-                                        )
-                                    }
-                                }
-                            )
-
-                            "warehouse.batch" -> {
-                                if (warehouseBatchState.selectedId == null) {
-                                    WarehouseBatchScreen(
-                                        state = warehouseBatchState, work = pickingWorkListState,
-                                        onBack = ::closeConnectedOperation,
-                                        onRefresh = pickingWorkListViewModel::reload,
-                                        onNextPage = pickingWorkListViewModel::nextPage,
-                                        onPreviousPage = pickingWorkListViewModel::previousPage,
-                                        onAdd = {
-                                            warehouseBatchViewModel.add(
-                                                it,
-                                                pickingWorkListViewModel.state.value
-                                            )
+                                "dispatch.assignment" -> DispatchAssignmentScreen(
+                                    state = dispatchAssignmentState,
+                                    onBack = ::closeConnectedOperation,
+                                    onRefresh = dispatchAssignmentViewModel::refresh,
+                                    onSelectDriver = dispatchAssignmentViewModel::selectDriver,
+                                    onAssign = dispatchAssignmentViewModel::assign,
+                                    onReplay = dispatchAssignmentViewModel::retryUnknownOutcome,
+                                    onRouteClosed = dispatchAssignmentViewModel::deactivate,
+                                    onIdentifyHandoff =
+                                        if (connectedRoute?.authority?.permissions?.contains(
+                                                "logistics:read"
+                                            ) ==
+                                            true
+                                        ) {
+                                            {
+                                                val assignment = dispatchAssignmentState.assignment
+                                                val deliveryId = assignment?.deliveryId
+                                                if (assignment != null && assignment.current &&
+                                                    deliveryId != null
+                                                ) {
+                                                    val entry = CONNECTED_OPERATIONS.single {
+                                                        it.key ==
+                                                            "dispatch.handoff-identity"
+                                                    }
+                                                    ConnectedOperationsNavigation.open(
+                                                        entry,
+                                                        state,
+                                                        accessState,
+                                                        warehouseState
+                                                    )?.let { route ->
+                                                        closeConnectedOperation()
+                                                        connectedRoute = route
+                                                        val authority = route.authority
+                                                        dispatchHandoffIdentityViewModel.activate(
+                                                            DispatchAuthorityContext(
+                                                                route.authorityEpoch,
+                                                                DispatchAuthorityIdentity(
+                                                                    authority.userId,
+                                                                    authority.tenantId,
+                                                                    authority.workspaceId,
+                                                                    authority.membershipId,
+                                                                    authority.permissions
+                                                                )
+                                                            ),
+                                                            deliveryId,
+                                                            assignment.id
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            null
                                         },
-                                        onMove = warehouseBatchViewModel::move,
-                                        onReview = warehouseBatchViewModel::review,
-                                        onOpen = { id ->
-                                            val route = connectedRoute
-                                            if (route != null &&
-                                                ConnectedOperationsNavigation.permits(
-                                                    route,
-                                                    CONNECTED_OPERATIONS,
-                                                    state,
-                                                    accessState,
-                                                    warehouseState
-                                                ) &&
-                                                warehouseBatchViewModel.select(id)
-                                            ) {
-                                                val proof = route.authority
-                                                pickingViewModel.activate(
-                                                    PickingAuthority(
-                                                        proof.userId,
-                                                        proof.tenantId,
-                                                        proof.workspaceId,
-                                                        proof.membershipId,
-                                                        proof.permissions,
-                                                        route.authorityEpoch
-                                                    ),
-                                                    id
+                                    onChangePlan = {
+                                        val fulfillmentId = dispatchAssignmentState.fulfillmentId
+                                        val entry = CONNECTED_OPERATIONS.single {
+                                            it.key ==
+                                                "dispatch.plan-change"
+                                        }
+                                        if (fulfillmentId !=
+                                            null
+                                        ) {
+                                            ConnectedOperationsNavigation.open(
+                                                entry,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )?.let { route ->
+                                                closeConnectedOperation()
+                                                connectedRoute = route
+                                                val authority = route.authority
+                                                dispatchPlanChangeViewModel.activate(
+                                                    fulfillmentId,
+                                                    DispatchAuthorityContext(
+                                                        route.authorityEpoch,
+                                                        DispatchAuthorityIdentity(
+                                                            authority.userId,
+                                                            authority.tenantId,
+                                                            authority.workspaceId,
+                                                            authority.membershipId,
+                                                            authority.permissions
+                                                        )
+                                                    )
                                                 )
                                             }
                                         }
-                                    )
-                                } else {
-                                    PickingScreen(
-                                        state = pickingState,
-                                        onBack = {
-                                            warehouseBatchViewModel.observe(
-                                                pickingViewModel.state.value
-                                            )
-                                            warehouseBatchViewModel.closeItem()
-                                            pickingViewModel.invalidate()
-                                            pickingWorkListViewModel.reload()
-                                        },
-                                        onReload = pickingViewModel::reload,
-                                        onSelectOffer = pickingViewModel::selectOffer,
-                                        onLotIdentifierChanged =
-                                            pickingViewModel::lotIdentifierChanged,
-                                        onQuantityChanged = pickingViewModel::quantityChanged,
-                                        onStartPicking = pickingViewModel::startPicking,
-                                        onConfirmPick = pickingViewModel::confirmPick,
-                                        onRetryUnknownOutcome =
-                                            pickingViewModel::retryUnknownOutcome,
-                                        onRetryIntentCleanup = pickingViewModel::retryIntentCleanup,
-                                        onProposeLotSubstitution = openLotSubstitution
-                                    )
-                                }
-                            }
+                                    }
+                                )
 
-                            "warehouse.inbound-discrepancy" -> InboundDiscrepancyScreen(
-                                state = inboundDiscrepancyState, onBack = ::closeConnectedOperation,
-                                onWarehouseChanged = inboundCaseViewModel::warehouseChanged,
-                                onExpectedSkuChanged =
-                                    inboundCaseViewModel::expectedSkuChanged,
-                                onObservedSkuChanged =
-                                    inboundCaseViewModel::observedSkuChanged,
-                                onExpectedBatchChanged =
-                                    inboundCaseViewModel::expectedBatchChanged,
-                                onObservedBatchChanged =
-                                    inboundCaseViewModel::observedBatchChanged,
-                                onKindChanged = inboundCaseViewModel::kindChanged,
-                                onReasonDetailsChanged =
-                                    inboundCaseViewModel::reasonDetailsChanged,
-                                onExpectedQuantityChanged =
-                                    inboundCaseViewModel::expectedQuantityChanged,
-                                onObservedQuantityChanged =
-                                    inboundCaseViewModel::observedQuantityChanged,
-                                onUnitChanged = inboundCaseViewModel::unitChanged,
-                                onObservationNotesChanged =
-                                    inboundCaseViewModel::observationNotesChanged,
-                                onSaveDraft = inboundCaseViewModel::saveDraft,
-                                onCreateCase = inboundCaseViewModel::createCase,
-                                onSelectEvidence = {
-                                    val route = connectedRoute
-                                    if (route != null &&
-                                        "document.upload" in route.authority.permissions &&
-                                        ConnectedOperationsNavigation.permits(
-                                            route,
-                                            CONNECTED_OPERATIONS,
+                                "dispatch.handoff-identity" ->
+                                    androidx.compose.foundation.layout.Column {
+                                        TextButton(
+                                            onClick = ::closeConnectedOperation
+                                        ) {
+                                            androidx.compose.material3.Text("Volver")
+                                        }
+                                        HandoffIdentityScreen(
+                                            dispatchHandoffIdentityState,
+                                            dispatchHandoffIdentityViewModel::issue,
+                                            dispatchHandoffIdentityViewModel::retrySame,
+                                            dispatchHandoffIdentityViewModel::issueReplacement,
+                                            dispatchHandoffIdentityViewModel::validate,
+                                            dispatchHandoffIdentityViewModel::tokenChanged,
+                                            dispatchHandoffIdentityViewModel::hideToken,
+                                            dispatchHandoffIdentityViewModel::deactivate
+                                        )
+                                    }
+
+                                "dispatch.temperature" -> DispatchTemperatureScreen(
+                                    dispatchTemperatureState, ::closeConnectedOperation,
+                                    dispatchTemperatureViewModel::refresh,
+                                    dispatchTemperatureViewModel::updateValue,
+                                    onRecord = dispatchTemperatureViewModel::record,
+                                    onRouteClosed = dispatchTemperatureViewModel::deactivate,
+                                    onRetryUnknownOutcome =
+                                        dispatchTemperatureViewModel::retryUnknownOutcome,
+                                    onRefreshExcursionEvidence = { lotId ->
+                                        dispatchTemperatureViewModel
+                                            .refreshExcursionEvidenceStatus(lotId)
+                                    },
+                                    onSelectExcursionEvidence = { lotId ->
+                                        dispatchTemperatureViewModel
+                                            .excursionEvidenceSelectionContext(lotId)
+                                            ?.let { selection ->
+                                                pendingDispatchTemperaturePicker =
+                                                    selection to
+                                                    dispatchTemperatureState.valuesCelsius[lotId]
+                                                        .orEmpty()
+                                                dispatchTemperaturePicker.launch("image/*")
+                                            }
+                                    }
+                                )
+
+                                "dispatch.plan-change" -> DispatchPlanChangeScreen(
+                                    state = dispatchPlanChangeState,
+                                    onBack = ::closeConnectedOperation,
+                                    onRefresh = dispatchPlanChangeViewModel::refresh,
+                                    onSelectDriver = dispatchPlanChangeViewModel::selectDriver,
+                                    onScheduleChanged =
+                                        dispatchPlanChangeViewModel::updatePlannedDispatchAt,
+                                    onSave = dispatchPlanChangeViewModel::changePlan,
+                                    onReplay = dispatchPlanChangeViewModel::retryUnknownOutcome,
+                                    onRouteClosed = dispatchPlanChangeViewModel::deactivate
+                                )
+
+                                "warehouse.automation" -> WarehouseAutomationScreen(
+                                    state = stockConditionState,
+                                    onBack = ::closeConnectedOperation,
+                                    onRefresh = stockConditionViewModel::refresh,
+                                    onSelectLot = stockConditionViewModel::selectLot,
+                                    canRecordTemperature =
+                                        connectedRoute?.authority?.permissions?.contains(
+                                            "inventory.receive"
+                                        ) ==
+                                            true,
+                                    onManualTemperature = {
+                                        val entry = CONNECTED_OPERATIONS.single {
+                                            it.key ==
+                                                "warehouse.temperature"
+                                        }
+                                        ConnectedOperationsNavigation.open(
+                                            entry,
                                             state,
                                             accessState,
                                             warehouseState
-                                        )
-                                    ) {
-                                        val selection =
-                                            inboundCaseViewModel.selectionContextForCurrentCase()
-                                        if (selection != null) {
-                                            pendingInboundEvidencePicker = selection
-                                            inboundEvidencePicker.launch("image/*")
+                                        )?.let { route ->
+                                            closeConnectedOperation()
+                                            connectedRoute = route
+                                            val proof = route.authority
+                                            temperatureEvidenceViewModel.activate(
+                                                TemperatureEvidenceAuthority(
+                                                    proof.userId,
+                                                    proof.tenantId,
+                                                    proof.workspaceId,
+                                                    proof.membershipId,
+                                                    proof.permissions,
+                                                    route.authorityEpoch
+                                                )
+                                            )
                                         }
                                     }
-                                },
-                                onUploadEvidence = { inboundCaseViewModel.uploadEvidence() },
-                                onRefreshEvidence = inboundCaseViewModel::refreshEvidence,
-                                onSubmitForReview = {
-                                    inboundCaseViewModel.submitForReview()
-                                },
-                                onRetryPendingAction =
-                                    inboundCaseViewModel::retryPendingAction,
-                                onRequestDiscard = inboundCaseViewModel::requestDiscard,
-                                onConfirmDiscard = inboundCaseViewModel::confirmDiscard,
-                                onCancelDiscard = inboundCaseViewModel::cancelDiscard
-                            )
-
-                            "warehouse.cycle-count" -> CycleCountScreen(
-                                state = cycleCountState,
-                                canCorrect =
-                                    connectedRoute?.authority?.permissions?.let {
-                                        "inventory.adjust" in
-                                            it &&
-                                            "warehouse:write" in it
-                                    } ==
-                                        true,
-                                onBack = ::closeConnectedOperation,
-                                onReloadLots = cycleCountViewModel::reloadLots,
-                                onSelectLot = cycleCountViewModel::selectLot,
-                                onQuantityChanged = cycleCountViewModel::observeQuantityChanged,
-                                onRecord = cycleCountViewModel::recordCount,
-                                onRetryCount = cycleCountViewModel::retryCountUnknownOutcome,
-                                onApplyCorrection = cycleCountViewModel::applyCorrection,
-                                onRetryCorrection =
-                                    cycleCountViewModel::retryCorrectionUnknownOutcome,
-                                onLoadMoreLots = cycleCountViewModel::loadMoreLots,
-                                hasMoreLots = cycleCountState.hasMoreLots,
-                                onRefreshStaleCount = cycleCountViewModel::refreshStaleCount
-                            )
-
-                            "warehouse.transfer-receipt" -> StockTransferReceiptScreen(
-                                state = stockTransferReceiptState,
-                                onBack = ::closeConnectedOperation,
-                                onReloadWarehouses =
-                                    transferReceiptViewModel::reloadWarehouses,
-                                onSelectDestinationWarehouse =
-                                    transferReceiptViewModel::selectDestinationWarehouse,
-                                onLoadMoreTransfers =
-                                    transferReceiptViewModel::loadMoreTransfers,
-                                onSelectTransfer = transferReceiptViewModel::selectTransfer,
-                                onReceiveExpectedQuantity =
-                                    transferReceiptViewModel::receiveExpectedQuantity,
-                                onRetryUnknownOutcome =
-                                    transferReceiptViewModel::retryUnknownOutcome,
-                                onRetryIntentCleanup =
-                                    transferReceiptViewModel::retryIntentCleanup,
-                                onObserveArrival = transferReceiptViewModel::observeArrival,
-                                onRetryObservation =
-                                    transferReceiptViewModel::retryObservationUnknownOutcome,
-                                onCleanupObservation =
-                                    transferReceiptViewModel::retryObservationIntentCleanup
-                            )
-
-                            "warehouse.transfer" -> StockTransferScreen(
-                                state = stockTransferState, onBack = ::closeConnectedOperation,
-                                onSelectSourceLot = stockTransferViewModel::selectSourceLot,
-                                onSelectDestinationWarehouse =
-                                    stockTransferViewModel::selectDestinationWarehouse,
-                                onSelectDestinationZone =
-                                    stockTransferViewModel::selectDestinationZone,
-                                onQuantityChanged = stockTransferViewModel::quantityChanged,
-                                onReasonChanged = stockTransferViewModel::reasonChanged,
-                                onReloadSourceLots = stockTransferViewModel::reloadSourceLots,
-                                onReloadWarehouses = stockTransferViewModel::reloadWarehouses,
-                                onReloadZones = stockTransferViewModel::reloadZones,
-                                onStartTransfer = stockTransferViewModel::startTransfer,
-                                onRetryUnknownOutcome = stockTransferViewModel::retryUnknownOutcome,
-                                onRetryIntentCleanup = stockTransferViewModel::retryIntentCleanup,
-                                onStartAnotherTransfer =
-                                    stockTransferViewModel::startAnotherTransfer
-                            )
-
-                            "commercial.visit" -> FieldVisitScreen(
-                                fieldVisitState,
-                                ::closeConnectedOperation,
-                                fieldVisitViewModel,
-                                connectedRoute?.authority?.permissions?.any {
-                                    it == "client.manage" ||
-                                        it == "sales:write"
-                                } ==
-                                    true
-                            )
-
-                            "commercial.documents" -> BusinessDocumentsScreen(
-                                businessDocumentsState,
-                                ::closeConnectedOperation,
-                                businessDocumentsViewModel::refresh,
-                                businessDocumentsViewModel::previousPage,
-                                businessDocumentsViewModel::nextPage,
-                                businessDocumentsViewModel::open,
-                                businessDocumentsViewModel::closeContent,
-                                businessDocumentsFactory.pdfPageRenderer
-                            )
-
-                            "operations.notifications" -> NotificationsScreen(
-                                state = notificationsState,
-                                onBack = ::closeConnectedOperation,
-                                onTabSelected = notificationsViewModel::selectTab,
-                                onRefreshInbox = notificationsViewModel::refreshInbox,
-                                onUnreadOnlyChanged = notificationsViewModel::setUnreadOnly,
-                                onMarkRead = { id, read ->
-                                    notificationsState.inbox?.items?.singleOrNull { it.id == id }
-                                        ?.let { notificationsViewModel.setRead(it, read) }
-                                },
-                                onMarkAllRead = notificationsViewModel::markAllRead,
-                                onRefreshPreferences = notificationsViewModel::refreshPreferences,
-                                onPreferenceChanged = notificationsViewModel::setPreference
-                            )
-
-                            "commercial.request" -> if (showCatalogForRequest) {
-                                CommercialCatalogScreen(
-                                    state = commercialCatalogState,
-                                    onBack = {
-                                        showCatalogForRequest = false
-                                        commercialCatalogViewModel.deactivate()
-                                    },
-                                    onCustomerIdChanged = { customerId ->
-                                        fieldRequestDraftViewModel.customerChanged(customerId)
-                                        commercialCatalogViewModel.customerIdChanged(customerId)
-                                    },
-                                    onQueryChanged = commercialCatalogViewModel::queryChanged,
-                                    onOpenFilterOptions =
-                                        commercialCatalogViewModel::openFilterOptions,
-                                    onSearchFilterChanged =
-                                        commercialCatalogViewModel::searchFilterOptions,
-                                    onSearchFilterOptions =
-                                        commercialCatalogViewModel::loadFilterOptions,
-                                    onSelectFilterOption =
-                                        commercialCatalogViewModel::selectFilterOption,
-                                    onSearch = commercialCatalogViewModel::search,
-                                    onNextPage = commercialCatalogViewModel::nextPage,
-                                    onSelectProduct = commercialCatalogViewModel::selectProduct,
-                                    onRouteClosed = commercialCatalogViewModel::deactivate,
-                                    onPrepareRequest = { _, productId ->
-                                        fieldRequestDraftViewModel.addProduct(productId)
-                                        showCatalogForRequest = false
-                                    }
                                 )
-                            } else {
-                                FieldRequestDraftScreen(
-                                    state = fieldRequestDraftState,
+
+                                "warehouse.batch" -> {
+                                    if (warehouseBatchState.selectedId == null) {
+                                        WarehouseBatchScreen(
+                                            state = warehouseBatchState,
+                                            work = pickingWorkListState,
+                                            onBack = ::closeConnectedOperation,
+                                            onRefresh = pickingWorkListViewModel::reload,
+                                            onNextPage = pickingWorkListViewModel::nextPage,
+                                            onPreviousPage = pickingWorkListViewModel::previousPage,
+                                            onAdd = {
+                                                warehouseBatchViewModel.add(
+                                                    it,
+                                                    pickingWorkListViewModel.state.value
+                                                )
+                                            },
+                                            onMove = warehouseBatchViewModel::move,
+                                            onReview = warehouseBatchViewModel::review,
+                                            onOpen = { id ->
+                                                val route = connectedRoute
+                                                if (route != null &&
+                                                    ConnectedOperationsNavigation.permits(
+                                                        route,
+                                                        CONNECTED_OPERATIONS,
+                                                        state,
+                                                        accessState,
+                                                        warehouseState
+                                                    ) &&
+                                                    warehouseBatchViewModel.select(id)
+                                                ) {
+                                                    val proof = route.authority
+                                                    pickingViewModel.activate(
+                                                        PickingAuthority(
+                                                            proof.userId,
+                                                            proof.tenantId,
+                                                            proof.workspaceId,
+                                                            proof.membershipId,
+                                                            proof.permissions,
+                                                            route.authorityEpoch
+                                                        ),
+                                                        id
+                                                    )
+                                                }
+                                            }
+                                        )
+                                    } else {
+                                        PickingScreen(
+                                            state = pickingState,
+                                            onBack = {
+                                                warehouseBatchViewModel.observe(
+                                                    pickingViewModel.state.value
+                                                )
+                                                warehouseBatchViewModel.closeItem()
+                                                pickingViewModel.invalidate()
+                                                pickingWorkListViewModel.reload()
+                                            },
+                                            onReload = pickingViewModel::reload,
+                                            onSelectOffer = pickingViewModel::selectOffer,
+                                            onLotIdentifierChanged =
+                                                pickingViewModel::lotIdentifierChanged,
+                                            onQuantityChanged = pickingViewModel::quantityChanged,
+                                            onStartPicking = pickingViewModel::startPicking,
+                                            onConfirmPick = pickingViewModel::confirmPick,
+                                            onRetryUnknownOutcome =
+                                                pickingViewModel::retryUnknownOutcome,
+                                            onRetryIntentCleanup =
+                                                pickingViewModel::retryIntentCleanup,
+                                            onProposeLotSubstitution = openLotSubstitution
+                                        )
+                                    }
+                                }
+
+                                "warehouse.inbound-discrepancy" -> InboundDiscrepancyScreen(
+                                    state = inboundDiscrepancyState,
                                     onBack = ::closeConnectedOperation,
-                                    onCustomerChanged = fieldRequestDraftViewModel::customerChanged,
-                                    onOpenCatalog = {
-                                        val route = connectedRoute ?: return@FieldRequestDraftScreen
-                                        val authority = route.authority
-                                        showCatalogForRequest = true
-                                        commercialCatalogViewModel.activate(
-                                            CommercialAuthority(
-                                                authority.userId,
-                                                authority.tenantId,
-                                                authority.workspaceId,
-                                                authority.membershipId,
-                                                authority.permissions,
-                                                route.authorityEpoch
-                                            )
-                                        )
-                                        commercialCatalogViewModel.customerIdChanged(
-                                            fieldRequestDraftState.draft.customerId
-                                        )
-                                    },
-                                    onQuantityChanged = fieldRequestDraftViewModel::quantityChanged,
-                                    onRemoveProduct = fieldRequestDraftViewModel::removeProduct,
-                                    onReview = fieldRequestDraftViewModel::review,
-                                    onRouteClosed = fieldRequestDraftViewModel::deactivate
-                                )
-                            }
-
-                            "commercial.direct-order" -> if (showCatalogForDirectOrder) {
-                                CommercialCatalogScreen(
-                                    state = commercialCatalogState,
-                                    onBack = {
-                                        showCatalogForDirectOrder = false
-                                        commercialCatalogViewModel.deactivate()
-                                    },
-                                    onCustomerIdChanged = { customerId ->
-                                        directOrderViewModel.customerChanged(customerId)
-                                        commercialCatalogViewModel.customerIdChanged(customerId)
-                                    },
-                                    onQueryChanged = commercialCatalogViewModel::queryChanged,
-                                    onOpenFilterOptions =
-                                        commercialCatalogViewModel::openFilterOptions,
-                                    onSearchFilterChanged =
-                                        commercialCatalogViewModel::searchFilterOptions,
-                                    onSearchFilterOptions =
-                                        commercialCatalogViewModel::loadFilterOptions,
-                                    onSelectFilterOption =
-                                        commercialCatalogViewModel::selectFilterOption,
-                                    onSearch = commercialCatalogViewModel::search,
-                                    onNextPage = commercialCatalogViewModel::nextPage,
-                                    onSelectProduct = commercialCatalogViewModel::selectProduct,
-                                    onRouteClosed = commercialCatalogViewModel::deactivate,
-                                    onCreateDirectOrder = { _, productId ->
-                                        directOrderViewModel.productChanged(productId)
-                                        showCatalogForDirectOrder = false
-                                    }
-                                )
-                            } else {
-                                DirectOrderScreen(
-                                    directOrderState,
-                                    ::closeConnectedOperation,
-                                    directOrderViewModel,
-                                    onOpenCatalog = {
-                                        val route = connectedRoute ?: return@DirectOrderScreen
-                                        val authority = route.authority
-                                        showCatalogForDirectOrder = true
-                                        commercialCatalogViewModel.activate(
-                                            CommercialAuthority(
-                                                authority.userId,
-                                                authority.tenantId,
-                                                authority.workspaceId,
-                                                authority.membershipId,
-                                                authority.permissions,
-                                                route.authorityEpoch
-                                            )
-                                        )
-                                        commercialCatalogViewModel.customerIdChanged(
-                                            directOrderState.record.draft.customerId
-                                        )
-                                    }
-                                )
-                            }
-
-                            "driver.deliveries" -> if (showDriverOperationalExceptions) {
-                                ExceptionsScreen(
-                                    state = driverOperationalExceptionsState,
-                                    onBack = ::closeDriverDeliveryOperationalExceptions,
-                                    onRefresh =
-                                        driverExceptionsViewModel::refresh,
-                                    onClaim = driverExceptionsViewModel::claim,
-                                    onSendForReview =
-                                        driverExceptionsViewModel::sendForReview,
-                                    onResolve =
-                                        driverExceptionsViewModel::resolveWarning,
-                                    onClose =
-                                        driverExceptionsViewModel::closeWarning,
-                                    onRetrySameCommand =
-                                        driverExceptionsViewModel::retrySameCommand
-                                )
-                            } else if (showDriverInstructions) {
-                                InstructionsScreen(
-                                    state = driverInstructionsState,
-                                    onBack = ::closeDriverDeliveryInstructions,
-                                    onRefresh = driverInstructionsViewModel::refresh,
-                                    onSelectInstruction =
-                                        driverInstructionsViewModel::setInstructionSelected,
-                                    onAcknowledgeSelected =
-                                        driverInstructionsViewModel::acknowledgeSelected,
-                                    onRetryUnknownAcknowledgement =
-                                        driverInstructionsViewModel::retryUnknownAcknowledgement
-                                )
-                            } else {
-                                DriverDeliveryScreen(
-                                    state = driverDeliveryState, onBack = ::closeConnectedOperation,
-                                    onRefresh = driverViewModel::refresh,
-                                    onSelectDelivery = driverViewModel::selectDelivery,
-                                    onBeginDelivery = driverViewModel::beginSelectedDelivery,
-                                    onRetryUnknownStart =
-                                        driverViewModel::retryUnknownStart,
-                                    onRecordOutcome = driverViewModel::recordOutcome,
-                                    onRetryUnknownOutcome =
-                                        driverViewModel::retryUnknownOutcome,
-                                    onChooseProofFile = {
+                                    onWarehouseChanged = inboundCaseViewModel::warehouseChanged,
+                                    onExpectedSkuChanged =
+                                        inboundCaseViewModel::expectedSkuChanged,
+                                    onObservedSkuChanged =
+                                        inboundCaseViewModel::observedSkuChanged,
+                                    onExpectedBatchChanged =
+                                        inboundCaseViewModel::expectedBatchChanged,
+                                    onObservedBatchChanged =
+                                        inboundCaseViewModel::observedBatchChanged,
+                                    onKindChanged = inboundCaseViewModel::kindChanged,
+                                    onReasonDetailsChanged =
+                                        inboundCaseViewModel::reasonDetailsChanged,
+                                    onExpectedQuantityChanged =
+                                        inboundCaseViewModel::expectedQuantityChanged,
+                                    onObservedQuantityChanged =
+                                        inboundCaseViewModel::observedQuantityChanged,
+                                    onUnitChanged = inboundCaseViewModel::unitChanged,
+                                    onObservationNotesChanged =
+                                        inboundCaseViewModel::observationNotesChanged,
+                                    onSaveDraft = inboundCaseViewModel::saveDraft,
+                                    onCreateCase = inboundCaseViewModel::createCase,
+                                    onSelectEvidence = {
                                         val route = connectedRoute
                                         if (route != null &&
+                                            "document.upload" in route.authority.permissions &&
                                             ConnectedOperationsNavigation.permits(
                                                 route,
                                                 CONNECTED_OPERATIONS,
@@ -2649,328 +2522,390 @@ class MainActivity : ComponentActivity() {
                                             )
                                         ) {
                                             val selection =
-                                                driverViewModel.beginProofFileSelection()
+                                                inboundCaseViewModel
+                                                    .selectionContextForCurrentCase()
                                             if (selection != null) {
-                                                pendingDriverProofPicker = selection
-                                                driverProofPicker.launch("image/*")
+                                                pendingInboundEvidencePicker = selection
+                                                inboundEvidencePicker.launch("image/*")
                                             }
                                         }
                                     },
-                                    onUploadSelectedProofEvidence =
-                                        driverViewModel::uploadSelectedProofEvidence,
-                                    onCreateProof = driverViewModel::createProof,
-                                    onRefreshProofEvidence =
-                                        driverViewModel::refreshProofEvidence,
-                                    onRetryUnknownProof =
-                                        driverViewModel::retryUnknownProof,
-                                    onAttachAvailableProofEvidence =
-                                        driverViewModel::attachAvailableProofEvidence,
-                                    onOpenHandoffCode =
-                                        if (connectedRoute?.authority?.permissions?.contains(
-                                                "logistics:write"
-                                            ) ==
-                                            true
-                                        ) {
-                                            { deliveryId, attemptId, version ->
-                                                val entry = CONNECTED_OPERATIONS.single {
-                                                    it.key ==
-                                                        "driver.handoff-code"
-                                                }
-                                                ConnectedOperationsNavigation.open(
-                                                    entry,
-                                                    state,
-                                                    accessState,
-                                                    warehouseState
-                                                )?.let { route ->
-                                                    closeConnectedOperation()
-                                                    connectedRoute = route
-                                                    val authority = route.authority
-                                                    driverHandoffTokenViewModel.activate(
-                                                        DriverDeliveryAuthority(
-                                                            authority.userId,
-                                                            authority.tenantId,
-                                                            authority.workspaceId,
-                                                            authority.membershipId,
-                                                            authority.permissions,
-                                                            route.authorityEpoch
-                                                        ),
-                                                        deliveryId,
-                                                        attemptId,
-                                                        version
-                                                    )
-                                                }
-                                            }
-                                        } else {
-                                            null
-                                        },
-                                    onOpenExecutionTemperature = { deliveryId ->
-                                        val entry = CONNECTED_OPERATIONS.single {
-                                            it.key ==
-                                                "driver.execution-temperature"
-                                        }
-                                        ConnectedOperationsNavigation.open(
-                                            entry,
-                                            state,
-                                            accessState,
-                                            warehouseState
-                                        )?.let { route ->
-                                            closeConnectedOperation()
-                                            connectedRoute = route
-                                            val authority = route.authority
-                                            executionTemperatureViewModel.activate(
-                                                DriverDeliveryAuthority(
-                                                    authority.userId,
-                                                    authority.tenantId,
-                                                    authority.workspaceId,
-                                                    authority.membershipId,
-                                                    authority.permissions,
-                                                    route.authorityEpoch
-                                                ),
-                                                deliveryId,
-                                                TemperatureMode.DRIVER
-                                            )
-                                        }
+                                    onUploadEvidence = { inboundCaseViewModel.uploadEvidence() },
+                                    onRefreshEvidence = inboundCaseViewModel::refreshEvidence,
+                                    onSubmitForReview = {
+                                        inboundCaseViewModel.submitForReview()
                                     },
-                                    onOpenIncident = { deliveryId, attemptId, version, terminal ->
-                                        val entry = CONNECTED_OPERATIONS.single {
-                                            it.key ==
-                                                "driver.incident"
-                                        }
-                                        ConnectedOperationsNavigation.open(
-                                            entry,
-                                            state,
-                                            accessState,
-                                            warehouseState
-                                        )?.let { route ->
-                                            closeConnectedOperation()
-                                            connectedRoute = route
-                                            val authority = route.authority
-                                            driverIncidentViewModel.activate(
-                                                DriverDeliveryAuthority(
-                                                    authority.userId,
-                                                    authority.tenantId,
-                                                    authority.workspaceId,
-                                                    authority.membershipId,
-                                                    authority.permissions,
-                                                    route.authorityEpoch
-                                                ),
-                                                deliveryId,
-                                                attemptId,
-                                                version,
-                                                terminal
-                                            )
-                                        }
-                                    },
-                                    onSignalArrival = {
-                                        driverViewModel.signalArrival()
-                                    },
-                                    onRetryUnknownArrival =
-                                        driverViewModel::retryUnknownArrival,
-                                    onOpenInstructions = { deliveryId ->
-                                        val route = connectedRoute
-                                        if (route != null &&
-                                            driverViewModel
-                                                .state.value.authorizedInstructionsDeliveryId ==
-                                            deliveryId &&
-                                            ConnectedOperationsNavigation.permits(
-                                                route,
-                                                CONNECTED_OPERATIONS,
-                                                state,
-                                                accessState,
-                                                warehouseState
-                                            )
-                                        ) {
-                                            val authority = route.authority
-                                            driverInstructionsViewModel.activate(
-                                                DriverDeliveryAuthority(
-                                                    authority.userId,
-                                                    authority.tenantId,
-                                                    authority.workspaceId,
-                                                    authority.membershipId,
-                                                    authority.permissions,
-                                                    route.authorityEpoch
-                                                ),
-                                                deliveryId
-                                            )
-                                            showDriverInstructions = true
-                                        }
-                                    },
-                                    onOpenOperationalExceptions = { deliveryId ->
-                                        val route = connectedRoute
-                                        if (route != null &&
-                                            driverViewModel
-                                                .state.value
-                                                .authorizedOperationalExceptionsDeliveryId ==
-                                            deliveryId &&
-                                            ConnectedOperationsNavigation.permits(
-                                                route,
-                                                CONNECTED_OPERATIONS,
-                                                state,
-                                                accessState,
-                                                warehouseState
-                                            )
-                                        ) {
-                                            val authority = route.authority
-                                            driverExceptionsViewModel.activate(
-                                                DriverDeliveryAuthority(
-                                                    authority.userId,
-                                                    authority.tenantId,
-                                                    authority.workspaceId,
-                                                    authority.membershipId,
-                                                    authority.permissions,
-                                                    route.authorityEpoch
-                                                ),
-                                                deliveryId
-                                            )
-                                            showDriverOperationalExceptions = true
-                                        }
-                                    },
-                                    onOpenDirections = { destination ->
-                                        val route = connectedRoute
-                                        val currentDestination =
-                                            driverViewModel
-                                                .state.value.authorizedDirectionsDestination
-                                        if (route == null || currentDestination != destination ||
-                                            !ConnectedOperationsNavigation.permits(
-                                                route,
-                                                CONNECTED_OPERATIONS,
-                                                state,
-                                                accessState,
-                                                warehouseState
-                                            )
-                                        ) {
-                                            false
-                                        } else {
-                                            launchDriverDirections(this@MainActivity, destination)
-                                        }
-                                    },
-                                    workdayContent = {
-                                        DriverWorkdayPanel(
-                                            state = driverWorkdayState,
-                                            onStart = driverWorkdayViewModel::startWorkday,
-                                            onEnableLocation = {
-                                                if (fineLocationPermissionGranted()) {
-                                                    driverWorkdayViewModel
-                                                        .onLocationPermissionChanged(true)
-                                                    driverWorkdayViewModel.enableLocation()
-                                                } else {
-                                                    driverLocationPermissionLauncher.launch(
-                                                        Manifest.permission.ACCESS_FINE_LOCATION
-                                                    )
-                                                }
-                                            },
-                                            onDisableLocation =
-                                                driverWorkdayViewModel::disableLocationSharing,
-                                            onEnd = driverWorkdayViewModel::endWorkday,
-                                            onRefresh = driverWorkdayViewModel::refresh,
-                                            onRetryPending =
-                                                driverWorkdayViewModel::retryPendingCommand,
-                                            onShowMap = { location ->
-                                                DriverLiveLocationMap(
-                                                    location = location,
-                                                    tileUrlTemplate =
-                                                        BuildConfig.MAP_TILE_URL_TEMPLATE
-                                                )
-                                            }
-                                        )
-                                    }
+                                    onRetryPendingAction =
+                                        inboundCaseViewModel::retryPendingAction,
+                                    onRequestDiscard = inboundCaseViewModel::requestDiscard,
+                                    onConfirmDiscard = inboundCaseViewModel::confirmDiscard,
+                                    onCancelDiscard = inboundCaseViewModel::cancelDiscard
                                 )
-                            }
 
-                            "driver.handoff-code" -> androidx.compose.foundation.layout.Column {
-                                TextButton(
-                                    onClick = ::closeConnectedOperation
-                                ) {
-                                    androidx.compose.material3.Text("Volver")
-                                }
-                                DriverHandoffTokenScreen(
-                                    driverHandoffTokenState,
-                                    driverHandoffTokenViewModel::issueOrRetrySame,
-                                    driverHandoffTokenViewModel::refresh,
-                                    driverHandoffTokenViewModel::clearToken
+                                "warehouse.cycle-count" -> CycleCountScreen(
+                                    state = cycleCountState,
+                                    canCorrect =
+                                        connectedRoute?.authority?.permissions?.let {
+                                            "inventory.adjust" in
+                                                it &&
+                                                "warehouse:write" in it
+                                        } ==
+                                            true,
+                                    onBack = ::closeConnectedOperation,
+                                    onReloadLots = cycleCountViewModel::reloadLots,
+                                    onSelectLot = cycleCountViewModel::selectLot,
+                                    onQuantityChanged = cycleCountViewModel::observeQuantityChanged,
+                                    onRecord = cycleCountViewModel::recordCount,
+                                    onRetryCount = cycleCountViewModel::retryCountUnknownOutcome,
+                                    onApplyCorrection = cycleCountViewModel::applyCorrection,
+                                    onRetryCorrection =
+                                        cycleCountViewModel::retryCorrectionUnknownOutcome,
+                                    onLoadMoreLots = cycleCountViewModel::loadMoreLots,
+                                    hasMoreLots = cycleCountState.hasMoreLots,
+                                    onRefreshStaleCount = cycleCountViewModel::refreshStaleCount
                                 )
-                            }
 
-                            "bom.exceptions" -> BusinessOperationalExceptionsScreen(
-                                state = businessExceptionsState,
-                                viewModel = businessExceptionsViewModel,
-                                onBack = ::closeConnectedOperation,
-                                onRouteClosed = businessExceptionsViewModel::invalidate,
-                                onOpenExecutionHold =
-                                    if (connectedRoute?.authority?.permissions?.contains(
-                                            "delivery.execution_hold.dispose"
-                                        ) ==
+                                "warehouse.transfer-receipt" -> StockTransferReceiptScreen(
+                                    state = stockTransferReceiptState,
+                                    onBack = ::closeConnectedOperation,
+                                    onReloadWarehouses =
+                                        transferReceiptViewModel::reloadWarehouses,
+                                    onSelectDestinationWarehouse =
+                                        transferReceiptViewModel::selectDestinationWarehouse,
+                                    onLoadMoreTransfers =
+                                        transferReceiptViewModel::loadMoreTransfers,
+                                    onSelectTransfer = transferReceiptViewModel::selectTransfer,
+                                    onReceiveExpectedQuantity =
+                                        transferReceiptViewModel::receiveExpectedQuantity,
+                                    onRetryUnknownOutcome =
+                                        transferReceiptViewModel::retryUnknownOutcome,
+                                    onRetryIntentCleanup =
+                                        transferReceiptViewModel::retryIntentCleanup,
+                                    onObserveArrival = transferReceiptViewModel::observeArrival,
+                                    onRetryObservation =
+                                        transferReceiptViewModel::retryObservationUnknownOutcome,
+                                    onCleanupObservation =
+                                        transferReceiptViewModel::retryObservationIntentCleanup
+                                )
+
+                                "warehouse.transfer" -> StockTransferScreen(
+                                    state = stockTransferState, onBack = ::closeConnectedOperation,
+                                    onSelectSourceLot = stockTransferViewModel::selectSourceLot,
+                                    onSelectDestinationWarehouse =
+                                        stockTransferViewModel::selectDestinationWarehouse,
+                                    onSelectDestinationZone =
+                                        stockTransferViewModel::selectDestinationZone,
+                                    onQuantityChanged = stockTransferViewModel::quantityChanged,
+                                    onReasonChanged = stockTransferViewModel::reasonChanged,
+                                    onReloadSourceLots = stockTransferViewModel::reloadSourceLots,
+                                    onReloadWarehouses = stockTransferViewModel::reloadWarehouses,
+                                    onReloadZones = stockTransferViewModel::reloadZones,
+                                    onStartTransfer = stockTransferViewModel::startTransfer,
+                                    onRetryUnknownOutcome =
+                                        stockTransferViewModel::retryUnknownOutcome,
+                                    onRetryIntentCleanup =
+                                        stockTransferViewModel::retryIntentCleanup,
+                                    onStartAnotherTransfer =
+                                        stockTransferViewModel::startAnotherTransfer
+                                )
+
+                                "commercial.visit" -> FieldVisitScreen(
+                                    fieldVisitState,
+                                    ::closeConnectedOperation,
+                                    fieldVisitViewModel,
+                                    connectedRoute?.authority?.permissions?.any {
+                                        it == "client.manage" ||
+                                            it == "sales:write"
+                                    } ==
                                         true
-                                    ) {
-                                        { deliveryId ->
-                                            val currentRoute = connectedRoute
-                                            if (
-                                                businessExceptionsViewModel
-                                                    .state.value.selectedException?.deliveryId ==
-                                                deliveryId &&
-                                                currentRoute != null &&
+                                )
+
+                                "commercial.documents" -> BusinessDocumentsScreen(
+                                    businessDocumentsState,
+                                    ::closeConnectedOperation,
+                                    businessDocumentsViewModel::refresh,
+                                    businessDocumentsViewModel::previousPage,
+                                    businessDocumentsViewModel::nextPage,
+                                    businessDocumentsViewModel::open,
+                                    businessDocumentsViewModel::closeContent,
+                                    businessDocumentsFactory.pdfPageRenderer
+                                )
+
+                                "operations.notifications" -> NotificationsScreen(
+                                    state = notificationsState,
+                                    onBack = ::closeConnectedOperation,
+                                    onTabSelected = notificationsViewModel::selectTab,
+                                    onRefreshInbox = notificationsViewModel::refreshInbox,
+                                    onUnreadOnlyChanged = notificationsViewModel::setUnreadOnly,
+                                    onMarkRead = { id, read ->
+                                        notificationsState.inbox?.items?.singleOrNull {
+                                            it.id == id
+                                        }
+                                            ?.let { notificationsViewModel.setRead(it, read) }
+                                    },
+                                    onMarkAllRead = notificationsViewModel::markAllRead,
+                                    onRefreshPreferences =
+                                        notificationsViewModel::refreshPreferences,
+                                    onPreferenceChanged = notificationsViewModel::setPreference
+                                )
+
+                                "commercial.request" -> if (showCatalogForRequest) {
+                                    CommercialCatalogScreen(
+                                        state = commercialCatalogState,
+                                        onBack = {
+                                            showCatalogForRequest = false
+                                            commercialCatalogViewModel.deactivate()
+                                        },
+                                        onCustomerIdChanged = { customerId ->
+                                            fieldRequestDraftViewModel.customerChanged(customerId)
+                                            commercialCatalogViewModel.customerIdChanged(customerId)
+                                        },
+                                        onQueryChanged = commercialCatalogViewModel::queryChanged,
+                                        onOpenFilterOptions =
+                                            commercialCatalogViewModel::openFilterOptions,
+                                        onSearchFilterChanged =
+                                            commercialCatalogViewModel::searchFilterOptions,
+                                        onSearchFilterOptions =
+                                            commercialCatalogViewModel::loadFilterOptions,
+                                        onSelectFilterOption =
+                                            commercialCatalogViewModel::selectFilterOption,
+                                        onSearch = commercialCatalogViewModel::search,
+                                        onNextPage = commercialCatalogViewModel::nextPage,
+                                        onSelectProduct = commercialCatalogViewModel::selectProduct,
+                                        onRouteClosed = commercialCatalogViewModel::deactivate,
+                                        onPrepareRequest = { _, productId ->
+                                            fieldRequestDraftViewModel.addProduct(productId)
+                                            showCatalogForRequest = false
+                                        }
+                                    )
+                                } else {
+                                    FieldRequestDraftScreen(
+                                        state = fieldRequestDraftState,
+                                        onBack = ::closeConnectedOperation,
+                                        onCustomerChanged =
+                                            fieldRequestDraftViewModel::customerChanged,
+                                        onOpenCatalog = {
+                                            val route =
+                                                connectedRoute ?: return@FieldRequestDraftScreen
+                                            val authority = route.authority
+                                            showCatalogForRequest = true
+                                            commercialCatalogViewModel.activate(
+                                                CommercialAuthority(
+                                                    authority.userId,
+                                                    authority.tenantId,
+                                                    authority.workspaceId,
+                                                    authority.membershipId,
+                                                    authority.permissions,
+                                                    route.authorityEpoch
+                                                )
+                                            )
+                                            commercialCatalogViewModel.customerIdChanged(
+                                                fieldRequestDraftState.draft.customerId
+                                            )
+                                        },
+                                        onQuantityChanged =
+                                            fieldRequestDraftViewModel::quantityChanged,
+                                        onRemoveProduct = fieldRequestDraftViewModel::removeProduct,
+                                        onReview = fieldRequestDraftViewModel::review,
+                                        onRouteClosed = fieldRequestDraftViewModel::deactivate
+                                    )
+                                }
+
+                                "commercial.direct-order" -> if (showCatalogForDirectOrder) {
+                                    CommercialCatalogScreen(
+                                        state = commercialCatalogState,
+                                        onBack = {
+                                            showCatalogForDirectOrder = false
+                                            commercialCatalogViewModel.deactivate()
+                                        },
+                                        onCustomerIdChanged = { customerId ->
+                                            directOrderViewModel.customerChanged(customerId)
+                                            commercialCatalogViewModel.customerIdChanged(customerId)
+                                        },
+                                        onQueryChanged = commercialCatalogViewModel::queryChanged,
+                                        onOpenFilterOptions =
+                                            commercialCatalogViewModel::openFilterOptions,
+                                        onSearchFilterChanged =
+                                            commercialCatalogViewModel::searchFilterOptions,
+                                        onSearchFilterOptions =
+                                            commercialCatalogViewModel::loadFilterOptions,
+                                        onSelectFilterOption =
+                                            commercialCatalogViewModel::selectFilterOption,
+                                        onSearch = commercialCatalogViewModel::search,
+                                        onNextPage = commercialCatalogViewModel::nextPage,
+                                        onSelectProduct = commercialCatalogViewModel::selectProduct,
+                                        onRouteClosed = commercialCatalogViewModel::deactivate,
+                                        onCreateDirectOrder = { _, productId ->
+                                            directOrderViewModel.productChanged(productId)
+                                            showCatalogForDirectOrder = false
+                                        }
+                                    )
+                                } else {
+                                    DirectOrderScreen(
+                                        directOrderState,
+                                        ::closeConnectedOperation,
+                                        directOrderViewModel,
+                                        onOpenCatalog = {
+                                            val route = connectedRoute ?: return@DirectOrderScreen
+                                            val authority = route.authority
+                                            showCatalogForDirectOrder = true
+                                            commercialCatalogViewModel.activate(
+                                                CommercialAuthority(
+                                                    authority.userId,
+                                                    authority.tenantId,
+                                                    authority.workspaceId,
+                                                    authority.membershipId,
+                                                    authority.permissions,
+                                                    route.authorityEpoch
+                                                )
+                                            )
+                                            commercialCatalogViewModel.customerIdChanged(
+                                                directOrderState.record.draft.customerId
+                                            )
+                                        }
+                                    )
+                                }
+
+                                "driver.deliveries" -> if (showDriverOperationalExceptions) {
+                                    ExceptionsScreen(
+                                        state = driverOperationalExceptionsState,
+                                        onBack = ::closeDriverDeliveryOperationalExceptions,
+                                        onRefresh =
+                                            driverExceptionsViewModel::refresh,
+                                        onClaim = driverExceptionsViewModel::claim,
+                                        onSendForReview =
+                                            driverExceptionsViewModel::sendForReview,
+                                        onResolve =
+                                            driverExceptionsViewModel::resolveWarning,
+                                        onClose =
+                                            driverExceptionsViewModel::closeWarning,
+                                        onRetrySameCommand =
+                                            driverExceptionsViewModel::retrySameCommand
+                                    )
+                                } else if (showDriverInstructions) {
+                                    InstructionsScreen(
+                                        state = driverInstructionsState,
+                                        onBack = ::closeDriverDeliveryInstructions,
+                                        onRefresh = driverInstructionsViewModel::refresh,
+                                        onSelectInstruction =
+                                            driverInstructionsViewModel::setInstructionSelected,
+                                        onAcknowledgeSelected =
+                                            driverInstructionsViewModel::acknowledgeSelected,
+                                        onRetryUnknownAcknowledgement =
+                                            driverInstructionsViewModel::retryUnknownAcknowledgement
+                                    )
+                                } else {
+                                    DriverDeliveryScreen(
+                                        state = driverDeliveryState,
+                                        onBack = ::closeConnectedOperation,
+                                        onRefresh = driverViewModel::refresh,
+                                        onSelectDelivery = driverViewModel::selectDelivery,
+                                        onBeginDelivery = driverViewModel::beginSelectedDelivery,
+                                        onRetryUnknownStart =
+                                            driverViewModel::retryUnknownStart,
+                                        onRecordOutcome = driverViewModel::recordOutcome,
+                                        onRetryUnknownOutcome =
+                                            driverViewModel::retryUnknownOutcome,
+                                        onChooseProofFile = {
+                                            val route = connectedRoute
+                                            if (route != null &&
                                                 ConnectedOperationsNavigation.permits(
-                                                    currentRoute,
+                                                    route,
                                                     CONNECTED_OPERATIONS,
                                                     state,
                                                     accessState,
                                                     warehouseState
                                                 )
                                             ) {
-                                                val entry = CONNECTED_OPERATIONS.single {
-                                                    it.key ==
-                                                        "internal.execution-holds"
-                                                }
-                                                ConnectedOperationsNavigation.open(
-                                                    entry,
-                                                    state,
-                                                    accessState,
-                                                    warehouseState
-                                                )?.let { route ->
-                                                    closeConnectedOperation()
-                                                    connectedRoute = route
-                                                    val authority = route.authority
-                                                    executionTemperatureViewModel.activate(
-                                                        DriverDeliveryAuthority(
-                                                            authority.userId,
-                                                            authority.tenantId,
-                                                            authority.workspaceId,
-                                                            authority.membershipId,
-                                                            authority.permissions,
-                                                            route.authorityEpoch
-                                                        ),
-                                                        deliveryId,
-                                                        TemperatureMode.HOLD_DISPOSITION
-                                                    )
+                                                val selection =
+                                                    driverViewModel.beginProofFileSelection()
+                                                if (selection != null) {
+                                                    pendingDriverProofPicker = selection
+                                                    driverProofPicker.launch("image/*")
                                                 }
                                             }
-                                        }
-                                    } else {
-                                        null
-                                    }
-                            )
-
-                            "driver.execution-temperature", "internal.execution-holds" ->
-                                TemperatureScreen(
-                                    state = executionTemperatureState,
-                                    onBack = ::closeConnectedOperation,
-                                    onRefresh = executionTemperatureViewModel::refresh,
-                                    onRecord = executionTemperatureViewModel::record,
-                                    onQuantityChanged =
-                                        executionTemperatureViewModel::updateQuantity,
-                                    onCelsiusChanged = executionTemperatureViewModel::updateCelsius,
-                                    onDispositionReasonChanged =
-                                        executionTemperatureViewModel::updateDispositionReason,
-                                    onRetryUnknownOutcome =
-                                        executionTemperatureViewModel::retryUnknownOutcome,
-                                    onDisposition = executionTemperatureViewModel::dispose,
-                                    onReportExcursion = { deliveryId ->
-                                        val snapshot =
-                                            executionTemperatureViewModel.state.value.snapshot
-                                        val attemptId = snapshot?.attemptId
-                                        if (snapshot != null && snapshot.deliveryId == deliveryId &&
-                                            attemptId != null
-                                        ) {
+                                        },
+                                        onUploadSelectedProofEvidence =
+                                            driverViewModel::uploadSelectedProofEvidence,
+                                        onCreateProof = driverViewModel::createProof,
+                                        onRefreshProofEvidence =
+                                            driverViewModel::refreshProofEvidence,
+                                        onRetryUnknownProof =
+                                            driverViewModel::retryUnknownProof,
+                                        onAttachAvailableProofEvidence =
+                                            driverViewModel::attachAvailableProofEvidence,
+                                        onOpenHandoffCode =
+                                            if (connectedRoute?.authority?.permissions?.contains(
+                                                    "logistics:write"
+                                                ) ==
+                                                true
+                                            ) {
+                                                { deliveryId, attemptId, version ->
+                                                    val entry = CONNECTED_OPERATIONS.single {
+                                                        it.key ==
+                                                            "driver.handoff-code"
+                                                    }
+                                                    ConnectedOperationsNavigation.open(
+                                                        entry,
+                                                        state,
+                                                        accessState,
+                                                        warehouseState
+                                                    )?.let { route ->
+                                                        closeConnectedOperation()
+                                                        connectedRoute = route
+                                                        val authority = route.authority
+                                                        driverHandoffTokenViewModel.activate(
+                                                            DriverDeliveryAuthority(
+                                                                authority.userId,
+                                                                authority.tenantId,
+                                                                authority.workspaceId,
+                                                                authority.membershipId,
+                                                                authority.permissions,
+                                                                route.authorityEpoch
+                                                            ),
+                                                            deliveryId,
+                                                            attemptId,
+                                                            version
+                                                        )
+                                                    }
+                                                }
+                                            } else {
+                                                null
+                                            },
+                                        onOpenExecutionTemperature = { deliveryId ->
+                                            val entry = CONNECTED_OPERATIONS.single {
+                                                it.key ==
+                                                    "driver.execution-temperature"
+                                            }
+                                            ConnectedOperationsNavigation.open(
+                                                entry,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )?.let { route ->
+                                                closeConnectedOperation()
+                                                connectedRoute = route
+                                                val authority = route.authority
+                                                executionTemperatureViewModel.activate(
+                                                    DriverDeliveryAuthority(
+                                                        authority.userId,
+                                                        authority.tenantId,
+                                                        authority.workspaceId,
+                                                        authority.membershipId,
+                                                        authority.permissions,
+                                                        route.authorityEpoch
+                                                    ),
+                                                    deliveryId,
+                                                    TemperatureMode.DRIVER
+                                                )
+                                            }
+                                        },
+                                        onOpenIncident = {
+                                                deliveryId,
+                                                attemptId,
+                                                version,
+                                                terminal
+                                            ->
                                             val entry = CONNECTED_OPERATIONS.single {
                                                 it.key ==
                                                     "driver.incident"
@@ -2995,67 +2930,391 @@ class MainActivity : ComponentActivity() {
                                                     ),
                                                     deliveryId,
                                                     attemptId,
-                                                    snapshot.deliveryVersion,
-                                                    false
-                                                )
-                                                driverIncidentViewModel.editType(
-                                                    DriverIncidentType.TEMPERATURE_EXCURSION
+                                                    version,
+                                                    terminal
                                                 )
                                             }
+                                        },
+                                        onSignalArrival = {
+                                            driverViewModel.signalArrival()
+                                        },
+                                        onRetryUnknownArrival =
+                                            driverViewModel::retryUnknownArrival,
+                                        onOpenInstructions = { deliveryId ->
+                                            val route = connectedRoute
+                                            if (route != null &&
+                                                driverViewModel
+                                                    .state.value.authorizedInstructionsDeliveryId ==
+                                                deliveryId &&
+                                                ConnectedOperationsNavigation.permits(
+                                                    route,
+                                                    CONNECTED_OPERATIONS,
+                                                    state,
+                                                    accessState,
+                                                    warehouseState
+                                                )
+                                            ) {
+                                                val authority = route.authority
+                                                driverInstructionsViewModel.activate(
+                                                    DriverDeliveryAuthority(
+                                                        authority.userId,
+                                                        authority.tenantId,
+                                                        authority.workspaceId,
+                                                        authority.membershipId,
+                                                        authority.permissions,
+                                                        route.authorityEpoch
+                                                    ),
+                                                    deliveryId
+                                                )
+                                                showDriverInstructions = true
+                                            }
+                                        },
+                                        onOpenOperationalExceptions = { deliveryId ->
+                                            val route = connectedRoute
+                                            if (route != null &&
+                                                driverViewModel
+                                                    .state.value
+                                                    .authorizedOperationalExceptionsDeliveryId ==
+                                                deliveryId &&
+                                                ConnectedOperationsNavigation.permits(
+                                                    route,
+                                                    CONNECTED_OPERATIONS,
+                                                    state,
+                                                    accessState,
+                                                    warehouseState
+                                                )
+                                            ) {
+                                                val authority = route.authority
+                                                driverExceptionsViewModel.activate(
+                                                    DriverDeliveryAuthority(
+                                                        authority.userId,
+                                                        authority.tenantId,
+                                                        authority.workspaceId,
+                                                        authority.membershipId,
+                                                        authority.permissions,
+                                                        route.authorityEpoch
+                                                    ),
+                                                    deliveryId
+                                                )
+                                                showDriverOperationalExceptions = true
+                                            }
+                                        },
+                                        onOpenDirections = { destination ->
+                                            val route = connectedRoute
+                                            val currentDestination =
+                                                driverViewModel
+                                                    .state.value.authorizedDirectionsDestination
+                                            if (
+                                                route == null ||
+                                                currentDestination != destination ||
+                                                !ConnectedOperationsNavigation.permits(
+                                                    route,
+                                                    CONNECTED_OPERATIONS,
+                                                    state,
+                                                    accessState,
+                                                    warehouseState
+                                                )
+                                            ) {
+                                                false
+                                            } else {
+                                                launchDriverDirections(
+                                                    this@MainActivity,
+                                                    destination
+                                                )
+                                            }
+                                        },
+                                        workdayContent = {
+                                            val authorizedMapDeliveryId = connectedRoute
+                                                ?.takeIf { route ->
+                                                    ConnectedOperationsNavigation.permits(
+                                                        route,
+                                                        CONNECTED_OPERATIONS,
+                                                        state,
+                                                        accessState,
+                                                        warehouseState
+                                                    )
+                                                }
+                                                ?.let {
+                                                    driverDeliveryState
+                                                        .authorizedActiveMapDeliveryIdFor(
+                                                            driverWorkdayState.eligibleDeliveryId
+                                                        )
+                                                }
+                                            val mapCoordinates =
+                                                authorizedMapDeliveryId?.let { deliveryId ->
+                                                    driverDeliveryState
+                                                        .authorizedMapDestinationCoordinatesFor(
+                                                            deliveryId
+                                                        )
+                                                }
+                                            val mapWorkdayState = driverWorkdayState.copy(
+                                                liveLocation = driverWorkdayState.liveLocation
+                                                    .takeIf { authorizedMapDeliveryId != null }
+                                            )
+                                            DriverWorkdayPanel(
+                                                state = mapWorkdayState,
+                                                onStart = driverWorkdayViewModel::startWorkday,
+                                                onEnableLocation = {
+                                                    showDriverLocationDisclosure = true
+                                                },
+                                                onDisableLocation =
+                                                    driverWorkdayViewModel::disableLocationSharing,
+                                                onEnd = driverWorkdayViewModel::endWorkday,
+                                                onRefresh = driverWorkdayViewModel::refresh,
+                                                onRetryPending =
+                                                    driverWorkdayViewModel::retryPendingCommand,
+                                                onShowMap = { location ->
+                                                    DriverLiveLocationMap(
+                                                        location = location,
+                                                        destinationCoordinates = mapCoordinates,
+                                                        tileUrlTemplate =
+                                                            BuildConfig.MAP_TILE_URL_TEMPLATE
+                                                    )
+                                                }
+                                            )
                                         }
+                                    )
+                                }
+
+                                "driver.handoff-code" -> androidx.compose.foundation.layout.Column {
+                                    TextButton(
+                                        onClick = ::closeConnectedOperation
+                                    ) {
+                                        androidx.compose.material3.Text("Volver")
                                     }
+                                    DriverHandoffTokenScreen(
+                                        driverHandoffTokenState,
+                                        driverHandoffTokenViewModel::issueOrRetrySame,
+                                        driverHandoffTokenViewModel::refresh,
+                                        driverHandoffTokenViewModel::clearToken
+                                    )
+                                }
+
+                                "bom.exceptions" -> BusinessOperationalExceptionsScreen(
+                                    state = businessExceptionsState,
+                                    viewModel = businessExceptionsViewModel,
+                                    onBack = ::closeConnectedOperation,
+                                    onRouteClosed = businessExceptionsViewModel::invalidate,
+                                    onOpenExecutionHold =
+                                        if (connectedRoute?.authority?.permissions?.contains(
+                                                "delivery.execution_hold.dispose"
+                                            ) ==
+                                            true
+                                        ) {
+                                            { deliveryId ->
+                                                val currentRoute = connectedRoute
+                                                if (
+                                                    businessExceptionsViewModel
+                                                        .state
+                                                        .value
+                                                        .selectedException
+                                                        ?.deliveryId == deliveryId &&
+                                                    currentRoute != null &&
+                                                    ConnectedOperationsNavigation.permits(
+                                                        currentRoute,
+                                                        CONNECTED_OPERATIONS,
+                                                        state,
+                                                        accessState,
+                                                        warehouseState
+                                                    )
+                                                ) {
+                                                    val entry = CONNECTED_OPERATIONS.single {
+                                                        it.key ==
+                                                            "internal.execution-holds"
+                                                    }
+                                                    ConnectedOperationsNavigation.open(
+                                                        entry,
+                                                        state,
+                                                        accessState,
+                                                        warehouseState
+                                                    )?.let { route ->
+                                                        closeConnectedOperation()
+                                                        connectedRoute = route
+                                                        val authority = route.authority
+                                                        executionTemperatureViewModel.activate(
+                                                            DriverDeliveryAuthority(
+                                                                authority.userId,
+                                                                authority.tenantId,
+                                                                authority.workspaceId,
+                                                                authority.membershipId,
+                                                                authority.permissions,
+                                                                route.authorityEpoch
+                                                            ),
+                                                            deliveryId,
+                                                            TemperatureMode.HOLD_DISPOSITION
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            null
+                                        }
                                 )
 
-                            "driver.incident" -> androidx.compose.foundation.layout.Column {
-                                TextButton(
-                                    onClick = ::closeConnectedOperation
-                                ) {
-                                    androidx.compose.material3.Text("Volver")
-                                }
-                                IncidentScreen(
-                                    state = driverIncidentState,
-                                    onTypeChanged = driverIncidentViewModel::editType,
-                                    onReasonChanged = driverIncidentViewModel::editReason,
-                                    onDescriptionChanged = driverIncidentViewModel::editDescription,
-                                    onPlaceChanged = driverIncidentViewModel::editPlace,
-                                    onSaveDraft = driverIncidentViewModel::saveDraft,
-                                    onReviewDraft = driverIncidentViewModel::reviewDraft,
-                                    onSubmitIncident = driverIncidentViewModel::submitIncident,
-                                    onRetryUnknownOutcome =
-                                        driverIncidentViewModel::retryUnknownOutcome,
-                                    onSelectEvidence = {
-                                        val route = connectedRoute
-                                        if (route != null &&
-                                            "document.upload" in route.authority.permissions &&
-                                            ConnectedOperationsNavigation.permits(
-                                                route,
-                                                CONNECTED_OPERATIONS,
+                                "driver.execution-temperature", "internal.execution-holds" ->
+                                    TemperatureScreen(
+                                        state = executionTemperatureState,
+                                        onBack = ::closeConnectedOperation,
+                                        onRefresh = executionTemperatureViewModel::refresh,
+                                        onRecord = executionTemperatureViewModel::record,
+                                        onQuantityChanged =
+                                            executionTemperatureViewModel::updateQuantity,
+                                        onCelsiusChanged =
+                                            executionTemperatureViewModel::updateCelsius,
+                                        onDispositionReasonChanged =
+                                            executionTemperatureViewModel::updateDispositionReason,
+                                        onRetryUnknownOutcome =
+                                            executionTemperatureViewModel::retryUnknownOutcome,
+                                        onDisposition = executionTemperatureViewModel::dispose,
+                                        onReportExcursion = { deliveryId ->
+                                            val snapshot =
+                                                executionTemperatureViewModel.state.value.snapshot
+                                            val attemptId = snapshot?.attemptId
+                                            if (snapshot != null &&
+                                                snapshot.deliveryId == deliveryId &&
+                                                attemptId != null
+                                            ) {
+                                                val entry = CONNECTED_OPERATIONS.single {
+                                                    it.key ==
+                                                        "driver.incident"
+                                                }
+                                                ConnectedOperationsNavigation.open(
+                                                    entry,
+                                                    state,
+                                                    accessState,
+                                                    warehouseState
+                                                )?.let { route ->
+                                                    closeConnectedOperation()
+                                                    connectedRoute = route
+                                                    val authority = route.authority
+                                                    driverIncidentViewModel.activate(
+                                                        DriverDeliveryAuthority(
+                                                            authority.userId,
+                                                            authority.tenantId,
+                                                            authority.workspaceId,
+                                                            authority.membershipId,
+                                                            authority.permissions,
+                                                            route.authorityEpoch
+                                                        ),
+                                                        deliveryId,
+                                                        attemptId,
+                                                        snapshot.deliveryVersion,
+                                                        false
+                                                    )
+                                                    driverIncidentViewModel.editType(
+                                                        DriverIncidentType.TEMPERATURE_EXCURSION
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    )
+
+                                "driver.incident" -> androidx.compose.foundation.layout.Column {
+                                    TextButton(
+                                        onClick = ::closeConnectedOperation
+                                    ) {
+                                        androidx.compose.material3.Text("Volver")
+                                    }
+                                    IncidentScreen(
+                                        state = driverIncidentState,
+                                        onTypeChanged = driverIncidentViewModel::editType,
+                                        onReasonChanged = driverIncidentViewModel::editReason,
+                                        onDescriptionChanged =
+                                            driverIncidentViewModel::editDescription,
+                                        onPlaceChanged = driverIncidentViewModel::editPlace,
+                                        onSaveDraft = driverIncidentViewModel::saveDraft,
+                                        onReviewDraft = driverIncidentViewModel::reviewDraft,
+                                        onSubmitIncident = driverIncidentViewModel::submitIncident,
+                                        onRetryUnknownOutcome =
+                                            driverIncidentViewModel::retryUnknownOutcome,
+                                        onSelectEvidence = {
+                                            val route = connectedRoute
+                                            if (route != null &&
+                                                "document.upload" in route.authority.permissions &&
+                                                ConnectedOperationsNavigation.permits(
+                                                    route,
+                                                    CONNECTED_OPERATIONS,
+                                                    state,
+                                                    accessState,
+                                                    warehouseState
+                                                )
+                                            ) {
+                                                val selection =
+                                                    driverIncidentViewModel
+                                                        .prepareEvidenceSelection()
+                                                if (selection != null) {
+                                                    pendingDriverIncidentPicker = selection
+                                                    driverIncidentPicker.launch("image/*")
+                                                }
+                                            }
+                                        },
+                                        onUploadEvidence = driverIncidentViewModel::uploadEvidence,
+                                        onCheckEvidenceAvailability =
+                                            driverIncidentViewModel::checkEvidenceAvailability,
+                                        onReviewEvidenceLink =
+                                            driverIncidentViewModel::reviewEvidenceLink,
+                                        onAttachEvidence = driverIncidentViewModel::attachEvidence,
+                                        onOpenOperationalExceptions = { deliveryId ->
+                                            pendingDriverIncidentExceptionDeliveryId = deliveryId
+                                        },
+                                        onUseRecordedIncident = { summary, evidenceObjectId ->
+                                            val entry = CONNECTED_OPERATIONS.single {
+                                                it.key ==
+                                                    "driver.execution-temperature"
+                                            }
+                                            ConnectedOperationsNavigation.open(
+                                                entry,
                                                 state,
                                                 accessState,
                                                 warehouseState
-                                            )
-                                        ) {
-                                            val selection =
-                                                driverIncidentViewModel.prepareEvidenceSelection()
-                                            if (selection != null) {
-                                                pendingDriverIncidentPicker = selection
-                                                driverIncidentPicker.launch("image/*")
+                                            )?.let { route ->
+                                                closeConnectedOperation()
+                                                connectedRoute = route
+                                                val authority = route.authority
+                                                executionTemperatureViewModel.activate(
+                                                    DriverDeliveryAuthority(
+                                                        authority.userId,
+                                                        authority.tenantId,
+                                                        authority.workspaceId,
+                                                        authority.membershipId,
+                                                        authority.permissions,
+                                                        route.authorityEpoch
+                                                    ),
+                                                    summary.deliveryId,
+                                                    TemperatureMode.DRIVER
+                                                )
+                                                executionTemperatureViewModel
+                                                    .selectRecordedIncident(
+                                                        summary,
+                                                        evidenceObjectId
+                                                    )
                                             }
                                         }
-                                    },
-                                    onUploadEvidence = driverIncidentViewModel::uploadEvidence,
-                                    onCheckEvidenceAvailability =
-                                        driverIncidentViewModel::checkEvidenceAvailability,
-                                    onReviewEvidenceLink =
-                                        driverIncidentViewModel::reviewEvidenceLink,
-                                    onAttachEvidence = driverIncidentViewModel::attachEvidence,
-                                    onOpenOperationalExceptions = { deliveryId ->
-                                        pendingDriverIncidentExceptionDeliveryId = deliveryId
-                                    },
-                                    onUseRecordedIncident = { summary, evidenceObjectId ->
+                                    )
+                                }
+
+                                "commercial.catalog" -> CommercialCatalogScreen(
+                                    state = commercialCatalogState,
+                                    onBack = ::closeConnectedOperation,
+                                    onCustomerIdChanged =
+                                        commercialCatalogViewModel::customerIdChanged,
+                                    onQueryChanged = commercialCatalogViewModel::queryChanged,
+                                    onOpenFilterOptions =
+                                        commercialCatalogViewModel::openFilterOptions,
+                                    onSearchFilterChanged =
+                                        commercialCatalogViewModel::searchFilterOptions,
+                                    onSearchFilterOptions =
+                                        commercialCatalogViewModel::loadFilterOptions,
+                                    onSelectFilterOption =
+                                        commercialCatalogViewModel::selectFilterOption,
+                                    onSearch = commercialCatalogViewModel::search,
+                                    onNextPage = commercialCatalogViewModel::nextPage,
+                                    onSelectProduct = commercialCatalogViewModel::selectProduct,
+                                    onRouteClosed = commercialCatalogViewModel::deactivate,
+                                    onPrepareRequest = { customerId, productId ->
                                         val entry = CONNECTED_OPERATIONS.single {
                                             it.key ==
-                                                "driver.execution-temperature"
+                                                "commercial.request"
                                         }
                                         ConnectedOperationsNavigation.open(
                                             entry,
@@ -3066,96 +3325,7 @@ class MainActivity : ComponentActivity() {
                                             closeConnectedOperation()
                                             connectedRoute = route
                                             val authority = route.authority
-                                            executionTemperatureViewModel.activate(
-                                                DriverDeliveryAuthority(
-                                                    authority.userId,
-                                                    authority.tenantId,
-                                                    authority.workspaceId,
-                                                    authority.membershipId,
-                                                    authority.permissions,
-                                                    route.authorityEpoch
-                                                ),
-                                                summary.deliveryId,
-                                                TemperatureMode.DRIVER
-                                            )
-                                            executionTemperatureViewModel.selectRecordedIncident(
-                                                summary,
-                                                evidenceObjectId
-                                            )
-                                        }
-                                    }
-                                )
-                            }
-
-                            "commercial.catalog" -> CommercialCatalogScreen(
-                                state = commercialCatalogState,
-                                onBack = ::closeConnectedOperation,
-                                onCustomerIdChanged = commercialCatalogViewModel::customerIdChanged,
-                                onQueryChanged = commercialCatalogViewModel::queryChanged,
-                                onOpenFilterOptions =
-                                    commercialCatalogViewModel::openFilterOptions,
-                                onSearchFilterChanged =
-                                    commercialCatalogViewModel::searchFilterOptions,
-                                onSearchFilterOptions =
-                                    commercialCatalogViewModel::loadFilterOptions,
-                                onSelectFilterOption =
-                                    commercialCatalogViewModel::selectFilterOption,
-                                onSearch = commercialCatalogViewModel::search,
-                                onNextPage = commercialCatalogViewModel::nextPage,
-                                onSelectProduct = commercialCatalogViewModel::selectProduct,
-                                onRouteClosed = commercialCatalogViewModel::deactivate,
-                                onPrepareRequest = { customerId, productId ->
-                                    val entry = CONNECTED_OPERATIONS.single {
-                                        it.key ==
-                                            "commercial.request"
-                                    }
-                                    ConnectedOperationsNavigation.open(
-                                        entry,
-                                        state,
-                                        accessState,
-                                        warehouseState
-                                    )?.let { route ->
-                                        closeConnectedOperation()
-                                        connectedRoute = route
-                                        val authority = route.authority
-                                        fieldRequestDraftViewModel.activate(
-                                            CommercialAuthority(
-                                                authority.userId,
-                                                authority.tenantId,
-                                                authority.workspaceId,
-                                                authority.membershipId,
-                                                authority.permissions,
-                                                route.authorityEpoch
-                                            ),
-                                            customerId,
-                                            productId
-                                        )
-                                    }
-                                },
-                                onCreateDirectOrder = if (
-                                    accessState.activeContext?.verifiedAuthority?.permissions
-                                        ?.any {
-                                            it in setOf(
-                                                "sales:write",
-                                                "sales.order.create_manual",
-                                                "sales.order.manage"
-                                            )
-                                        } == true
-                                ) {
-                                    { customerId, productId ->
-                                        val entry = CONNECTED_OPERATIONS.single {
-                                            it.key == "commercial.direct-order"
-                                        }
-                                        ConnectedOperationsNavigation.open(
-                                            entry,
-                                            state,
-                                            accessState,
-                                            warehouseState
-                                        )?.let { route ->
-                                            closeConnectedOperation()
-                                            connectedRoute = route
-                                            val authority = route.authority
-                                            directOrderViewModel.activate(
+                                            fieldRequestDraftViewModel.activate(
                                                 CommercialAuthority(
                                                     authority.userId,
                                                     authority.tenantId,
@@ -3168,213 +3338,20 @@ class MainActivity : ComponentActivity() {
                                                 productId
                                             )
                                         }
-                                    }
-                                } else {
-                                    null
-                                }
-                            )
-
-                            "commercial.instructions" -> CustomerDeliveryInstructionsScreen(
-                                customerInstructionsState,
-                                ::closeConnectedOperation,
-                                customerInstructionsViewModel
-                            )
-
-                            "commercial.progress" -> CustomerProgressScreen(
-                                state = customerProgressState,
-                                onBack = ::closeConnectedOperation,
-                                onCustomerIdChanged = customerProgressViewModel::customerIdChanged,
-                                onCurrencyChanged = customerProgressViewModel::currencyChanged,
-                                onRefresh = customerProgressViewModel::refresh,
-                                onPreviousPage = customerProgressViewModel::previousPage,
-                                onNextPage = customerProgressViewModel::nextPage,
-                                onRouteClosed = customerProgressViewModel::deactivate,
-                                onOpenDeliveryInstructions = { orderId ->
-                                    val entry = CONNECTED_OPERATIONS.single {
-                                        it.key ==
-                                            "commercial.instructions"
-                                    }
-                                    ConnectedOperationsNavigation.open(
-                                        entry,
-                                        state,
-                                        accessState,
-                                        warehouseState
-                                    )?.let { route ->
-                                        closeConnectedOperation()
-                                        connectedRoute = route
-                                        val authority = route.authority
-                                        customerInstructionsViewModel.activate(
-                                            CommercialAuthority(
-                                                authority.userId,
-                                                authority.tenantId,
-                                                authority.workspaceId,
-                                                authority.membershipId,
-                                                authority.permissions,
-                                                route.authorityEpoch
-                                            ),
-                                            orderId
-                                        )
-                                    }
-                                }
-                            )
-
-                            "commercial.customers" -> CustomerSearchScreen(
-                                state = customerSearchState,
-                                onBack = ::closeConnectedOperation,
-                                onQueryChanged = customerSearchViewModel::queryChanged,
-                                onSearch = customerSearchViewModel::search,
-                                onSelectCustomer = customerSearchViewModel::selectCustomer,
-                                onPreviousPage = customerSearchViewModel::previousPage,
-                                onNextPage = customerSearchViewModel::nextPage,
-                                onRouteClosed = customerSearchViewModel::deactivate,
-                                onPrepareRequest = { customerId ->
-                                    val entry = CONNECTED_OPERATIONS.single {
-                                        it.key ==
-                                            "commercial.request"
-                                    }
-                                    ConnectedOperationsNavigation.open(
-                                        entry,
-                                        state,
-                                        accessState,
-                                        warehouseState
-                                    )?.let { route ->
-                                        closeConnectedOperation()
-                                        connectedRoute = route
-                                        val authority = route.authority
-                                        fieldRequestDraftViewModel.activate(
-                                            CommercialAuthority(
-                                                authority.userId,
-                                                authority.tenantId,
-                                                authority.workspaceId,
-                                                authority.membershipId,
-                                                authority.permissions,
-                                                route.authorityEpoch
-                                            ),
-                                            customerId
-                                        )
-                                    }
-                                },
-                                onReviewProducts =
-                                    if (accessState.activeContext?.verifiedAuthority?.permissions
-                                            ?.any {
-                                                it == "catalog.read" || it == "catalog:read"
-                                            } ==
-                                        true
-                                    ) {
-                                        { customerId ->
-                                            val entry = CONNECTED_OPERATIONS.single {
-                                                it.key ==
-                                                    "commercial.catalog"
-                                            }
-                                            ConnectedOperationsNavigation.open(
-                                                entry,
-                                                state,
-                                                accessState,
-                                                warehouseState
-                                            )
-                                                ?.let { route ->
-                                                    closeConnectedOperation()
-                                                    connectedRoute = route
-                                                    val authority = route.authority
-                                                    commercialCatalogViewModel.activate(
-                                                        CommercialAuthority(
-                                                            authority.userId,
-                                                            authority.tenantId,
-                                                            authority.workspaceId,
-                                                            authority.membershipId,
-                                                            authority.permissions,
-                                                            route.authorityEpoch
-                                                        )
-                                                    )
-                                                    commercialCatalogViewModel.customerIdChanged(
-                                                        customerId
-                                                    )
-                                                }
-                                        }
-                                    } else {
-                                        null
                                     },
-                                onReviewProgress = { customerId ->
-                                    val entry = CONNECTED_OPERATIONS.single {
-                                        it.key ==
-                                            "commercial.progress"
-                                    }
-                                    ConnectedOperationsNavigation.open(
-                                        entry,
-                                        state,
-                                        accessState,
-                                        warehouseState
-                                    )
-                                        ?.let { route ->
-                                            closeConnectedOperation()
-                                            connectedRoute = route
-                                            val authority = route.authority
-                                            customerProgressViewModel.activate(
-                                                CommercialAuthority(
-                                                    authority.userId,
-                                                    authority.tenantId,
-                                                    authority.workspaceId,
-                                                    authority.membershipId,
-                                                    authority.permissions,
-                                                    route.authorityEpoch
+                                    onCreateDirectOrder = if (
+                                        accessState.activeContext?.verifiedAuthority?.permissions
+                                            ?.any {
+                                                it in setOf(
+                                                    "sales:write",
+                                                    "sales.order.create_manual",
+                                                    "sales.order.manage"
                                                 )
-                                            )
-                                            customerProgressViewModel.customerIdChanged(customerId)
-                                            customerProgressViewModel.refresh()
-                                        }
-                                }
-                            )
-
-                            "warehouse.temperature" -> TemperatureEvidenceScreen(
-                                state = temperatureEvidenceState,
-                                onBack = ::closeConnectedOperation,
-                                onSubjectTypeChanged =
-                                    temperatureEvidenceViewModel::subjectTypeChanged,
-                                onSelectSubject = temperatureEvidenceViewModel::selectSubject,
-                                onValueChanged = temperatureEvidenceViewModel::valueChanged,
-                                onUnitChanged = temperatureEvidenceViewModel::unitChanged,
-                                onOccurredAtChanged =
-                                    temperatureEvidenceViewModel::occurredAtChanged,
-                                onAffectedQuantityChanged =
-                                    temperatureEvidenceViewModel::affectedQuantityChanged,
-                                onReasonChanged = temperatureEvidenceViewModel::reasonChanged,
-                                onSourceEvidenceIdChanged =
-                                    temperatureEvidenceViewModel::sourceEvidenceIdChanged,
-                                onLoadSourceEvidence =
-                                    temperatureEvidenceViewModel::loadSourceEvidence,
-                                onChoosePhoto = {
-                                    temperatureEvidenceViewModel.photoSelectionContext()?.let {
-                                        pendingTemperatureEvidencePhotoPicker = it
-                                        temperatureEvidencePhotoPicker.launch("image/*")
-                                    }
-                                },
-                                onRefreshPhotoStatus =
-                                    temperatureEvidenceViewModel::refreshPhotoStatus,
-                                onReloadSubjects = temperatureEvidenceViewModel::reloadSubjects,
-                                onSaveDraft = temperatureEvidenceViewModel::saveDraft,
-                                onStageAndRecord = temperatureEvidenceViewModel::stageAndRecord,
-                                onRetryUnknownOutcome =
-                                    temperatureEvidenceViewModel::retryUnknownOutcome,
-                                onRetryIntentCleanup =
-                                    temperatureEvidenceViewModel::retryIntentCleanup,
-                                onStartAnotherReading =
-                                    temperatureEvidenceViewModel::startAnotherReading,
-                                onRefreshConfirmedSnapshot =
-                                    temperatureEvidenceViewModel::refreshConfirmedSnapshot,
-                                onOpenStockDisposition = { lotId, evaluationId, remainingHeld ->
-                                    if (remainingHeld.signum() > 0) {
-                                        val currentRoute = connectedRoute
-                                        if (currentRoute?.entryKey == "warehouse.temperature" &&
-                                            ConnectedOperationsNavigation.permits(
-                                                currentRoute,
-                                                CONNECTED_OPERATIONS,
-                                                state,
-                                                accessState,
-                                                warehouseState
-                                            )
-                                        ) {
+                                            } == true
+                                    ) {
+                                        { customerId, productId ->
                                             val entry = CONNECTED_OPERATIONS.single {
-                                                it.key == "warehouse.disposition"
+                                                it.key == "commercial.direct-order"
                                             }
                                             ConnectedOperationsNavigation.open(
                                                 entry,
@@ -3384,56 +3361,46 @@ class MainActivity : ComponentActivity() {
                                             )?.let { route ->
                                                 closeConnectedOperation()
                                                 connectedRoute = route
-                                                pendingDispositionLot = lotId
-                                                pendingTemperatureDispositionSeed =
-                                                    PendingTemperatureDispositionSeed(
-                                                        route,
-                                                        lotId,
-                                                        evaluationId,
-                                                        remainingHeld
-                                                    )
                                                 val authority = route.authority
-                                                dispositionViewModel.activate(
-                                                    DispositionAuthority(
+                                                directOrderViewModel.activate(
+                                                    CommercialAuthority(
                                                         authority.userId,
                                                         authority.tenantId,
                                                         authority.workspaceId,
                                                         authority.membershipId,
                                                         authority.permissions,
                                                         route.authorityEpoch
-                                                    )
+                                                    ),
+                                                    customerId,
+                                                    productId
                                                 )
                                             }
                                         }
+                                    } else {
+                                        null
                                     }
-                                }
-                            )
+                                )
 
-                            "dispatch.readiness" -> DispatchReadinessScreen(
-                                state = dispatchReadinessState,
-                                onBack = ::closeConnectedOperation,
-                                onRefresh = readinessViewModel::refresh,
-                                onSelectFulfillment = readinessViewModel::selectFulfillment,
-                                onClearSelection = readinessViewModel::clearSelection,
-                                onRouteClosed = readinessViewModel::deactivate,
-                                onEditDeliveryInstructions = { deliveryId ->
-                                    val current = readinessViewModel.state.value
-                                    val currentRoute = connectedRoute
-                                    if (current.detail?.deliveryId == deliveryId &&
-                                        current.detailStatus ==
-                                        ReadinessDetailStatus.Current &&
-                                        currentRoute != null &&
-                                        ConnectedOperationsNavigation.permits(
-                                            currentRoute,
-                                            CONNECTED_OPERATIONS,
-                                            state,
-                                            accessState,
-                                            warehouseState
-                                        )
-                                    ) {
+                                "commercial.instructions" -> CustomerDeliveryInstructionsScreen(
+                                    customerInstructionsState,
+                                    ::closeConnectedOperation,
+                                    customerInstructionsViewModel
+                                )
+
+                                "commercial.progress" -> CustomerProgressScreen(
+                                    state = customerProgressState,
+                                    onBack = ::closeConnectedOperation,
+                                    onCustomerIdChanged =
+                                        customerProgressViewModel::customerIdChanged,
+                                    onCurrencyChanged = customerProgressViewModel::currencyChanged,
+                                    onRefresh = customerProgressViewModel::refresh,
+                                    onPreviousPage = customerProgressViewModel::previousPage,
+                                    onNextPage = customerProgressViewModel::nextPage,
+                                    onRouteClosed = customerProgressViewModel::deactivate,
+                                    onOpenDeliveryInstructions = { orderId ->
                                         val entry = CONNECTED_OPERATIONS.single {
                                             it.key ==
-                                                "dispatch.instructions"
+                                                "commercial.instructions"
                                         }
                                         ConnectedOperationsNavigation.open(
                                             entry,
@@ -3444,35 +3411,172 @@ class MainActivity : ComponentActivity() {
                                             closeConnectedOperation()
                                             connectedRoute = route
                                             val authority = route.authority
-                                            dispatchInstructionsViewModel.activate(
-                                                DispatchAuthorityContext(
-                                                    route.authorityEpoch,
-                                                    DispatchAuthorityIdentity(
+                                            customerInstructionsViewModel.activate(
+                                                CommercialAuthority(
+                                                    authority.userId,
+                                                    authority.tenantId,
+                                                    authority.workspaceId,
+                                                    authority.membershipId,
+                                                    authority.permissions,
+                                                    route.authorityEpoch
+                                                ),
+                                                orderId
+                                            )
+                                        }
+                                    }
+                                )
+
+                                "commercial.customers" -> CustomerSearchScreen(
+                                    state = customerSearchState,
+                                    onBack = ::closeConnectedOperation,
+                                    onQueryChanged = customerSearchViewModel::queryChanged,
+                                    onSearch = customerSearchViewModel::search,
+                                    onSelectCustomer = customerSearchViewModel::selectCustomer,
+                                    onPreviousPage = customerSearchViewModel::previousPage,
+                                    onNextPage = customerSearchViewModel::nextPage,
+                                    onRouteClosed = customerSearchViewModel::deactivate,
+                                    onPrepareRequest = { customerId ->
+                                        val entry = CONNECTED_OPERATIONS.single {
+                                            it.key ==
+                                                "commercial.request"
+                                        }
+                                        ConnectedOperationsNavigation.open(
+                                            entry,
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        )?.let { route ->
+                                            closeConnectedOperation()
+                                            connectedRoute = route
+                                            val authority = route.authority
+                                            fieldRequestDraftViewModel.activate(
+                                                CommercialAuthority(
+                                                    authority.userId,
+                                                    authority.tenantId,
+                                                    authority.workspaceId,
+                                                    authority.membershipId,
+                                                    authority.permissions,
+                                                    route.authorityEpoch
+                                                ),
+                                                customerId
+                                            )
+                                        }
+                                    },
+                                    onReviewProducts =
+                                        if (
+                                            accessState.activeContext
+                                                ?.verifiedAuthority
+                                                ?.permissions
+                                                ?.any {
+                                                    it == "catalog.read" || it == "catalog:read"
+                                                } ==
+                                            true
+                                        ) {
+                                            { customerId ->
+                                                val entry = CONNECTED_OPERATIONS.single {
+                                                    it.key ==
+                                                        "commercial.catalog"
+                                                }
+                                                ConnectedOperationsNavigation.open(
+                                                    entry,
+                                                    state,
+                                                    accessState,
+                                                    warehouseState
+                                                )
+                                                    ?.let { route ->
+                                                        closeConnectedOperation()
+                                                        connectedRoute = route
+                                                        val authority = route.authority
+                                                        commercialCatalogViewModel.activate(
+                                                            CommercialAuthority(
+                                                                authority.userId,
+                                                                authority.tenantId,
+                                                                authority.workspaceId,
+                                                                authority.membershipId,
+                                                                authority.permissions,
+                                                                route.authorityEpoch
+                                                            )
+                                                        )
+                                                        commercialCatalogViewModel
+                                                            .customerIdChanged(customerId)
+                                                    }
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                    onReviewProgress = { customerId ->
+                                        val entry = CONNECTED_OPERATIONS.single {
+                                            it.key ==
+                                                "commercial.progress"
+                                        }
+                                        ConnectedOperationsNavigation.open(
+                                            entry,
+                                            state,
+                                            accessState,
+                                            warehouseState
+                                        )
+                                            ?.let { route ->
+                                                closeConnectedOperation()
+                                                connectedRoute = route
+                                                val authority = route.authority
+                                                customerProgressViewModel.activate(
+                                                    CommercialAuthority(
                                                         authority.userId,
                                                         authority.tenantId,
                                                         authority.workspaceId,
                                                         authority.membershipId,
-                                                        authority.permissions
+                                                        authority.permissions,
+                                                        route.authorityEpoch
                                                     )
-                                                ),
-                                                deliveryId
-                                            )
-                                        }
+                                                )
+                                                customerProgressViewModel.customerIdChanged(
+                                                    customerId
+                                                )
+                                                customerProgressViewModel.refresh()
+                                            }
                                     }
-                                },
-                                onReviewExecutionHold =
-                                    if (connectedRoute?.authority?.permissions?.contains(
-                                            "delivery.execution_hold.dispose"
-                                        ) ==
-                                        true
-                                    ) {
-                                        { deliveryId ->
-                                            val current = readinessViewModel.state.value
+                                )
+
+                                "warehouse.temperature" -> TemperatureEvidenceScreen(
+                                    state = temperatureEvidenceState,
+                                    onBack = ::closeConnectedOperation,
+                                    onSubjectTypeChanged =
+                                        temperatureEvidenceViewModel::subjectTypeChanged,
+                                    onSelectSubject = temperatureEvidenceViewModel::selectSubject,
+                                    onValueChanged = temperatureEvidenceViewModel::valueChanged,
+                                    onUnitChanged = temperatureEvidenceViewModel::unitChanged,
+                                    onOccurredAtChanged =
+                                        temperatureEvidenceViewModel::occurredAtChanged,
+                                    onAffectedQuantityChanged =
+                                        temperatureEvidenceViewModel::affectedQuantityChanged,
+                                    onReasonChanged = temperatureEvidenceViewModel::reasonChanged,
+                                    onSourceEvidenceIdChanged =
+                                        temperatureEvidenceViewModel::sourceEvidenceIdChanged,
+                                    onLoadSourceEvidence =
+                                        temperatureEvidenceViewModel::loadSourceEvidence,
+                                    onChoosePhoto = {
+                                        temperatureEvidenceViewModel.photoSelectionContext()?.let {
+                                            pendingTemperatureEvidencePhotoPicker = it
+                                            temperatureEvidencePhotoPicker.launch("image/*")
+                                        }
+                                    },
+                                    onRefreshPhotoStatus =
+                                        temperatureEvidenceViewModel::refreshPhotoStatus,
+                                    onReloadSubjects = temperatureEvidenceViewModel::reloadSubjects,
+                                    onSaveDraft = temperatureEvidenceViewModel::saveDraft,
+                                    onStageAndRecord = temperatureEvidenceViewModel::stageAndRecord,
+                                    onRetryUnknownOutcome =
+                                        temperatureEvidenceViewModel::retryUnknownOutcome,
+                                    onRetryIntentCleanup =
+                                        temperatureEvidenceViewModel::retryIntentCleanup,
+                                    onStartAnotherReading =
+                                        temperatureEvidenceViewModel::startAnotherReading,
+                                    onRefreshConfirmedSnapshot =
+                                        temperatureEvidenceViewModel::refreshConfirmedSnapshot,
+                                    onOpenStockDisposition = { lotId, evaluationId, remainingHeld ->
+                                        if (remainingHeld.signum() > 0) {
                                             val currentRoute = connectedRoute
-                                            if (current.detail?.deliveryId == deliveryId &&
-                                                current.detailStatus ==
-                                                ReadinessDetailStatus.Current &&
-                                                currentRoute != null &&
+                                            if (currentRoute?.entryKey == "warehouse.temperature" &&
                                                 ConnectedOperationsNavigation.permits(
                                                     currentRoute,
                                                     CONNECTED_OPERATIONS,
@@ -3482,8 +3586,7 @@ class MainActivity : ComponentActivity() {
                                                 )
                                             ) {
                                                 val entry = CONNECTED_OPERATIONS.single {
-                                                    it.key ==
-                                                        "internal.execution-holds"
+                                                    it.key == "warehouse.disposition"
                                                 }
                                                 ConnectedOperationsNavigation.open(
                                                     entry,
@@ -3493,78 +3596,306 @@ class MainActivity : ComponentActivity() {
                                                 )?.let { route ->
                                                     closeConnectedOperation()
                                                     connectedRoute = route
+                                                    pendingDispositionLot = lotId
+                                                    pendingTemperatureDispositionSeed =
+                                                        PendingTemperatureDispositionSeed(
+                                                            route,
+                                                            lotId,
+                                                            evaluationId,
+                                                            remainingHeld
+                                                        )
                                                     val authority = route.authority
-                                                    executionTemperatureViewModel.activate(
-                                                        DriverDeliveryAuthority(
+                                                    dispositionViewModel.activate(
+                                                        DispositionAuthority(
                                                             authority.userId,
                                                             authority.tenantId,
                                                             authority.workspaceId,
                                                             authority.membershipId,
                                                             authority.permissions,
                                                             route.authorityEpoch
-                                                        ),
-                                                        deliveryId,
-                                                        TemperatureMode.HOLD_DISPOSITION
+                                                        )
                                                     )
                                                 }
                                             }
                                         }
-                                    } else {
-                                        null
+                                    }
+                                )
+
+                                "dispatch.readiness" -> DispatchReadinessScreen(
+                                    state = dispatchReadinessState,
+                                    onBack = ::closeConnectedOperation,
+                                    onRefresh = readinessViewModel::refresh,
+                                    onSelectFulfillment = readinessViewModel::selectFulfillment,
+                                    onClearSelection = readinessViewModel::clearSelection,
+                                    onRouteClosed = readinessViewModel::deactivate,
+                                    onEditDeliveryInstructions = { deliveryId ->
+                                        val current = readinessViewModel.state.value
+                                        val currentRoute = connectedRoute
+                                        if (current.detail?.deliveryId == deliveryId &&
+                                            current.detailStatus ==
+                                            ReadinessDetailStatus.Current &&
+                                            currentRoute != null &&
+                                            ConnectedOperationsNavigation.permits(
+                                                currentRoute,
+                                                CONNECTED_OPERATIONS,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            val entry = CONNECTED_OPERATIONS.single {
+                                                it.key ==
+                                                    "dispatch.instructions"
+                                            }
+                                            ConnectedOperationsNavigation.open(
+                                                entry,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )?.let { route ->
+                                                closeConnectedOperation()
+                                                connectedRoute = route
+                                                val authority = route.authority
+                                                dispatchInstructionsViewModel.activate(
+                                                    DispatchAuthorityContext(
+                                                        route.authorityEpoch,
+                                                        DispatchAuthorityIdentity(
+                                                            authority.userId,
+                                                            authority.tenantId,
+                                                            authority.workspaceId,
+                                                            authority.membershipId,
+                                                            authority.permissions
+                                                        )
+                                                    ),
+                                                    deliveryId
+                                                )
+                                            }
+                                        }
                                     },
-                                onRefreshDeliveryPod = readinessViewModel::refreshDeliveryPod,
-                                onSealPod = { deliveryId ->
-                                    val current = readinessViewModel.state.value
-                                    val currentRoute = connectedRoute
-                                    if (current.detail?.deliveryId == deliveryId &&
-                                        current.detailStatus == ReadinessDetailStatus.Current &&
-                                        readinessViewModel.canSealPod() && currentRoute != null &&
-                                        currentRoute.authority.permissions.any {
-                                            it == "dispatch.complete" || it == "logistics:write"
-                                        } &&
-                                        ConnectedOperationsNavigation.permits(
-                                            currentRoute,
-                                            CONNECTED_OPERATIONS,
-                                            state,
-                                            accessState,
-                                            warehouseState
-                                        )
-                                    ) {
-                                        readinessViewModel.sealPod()
-                                    }
-                                },
-                                onRetryPodSeal = {
-                                    val current = readinessViewModel.state.value
-                                    val currentRoute = connectedRoute
-                                    if (
-                                        current.pendingPodSeal?.deliveryId ==
-                                        current.detail?.deliveryId &&
-                                        current.detailStatus == ReadinessDetailStatus.Current &&
-                                        currentRoute != null &&
-                                        currentRoute.authority.permissions.any {
-                                            it == "dispatch.complete" || it == "logistics:write"
-                                        } &&
-                                        ConnectedOperationsNavigation.permits(
-                                            currentRoute,
-                                            CONNECTED_OPERATIONS,
-                                            state,
-                                            accessState,
-                                            warehouseState
-                                        )
-                                    ) {
-                                        readinessViewModel.retryPodSeal()
-                                    }
-                                },
-                                canSealPod = readinessViewModel.canSealPod(),
-                                onRecordTemperature = { fulfillmentId ->
-                                    val current = readinessViewModel.state.value
-                                    if (current.detail?.fulfillmentId == fulfillmentId &&
-                                        current.detailStatus ==
-                                        ReadinessDetailStatus.Current
-                                    ) {
+                                    onReviewExecutionHold =
+                                        if (connectedRoute?.authority?.permissions?.contains(
+                                                "delivery.execution_hold.dispose"
+                                            ) ==
+                                            true
+                                        ) {
+                                            { deliveryId ->
+                                                val current = readinessViewModel.state.value
+                                                val currentRoute = connectedRoute
+                                                if (current.detail?.deliveryId == deliveryId &&
+                                                    current.detailStatus ==
+                                                    ReadinessDetailStatus.Current &&
+                                                    currentRoute != null &&
+                                                    ConnectedOperationsNavigation.permits(
+                                                        currentRoute,
+                                                        CONNECTED_OPERATIONS,
+                                                        state,
+                                                        accessState,
+                                                        warehouseState
+                                                    )
+                                                ) {
+                                                    val entry = CONNECTED_OPERATIONS.single {
+                                                        it.key ==
+                                                            "internal.execution-holds"
+                                                    }
+                                                    ConnectedOperationsNavigation.open(
+                                                        entry,
+                                                        state,
+                                                        accessState,
+                                                        warehouseState
+                                                    )?.let { route ->
+                                                        closeConnectedOperation()
+                                                        connectedRoute = route
+                                                        val authority = route.authority
+                                                        executionTemperatureViewModel.activate(
+                                                            DriverDeliveryAuthority(
+                                                                authority.userId,
+                                                                authority.tenantId,
+                                                                authority.workspaceId,
+                                                                authority.membershipId,
+                                                                authority.permissions,
+                                                                route.authorityEpoch
+                                                            ),
+                                                            deliveryId,
+                                                            TemperatureMode.HOLD_DISPOSITION
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                    onRefreshDeliveryPod = readinessViewModel::refreshDeliveryPod,
+                                    onSealPod = { deliveryId ->
+                                        val current = readinessViewModel.state.value
+                                        val currentRoute = connectedRoute
+                                        if (current.detail?.deliveryId == deliveryId &&
+                                            current.detailStatus == ReadinessDetailStatus.Current &&
+                                            readinessViewModel.canSealPod() &&
+                                            currentRoute != null &&
+                                            currentRoute.authority.permissions.any {
+                                                it == "dispatch.complete" || it == "logistics:write"
+                                            } &&
+                                            ConnectedOperationsNavigation.permits(
+                                                currentRoute,
+                                                CONNECTED_OPERATIONS,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            readinessViewModel.sealPod()
+                                        }
+                                    },
+                                    onRetryPodSeal = {
+                                        val current = readinessViewModel.state.value
+                                        val currentRoute = connectedRoute
+                                        if (
+                                            current.pendingPodSeal?.deliveryId ==
+                                            current.detail?.deliveryId &&
+                                            current.detailStatus == ReadinessDetailStatus.Current &&
+                                            currentRoute != null &&
+                                            currentRoute.authority.permissions.any {
+                                                it == "dispatch.complete" || it == "logistics:write"
+                                            } &&
+                                            ConnectedOperationsNavigation.permits(
+                                                currentRoute,
+                                                CONNECTED_OPERATIONS,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            readinessViewModel.retryPodSeal()
+                                        }
+                                    },
+                                    canSealPod = readinessViewModel.canSealPod(),
+                                    onRecordTemperature = { fulfillmentId ->
+                                        val current = readinessViewModel.state.value
+                                        if (current.detail?.fulfillmentId == fulfillmentId &&
+                                            current.detailStatus ==
+                                            ReadinessDetailStatus.Current
+                                        ) {
+                                            val entry = CONNECTED_OPERATIONS.single {
+                                                it.key ==
+                                                    "dispatch.temperature"
+                                            }
+                                            ConnectedOperationsNavigation.open(
+                                                entry,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )?.let { route ->
+                                                closeConnectedOperation()
+                                                connectedRoute = route
+                                                val authority = route.authority
+                                                dispatchTemperatureViewModel.activate(
+                                                    fulfillmentId,
+                                                    DispatchAuthorityContext(
+                                                        route.authorityEpoch,
+                                                        DispatchAuthorityIdentity(
+                                                            authority.userId,
+                                                            authority.tenantId,
+                                                            authority.workspaceId,
+                                                            authority.membershipId,
+                                                            authority.permissions
+                                                        )
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onConfirmHandover =
+                                        if (connectedRoute?.authority?.permissions?.contains(
+                                                "fulfillment.manage"
+                                            ) ==
+                                            true
+                                        ) {
+                                            { fulfillmentId ->
+                                                val detail = readinessViewModel.state.value.detail
+                                                if (detail?.fulfillmentId == fulfillmentId &&
+                                                    readinessViewModel.state.value.detailStatus ==
+                                                    ReadinessDetailStatus.Current
+                                                ) {
+                                                    val entry = CONNECTED_OPERATIONS.single {
+                                                        it.key ==
+                                                            "dispatch.handover"
+                                                    }
+                                                    ConnectedOperationsNavigation.open(
+                                                        entry,
+                                                        state,
+                                                        accessState,
+                                                        warehouseState
+                                                    )?.let { route ->
+                                                        closeConnectedOperation()
+                                                        connectedRoute = route
+                                                        val proof = route.authority
+                                                        dispatchHandoverViewModel.activate(
+                                                            detail,
+                                                            DispatchAuthorityContext(
+                                                                route.authorityEpoch,
+                                                                DispatchAuthorityIdentity(
+                                                                    proof.userId,
+                                                                    proof.tenantId,
+                                                                    proof.workspaceId,
+                                                                    proof.membershipId,
+                                                                    proof.permissions
+                                                                )
+                                                            )
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                    onVerifyOutgoingGoods =
+                                        if (connectedRoute?.authority?.permissions?.contains(
+                                                "fulfillment.manage"
+                                            ) ==
+                                            true
+                                        ) {
+                                            { fulfillmentId ->
+                                                val detail = readinessViewModel.state.value.detail
+                                                if (detail?.fulfillmentId == fulfillmentId &&
+                                                    readinessViewModel.state.value.detailStatus ==
+                                                    ReadinessDetailStatus.Current
+                                                ) {
+                                                    val entry = CONNECTED_OPERATIONS.single {
+                                                        it.key ==
+                                                            "dispatch.outgoing-goods"
+                                                    }
+                                                    ConnectedOperationsNavigation.open(
+                                                        entry,
+                                                        state,
+                                                        accessState,
+                                                        warehouseState
+                                                    )?.let { route ->
+                                                        closeConnectedOperation()
+                                                        connectedRoute = route
+                                                        val authority = route.authority
+                                                        outgoingGoodsViewModel.activate(
+                                                            detail,
+                                                            DispatchAuthorityContext(
+                                                                route.authorityEpoch,
+                                                                DispatchAuthorityIdentity(
+                                                                    authority.userId,
+                                                                    authority.tenantId,
+                                                                    authority.workspaceId,
+                                                                    authority.membershipId,
+                                                                    authority.permissions
+                                                                )
+                                                            )
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                    onAssignFulfillment = { fulfillmentId ->
                                         val entry = CONNECTED_OPERATIONS.single {
                                             it.key ==
-                                                "dispatch.temperature"
+                                                "dispatch.assignment"
                                         }
                                         ConnectedOperationsNavigation.open(
                                             entry,
@@ -3575,7 +3906,7 @@ class MainActivity : ComponentActivity() {
                                             closeConnectedOperation()
                                             connectedRoute = route
                                             val authority = route.authority
-                                            dispatchTemperatureViewModel.activate(
+                                            dispatchAssignmentViewModel.activate(
                                                 fulfillmentId,
                                                 DispatchAuthorityContext(
                                                     route.authorityEpoch,
@@ -3590,559 +3921,454 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
                                     }
-                                },
-                                onConfirmHandover =
-                                    if (connectedRoute?.authority?.permissions?.contains(
-                                            "fulfillment.manage"
-                                        ) ==
-                                        true
-                                    ) {
-                                        { fulfillmentId ->
-                                            val detail = readinessViewModel.state.value.detail
-                                            if (detail?.fulfillmentId == fulfillmentId &&
-                                                readinessViewModel.state.value.detailStatus ==
-                                                ReadinessDetailStatus.Current
-                                            ) {
-                                                val entry = CONNECTED_OPERATIONS.single {
-                                                    it.key ==
-                                                        "dispatch.handover"
-                                                }
-                                                ConnectedOperationsNavigation.open(
-                                                    entry,
-                                                    state,
-                                                    accessState,
-                                                    warehouseState
-                                                )?.let { route ->
-                                                    closeConnectedOperation()
-                                                    connectedRoute = route
-                                                    val proof = route.authority
-                                                    dispatchHandoverViewModel.activate(
-                                                        detail,
-                                                        DispatchAuthorityContext(
-                                                            route.authorityEpoch,
-                                                            DispatchAuthorityIdentity(
-                                                                proof.userId,
-                                                                proof.tenantId,
-                                                                proof.workspaceId,
-                                                                proof.membershipId,
-                                                                proof.permissions
-                                                            )
-                                                        )
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    } else {
-                                        null
+                                )
+
+                                "warehouse.disposition" -> DispositionScreen(
+                                    state = dispositionState,
+                                    onBack = ::closeConnectedOperation,
+                                    onLotIdChanged = dispositionViewModel::lotIdChanged,
+                                    onLoadLot = dispositionViewModel::loadLot,
+                                    onDispositionSelected = dispositionViewModel::selectDisposition,
+                                    onReasonChanged = dispositionViewModel::reasonChanged,
+                                    onSaveLocalNote = dispositionViewModel::saveLocalNote,
+                                    onSubmit = dispositionViewModel::submit,
+                                    onReplayUnknownOutcome =
+                                        dispositionViewModel::replayUnknownOutcome,
+                                    onStartNewDecision = dispositionViewModel::startNewDecision,
+                                    onRouteClosed = dispositionViewModel::deactivate
+                                )
+                            }
+                        },
+                        onPickStock = {
+                            pickingWorkListViewModel.invalidate()
+                            pickingManualEntry = false
+                            pickingReference = ""
+                            pickingOpened = false
+                            pickingViewModel.invalidate()
+                            val authority = ConnectedOperationsNavigation.currentAuthority(
+                                state,
+                                accessState,
+                                warehouseState
+                            )
+                            if (authority != null) {
+                                pickingManualEntry = false
+                                pickingWorkListEpoch = accessState.authorityEpoch
+                                pickingWorkListViewModel.activate(
+                                    PickingAuthority(
+                                        authority.userId,
+                                        authority.tenantId,
+                                        authority.workspaceId,
+                                        authority.membershipId,
+                                        authority.permissions,
+                                        accessState.authorityEpoch
+                                    )
+                                )
+                                warehouseViewModel.openPicking()
+                            }
+                        },
+                        pickingContent = {
+                            if (!pickingOpened && !pickingManualEntry) {
+                                PickingWorkListScreen(
+                                    state = pickingWorkListState,
+                                    onBack = {
+                                        pickingWorkListViewModel.invalidate()
+                                        warehouseViewModel.back()
                                     },
-                                onVerifyOutgoingGoods =
-                                    if (connectedRoute?.authority?.permissions?.contains(
-                                            "fulfillment.manage"
-                                        ) ==
-                                        true
-                                    ) {
-                                        { fulfillmentId ->
-                                            val detail = readinessViewModel.state.value.detail
-                                            if (detail?.fulfillmentId == fulfillmentId &&
-                                                readinessViewModel.state.value.detailStatus ==
-                                                ReadinessDetailStatus.Current
-                                            ) {
-                                                val entry = CONNECTED_OPERATIONS.single {
-                                                    it.key ==
-                                                        "dispatch.outgoing-goods"
-                                                }
-                                                ConnectedOperationsNavigation.open(
-                                                    entry,
-                                                    state,
-                                                    accessState,
-                                                    warehouseState
-                                                )?.let { route ->
-                                                    closeConnectedOperation()
-                                                    connectedRoute = route
-                                                    val authority = route.authority
-                                                    outgoingGoodsViewModel.activate(
-                                                        detail,
-                                                        DispatchAuthorityContext(
-                                                            route.authorityEpoch,
-                                                            DispatchAuthorityIdentity(
-                                                                authority.userId,
-                                                                authority.tenantId,
-                                                                authority.workspaceId,
-                                                                authority.membershipId,
-                                                                authority.permissions
-                                                            )
-                                                        )
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    } else {
-                                        null
-                                    },
-                                onAssignFulfillment = { fulfillmentId ->
-                                    val entry = CONNECTED_OPERATIONS.single {
-                                        it.key ==
-                                            "dispatch.assignment"
-                                    }
-                                    ConnectedOperationsNavigation.open(
-                                        entry,
-                                        state,
-                                        accessState,
-                                        warehouseState
-                                    )?.let { route ->
-                                        closeConnectedOperation()
-                                        connectedRoute = route
-                                        val authority = route.authority
-                                        dispatchAssignmentViewModel.activate(
-                                            fulfillmentId,
-                                            DispatchAuthorityContext(
-                                                route.authorityEpoch,
-                                                DispatchAuthorityIdentity(
+                                    onReload = pickingWorkListViewModel::reload,
+                                    onPreviousPage = pickingWorkListViewModel::previousPage,
+                                    onNextPage = pickingWorkListViewModel::nextPage,
+                                    onOpenByReference = { pickingManualEntry = true },
+                                    onSelectFulfillment = { fulfillmentId ->
+                                        val authority =
+                                            ConnectedOperationsNavigation.currentAuthority(
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        if (authority != null) {
+                                            pickingReference = fulfillmentId
+                                            pickingViewModel.activate(
+                                                PickingAuthority(
                                                     authority.userId,
                                                     authority.tenantId,
                                                     authority.workspaceId,
                                                     authority.membershipId,
-                                                    authority.permissions
-                                                )
-                                            )
-                                        )
-                                    }
-                                }
-                            )
-
-                            "warehouse.disposition" -> DispositionScreen(
-                                state = dispositionState,
-                                onBack = ::closeConnectedOperation,
-                                onLotIdChanged = dispositionViewModel::lotIdChanged,
-                                onLoadLot = dispositionViewModel::loadLot,
-                                onDispositionSelected = dispositionViewModel::selectDisposition,
-                                onReasonChanged = dispositionViewModel::reasonChanged,
-                                onSaveLocalNote = dispositionViewModel::saveLocalNote,
-                                onSubmit = dispositionViewModel::submit,
-                                onReplayUnknownOutcome = dispositionViewModel::replayUnknownOutcome,
-                                onStartNewDecision = dispositionViewModel::startNewDecision,
-                                onRouteClosed = dispositionViewModel::deactivate
-                            )
-                        }
-                    },
-                    onPickStock = {
-                        pickingWorkListViewModel.invalidate()
-                        pickingManualEntry = false
-                        pickingReference = ""
-                        pickingOpened = false
-                        pickingViewModel.invalidate()
-                        val authority = ConnectedOperationsNavigation.currentAuthority(
-                            state,
-                            accessState,
-                            warehouseState
-                        )
-                        if (authority != null) {
-                            pickingManualEntry = false
-                            pickingWorkListEpoch = accessState.authorityEpoch
-                            pickingWorkListViewModel.activate(
-                                PickingAuthority(
-                                    authority.userId,
-                                    authority.tenantId,
-                                    authority.workspaceId,
-                                    authority.membershipId,
-                                    authority.permissions,
-                                    accessState.authorityEpoch
-                                )
-                            )
-                            warehouseViewModel.openPicking()
-                        }
-                    },
-                    pickingContent = {
-                        if (!pickingOpened && !pickingManualEntry) {
-                            PickingWorkListScreen(
-                                state = pickingWorkListState,
-                                onBack = {
-                                    pickingWorkListViewModel.invalidate()
-                                    warehouseViewModel.back()
-                                },
-                                onReload = pickingWorkListViewModel::reload,
-                                onPreviousPage = pickingWorkListViewModel::previousPage,
-                                onNextPage = pickingWorkListViewModel::nextPage,
-                                onOpenByReference = { pickingManualEntry = true },
-                                onSelectFulfillment = { fulfillmentId ->
-                                    val authority =
-                                        ConnectedOperationsNavigation.currentAuthority(
-                                            state,
-                                            accessState,
-                                            warehouseState
-                                        )
-                                    if (authority != null) {
-                                        pickingReference = fulfillmentId
-                                        pickingViewModel.activate(
-                                            PickingAuthority(
-                                                authority.userId,
-                                                authority.tenantId,
-                                                authority.workspaceId,
-                                                authority.membershipId,
-                                                authority.permissions,
-                                                accessState.authorityEpoch
-                                            ),
-                                            fulfillmentId
-                                        )
-                                        pickingOpened = true
-                                    }
-                                }
-                            )
-                        } else if (!pickingOpened) {
-                            PickingEntryScreen(
-                                reference = pickingReference,
-                                onReferenceChanged = { pickingReference = it },
-                                onBack = { pickingManualEntry = false },
-                                onOpen = {
-                                    val authority = accessState.activeContext?.verifiedAuthority
-                                    if (authority != null && pickingReference.isNotBlank()) {
-                                        pickingViewModel.activate(
-                                            PickingAuthority(
-                                                authority.userId,
-                                                authority.tenantId,
-                                                authority.workspaceId,
-                                                authority.membershipId,
-                                                authority.permissions,
-                                                accessState.authorityEpoch
-                                            ),
-                                            pickingReference.trim()
-                                        )
-                                        pickingOpened = true
-                                    }
-                                }
-                            )
-                        } else {
-                            PickingScreen(
-                                state = pickingState,
-                                onBack = {
-                                    pickingOpened = false
-                                    pickingManualEntry = false
-                                    pickingViewModel.invalidate()
-                                    pickingWorkListViewModel.reload()
-                                },
-                                onReload = pickingViewModel::reload,
-                                onSelectOffer = pickingViewModel::selectOffer,
-                                onLotIdentifierChanged = pickingViewModel::lotIdentifierChanged,
-                                onQuantityChanged = pickingViewModel::quantityChanged,
-                                onStartPicking = pickingViewModel::startPicking,
-                                onConfirmPick = pickingViewModel::confirmPick,
-                                onRetryUnknownOutcome = pickingViewModel::retryUnknownOutcome,
-                                onRetryIntentCleanup = pickingViewModel::retryIntentCleanup,
-                                onProposeLotSubstitution = openLotSubstitution
-                            )
-                        }
-                    },
-                    onViewIdentifiedStorage =
-                        if (accessState.activeContext?.verifiedAuthority?.permissions?.any {
-                                it in setOf("warehouse.read", "inventory.read", "warehouse:read")
-                            } ==
-                            true
-                        ) {
-                            { skuId ->
-                                val confirmed = scannerState as? ProductScannerUiState.Confirmed
-                                if (confirmed?.sku?.skuId?.toString() == skuId &&
-                                    confirmed.authorityEpoch == accessState.authorityEpoch
-                                ) {
-                                    warehouseState.activeContext?.let { context ->
-                                        identifiedStorageSkuId = skuId
-                                        stockConditionViewModel.activate(context)
-                                        warehouseViewModel.openStockCondition()
-                                    }
-                                }
-                            }
-                        } else {
-                            null
-                        },
-                    onViewStock = {
-                        identifiedStorageSkuId = null
-                        warehouseState.activeContext?.let { context ->
-                            stockConditionViewModel.activate(context)
-                            warehouseViewModel.openStockCondition()
-                        }
-                    },
-                    stockConditionContent = {
-                        StockConditionScreen(
-                            stockConditionState,
-                            identifiedSkuId = identifiedStorageSkuId,
-                            onBack = {
-                                identifiedStorageSkuId = null
-                                warehouseViewModel.back()
-                            },
-                            onRefresh = stockConditionViewModel::refresh,
-                            onSelectLot = stockConditionViewModel::selectLot,
-                            onRouteClosed = stockConditionViewModel::invalidateContext,
-                            onDisposition =
-                                if (accessState.activeContext?.verifiedAuthority?.permissions
-                                        ?.any {
-                                            it == "inventory.release" || it == "inventory.waste"
-                                        } ==
-                                    true
-                                ) {
-                                    { lotId ->
-                                        val entry = CONNECTED_OPERATIONS.single {
-                                            it.key ==
-                                                "warehouse.disposition"
-                                        }
-                                        ConnectedOperationsNavigation.open(
-                                            entry,
-                                            state,
-                                            accessState,
-                                            warehouseState
-                                        )
-                                            ?.let { route ->
-                                                closeConnectedOperation()
-                                                val authority = route.authority
-                                                connectedRoute = route
-                                                pendingDispositionLot = lotId
-                                                dispositionViewModel.activate(
-                                                    DispositionAuthority(
-                                                        authority.userId,
-                                                        authority.tenantId,
-                                                        authority.workspaceId,
-                                                        authority.membershipId,
-                                                        authority.permissions,
-                                                        route.authorityEpoch
-                                                    )
-                                                )
-                                            }
-                                    }
-                                } else {
-                                    null
-                                }
-                        )
-                    },
-                    onReceiveStock = {
-                        accessState.activeContext?.verifiedAuthority?.let { authority ->
-                            receivingViewModel.activate(
-                                ReceivingAuthority(
-                                    authority.userId,
-                                    authority.tenantId,
-                                    authority.workspaceId,
-                                    authority.membershipId,
-                                    authority.permissions,
-                                    accessState.authorityEpoch
-                                )
-                            )
-                            warehouseViewModel.openReceiving()
-                        }
-                    },
-                    receivingContent = {
-                        ReceivingScreen(
-                            state = receivingState,
-                            onBack = warehouseViewModel::back,
-                            onChooseProduct = receivingViewModel::openProductPicker,
-                            onCloseProductPicker = receivingViewModel::closeProductPicker,
-                            onProductPickerQueryChanged =
-                                receivingViewModel::productPickerQueryChanged,
-                            onSearchProductCatalog = receivingViewModel::searchProductCatalog,
-                            onLoadMoreProductCatalog =
-                                receivingViewModel::loadMoreProductCatalog,
-                            onRetryProductCatalogSearch =
-                                receivingViewModel::retryProductCatalogSearch,
-                            onOpenProductFilterOptions =
-                                receivingViewModel::openProductFilterOptions,
-                            onProductFilterSearchChanged =
-                                receivingViewModel::productFilterSearchChanged,
-                            onLoadProductFilterOptions =
-                                receivingViewModel::loadProductFilterOptions,
-                            onSelectProductFilter = receivingViewModel::selectProductFilter,
-                            onSelectProductCatalogCandidate =
-                                receivingViewModel::selectProductCatalogCandidate,
-                            onSelectWarehouse = receivingViewModel::selectWarehouse,
-                            onSelectZone = receivingViewModel::selectZone,
-                            onBatchNumberChanged = receivingViewModel::batchNumberChanged,
-                            onExpirationDateChanged = receivingViewModel::expirationDateChanged,
-                            onProductionDateChanged = receivingViewModel::productionDateChanged,
-                            onReceivedAtChanged = receivingViewModel::receivedAtChanged,
-                            onQuantityChanged = receivingViewModel::quantityChanged,
-                            onTemperatureReadingChanged =
-                                receivingViewModel::temperatureReadingChanged,
-                            onReloadWarehouses = receivingViewModel::reloadWarehouses,
-                            onReloadZones = receivingViewModel::reloadZones,
-                            onReportDiscrepancy = if (receivingState.canReceive &&
-                                !receivingState.isIntentFrozen &&
-                                receivingState.selectedWarehouseId != null
-                            ) {
-                                {
-                                    val warehouseId = receivingState.selectedWarehouseId
-                                    if (warehouseId != null) {
-                                        val observed =
-                                            InboundDiscrepancyStartContext(
-                                                warehouseId,
-                                                receivingState.product?.skuId,
-                                                receivingState.product?.displayName,
-                                                receivingState.batchNumber,
-                                                receivingState.quantityText,
-                                                receivingState.unit
-                                            )
-                                        val entry = CONNECTED_OPERATIONS.single {
-                                            it.key ==
-                                                "warehouse.inbound-discrepancy"
-                                        }
-                                        ConnectedOperationsNavigation.open(
-                                            entry,
-                                            state,
-                                            accessState,
-                                            warehouseState
-                                        )?.let { route ->
-                                            closeConnectedOperation()
-                                            connectedRoute = route
-                                            val proof = route.authority
-                                            inboundCaseViewModel.activate(
-                                                InboundDiscrepancyAuthority(
-                                                    InboundDiscrepancyScope(
-                                                        proof.userId,
-                                                        proof.tenantId,
-                                                        proof.workspaceId,
-                                                        proof.membershipId
-                                                    ),
-                                                    route.authorityEpoch
+                                                    authority.permissions,
+                                                    accessState.authorityEpoch
                                                 ),
-                                                observed
+                                                fulfillmentId
                                             )
+                                            pickingOpened = true
+                                        }
+                                    }
+                                )
+                            } else if (!pickingOpened) {
+                                PickingEntryScreen(
+                                    reference = pickingReference,
+                                    onReferenceChanged = { pickingReference = it },
+                                    onBack = { pickingManualEntry = false },
+                                    onOpen = {
+                                        val authority = accessState.activeContext?.verifiedAuthority
+                                        if (authority != null && pickingReference.isNotBlank()) {
+                                            pickingViewModel.activate(
+                                                PickingAuthority(
+                                                    authority.userId,
+                                                    authority.tenantId,
+                                                    authority.workspaceId,
+                                                    authority.membershipId,
+                                                    authority.permissions,
+                                                    accessState.authorityEpoch
+                                                ),
+                                                pickingReference.trim()
+                                            )
+                                            pickingOpened = true
+                                        }
+                                    }
+                                )
+                            } else {
+                                PickingScreen(
+                                    state = pickingState,
+                                    onBack = {
+                                        pickingOpened = false
+                                        pickingManualEntry = false
+                                        pickingViewModel.invalidate()
+                                        pickingWorkListViewModel.reload()
+                                    },
+                                    onReload = pickingViewModel::reload,
+                                    onSelectOffer = pickingViewModel::selectOffer,
+                                    onLotIdentifierChanged = pickingViewModel::lotIdentifierChanged,
+                                    onQuantityChanged = pickingViewModel::quantityChanged,
+                                    onStartPicking = pickingViewModel::startPicking,
+                                    onConfirmPick = pickingViewModel::confirmPick,
+                                    onRetryUnknownOutcome = pickingViewModel::retryUnknownOutcome,
+                                    onRetryIntentCleanup = pickingViewModel::retryIntentCleanup,
+                                    onProposeLotSubstitution = openLotSubstitution
+                                )
+                            }
+                        },
+                        onViewIdentifiedStorage =
+                            if (accessState.activeContext?.verifiedAuthority?.permissions?.any {
+                                    it in
+                                        setOf("warehouse.read", "inventory.read", "warehouse:read")
+                                } ==
+                                true
+                            ) {
+                                { skuId ->
+                                    val confirmed = scannerState as? ProductScannerUiState.Confirmed
+                                    if (confirmed?.sku?.skuId?.toString() == skuId &&
+                                        confirmed.authorityEpoch == accessState.authorityEpoch
+                                    ) {
+                                        warehouseState.activeContext?.let { context ->
+                                            identifiedStorageSkuId = skuId
+                                            stockConditionViewModel.activate(context)
+                                            warehouseViewModel.openStockCondition()
                                         }
                                     }
                                 }
                             } else {
                                 null
                             },
-                            onSubmit = receivingViewModel::submit,
-                            onRetryUnknownOutcome = receivingViewModel::retryUnknownOutcome,
-                            onRetryIntentCleanup = receivingViewModel::retryIntentCleanup,
-                            onStartAnotherReceipt = receivingViewModel::startAnotherReceipt,
-                            onChooseTemperatureEvidence = {
-                                val selection =
-                                    receivingViewModel.temperatureEvidenceSelectionContext()
-                                if (selection != null) {
-                                    pendingReceivingTemperaturePicker = selection
-                                    receivingTemperaturePicker.launch("image/*")
-                                }
-                            },
-                            onRefreshTemperatureEvidence =
-                                receivingViewModel::refreshTemperatureEvidence
-                        )
-                    },
-                    scannerCameraPreview = { modifier ->
-                        ScannerCameraPreview(
-                            scanner = cameraScanner,
-                            modifier = modifier,
-                            onEvent = scannerViewModel::cameraDeviceEvent
-                        )
-                    },
-                    onIdentifierChanged = accessViewModel::identifierChanged,
-                    onPasswordChanged = accessViewModel::passwordChanged,
-                    onPasswordVisibilityChanged = accessViewModel::togglePasswordVisibility,
-                    onSignIn = { withLocalNetworkPermission(LocalNetworkPermissionAction.SignIn) },
-                    onRetry = {
-                        if ((state as? SessionState.Restoring)?.canRetryConnection == true) {
-                            withLocalNetworkPermission(LocalNetworkPermissionAction.RetrySession)
-                        } else {
-                            withLocalNetworkPermission(LocalNetworkPermissionAction.RetryContexts)
-                        }
-                    },
-                    onLogout = {
-                        closeConnectedOperation()
-                        pendingScannerPermissionReturn = null
-                        receivingViewModel.invalidate()
-                        stockConditionViewModel.invalidateContext()
-                        pickingViewModel.invalidate()
-                        pickingWorkListViewModel.invalidate()
-                        pickingManualEntry = false
-                        pickingReference = ""
-                        pickingOpened = false
-                        logoutRequested = true
-                        accessViewModel.sessionInvalidated()
-                        warehouseViewModel.sessionInvalidated()
-                        scannerViewModel.sessionInvalidated()
-                        viewModel.logout()
-                    },
-                    onSelectContext = accessViewModel::selectContext,
-                    onContextBack = accessViewModel::backFromContextChooser,
-                    onChangeContext = {
-                        closeConnectedOperation()
-                        pendingScannerPermissionReturn = null
-                        receivingViewModel.invalidate()
-                        stockConditionViewModel.invalidateContext()
-                        pickingViewModel.invalidate()
-                        pickingWorkListViewModel.invalidate()
-                        pickingManualEntry = false
-                        pickingReference = ""
-                        pickingOpened = false
-                        if (warehouseState.route == WarehouseRoute.Scanner) {
+                        onViewStock = {
+                            identifiedStorageSkuId = null
+                            warehouseState.activeContext?.let { context ->
+                                stockConditionViewModel.activate(context)
+                                warehouseViewModel.openStockCondition()
+                            }
+                        },
+                        stockConditionContent = {
+                            StockConditionScreen(
+                                stockConditionState,
+                                identifiedSkuId = identifiedStorageSkuId,
+                                onBack = {
+                                    identifiedStorageSkuId = null
+                                    warehouseViewModel.back()
+                                },
+                                onRefresh = stockConditionViewModel::refresh,
+                                onSelectLot = stockConditionViewModel::selectLot,
+                                onRouteClosed = stockConditionViewModel::invalidateContext,
+                                onDisposition =
+                                    if (accessState.activeContext?.verifiedAuthority?.permissions
+                                            ?.any {
+                                                it == "inventory.release" || it == "inventory.waste"
+                                            } ==
+                                        true
+                                    ) {
+                                        { lotId ->
+                                            val entry = CONNECTED_OPERATIONS.single {
+                                                it.key ==
+                                                    "warehouse.disposition"
+                                            }
+                                            ConnectedOperationsNavigation.open(
+                                                entry,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                                ?.let { route ->
+                                                    closeConnectedOperation()
+                                                    val authority = route.authority
+                                                    connectedRoute = route
+                                                    pendingDispositionLot = lotId
+                                                    dispositionViewModel.activate(
+                                                        DispositionAuthority(
+                                                            authority.userId,
+                                                            authority.tenantId,
+                                                            authority.workspaceId,
+                                                            authority.membershipId,
+                                                            authority.permissions,
+                                                            route.authorityEpoch
+                                                        )
+                                                    )
+                                                }
+                                        }
+                                    } else {
+                                        null
+                                    }
+                            )
+                        },
+                        onReceiveStock = {
+                            accessState.activeContext?.verifiedAuthority?.let { authority ->
+                                receivingViewModel.activate(
+                                    ReceivingAuthority(
+                                        authority.userId,
+                                        authority.tenantId,
+                                        authority.workspaceId,
+                                        authority.membershipId,
+                                        authority.permissions,
+                                        accessState.authorityEpoch
+                                    )
+                                )
+                                warehouseViewModel.openReceiving()
+                            }
+                        },
+                        receivingContent = {
+                            ReceivingScreen(
+                                state = receivingState,
+                                onBack = warehouseViewModel::back,
+                                onChooseProduct = receivingViewModel::openProductPicker,
+                                onCloseProductPicker = receivingViewModel::closeProductPicker,
+                                onProductPickerQueryChanged =
+                                    receivingViewModel::productPickerQueryChanged,
+                                onSearchProductCatalog = receivingViewModel::searchProductCatalog,
+                                onLoadMoreProductCatalog =
+                                    receivingViewModel::loadMoreProductCatalog,
+                                onRetryProductCatalogSearch =
+                                    receivingViewModel::retryProductCatalogSearch,
+                                onOpenProductFilterOptions =
+                                    receivingViewModel::openProductFilterOptions,
+                                onProductFilterSearchChanged =
+                                    receivingViewModel::productFilterSearchChanged,
+                                onLoadProductFilterOptions =
+                                    receivingViewModel::loadProductFilterOptions,
+                                onSelectProductFilter = receivingViewModel::selectProductFilter,
+                                onSelectProductCatalogCandidate =
+                                    receivingViewModel::selectProductCatalogCandidate,
+                                onSelectWarehouse = receivingViewModel::selectWarehouse,
+                                onSelectZone = receivingViewModel::selectZone,
+                                onBatchNumberChanged = receivingViewModel::batchNumberChanged,
+                                onExpirationDateChanged = receivingViewModel::expirationDateChanged,
+                                onProductionDateChanged = receivingViewModel::productionDateChanged,
+                                onReceivedAtChanged = receivingViewModel::receivedAtChanged,
+                                onQuantityChanged = receivingViewModel::quantityChanged,
+                                onTemperatureReadingChanged =
+                                    receivingViewModel::temperatureReadingChanged,
+                                onReloadWarehouses = receivingViewModel::reloadWarehouses,
+                                onReloadZones = receivingViewModel::reloadZones,
+                                onReportDiscrepancy = if (receivingState.canReceive &&
+                                    !receivingState.isIntentFrozen &&
+                                    receivingState.selectedWarehouseId != null
+                                ) {
+                                    {
+                                        val warehouseId = receivingState.selectedWarehouseId
+                                        if (warehouseId != null) {
+                                            val observed =
+                                                InboundDiscrepancyStartContext(
+                                                    warehouseId,
+                                                    receivingState.product?.skuId,
+                                                    receivingState.product?.displayName,
+                                                    receivingState.batchNumber,
+                                                    receivingState.quantityText,
+                                                    receivingState.unit
+                                                )
+                                            val entry = CONNECTED_OPERATIONS.single {
+                                                it.key ==
+                                                    "warehouse.inbound-discrepancy"
+                                            }
+                                            ConnectedOperationsNavigation.open(
+                                                entry,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )?.let { route ->
+                                                closeConnectedOperation()
+                                                connectedRoute = route
+                                                val proof = route.authority
+                                                inboundCaseViewModel.activate(
+                                                    InboundDiscrepancyAuthority(
+                                                        InboundDiscrepancyScope(
+                                                            proof.userId,
+                                                            proof.tenantId,
+                                                            proof.workspaceId,
+                                                            proof.membershipId
+                                                        ),
+                                                        route.authorityEpoch
+                                                    ),
+                                                    observed
+                                                )
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    null
+                                },
+                                onSubmit = receivingViewModel::submit,
+                                onRetryUnknownOutcome = receivingViewModel::retryUnknownOutcome,
+                                onRetryIntentCleanup = receivingViewModel::retryIntentCleanup,
+                                onStartAnotherReceipt = receivingViewModel::startAnotherReceipt,
+                                onChooseTemperatureEvidence = {
+                                    val selection =
+                                        receivingViewModel.temperatureEvidenceSelectionContext()
+                                    if (selection != null) {
+                                        pendingReceivingTemperaturePicker = selection
+                                        receivingTemperaturePicker.launch("image/*")
+                                    }
+                                },
+                                onRefreshTemperatureEvidence =
+                                    receivingViewModel::refreshTemperatureEvidence
+                            )
+                        },
+                        scannerCameraPreview = { modifier ->
+                            ScannerCameraPreview(
+                                scanner = cameraScanner,
+                                modifier = modifier,
+                                onEvent = scannerViewModel::cameraDeviceEvent
+                            )
+                        },
+                        onIdentifierChanged = accessViewModel::identifierChanged,
+                        onPasswordChanged = accessViewModel::passwordChanged,
+                        onPasswordVisibilityChanged = accessViewModel::togglePasswordVisibility,
+                        onSignIn = {
+                            withLocalNetworkPermission(LocalNetworkPermissionAction.SignIn)
+                        },
+                        onRecoveryEmailChanged = accessViewModel::recoveryEmailChanged,
+                        onRequestPasswordReset = accessViewModel::requestPasswordReset,
+                        onChangePassword = operationsGateway::changeOwnPassword,
+                        onRevokeOtherSessions = operationsGateway::revokeOtherSessions,
+                        onRetry = {
+                            if ((state as? SessionState.Restoring)?.canRetryConnection == true) {
+                                withLocalNetworkPermission(
+                                    LocalNetworkPermissionAction.RetrySession
+                                )
+                            } else {
+                                withLocalNetworkPermission(
+                                    LocalNetworkPermissionAction.RetryContexts
+                                )
+                            }
+                        },
+                        onLogout = {
+                            closeConnectedOperation()
+                            pendingScannerPermissionReturn = null
+                            receivingViewModel.invalidate()
+                            stockConditionViewModel.invalidateContext()
+                            pickingViewModel.invalidate()
+                            pickingWorkListViewModel.invalidate()
+                            pickingManualEntry = false
+                            pickingReference = ""
+                            pickingOpened = false
+                            logoutRequested = true
+                            accessViewModel.sessionInvalidated()
+                            warehouseViewModel.sessionInvalidated()
+                            scannerViewModel.sessionInvalidated()
+                            viewModel.logout()
+                        },
+                        onSelectContext = accessViewModel::selectContext,
+                        onContextBack = accessViewModel::backFromContextChooser,
+                        onChangeContext = {
+                            closeConnectedOperation()
+                            pendingScannerPermissionReturn = null
+                            receivingViewModel.invalidate()
+                            stockConditionViewModel.invalidateContext()
+                            pickingViewModel.invalidate()
+                            pickingWorkListViewModel.invalidate()
+                            pickingManualEntry = false
+                            pickingReference = ""
+                            pickingOpened = false
+                            if (warehouseState.route == WarehouseRoute.Scanner) {
+                                scannerViewModel.routeClosed()
+                            }
+                            accessViewModel.beginContextChange()
+                        },
+                        onIdentifyProduct = warehouseViewModel::openProductSearch,
+                        onScanProductCode = {
+                            val active = accessState.activeContext
+                            if (active != null && accessState.stage == AccessStage.WorkAuthorized) {
+                                val context = active.toActiveOperationsContext(
+                                    accessState.authorityEpoch
+                                )
+                                scannerViewModel.enterOperations(
+                                    CatalogOperationsContextAdapter.from(context)
+                                )
+                                scannerViewModel.scannerRouteOpened(cameraPermissionGranted())
+                                warehouseViewModel.openScanner()
+                            }
+                        },
+                        onWarehouseBack = {
+                            if (warehouseState.route == WarehouseRoute.Scanner) {
+                                scannerViewModel.routeClosed()
+                            }
+                            warehouseViewModel.back()
+                        },
+                        onSearch = warehouseViewModel::submitSearch,
+                        onLoadMore = warehouseViewModel::loadMore,
+                        onQueryChanged = warehouseViewModel::queryChanged,
+                        onOpenFilterOptions = warehouseViewModel::openFilterOptions,
+                        onCloseFilterOptions = warehouseViewModel::closeFilterOptions,
+                        onFilterSearchChanged = warehouseViewModel::filterSearchChanged,
+                        onLoadFilterOptions = warehouseViewModel::loadFilterOptions,
+                        onLoadMoreFilterOptions = warehouseViewModel::loadMoreFilterOptions,
+                        onRetryFilterOptions = warehouseViewModel::retryFilterOptions,
+                        onSelectFilter = warehouseViewModel::selectFilter,
+                        onSelectCandidate = warehouseViewModel::selectCandidate,
+                        onScannerPermissionRequest = {
+                            val authority = accessState.activeContext?.verifiedAuthority
+                            if (authority != null &&
+                                accessState.stage == AccessStage.WorkAuthorized &&
+                                warehouseState.route == WarehouseRoute.Scanner
+                            ) {
+                                pendingScannerPermissionReturn = PendingScannerPermissionReturn(
+                                    authority = authority,
+                                    source = ScannerPermissionReturnSource.RuntimePrompt
+                                )
+                                scannerViewModel.permissionRequestStarted()
+                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                            }
+                        },
+                        onScannerOpenSettings = {
+                            val authority = accessState.activeContext?.verifiedAuthority
+                            if (authority != null &&
+                                accessState.stage == AccessStage.WorkAuthorized &&
+                                warehouseState.route == WarehouseRoute.Scanner
+                            ) {
+                                pendingScannerPermissionReturn = PendingScannerPermissionReturn(
+                                    authority = authority,
+                                    source = ScannerPermissionReturnSource.AppSettings
+                                )
+                                startActivity(
+                                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                        data = Uri.fromParts("package", packageName, null)
+                                    }
+                                )
+                            }
+                        },
+                        onScannerRetry = {
+                            scannerViewModel.startScanning(cameraPermissionGranted())
+                        },
+                        onScannerManualSearch = {
                             scannerViewModel.routeClosed()
+                            warehouseViewModel.openProductSearch()
                         }
-                        accessViewModel.beginContextChange()
-                    },
-                    onIdentifyProduct = warehouseViewModel::openProductSearch,
-                    onScanProductCode = {
-                        val active = accessState.activeContext
-                        if (active != null && accessState.stage == AccessStage.WorkAuthorized) {
-                            val context = active.toActiveOperationsContext(
-                                accessState.authorityEpoch
-                            )
-                            scannerViewModel.enterOperations(
-                                CatalogOperationsContextAdapter.from(context)
-                            )
-                            scannerViewModel.scannerRouteOpened(cameraPermissionGranted())
-                            warehouseViewModel.openScanner()
-                        }
-                    },
-                    onWarehouseBack = {
-                        if (warehouseState.route == WarehouseRoute.Scanner) {
-                            scannerViewModel.routeClosed()
-                        }
-                        warehouseViewModel.back()
-                    },
-                    onSearch = warehouseViewModel::submitSearch,
-                    onLoadMore = warehouseViewModel::loadMore,
-                    onQueryChanged = warehouseViewModel::queryChanged,
-                    onOpenFilterOptions = warehouseViewModel::openFilterOptions,
-                    onCloseFilterOptions = warehouseViewModel::closeFilterOptions,
-                    onFilterSearchChanged = warehouseViewModel::filterSearchChanged,
-                    onLoadFilterOptions = warehouseViewModel::loadFilterOptions,
-                    onLoadMoreFilterOptions = warehouseViewModel::loadMoreFilterOptions,
-                    onRetryFilterOptions = warehouseViewModel::retryFilterOptions,
-                    onSelectFilter = warehouseViewModel::selectFilter,
-                    onSelectCandidate = warehouseViewModel::selectCandidate,
-                    onScannerPermissionRequest = {
-                        val authority = accessState.activeContext?.verifiedAuthority
-                        if (authority != null &&
-                            accessState.stage == AccessStage.WorkAuthorized &&
-                            warehouseState.route == WarehouseRoute.Scanner
-                        ) {
-                            pendingScannerPermissionReturn = PendingScannerPermissionReturn(
-                                authority = authority,
-                                source = ScannerPermissionReturnSource.RuntimePrompt
-                            )
-                            scannerViewModel.permissionRequestStarted()
-                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        }
-                    },
-                    onScannerOpenSettings = {
-                        val authority = accessState.activeContext?.verifiedAuthority
-                        if (authority != null &&
-                            accessState.stage == AccessStage.WorkAuthorized &&
-                            warehouseState.route == WarehouseRoute.Scanner
-                        ) {
-                            pendingScannerPermissionReturn = PendingScannerPermissionReturn(
-                                authority = authority,
-                                source = ScannerPermissionReturnSource.AppSettings
-                            )
-                            startActivity(
-                                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                    data = Uri.fromParts("package", packageName, null)
-                                }
-                            )
-                        }
-                    },
-                    onScannerRetry = {
-                        scannerViewModel.startScanning(cameraPermissionGranted())
-                    },
-                    onScannerManualSearch = {
-                        scannerViewModel.routeClosed()
-                        warehouseViewModel.openProductSearch()
-                    }
-                )
+                    )
+                }
             }
         }
     }
@@ -4153,6 +4379,15 @@ class MainActivity : ComponentActivity() {
     private fun fineLocationPermissionGranted(): Boolean =
         checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
+
+    private fun driverLocationNotificationsVisible(): Boolean {
+        val permissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        return permissionGranted &&
+            getSystemService(android.app.NotificationManager::class.java)
+                ?.areNotificationsEnabled() == true
+    }
 
     private fun closeDriverDeliveryInstructions() {
         val deliveryId = driverInstructionsViewModel.state.value.deliveryId
@@ -4244,7 +4479,7 @@ class MainActivity : ComponentActivity() {
 
     private fun verifyScannerForegroundReturn() {
         val revalidationId = pendingScannerPermissionReturn?.revalidationId
-        viewModel.verifyForegroundReturn {
+        viewModel.verifyForegroundReturn { _ ->
             pendingScannerPermissionReturn =
                 pendingScannerPermissionReturn.completeRevalidation(revalidationId)
         }
@@ -4410,7 +4645,7 @@ private val CONNECTED_OPERATIONS = listOf(
         "payments.wallet-refund",
         "Devolución a billetera",
         setOf("payment.reconcile"),
-        readRoles = setOf("BUSINESS_OPERATIONS_MANAGER", "COMPANY_OWNER")
+        readRoles = setOf("BUSINESS_OPERATIONS_MANAGER", "BOM", "COMPANY_OWNER")
     ),
     ConnectedOperationEntry("operations.overview", "Vista operativa", setOf("dispatch.read")),
     ConnectedOperationEntry("operations.exceptions", "Trabajo bloqueado", setOf("dispatch.read")),
@@ -4490,7 +4725,12 @@ private val CONNECTED_OPERATIONS = listOf(
         setOf("dispatch.read")
     ),
     ConnectedOperationEntry("dispatch.loads", "Cargas y paradas", setOf("dispatch.read")),
-    ConnectedOperationEntry("driver.loads", "Aceptar carga completa", setOf("dispatch.read")),
+    ConnectedOperationEntry(
+        "driver.loads",
+        "Aceptar carga completa",
+        setOf("dispatch.read"),
+        requiredReadPermissionGroups = listOf(setOf("dispatch.start_route"))
+    ),
     ConnectedOperationEntry(
         "dispatch.readiness",
         "Preparación de despacho",

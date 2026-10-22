@@ -16,9 +16,20 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ConnectedOperationsNavigationTest {
-    private val entry = ConnectedOperationEntry("dispatch", "Despacho", setOf("dispatch.read"))
+    private val entry = ConnectedOperationEntry(
+        "dispatch.readiness",
+        "Preparación de despacho",
+        setOf("dispatch.read")
+    )
     private val authority =
-        VerifiedContextAuthority("user", "tenant", "workspace", "member", setOf("dispatch.read"))
+        VerifiedContextAuthority(
+            "user",
+            "tenant",
+            "workspace",
+            "member",
+            setOf("dispatch.read"),
+            setOf("LOGISTICS")
+        )
     private val access = AccessUiState(
         stage = AccessStage.WorkAuthorized,
         activeContext = WorkforceContextSummary(
@@ -81,6 +92,24 @@ class ConnectedOperationsNavigationTest {
                 access,
                 warehouse
             )
+        )
+        val logisticsNavigation = operationsNavigationSections(
+            listOf(entry),
+            setOf("LOGISTICS")
+        )
+        assertEquals(1, logisticsNavigation.size)
+        assertEquals(setOf(entry.key), logisticsNavigation.single().destinationKeys)
+        val warehouseAuthority = authority.copy(roles = setOf("WAREHOUSE"))
+        val warehouseAccess = access.copy(
+            activeContext = access.activeContext!!.copy(verifiedAuthority = warehouseAuthority)
+        )
+        assertTrue(
+            ConnectedOperationsNavigation.visibleEntries(
+                listOf(entry),
+                SessionState.Active,
+                warehouseAccess,
+                warehouse
+            ).isEmpty()
         )
     }
 
@@ -189,7 +218,8 @@ class ConnectedOperationsNavigationTest {
         )
         for (catalogPermission in listOf("catalog.read", "catalog:read")) {
             val requestAuthority = authority.copy(
-                permissions = setOf("client.read", "sales:read", catalogPermission)
+                permissions = setOf("client.read", "sales:read", catalogPermission),
+                roles = setOf("SALES")
             )
             val requestAccess = access.copy(
                 activeContext = access.activeContext!!.copy(verifiedAuthority = requestAuthority)
