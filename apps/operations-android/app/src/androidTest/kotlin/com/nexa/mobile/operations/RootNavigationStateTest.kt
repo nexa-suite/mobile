@@ -14,6 +14,7 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -82,7 +83,7 @@ class RootNavigationStateTest {
 
         composeRule.onNodeWithText(
             composeRule.activity.getString(AccessR.string.access_welcome_continue)
-        ).performScrollTo().performClick()
+        ).performClick()
         composeRule.onNodeWithText("Almacén Principal").assertDoesNotExist()
         val identityFields = composeRule.onAllNodes(hasSetTextAction(), useUnmergedTree = true)
         identityFields.assertCountEquals(2)
@@ -110,18 +111,15 @@ class RootNavigationStateTest {
                 composeRule.activity.getString(AccessR.string.access_submit)
             )
         )
-            .performScrollTo()
             .assertIsDisplayed()
             .performClick()
 
         composeRule.onNodeWithText(
             composeRule.activity.getString(AccessR.string.access_sign_in_loading_title)
-        ).performScrollTo().assertIsDisplayed()
+        ).assertIsDisplayed()
         composeRule.onNodeWithText(
             composeRule.activity.getString(AccessR.string.access_sign_in_loading_body)
-        )
-            .performScrollTo()
-            .assertIsDisplayed()
+        ).assertIsDisplayed()
         composeRule.onNodeWithText(
             composeRule.activity.getString(AccessR.string.access_identifier_label)
         ).assertIsDisplayed()
@@ -388,23 +386,29 @@ class RootNavigationStateTest {
             }
         }
 
-        composeRule.onNodeWithText("Catálogo comercial")
-            .performScrollTo()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.work_hub_commercial)
+        )
+            .assertIsDisplayed()
             .performClick()
         composeRule.onNodeWithText("Connected route: commercial.catalog").assertIsDisplayed()
         dispatchNavigationBack()
+        composeRule.onNodeWithText("Nexa Demo Distribución").assertIsDisplayed()
         composeRule.onNodeWithText(
             composeRule.activity.getString(CatalogR.string.warehouse_identify_product)
-        ).assertIsDisplayed()
+        ).assertDoesNotExist()
 
+        composeRule.onNodeWithContentDescription(
+            composeRule.activity.getString(R.string.work_nav_actions)
+        ).performClick()
         composeRule.onNodeWithText("Preparar solicitud")
-            .performScrollTo()
             .performClick()
         composeRule.onNodeWithText("Connected route: commercial.request").assertIsDisplayed()
         dispatchNavigationBack()
+        composeRule.onNodeWithText("Nexa Demo Distribución").assertIsDisplayed()
         composeRule.onNodeWithText(
             composeRule.activity.getString(CatalogR.string.warehouse_identify_product)
-        ).assertIsDisplayed()
+        ).assertDoesNotExist()
     }
 
     private fun dismissKeyboard() {

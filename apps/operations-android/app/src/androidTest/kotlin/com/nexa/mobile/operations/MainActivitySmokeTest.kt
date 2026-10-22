@@ -23,7 +23,10 @@ class MainActivitySmokeTest {
             composeRule.activity.getString(AccessR.string.access_welcome_continue)
         ).performClick()
         composeRule.onNodeWithText(
-            composeRule.activity.getString(AccessR.string.access_product_label)
+            composeRule.activity.getString(AccessR.string.access_sign_in_title)
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(AccessR.string.access_identifier_label)
         ).assertIsDisplayed()
     }
 }

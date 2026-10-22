@@ -88,7 +88,6 @@ class ProductScreensUiTest {
         }
 
         composeRule.onNodeWithText(localizedString(AccessR.string.access_welcome_continue))
-            .performScrollTo()
             .performClick()
         composeRule.onNodeWithContentDescription(
             localizedString(AccessR.string.access_brand_description)
@@ -421,6 +420,7 @@ class ProductScreensUiTest {
         composeRule.onNodeWithContentDescription(
             localizedString(CoreR.string.nexa_candidate_row_action_description, candidateDetails)
         )
+            .performScrollTo()
             .assertIsDisplayed()
             .assert(hasClickAction())
         composeRule.onNodeWithText(

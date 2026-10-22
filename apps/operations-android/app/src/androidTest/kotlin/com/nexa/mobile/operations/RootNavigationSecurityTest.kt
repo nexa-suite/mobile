@@ -1,14 +1,15 @@
 package com.nexa.mobile.operations
 
+import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R as CatalogR
@@ -71,7 +72,6 @@ class RootNavigationSecurityTest {
         }
 
         composeRule.onNodeWithText(targetString(AccessR.string.access_welcome_continue))
-            .performScrollTo()
             .performClick()
         composeRule.onNode(
             hasText(targetString(AccessR.string.access_sign_in_title)) and !hasClickAction()
@@ -175,6 +175,7 @@ class RootNavigationSecurityTest {
                 visibleInHub = false
             )
         )
+        val connectedRoute = mutableStateOf<ConnectedOperationRoute?>(null)
         var logoutCalls = 0
 
         composeRule.setContent {
@@ -183,7 +184,20 @@ class RootNavigationSecurityTest {
                     state = session.value,
                     accessState = accessState.value,
                     warehouseState = warehouseState.value,
+                    connectedOperationRoute = connectedRoute.value,
                     connectedOperationEntries = entries,
+                    onOpenConnectedOperation = { entry ->
+                        connectedRoute.value = ConnectedOperationsNavigation.open(
+                            entry,
+                            session.value,
+                            accessState.value,
+                            warehouseState.value
+                        )
+                    },
+                    connectedOperationContent = {
+                        Text("Connected route: ${connectedRoute.value?.entryKey}")
+                    },
+                    onConnectedOperationBack = { connectedRoute.value = null },
                     onLogout = {
                         logoutCalls += 1
                         session.value = SessionState.SignedOut
@@ -194,21 +208,22 @@ class RootNavigationSecurityTest {
             }
         }
 
-        composeRule.onNodeWithText("Cargas y paradas")
-            .performScrollTo()
+        composeRule.onNodeWithText(targetString(R.string.work_hub_dispatch))
             .assertIsDisplayed()
-            .assert(hasClickAction())
+            .performClick()
+        composeRule.onNodeWithText("Connected route: dispatch.loads").assertIsDisplayed()
         composeRule.onNodeWithText("Traslado interno").assertDoesNotExist()
         composeRule.onNodeWithText("Visita al cliente").assertDoesNotExist()
         composeRule.onNodeWithText("Privacidad y coordinación: límites actuales")
             .assertDoesNotExist()
-        composeRule.onNodeWithText(targetString(CatalogR.string.warehouse_logout))
-            .performScrollTo()
+        composeRule.onNodeWithText(targetString(R.string.work_nav_profile))
+            .assertIsDisplayed()
+            .performClick()
+        composeRule.onNodeWithText(targetString(R.string.work_nav_logout))
             .assertIsDisplayed()
             .performClick()
 
         composeRule.onNodeWithText(targetString(AccessR.string.access_welcome_continue))
-            .performScrollTo()
             .performClick()
         composeRule.onNode(
             hasText(targetString(AccessR.string.access_sign_in_title)) and !hasClickAction()
@@ -236,7 +251,7 @@ class RootNavigationSecurityTest {
             tenantId = "tenant-1",
             workspaceId = "workspace-1",
             membershipId = "membership-1",
-            permissions = setOf("inventory.read"),
+            permissions = setOf("catalog.read", "inventory.read"),
             roles = setOf("WAREHOUSE")
         )
         val primaryContext = WorkforceContextSummary(
