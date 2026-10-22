@@ -1,5 +1,42 @@
 enum BuyerAccessStatus { signedOut, choosingContext, signedIn }
 
+final class BuyerBiometricCredential {
+  const BuyerBiometricCredential({
+    required this.nativeRefreshToken,
+    required this.scopeKey,
+  });
+
+  final String nativeRefreshToken;
+  final String scopeKey;
+
+  @override
+  String toString() => 'BuyerBiometricCredential(REDACTED)';
+}
+
+final class BuyerBiometricLoginStatus {
+  const BuyerBiometricLoginStatus({
+    this.isEnabled = false,
+    this.canEnable = false,
+    this.canSignIn = false,
+  });
+
+  final bool isEnabled;
+  final bool canEnable;
+  final bool canSignIn;
+}
+
+abstract interface class BuyerBiometricAccess {
+  Future<bool> isAvailable();
+
+  Future<bool> authenticate({required String reason});
+
+  Future<BuyerBiometricCredential?> readCredential();
+
+  Future<void> writeCredential(BuyerBiometricCredential credential);
+
+  Future<void> clearCredential();
+}
+
 final class BuyerAccessContext {
   const BuyerAccessContext({
     required this.membershipId,
@@ -85,6 +122,16 @@ abstract interface class BuyerAccessRepository {
   Future<void> selectContext(String membershipId);
 
   Future<void> signOut();
+
+  Future<bool> lockForBiometricLogin();
+
+  Future<BuyerBiometricLoginStatus> biometricLoginStatus();
+
+  Future<bool> enableBiometricLogin();
+
+  Future<void> disableBiometricLogin();
+
+  Future<void> signInWithBiometrics();
 
   void invalidateLocalSession();
 

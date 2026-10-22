@@ -10,15 +10,19 @@ final class BuyerAccessViewModel extends ChangeNotifier {
     _subscription = _repository.changes.listen((value) {
       snapshot = value;
       notifyListeners();
+      refreshBiometricLoginStatus();
     });
+    refreshBiometricLoginStatus();
   }
 
   final BuyerAccessRepository _repository;
   late final StreamSubscription<BuyerAccessSnapshot> _subscription;
 
   BuyerAccessSnapshot snapshot;
+  BuyerBiometricLoginStatus biometricStatus = const BuyerBiometricLoginStatus();
   bool busy = false;
   String? message;
+  int _biometricStatusRequest = 0;
 
   Future<void> signIn(String identifier, String password) async {
     await _run(
@@ -34,6 +38,41 @@ final class BuyerAccessViewModel extends ChangeNotifier {
     await _run(_repository.signOut);
   }
 
+  Future<void> lockForBiometricLogin() async {
+    await _run(() async {
+      await _repository.lockForBiometricLogin();
+    });
+  }
+
+  Future<void> signInWithBiometrics() async {
+    await _run(_repository.signInWithBiometrics);
+  }
+
+  Future<void> setBiometricLoginEnabled(bool enabled) async {
+    await _run(() async {
+      if (enabled) {
+        await _repository.enableBiometricLogin();
+      } else {
+        await _repository.disableBiometricLogin();
+      }
+    });
+    await refreshBiometricLoginStatus();
+  }
+
+  Future<void> refreshBiometricLoginStatus() async {
+    final request = ++_biometricStatusRequest;
+    try {
+      final status = await _repository.biometricLoginStatus();
+      if (request != _biometricStatusRequest) return;
+      biometricStatus = status;
+      notifyListeners();
+    } catch (_) {
+      if (request != _biometricStatusRequest) return;
+      biometricStatus = const BuyerBiometricLoginStatus();
+      notifyListeners();
+    }
+  }
+
   Future<void> _run(Future<void> Function() action) async {
     busy = true;
     message = null;
@@ -47,6 +86,7 @@ final class BuyerAccessViewModel extends ChangeNotifier {
     } finally {
       busy = false;
       notifyListeners();
+      refreshBiometricLoginStatus();
     }
   }
 

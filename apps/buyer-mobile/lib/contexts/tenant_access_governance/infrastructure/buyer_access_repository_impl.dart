@@ -2,12 +2,15 @@ import 'dart:async';
 
 import '../../../core/network/nexa_api_client.dart';
 import '../application/buyer_access_repository.dart';
+import 'platform_buyer_biometric_access.dart';
 
 final class BuyerAccessRepositoryImpl
     implements BuyerAccessRepository, SessionCredentialProvider {
-  BuyerAccessRepositoryImpl(this._api);
+  BuyerAccessRepositoryImpl(this._api, {BuyerBiometricAccess? biometricAccess})
+    : _biometricAccess = biometricAccess ?? PlatformBuyerBiometricAccess();
 
   final NexaApiClient _api;
+  final BuyerBiometricAccess _biometricAccess;
   final StreamController<BuyerAccessSnapshot> _changes =
       StreamController<BuyerAccessSnapshot>.broadcast(sync: true);
 
@@ -62,6 +65,7 @@ final class BuyerAccessRepositoryImpl
           final session = _map(response.body['session']);
           if (session == null) _throwInvalidResponse();
           _establishSession(session, response.headers);
+          await _persistBiometricCredentialIfMatching();
         case 'CONTEXT_SELECTION_REQUIRED':
           final ticket = response.headers['x-nexa-context-ticket'];
           if (ticket == null || ticket.isEmpty) _throwInvalidResponse();
@@ -136,6 +140,7 @@ final class BuyerAccessRepositoryImpl
         response.headers,
         selectedContext: selectedContext,
       );
+      await _persistBiometricCredentialIfMatching();
     } catch (error, stackTrace) {
       if (_isCurrentEpoch(selectionEpoch)) {
         _clear();
@@ -148,6 +153,11 @@ final class BuyerAccessRepositoryImpl
   Future<void> signOut() async {
     final token = _accessToken;
     _clear();
+    try {
+      await _biometricAccess.clearCredential();
+    } catch (_) {
+      // The server revocation below remains authoritative if local cleanup fails.
+    }
     if (token != null) {
       try {
         await _api.post(
@@ -161,6 +171,95 @@ final class BuyerAccessRepositoryImpl
       } catch (_) {
         // Keep protected content closed when the best-effort call fails.
       }
+    }
+  }
+
+  @override
+  Future<bool> lockForBiometricLogin() async {
+    final status = await biometricLoginStatus();
+    if (!status.isEnabled) return false;
+    _clear();
+    return true;
+  }
+
+  @override
+  Future<BuyerBiometricLoginStatus> biometricLoginStatus() async {
+    final available = await _biometricAccess.isAvailable();
+    final credential = await _biometricAccess.readCredential();
+    final currentContext = _snapshot.currentContext;
+    final credentialMatchesCurrent =
+        currentContext == null ||
+        credential?.scopeKey == currentContext.scopeKey;
+    return BuyerBiometricLoginStatus(
+      isEnabled: credential != null && credentialMatchesCurrent,
+      canEnable:
+          available &&
+          _snapshot.isSignedIn &&
+          currentContext != null &&
+          _refreshToken != null,
+      canSignIn: available && credential != null,
+    );
+  }
+
+  @override
+  Future<bool> enableBiometricLogin() async {
+    final context = _snapshot.currentContext;
+    final refreshToken = _refreshToken;
+    if (!_snapshot.isSignedIn || context == null || refreshToken == null) {
+      return false;
+    }
+    if (!await _biometricAccess.isAvailable()) return false;
+    if (!await _biometricAccess.authenticate(
+      reason: 'Confirma tu identidad para activar el acceso a Nexa.',
+    )) {
+      return false;
+    }
+    await _biometricAccess.writeCredential(
+      BuyerBiometricCredential(
+        nativeRefreshToken: refreshToken,
+        scopeKey: context.scopeKey,
+      ),
+    );
+    return true;
+  }
+
+  @override
+  Future<void> disableBiometricLogin() => _biometricAccess.clearCredential();
+
+  @override
+  Future<void> signInWithBiometrics() async {
+    final credential = await _biometricAccess.readCredential();
+    if (credential == null || !await _biometricAccess.isAvailable()) return;
+    if (!await _biometricAccess.authenticate(
+      reason: 'Confirma tu identidad para entrar a Nexa Buyer.',
+    )) {
+      return;
+    }
+
+    _clear();
+    final attemptEpoch = _authorityEpoch;
+    try {
+      final response = await _api.post(
+        '/authentication/refresh',
+        authenticated: false,
+        nativeRefreshToken: credential.nativeRefreshToken,
+      );
+      if (!_isCurrentEpoch(attemptEpoch)) return;
+      _establishSession(
+        response.body,
+        response.headers,
+        requiredScopeKey: credential.scopeKey,
+      );
+      await _persistBiometricCredentialIfMatching();
+    } catch (error, stackTrace) {
+      if (_isCurrentEpoch(attemptEpoch)) {
+        _clear();
+        if (error is NexaApiFailure &&
+            (error.statusCode == 401 || error.statusCode == 403)) {
+          await _biometricAccess.clearCredential();
+        }
+      }
+      Error.throwWithStackTrace(error, stackTrace);
     }
   }
 
@@ -225,6 +324,7 @@ final class BuyerAccessRepositoryImpl
         preserveLease: true,
         requiredScopeKey: oldContext.scopeKey,
       );
+      await _persistBiometricCredentialIfMatching();
       return _accessToken;
     } catch (_, stackTrace) {
       if (!_isCurrentEpoch(expectedAuthorityEpoch)) return null;
@@ -284,6 +384,28 @@ final class BuyerAccessRepositoryImpl
         currentContext: context,
       ),
     );
+  }
+
+  Future<void> _persistBiometricCredentialIfMatching() async {
+    try {
+      final credential = await _biometricAccess.readCredential();
+      final context = _snapshot.currentContext;
+      final refreshToken = _refreshToken;
+      if (credential == null ||
+          context == null ||
+          credential.scopeKey != context.scopeKey ||
+          refreshToken == null) {
+        return;
+      }
+      await _biometricAccess.writeCredential(
+        BuyerBiometricCredential(
+          nativeRefreshToken: refreshToken,
+          scopeKey: context.scopeKey,
+        ),
+      );
+    } catch (_) {
+      // Biometric persistence must not invalidate a valid server session.
+    }
   }
 
   BuyerAccessContext? _parseSessionContext(Map<String, Object?> session) {

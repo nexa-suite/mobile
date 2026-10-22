@@ -37,6 +37,10 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Usa Face ID para entrar de forma segura a tu cuenta Nexa Buyer.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Usamos la cámara para escanear el QR de recepción de una entrega.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
