@@ -24,14 +24,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Marca'), findsOneWidget);
-    expect(find.text('Tipo'), findsOneWidget);
-    expect(
-      find.textContaining(
-        'Marca: Valle · Tipo: Bebidas · Grupo: Lácteos · Variedad: Descremada',
-      ),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('catalog-brand-filter')), findsOneWidget);
+    expect(find.byKey(const Key('catalog-type-filter')), findsOneWidget);
+    expect(find.text('Valle'), findsOneWidget);
+    expect(find.text('Bebidas'), findsOneWidget);
+    expect(find.textContaining('Lácteos · Descremada'), findsOneWidget);
 
     await tester.enterText(
       find.byKey(const Key('catalog-product-query')),
@@ -57,7 +54,8 @@ void main() {
       'page': 0,
     });
 
-    await tester.ensureVisible(find.byTooltip('Página siguiente'));
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -500));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Página siguiente'));
     await tester.pumpAndSettle();
 
