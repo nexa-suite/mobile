@@ -87,6 +87,9 @@ class ProductScreensUiTest {
             }
         }
 
+        composeRule.onNodeWithText(localizedString(AccessR.string.access_welcome_continue))
+            .performScrollTo()
+            .performClick()
         composeRule.onNodeWithContentDescription(
             localizedString(AccessR.string.access_brand_description)
         ).assertIsDisplayed()
@@ -322,7 +325,7 @@ class ProductScreensUiTest {
 
         composeRule.onNodeWithText(
             localizedString(CatalogR.string.warehouse_search_empty_title)
-        ).assertIsDisplayed()
+        ).performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText(
             localizedString(CoreR.string.nexa_candidate_sku, candidate.sku)
         ).assertDoesNotExist()
@@ -409,8 +412,17 @@ class ProductScreensUiTest {
             }
         }
 
-        composeRule.onNode(hasClickAction().and(hasText("Queso Gouda Demo", substring = true)))
+        val candidateDetails = listOf(
+            candidate.productDisplayName,
+            candidate.brandOrVariant,
+            candidate.presentation,
+            localizedString(CoreR.string.nexa_candidate_sku, candidate.sku)
+        ).joinToString()
+        composeRule.onNodeWithContentDescription(
+            localizedString(CoreR.string.nexa_candidate_row_action_description, candidateDetails)
+        )
             .assertIsDisplayed()
+            .assert(hasClickAction())
         composeRule.onNodeWithText(
             localizedString(CoreR.string.nexa_candidate_sku, candidate.sku),
             useUnmergedTree = true

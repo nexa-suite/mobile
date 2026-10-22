@@ -85,6 +85,9 @@ class ProductScreensAccessibilityTest {
             }
         }
 
+        composeRule.onNodeWithText(localizedString(AccessR.string.access_welcome_continue))
+            .performScrollTo()
+            .performClick()
         val signInTitle = localizedString(AccessR.string.access_sign_in_title)
         val signInSubmit = localizedString(AccessR.string.access_submit)
         composeRule.onNode(hasText(signInTitle).and(!hasClickAction())).assertIsDisplayed()
