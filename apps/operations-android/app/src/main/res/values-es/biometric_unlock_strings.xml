@@ -1,0 +1,20 @@
+<resources>
+    <string name="biometric_unlock_enable">Desbloqueo biométrico</string>
+    <string name="biometric_unlock_cancel">Cancelar</string>
+    <string name="biometric_unlock_locked_title">Sesión bloqueada</string>
+    <string name="biometric_unlock_locked_details">Confirma tu identidad con la biometría fuerte registrada en este dispositivo para continuar.</string>
+    <string name="biometric_unlock_session_unverified">El servidor no pudo confirmar tu sesión. Tu espacio de trabajo sigue bloqueado.</string>
+    <string name="biometric_unlock_unlock">Desbloquear con biometría</string>
+    <string name="biometric_unlock_password">Usar contraseña</string>
+    <string name="biometric_unlock_prompt_enable_title">Activar desbloqueo biométrico</string>
+    <string name="biometric_unlock_prompt_unlock_title">Desbloquear Nexa Operations</string>
+    <string name="biometric_unlock_prompt_subtitle">Confirma con la biometría fuerte registrada en este dispositivo.</string>
+    <string name="biometric_unlock_unavailable">La biometría fuerte no está disponible o no está registrada en este dispositivo. Usa tu contraseña para continuar.</string>
+    <string name="biometric_unlock_not_recognized">No se reconoció la biometría. La sesión sigue bloqueada.</string>
+    <string name="biometric_unlock_lockout">La biometría está bloqueada temporalmente. Usa tu contraseña para continuar.</string>
+    <string name="biometric_unlock_cancelled">Se canceló la autenticación. La sesión sigue bloqueada.</string>
+    <string name="biometric_unlock_setup_cancelled">Se canceló la configuración biométrica.</string>
+    <string name="biometric_unlock_error">No se pudo completar la autenticación biométrica. La sesión sigue bloqueada.</string>
+    <string name="biometric_unlock_storage_error">No se pudo actualizar la protección biométrica. Inténtalo otra vez o usa tu contraseña.</string>
+    <string name="biometric_unlock_dismiss">Aceptar</string>
+</resources>

@@ -1,0 +1,20 @@
+<resources>
+    <string name="biometric_unlock_enable">Biometric unlock</string>
+    <string name="biometric_unlock_cancel">Cancel</string>
+    <string name="biometric_unlock_locked_title">Session locked</string>
+    <string name="biometric_unlock_locked_details">Confirm with the strong biometrics enrolled on this device to continue.</string>
+    <string name="biometric_unlock_session_unverified">The server could not confirm your session. Your work stays locked.</string>
+    <string name="biometric_unlock_unlock">Unlock with biometrics</string>
+    <string name="biometric_unlock_password">Use password</string>
+    <string name="biometric_unlock_prompt_enable_title">Enable biometric unlock</string>
+    <string name="biometric_unlock_prompt_unlock_title">Unlock Nexa Operations</string>
+    <string name="biometric_unlock_prompt_subtitle">Confirm with strong biometrics enrolled on this device.</string>
+    <string name="biometric_unlock_unavailable">Strong biometrics are unavailable or not enrolled on this device. Use your password to continue.</string>
+    <string name="biometric_unlock_not_recognized">Biometrics were not recognized. The session remains locked.</string>
+    <string name="biometric_unlock_lockout">Biometrics are temporarily locked. Use your password to continue.</string>
+    <string name="biometric_unlock_cancelled">Authentication was cancelled. The session remains locked.</string>
+    <string name="biometric_unlock_setup_cancelled">Biometric setup was cancelled.</string>
+    <string name="biometric_unlock_error">Biometric authentication could not complete. The session remains locked.</string>
+    <string name="biometric_unlock_storage_error">Biometric protection could not be updated. Try again or use your password.</string>
+    <string name="biometric_unlock_dismiss">OK</string>
+</resources>

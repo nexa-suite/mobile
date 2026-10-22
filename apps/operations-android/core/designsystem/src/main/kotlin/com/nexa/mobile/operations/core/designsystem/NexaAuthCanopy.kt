@@ -10,7 +10,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 
 /** Frozen Design Lab/Web auth grid and Mobile Style wave, drawn as native decoration. */
@@ -34,10 +33,6 @@ fun NexaAuthCanopy(modifier: Modifier = Modifier, content: @Composable BoxScope.
                 start = Offset.Zero,
                 end = Offset(width, height * 1.15f)
             )
-            val markSize = 32.dp.toPx()
-            val markGap = 8.dp.toPx()
-            val markX = width - 24.dp.toPx() - markSize * 2 - markGap
-            val markY = height * 0.51f
             val waveHeight = 66.dp.toPx()
             val waveTop = height - waveHeight
             val wave = Path().apply {
@@ -69,20 +64,6 @@ fun NexaAuthCanopy(modifier: Modifier = Modifier, content: @Composable BoxScope.
                 }
                 gridY.forEach { y ->
                     drawLine(gridColor, Offset(0f, y), Offset(width, y), gridStroke)
-                }
-                repeat(2) { row ->
-                    repeat(2) { column ->
-                        drawRoundRect(
-                            color = Color.White.copy(alpha = 0.36f),
-                            topLeft = Offset(
-                                markX + column * (markSize + markGap),
-                                markY + row * (markSize + markGap)
-                            ),
-                            size = androidx.compose.ui.geometry.Size(markSize, markSize),
-                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(7.dp.toPx()),
-                            style = Stroke(width = gridStroke)
-                        )
-                    }
                 }
                 drawPath(wave, NexaColors.Surface)
             }
