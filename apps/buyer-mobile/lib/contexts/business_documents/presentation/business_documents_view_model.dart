@@ -303,9 +303,7 @@ final class BusinessDocumentDetailViewModel extends ChangeNotifier {
       downloadStatus = failure.statusCode == 403
           ? BusinessDocumentDownloadStatus.permissionDenied
           : BusinessDocumentDownloadStatus.unavailable;
-      message = failure.statusCode == 403
-          ? 'No tienes permiso para descargar este documento.'
-          : failure.userMessage;
+      message = _downloadFailureMessage(failure);
     } catch (_) {
       if (!_isCurrent(generation, lease)) return;
       _clearContent();
@@ -319,6 +317,16 @@ final class BusinessDocumentDetailViewModel extends ChangeNotifier {
     _clearContent();
     downloadStatus = BusinessDocumentDownloadStatus.idle;
     notifyListeners();
+  }
+
+  String _downloadFailureMessage(NexaApiFailure failure) {
+    if (failure.statusCode == 403) {
+      return 'No tienes permiso para descargar este documento.';
+    }
+    if (failure.statusCode == 400 && failure.code == 'INVALID_REQUEST') {
+      return 'El archivo todavía no está disponible para descargar. Inténtalo más tarde.';
+    }
+    return failure.userMessage;
   }
 
   bool _isCurrent(int generation, String lease) {
