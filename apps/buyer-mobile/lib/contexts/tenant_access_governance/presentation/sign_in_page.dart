@@ -98,6 +98,7 @@ final class _SignInPageState extends State<SignInPage> {
     BuyerAccessViewModel access,
     double availableHeight,
   ) {
+    final compact = availableHeight < 720;
     if (widget.passwordResetToken != null) {
       return Consumer<BuyerPasswordRecoveryViewModel>(
         builder: (context, recovery, child) =>
@@ -132,7 +133,7 @@ final class _SignInPageState extends State<SignInPage> {
                     alignment: Alignment.centerLeft,
                     child: _brandWordmark(width: 142),
                   ),
-                  const SizedBox(height: 56),
+                  SizedBox(height: compact ? 24 : 56),
                   Text(
                     'NEXA · CLIENTES',
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
@@ -163,10 +164,10 @@ final class _SignInPageState extends State<SignInPage> {
                       height: 1.6,
                     ),
                   ),
-                  const SizedBox(height: 30),
+                  SizedBox(height: compact ? 18 : 30),
                   const _BuyerJourney(),
                   const Spacer(),
-                  const SizedBox(height: 32),
+                  SizedBox(height: compact ? 18 : 32),
                   SizedBox(
                     height: 58,
                     child: FilledButton(
@@ -237,30 +238,27 @@ final class _SignInPageState extends State<SignInPage> {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: ConstrainedBox(
         constraints: BoxConstraints(minHeight: minimumHeight),
-        child: IntrinsicHeight(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
-              child: Column(
-                mainAxisSize: MainAxisSize.max,
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        tooltip: 'Volver',
-                        onPressed: onBack,
-                        icon: const Icon(Icons.arrow_back_rounded),
-                      ),
-                      const SizedBox(width: 6),
-                      _brandWordmark(width: 126),
-                    ],
-                  ),
-                  const SizedBox(height: 28),
-                  content,
-                ],
-              ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Volver',
+                      onPressed: onBack,
+                      icon: const Icon(Icons.arrow_back_rounded),
+                    ),
+                    const SizedBox(width: 6),
+                    _brandWordmark(width: 126),
+                  ],
+                ),
+                const SizedBox(height: 28),
+                content,
+              ],
             ),
           ),
         ),
