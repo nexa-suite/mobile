@@ -73,6 +73,7 @@ import 'contexts/tenant_access_governance/presentation/buyer_password_recovery_v
 import 'contexts/tenant_access_governance/presentation/buyer_access_view_model.dart';
 import 'contexts/tenant_access_governance/presentation/context_selection_page.dart';
 import 'contexts/tenant_access_governance/presentation/sign_in_page.dart';
+import 'core/configuration/buyer_map_configuration.dart';
 import 'core/network/nexa_api_client.dart';
 import 'core/presentation/nexa_buyer_theme.dart';
 
@@ -81,26 +82,17 @@ Future<void> main() async {
   final walletCheckout = await StripeBuyerWalletCheckout.configure(
     const String.fromEnvironment('NEXA_STRIPE_PUBLISHABLE_KEY'),
   );
-  const publicOsmTiles = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-  const configuredMapTiles = String.fromEnvironment(
-    'NEXA_MAP_TILE_URL_TEMPLATE',
+  final mapConfiguration = BuyerMapConfiguration.resolve(
+    tileUrlTemplate: String.fromEnvironment('NEXA_MAP_TILE_URL_TEMPLATE'),
+    attribution: String.fromEnvironment('NEXA_MAP_ATTRIBUTION'),
   );
-  const configuredMapAttribution = String.fromEnvironment(
-    'NEXA_MAP_ATTRIBUTION',
-  );
-  final mapTileUrlTemplate = configuredMapTiles;
-  final mapAttribution = configuredMapAttribution.isNotEmpty
-      ? configuredMapAttribution
-      : mapTileUrlTemplate == publicOsmTiles
-      ? '© OpenStreetMap contributors'
-      : '';
   runApp(
     BuyerMobileApp(
       apiBaseUrl: const String.fromEnvironment('NEXA_API_BASE_URL'),
       allowLocalHttp: kDebugMode,
       walletCheckout: walletCheckout,
-      mapTileUrlTemplate: mapTileUrlTemplate,
-      mapAttribution: mapAttribution,
+      mapTileUrlTemplate: mapConfiguration.tileUrlTemplate,
+      mapAttribution: mapConfiguration.attribution,
     ),
   );
 }

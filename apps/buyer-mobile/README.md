@@ -39,10 +39,12 @@ map, verify a handoff code, and submit a separate receipt or discrepancy. Code
 verification is not a receipt. A disputed receipt can receive optional image or
 PDF evidence after it is recorded; the API owns receipt scope, immutable
 evidence metadata and scanning. The app keeps selected bytes in memory only and
-persists scoped retry keys and payload fingerprints. The map has no default tile provider; configure
-`NEXA_MAP_TILE_URL_TEMPLATE` with an approved HTTPS template and
-`NEXA_MAP_ATTRIBUTION` to render map tiles. Without both values, no map tile
-requests are made.
+persists scoped retry keys and payload fingerprints. The map uses
+OpenStreetMap's public raster tiles by default and displays its required
+attribution. Configure `NEXA_MAP_TILE_URL_TEMPLATE` and
+`NEXA_MAP_ATTRIBUTION` to use another approved HTTPS tile source. The public
+OpenStreetMap tile service is best-effort; follow its usage and caching policy,
+and do not prefetch tiles or offer offline downloads.
 
 Run on an Android emulator against a local API listening on host port 8080:
 

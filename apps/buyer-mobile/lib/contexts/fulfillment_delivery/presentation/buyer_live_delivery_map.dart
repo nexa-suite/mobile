@@ -36,7 +36,7 @@ final class BuyerLiveDeliveryMap extends StatelessWidget {
           children: [
             TileLayer(
               urlTemplate: tileUrlTemplate,
-              userAgentPackageName: 'com.nexa.mobile.buyer',
+              userAgentPackageName: 'com.nexa.nexa_buyer_mobile',
               tileProvider: tileProvider,
               maxNativeZoom: 15,
               maxZoom: 15,

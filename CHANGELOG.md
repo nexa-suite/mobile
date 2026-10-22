@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Show the API-authorized active delivery location on an attributed Buyer map;
+  default to OpenStreetMap tiles and allow an approved source to be configured.
 - Add Buyer biometric sign-in and password recovery; scan the Driver's QR to
   record receipt and finalize its linked proof of delivery in one server
   operation. Keep retries idempotent and show order completion from the API.
