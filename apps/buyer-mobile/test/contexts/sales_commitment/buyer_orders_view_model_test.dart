@@ -64,10 +64,15 @@ void main() {
       expect(list.items, hasLength(1));
       expect(detail.order, isNotNull);
 
-      repository.listResult = Future.error(_forbidden);
-      repository.detailResult = Future.error(_forbidden);
-      await list.refresh();
-      await detail.load();
+      final listFailure = Completer<BuyerOrdersPageProjection>();
+      final detailFailure = Completer<BuyerOrderProjection>();
+      repository.listResult = listFailure.future;
+      repository.detailResult = detailFailure.future;
+      final listRefresh = list.refresh();
+      final detailLoad = detail.load();
+      listFailure.completeError(_forbidden);
+      detailFailure.completeError(_forbidden);
+      await Future.wait([listRefresh, detailLoad]);
 
       expect(list.items, isEmpty);
       expect(list.status, BuyerOrdersLoadStatus.permissionDenied);

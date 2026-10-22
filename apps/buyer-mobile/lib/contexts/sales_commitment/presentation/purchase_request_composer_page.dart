@@ -181,8 +181,11 @@ final class _PurchaseRequestComposerPageState
                 title: const Text('Fecha solicitada'),
                 subtitle: Text(_dateLabel(model.requestedDeliveryDate)),
                 trailing: const Icon(Icons.calendar_month),
-                enabled: !isBusy && !isSubmitted,
+                enabled: !isBusy && !isSubmitted && model.canSelectDeliveryDate,
                 onTap: () async {
+                  final minimumDate = model.minimumDeliveryDate;
+                  final requestedDate = model.requestedDeliveryDate;
+                  if (minimumDate == null || requestedDate == null) return;
                   final original = model.draft;
                   final snapshot = context
                       .read<BuyerAccessRepository>()
@@ -195,35 +198,16 @@ final class _PurchaseRequestComposerPageState
                     today.month,
                     today.day,
                   );
-                  var firstSelectableDate = _dateOnly(
-                    model.minimumDeliveryDate,
-                  );
-                  while (firstSelectableDate.weekday >= DateTime.saturday) {
-                    firstSelectableDate = firstSelectableDate.add(
-                      const Duration(days: 1),
-                    );
-                  }
-                  var lastSelectableDate = _dateOnly(lastDate);
-                  while (lastSelectableDate.weekday >= DateTime.saturday) {
-                    lastSelectableDate = lastSelectableDate.subtract(
-                      const Duration(days: 1),
-                    );
-                  }
+                  final firstSelectableDate = _dateOnly(minimumDate);
+                  final lastSelectableDate = _dateOnly(lastDate);
                   if (firstSelectableDate.isAfter(lastSelectableDate)) {
                     return;
                   }
 
-                  var initialDate = _dateOnly(model.requestedDeliveryDate);
+                  var initialDate = _dateOnly(requestedDate);
                   if (initialDate.isBefore(firstSelectableDate)) {
                     initialDate = firstSelectableDate;
                   } else if (initialDate.isAfter(lastSelectableDate)) {
-                    initialDate = lastSelectableDate;
-                  }
-                  while (initialDate.weekday >= DateTime.saturday &&
-                      initialDate.isBefore(lastSelectableDate)) {
-                    initialDate = initialDate.add(const Duration(days: 1));
-                  }
-                  if (initialDate.weekday >= DateTime.saturday) {
                     initialDate = lastSelectableDate;
                   }
                   final selected = await showDatePicker(
@@ -231,8 +215,6 @@ final class _PurchaseRequestComposerPageState
                     initialDate: initialDate,
                     firstDate: firstSelectableDate,
                     lastDate: lastSelectableDate,
-                    selectableDayPredicate: (day) =>
-                        day.weekday < DateTime.saturday,
                   );
                   if (selected == null ||
                       !context.mounted ||
@@ -248,6 +230,14 @@ final class _PurchaseRequestComposerPageState
                   model.selectDeliveryDate(selected);
                 },
               ),
+              if (model.hasOutdatedDeliveryDate) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'La fecha guardada ya no cumple el mínimo del espacio. Elige otra fecha.',
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 key: ValueKey(
@@ -602,8 +592,9 @@ String _recoveryCandidatesKey(PurchaseRequestComposerViewModel model) => model
     )
     .join('|');
 
-String _dateLabel(DateTime value) =>
-    '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';
+String _dateLabel(DateTime? value) => value == null
+    ? 'No disponible'
+    : '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';
 
 String _paymentLabel(String value) => switch (value) {
   'CREDIT_LINE' => 'Línea de crédito',

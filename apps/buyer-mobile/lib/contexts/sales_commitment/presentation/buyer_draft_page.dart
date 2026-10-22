@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/application/error/nexa_api_failure.dart';
 import '../../../core/presentation/nexa_buyer_components.dart';
+import '../../../core/presentation/nexa_buyer_theme.dart';
 import '../../catalog_commercial_policy/application/catalog_repository.dart';
 import '../../tenant_access_governance/application/buyer_access_repository.dart';
 import '../application/purchase_request_repository.dart';
@@ -194,32 +195,48 @@ final class BuyerDraftPage extends StatelessWidget {
                           leading: const Icon(Icons.calendar_month_outlined),
                           title: const Text('Fecha solicitada'),
                           subtitle: Text(_date(model.deliveryDate)),
-                          trailing: model.canEdit
+                          trailing: model.canSelectDeliveryDate
                               ? const Icon(Icons.chevron_right)
                               : null,
-                          onTap: model.canEdit
+                          onTap: model.canSelectDeliveryDate
                               ? () async {
+                                  final minimumDate = model.minimumDeliveryDate;
+                                  if (minimumDate == null) return;
                                   final today = DateTime.now();
-                                  final floor = DateTime(
-                                    today.year,
+                                  final lastDate = DateTime(
+                                    today.year + 2,
                                     today.month,
                                     today.day,
                                   );
+                                  final firstSelectableDate = _dateOnly(
+                                    minimumDate,
+                                  );
+                                  final lastSelectableDate = _dateOnly(
+                                    lastDate,
+                                  );
+                                  if (firstSelectableDate.isAfter(
+                                    lastSelectableDate,
+                                  )) {
+                                    return;
+                                  }
                                   final original = model.draft;
+                                  var initialDate = _dateOnly(
+                                    model.deliveryDate ?? minimumDate,
+                                  );
+                                  if (initialDate.isBefore(
+                                    firstSelectableDate,
+                                  )) {
+                                    initialDate = firstSelectableDate;
+                                  } else if (initialDate.isAfter(
+                                    lastSelectableDate,
+                                  )) {
+                                    initialDate = lastSelectableDate;
+                                  }
                                   final selected = await showDatePicker(
                                     context: context,
-                                    initialDate:
-                                        model.deliveryDate == null ||
-                                            model.deliveryDate!.isBefore(
-                                              floor,
-                                            ) ||
-                                            model.deliveryDate!.isAfter(
-                                              DateTime(today.year + 2, 12, 31),
-                                            )
-                                        ? floor
-                                        : model.deliveryDate!,
-                                    firstDate: floor,
-                                    lastDate: DateTime(today.year + 2, 12, 31),
+                                    initialDate: initialDate,
+                                    firstDate: firstSelectableDate,
+                                    lastDate: lastSelectableDate,
                                   );
                                   if (selected != null &&
                                       context.mounted &&
@@ -230,6 +247,33 @@ final class BuyerDraftPage extends StatelessWidget {
                               : null,
                         ),
                       ),
+                      if (model.deliveryLeadPolicy case final policy?) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Fecha mínima: ${_date(policy.minimumAllowedDeliveryDate)} · ${policy.minimumDeliveryLeadBusinessDays} días hábiles en ${policy.timezone}. Se aceptan fines de semana posteriores.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ] else if (model.deliveryLeadPolicyMessage
+                          case final message?) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          message,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                        ),
+                      ],
+                      if (model.hasOutdatedDeliveryDate) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'La fecha guardada ya no cumple el mínimo del espacio. Elige otra antes de continuar.',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         key: ValueKey(
@@ -328,7 +372,12 @@ final class BuyerDraftPage extends StatelessWidget {
     PurchaseRequestLineProjection line,
   ) async {
     final original = model.draft;
-    final value = await _quantity(context, initial: line.quantity);
+    final value = await _quantity(
+      context,
+      initial: line.quantity,
+      productLabel:
+          line.presentation ?? line.skuCode ?? 'Producto de la solicitud',
+    );
     if (value != null && context.mounted && identical(model.draft, original)) {
       await model.updateLine(line, value);
     }
@@ -362,7 +411,10 @@ final class BuyerDraftPage extends StatelessWidget {
       return;
     }
     final original = model.draft;
-    final quantity = await _quantity(context);
+    final quantity = await _quantity(
+      context,
+      productLabel: product.presentation ?? product.itemName,
+    );
     if (quantity == null ||
         !context.mounted ||
         !identical(model.draft, original)) {
@@ -385,39 +437,204 @@ const _payments = {
   'CASH_ON_DELIVERY': 'Efectivo contra entrega',
 };
 
-Future<String?> _quantity(BuildContext context, {String initial = '1'}) async {
-  final controller = TextEditingController(text: initial);
-  final result = await showDialog<String>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Cantidad'),
-      content: TextField(
-        controller: controller,
-        autofocus: true,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: const InputDecoration(labelText: 'Cantidad solicitada'),
-        onSubmitted: (value) => Navigator.pop(context, value),
+Future<String?> _quantity(
+  BuildContext context, {
+  String initial = '1',
+  required String productLabel,
+}) => showModalBottomSheet<String>(
+  context: context,
+  isScrollControlled: true,
+  useSafeArea: true,
+  showDragHandle: true,
+  builder: (context) =>
+      _QuantityPickerSheet(initial: initial, productLabel: productLabel),
+);
+
+final class _QuantityPickerSheet extends StatefulWidget {
+  const _QuantityPickerSheet({
+    required this.initial,
+    required this.productLabel,
+  });
+
+  final String initial;
+  final String productLabel;
+
+  @override
+  State<_QuantityPickerSheet> createState() => _QuantityPickerSheetState();
+}
+
+final class _QuantityPickerSheetState extends State<_QuantityPickerSheet> {
+  late final TextEditingController _controller;
+
+  double? get _quantity =>
+      double.tryParse(_controller.text.trim().replaceAll(',', '.'));
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initial);
+    _controller.addListener(_onQuantityChanged);
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_onQuantityChanged);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onQuantityChanged() => setState(() {});
+
+  void _step(double amount) {
+    final current = _quantity ?? 1;
+    final next = current + amount;
+    if (next <= 0) return;
+    final rounded = next == next.roundToDouble()
+        ? next.toInt().toString()
+        : '$next';
+    _controller.value = TextEditingValue(
+      text: rounded,
+      selection: TextSelection.collapsed(offset: rounded.length),
+    );
+  }
+
+  void _save() {
+    final quantity = _quantity;
+    if (quantity == null || !quantity.isFinite || quantity <= 0) return;
+    final normalized = quantity == quantity.roundToDouble()
+        ? quantity.toInt().toString()
+        : '$quantity';
+    Navigator.of(context).pop(normalized);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens =
+        theme.extension<NexaThemeExtension>() ?? NexaBuyerTheme.tokens;
+    final quantity = _quantity;
+    final canSave = quantity != null && quantity.isFinite && quantity > 0;
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(24, 8, 24, 24 + keyboardInset),
+      child: SingleChildScrollView(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Editar cantidad', style: theme.textTheme.headlineSmall),
+                const SizedBox(height: 6),
+                Text(
+                  'Actualiza la cantidad antes de revisar la solicitud.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  widget.productLabel,
+                  style: theme.textTheme.titleMedium,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 20),
+                Text('Cantidad solicitada', style: theme.textTheme.labelMedium),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerLow,
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                    borderRadius: BorderRadius.circular(tokens.radiusCard),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton.filledTonal(
+                        key: const Key('quantity-decrement'),
+                        tooltip: 'Reducir cantidad',
+                        onPressed: quantity != null && quantity > 1
+                            ? () => _step(-1)
+                            : null,
+                        icon: const Icon(Icons.remove),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          key: const Key('quantity-value'),
+                          controller: _controller,
+                          textAlign: TextAlign.center,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          textInputAction: TextInputAction.done,
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          onSubmitted: (_) {
+                            if (canSave) _save();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      IconButton.filledTonal(
+                        key: const Key('quantity-increment'),
+                        tooltip: 'Aumentar cantidad',
+                        onPressed: () => _step(1),
+                        icon: const Icon(Icons.add),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Puedes indicar decimales si la presentación lo permite.',
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancelar'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        key: const Key('quantity-save'),
+                        onPressed: canSave ? _save : null,
+                        child: const Text('Guardar'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Volver'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, controller.text),
-          child: const Text('Guardar'),
-        ),
-      ],
-    ),
-  );
-  // Dialog transition can outlive its result; dispose after the next frame.
-  WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
-  return result;
+    );
+  }
 }
 
 String _date(DateTime? value) => value == null
     ? 'Elige una fecha'
     : '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';
+
+DateTime _dateOnly(DateTime value) =>
+    DateTime(value.year, value.month, value.day);
 
 final class _CatalogPicker extends StatefulWidget {
   const _CatalogPicker({required this.repository, required this.access});
@@ -635,7 +852,9 @@ final class _CatalogPickerState extends State<_CatalogPicker> {
             Expanded(
               child: _CatalogFilterButton(
                 key: const Key('draft-type-filter'),
-                label: _category.isEmpty ? 'Tipo' : 'Tipo: $_category',
+                label: _category.isEmpty
+                    ? 'Categoría'
+                    : 'Categoría: $_category',
                 enabled: _hasAccess,
                 onPressed: () => _selectTaxonomy(CatalogFilterKind.category),
                 onClear: _category.isEmpty
@@ -667,7 +886,7 @@ final class _CatalogPickerState extends State<_CatalogPicker> {
                     [
                       item.presentation,
                       if (item.categoryName != null)
-                        'Tipo: ${item.categoryName}',
+                        'Categoría: ${item.categoryName}',
                       if (item.productFamilyName != null &&
                           item.productFamilyName != item.itemName)
                         'Grupo: ${item.productFamilyName}',
@@ -799,7 +1018,7 @@ final class _CatalogFilterLookupDialogState
   String? _message;
 
   String get _label =>
-      widget.kind == CatalogFilterKind.brand ? 'Marca' : 'Tipo';
+      widget.kind == CatalogFilterKind.brand ? 'Marca' : 'Categoría';
 
   int get _totalPages => _size < 1 ? 0 : (_total / _size).ceil();
 

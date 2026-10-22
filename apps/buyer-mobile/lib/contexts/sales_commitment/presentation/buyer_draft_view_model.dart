@@ -27,6 +27,8 @@ final class BuyerDraftViewModel extends ChangeNotifier {
       draft = null;
       review = null;
       purchaseContext = null;
+      deliveryLeadPolicy = null;
+      deliveryLeadPolicyMessage = null;
       addressId = null;
       paymentPreference = null;
       deliveryDate = null;
@@ -52,6 +54,10 @@ final class BuyerDraftViewModel extends ChangeNotifier {
   PurchaseRequestDraftProjection? draft;
   PurchaseRequestReviewProjection? review;
   BuyerPurchaseContextProjection? purchaseContext;
+  BuyerDeliveryLeadPolicyProjection? deliveryLeadPolicy;
+  String? deliveryLeadPolicyMessage;
+  DateTime? get minimumDeliveryDate =>
+      deliveryLeadPolicy?.minimumAllowedDeliveryDate;
   String? addressId;
   String? paymentPreference;
   DateTime? deliveryDate;
@@ -78,6 +84,7 @@ final class BuyerDraftViewModel extends ChangeNotifier {
   }.contains(draft?.status);
   bool get canSubmit =>
       canEdit &&
+      _hasValidDeliveryDate &&
       review?.readyToSubmit == true &&
       review?.draft.version == draft?.version &&
       review?.draft.id == draft?.id &&
@@ -87,6 +94,22 @@ final class BuyerDraftViewModel extends ChangeNotifier {
       walletSupported &&
       canRead &&
       _access.snapshot.currentContext!.permissions.contains('payment.read');
+  bool get canSelectDeliveryDate => canEdit && deliveryLeadPolicy != null;
+  bool get hasOutdatedDeliveryDate {
+    final minimum = minimumDeliveryDate;
+    final selected = deliveryDate;
+    return minimum != null &&
+        selected != null &&
+        _dateOnly(selected).isBefore(minimum);
+  }
+
+  bool get _hasValidDeliveryDate {
+    final minimum = minimumDeliveryDate;
+    final selected = deliveryDate;
+    return minimum != null &&
+        selected != null &&
+        !_dateOnly(selected).isBefore(minimum);
+  }
 
   Future<void> load() async {
     if (busy || _authority == null || !canRead) {
@@ -97,6 +120,8 @@ final class BuyerDraftViewModel extends ChangeNotifier {
     busy = true;
     message = null;
     review = null;
+    deliveryLeadPolicy = null;
+    deliveryLeadPolicyMessage = null;
     walletSupported = false;
     notifyListeners();
     try {
@@ -120,6 +145,27 @@ final class BuyerDraftViewModel extends ChangeNotifier {
           code: 'buyer_account_mismatch',
           userMessage: 'Este borrador no corresponde a tu cuenta.',
         );
+      }
+      try {
+        final policy = await _repository.loadDeliveryLeadPolicy();
+        if (!_current(generation, authority)) {
+          return;
+        }
+        deliveryLeadPolicy = policy;
+      } on NexaApiFailure catch (error) {
+        if (!_current(generation, authority)) {
+          return;
+        }
+        if (error.statusCode == 401) {
+          rethrow;
+        }
+        deliveryLeadPolicyMessage = error.userMessage;
+      } catch (_) {
+        if (!_current(generation, authority)) {
+          return;
+        }
+        deliveryLeadPolicyMessage =
+            'No se pudo consultar el plazo mínimo de entrega.';
       }
       draft = loaded;
       purchaseContext = account;
@@ -206,10 +252,18 @@ final class BuyerDraftViewModel extends ChangeNotifier {
   }
 
   void selectDate(DateTime value) {
-    if (!canEdit) {
+    if (!canSelectDeliveryDate) {
       return;
     }
-    deliveryDate = value;
+    final date = _dateOnly(value);
+    final minimum = minimumDeliveryDate;
+    if (minimum == null || date.isBefore(minimum)) {
+      message =
+          'Elige una fecha igual o posterior a la fecha mínima del espacio.';
+      notifyListeners();
+      return;
+    }
+    deliveryDate = date;
     _invalidate();
   }
 
@@ -311,6 +365,18 @@ final class BuyerDraftViewModel extends ChangeNotifier {
     final selectedAddress = addressId;
     final selectedDate = deliveryDate;
     final selectedPayment = paymentPreference;
+    final policy = deliveryLeadPolicy;
+    if (policy == null) {
+      message = 'No se pudo consultar el plazo mínimo de entrega. Actualiza el borrador antes de continuar.';
+      notifyListeners();
+      return;
+    }
+    if (selectedDate != null &&
+        _dateOnly(selectedDate).isBefore(policy.minimumAllowedDeliveryDate)) {
+      message = 'La fecha guardada es anterior al mínimo del espacio. Elige otra fecha.';
+      notifyListeners();
+      return;
+    }
     if (selectedAddress == null ||
         selectedDate == null ||
         selectedPayment == null ||
@@ -372,6 +438,21 @@ final class BuyerDraftViewModel extends ChangeNotifier {
   }
 
   Future<void> submit() async {
+    if (deliveryLeadPolicy == null) {
+      message = 'No se pudo consultar el plazo mínimo de entrega. Actualiza el borrador antes de enviarlo.';
+      notifyListeners();
+      return;
+    }
+    if (deliveryDate == null) {
+      message = 'Elige una fecha de entrega antes de enviar el borrador.';
+      notifyListeners();
+      return;
+    }
+    if (hasOutdatedDeliveryDate) {
+      message = 'La fecha solicitada es anterior a la fecha mínima del espacio. Elige otra fecha.';
+      notifyListeners();
+      return;
+    }
     if (!canSubmit) {
       return;
     }
@@ -445,6 +526,9 @@ final class BuyerDraftViewModel extends ChangeNotifier {
       snapshot.hasActiveBuyerScope
       ? '${snapshot.authorityEpoch}:${snapshot.currentContext!.authorityFingerprint}'
       : null;
+
+  static DateTime _dateOnly(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
   @override
   void dispose() {
     _generation++;

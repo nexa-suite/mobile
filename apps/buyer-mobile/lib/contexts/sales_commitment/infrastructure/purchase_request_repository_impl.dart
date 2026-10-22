@@ -55,6 +55,30 @@ final class PurchaseRequestRepositoryImpl
   }
 
   @override
+  Future<BuyerDeliveryLeadPolicyProjection> loadDeliveryLeadPolicy() async {
+    final response = await _api.get(
+      '/buyer/delivery-lead-policy',
+      refreshAfterUnauthorized: true,
+    );
+    final businessDays = _int(response.body['minimumDeliveryLeadBusinessDays']);
+    final minimumDate = _canonicalDateValue(
+      response.body['minimumAllowedDeliveryDate'],
+    );
+    final timezone = _string(response.body['timezone']);
+    if (businessDays == null ||
+        businessDays < 0 ||
+        minimumDate == null ||
+        timezone == null) {
+      _invalidResponse();
+    }
+    return BuyerDeliveryLeadPolicyProjection(
+      minimumDeliveryLeadBusinessDays: businessDays,
+      minimumAllowedDeliveryDate: minimumDate,
+      timezone: timezone,
+    );
+  }
+
+  @override
   Future<PurchaseRequestDraftPageProjection> listDrafts({
     required int page,
   }) async {
@@ -760,6 +784,12 @@ final class PurchaseRequestRepositoryImpl
 
   DateTime? _dateTime(Object? value) =>
       value is String ? DateTime.tryParse(value) : null;
+
+  DateTime? _canonicalDateValue(Object? value) {
+    if (value is! String || !_isCanonicalDate(value)) return null;
+    final parts = value.split('-').map(int.parse).toList(growable: false);
+    return DateTime(parts[0], parts[1], parts[2]);
+  }
 
   bool _isCanonicalDate(String value) {
     if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value)) return false;

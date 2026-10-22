@@ -83,6 +83,167 @@ void main() {
     model.dispose();
     await access.dispose();
   });
+
+  testWidgets('quantity sheet updates the current draft line', (tester) async {
+    final access = _FakeAccess();
+    final workspace = _FakeWorkspaceRepository();
+    final model = BuyerDraftViewModel(
+      _FakePurchaseRequestRepository(),
+      workspace,
+      access,
+      const _FakePaymentCapabilityQuery(),
+      _draftId,
+    );
+    await model.load();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<BuyerDraftViewModel>.value(value: model),
+          Provider<BuyerAccessRepository>.value(value: access),
+          Provider<CatalogRepository>.value(
+            value: _RecordingCatalogRepository(),
+          ),
+        ],
+        child: const MaterialApp(home: BuyerDraftPage()),
+      ),
+    );
+    await tester.tap(find.text('Cantidad').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Editar cantidad'), findsOneWidget);
+    expect(find.text('Producto de la solicitud'), findsNWidgets(2));
+    expect(find.byKey(const Key('quantity-value')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('quantity-increment')));
+    await tester.pump();
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('quantity-value')))
+          .controller
+          ?.text,
+      '2',
+    );
+    await tester.tap(find.byKey(const Key('quantity-save')));
+    await tester.pumpAndSettle();
+
+    expect(workspace.lastDraftLines?.single.quantity, '2');
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    model.dispose();
+    await access.dispose();
+  });
+
+  test(
+    'draft date respects the API floor and allows a later weekend',
+    () async {
+      final access = _FakeAccess();
+      final model = BuyerDraftViewModel(
+        _FakePurchaseRequestRepository(),
+        _FakeWorkspaceRepository(),
+        access,
+        const _FakePaymentCapabilityQuery(),
+        _draftId,
+      );
+      await model.load();
+
+      expect(model.minimumDeliveryDate, DateTime(2026, 10, 23));
+      expect(model.deliveryDate, DateTime(2026, 10, 23));
+      model.selectDate(DateTime(2026, 10, 22));
+      expect(model.deliveryDate, DateTime(2026, 10, 23));
+      model.selectDate(DateTime(2026, 10, 24));
+      expect(model.deliveryDate, DateTime(2026, 10, 24));
+      expect(model.hasOutdatedDeliveryDate, isFalse);
+
+      model.dispose();
+      await access.dispose();
+    },
+  );
+
+  test(
+    'READY_TO_SUBMIT cannot submit when delivery policy is unavailable',
+    () async {
+      final access = _FakeAccess();
+      final repository = _FakePurchaseRequestRepository(
+        draftStatus: 'READY_TO_SUBMIT',
+        policyUnavailable: true,
+      );
+      final model = BuyerDraftViewModel(
+        repository,
+        _FakeWorkspaceRepository(),
+        access,
+        const _FakePaymentCapabilityQuery(),
+        _draftId,
+      );
+      await model.load();
+
+      expect(model.review?.readyToSubmit, isTrue);
+      expect(model.deliveryLeadPolicy, isNull);
+      expect(model.canSubmit, isFalse);
+      await model.submit();
+
+      expect(repository.submitCalls, 0);
+      expect(model.message, contains('plazo mínimo'));
+
+      model.dispose();
+      await access.dispose();
+    },
+  );
+
+  test(
+    'READY_TO_SUBMIT cannot submit with a date before the API floor',
+    () async {
+      final access = _FakeAccess();
+      final repository = _FakePurchaseRequestRepository(
+        draftStatus: 'READY_TO_SUBMIT',
+        requestedDeliveryDate: '2026-10-22',
+      );
+      final model = BuyerDraftViewModel(
+        repository,
+        _FakeWorkspaceRepository(),
+        access,
+        const _FakePaymentCapabilityQuery(),
+        _draftId,
+      );
+      await model.load();
+
+      expect(model.review?.readyToSubmit, isTrue);
+      expect(model.hasOutdatedDeliveryDate, isTrue);
+      expect(model.canSubmit, isFalse);
+      await model.submit();
+
+      expect(repository.submitCalls, 0);
+      expect(model.message, contains('fecha mínima'));
+
+      model.dispose();
+      await access.dispose();
+    },
+  );
+
+  test('READY_TO_SUBMIT cannot submit without a delivery date', () async {
+    final access = _FakeAccess();
+    final repository = _FakePurchaseRequestRepository(
+      draftStatus: 'READY_TO_SUBMIT',
+      requestedDeliveryDate: null,
+    );
+    final model = BuyerDraftViewModel(
+      repository,
+      _FakeWorkspaceRepository(),
+      access,
+      const _FakePaymentCapabilityQuery(),
+      _draftId,
+    );
+    await model.load();
+
+    expect(model.review?.readyToSubmit, isTrue);
+    expect(model.canSubmit, isFalse);
+    await model.submit();
+
+    expect(repository.submitCalls, 0);
+    expect(model.message, contains('fecha de entrega'));
+
+    model.dispose();
+    await access.dispose();
+  });
 }
 
 final class _RecordingCatalogRepository implements CatalogRepository {
@@ -184,7 +345,16 @@ final class _FakeAccess implements BuyerAccessRepository {
 
 final class _FakePurchaseRequestRepository
     implements PurchaseRequestRepository {
-  const _FakePurchaseRequestRepository();
+  _FakePurchaseRequestRepository({
+    this.draftStatus = 'DRAFT',
+    this.requestedDeliveryDate = '2026-10-23',
+    this.policyUnavailable = false,
+  });
+
+  final String draftStatus;
+  final String? requestedDeliveryDate;
+  final bool policyUnavailable;
+  int submitCalls = 0;
 
   @override
   Future<BuyerPurchaseContextProjection> loadBuyerPurchaseContext() async =>
@@ -197,14 +367,27 @@ final class _FakePurchaseRequestRepository
       );
 
   @override
+  Future<BuyerDeliveryLeadPolicyProjection> loadDeliveryLeadPolicy() async {
+    if (policyUnavailable) {
+      throw StateError('Delivery lead policy unavailable');
+    }
+    return BuyerDeliveryLeadPolicyProjection(
+      minimumDeliveryLeadBusinessDays: 3,
+      minimumAllowedDeliveryDate: DateTime(2026, 10, 23),
+      timezone: 'America/Lima',
+    );
+  }
+
+  @override
   Future<PurchaseRequestDraftProjection> getDraft(String draftId) async =>
-      const PurchaseRequestDraftProjection(
+      PurchaseRequestDraftProjection(
         id: _draftId,
         clientAccountId: 'account-buyer',
-        status: 'DRAFT',
+        status: draftStatus,
         version: 1,
         etag: 'etag-1',
-        lines: [
+        requestedDeliveryDate: requestedDeliveryDate,
+        lines: const [
           PurchaseRequestLineProjection(
             skuId: 'sku-existing',
             quantity: '1',
@@ -265,19 +448,27 @@ final class _FakePurchaseRequestRepository
   }) => throw UnimplementedError();
 
   @override
-  Future<PurchaseRequestReviewProjection> review(String draftId) =>
-      throw UnimplementedError();
+  Future<PurchaseRequestReviewProjection> review(String draftId) async {
+    return PurchaseRequestReviewProjection(
+      draft: await getDraft(draftId),
+      readyToSubmit: true,
+      missing: const [],
+    );
+  }
 
   @override
   Future<PurchaseRequestDraftProjection> submit(
     PurchaseRequestDraftProjection draft, {
     required String scopeKey,
-  }) => throw UnimplementedError();
+  }) async {
+    submitCalls++;
+    return draft;
+  }
 }
 
 final class _FakeWorkspaceRepository
     implements BuyerPurchaseWorkspaceRepository {
-  const _FakeWorkspaceRepository();
+  List<PurchaseRequestLineProjection>? lastDraftLines;
 
   @override
   Future<BuyerRequestPage> listRequests({required int page, String? status}) =>
@@ -307,7 +498,17 @@ final class _FakeWorkspaceRepository
   Future<PurchaseRequestDraftProjection> replaceDraftLines({
     required PurchaseRequestDraftProjection draft,
     required List<PurchaseRequestLineProjection> lines,
-  }) => throw UnimplementedError();
+  }) async {
+    lastDraftLines = lines;
+    return PurchaseRequestDraftProjection(
+      id: draft.id,
+      clientAccountId: draft.clientAccountId,
+      status: draft.status,
+      version: draft.version + 1,
+      etag: 'etag-${draft.version + 1}',
+      lines: lines,
+    );
+  }
 }
 
 final class _FakePaymentCapabilityQuery

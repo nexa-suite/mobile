@@ -21,6 +21,62 @@ const _skuId = '00000000-0000-4000-8000-000000000005';
 const _scopeKey = '$_membershipId|tenant-1|workspace-1';
 
 void main() {
+  test('uses the API delivery floor and permits later weekend dates', () async {
+    final access = _FakeAccess(_snapshot());
+    final repository = _FakePurchaseRequestRepository();
+    final model = PurchaseRequestComposerViewModel(
+      _FakeCatalogRepository(),
+      repository,
+      access,
+      'CAT-001',
+    );
+
+    await model.load();
+
+    expect(repository.deliveryPolicyCalls, 1);
+    expect(model.minimumDeliveryDate, DateTime(2026, 10, 23));
+    expect(model.requestedDeliveryDate, DateTime(2026, 10, 23));
+    model.selectDeliveryDate(DateTime(2026, 10, 22));
+    expect(model.requestedDeliveryDate, DateTime(2026, 10, 23));
+    model.selectDeliveryDate(DateTime(2026, 10, 24));
+    expect(model.requestedDeliveryDate, DateTime(2026, 10, 24));
+    expect(model.canPrepareRequest, isTrue);
+
+    model.dispose();
+    await access.dispose();
+  });
+
+  test(
+    'does not create a request when API lead policy is unavailable',
+    () async {
+      final access = _FakeAccess(_snapshot());
+      final repository = _FakePurchaseRequestRepository(
+        deliveryPolicyError: const NexaApiFailure(
+          code: 'delivery_policy_unavailable',
+          statusCode: 503,
+          userMessage: 'No se pudo leer la política de entrega.',
+        ),
+      );
+      final model = PurchaseRequestComposerViewModel(
+        _FakeCatalogRepository(),
+        repository,
+        access,
+        'CAT-001',
+      );
+
+      await model.load();
+      await model.prepare('1');
+
+      expect(model.status, PurchaseRequestComposerStatus.unavailable);
+      expect(model.canPrepareRequest, isFalse);
+      expect(repository.createCount, 0);
+      expect(model.message, 'No se pudo leer la política de entrega.');
+
+      model.dispose();
+      await access.dispose();
+    },
+  );
+
   test(
     'requires Buyer, payment.read, and server capability for WALLET',
     () async {
@@ -517,7 +573,7 @@ void main() {
 
   test('explicitly selected server draft is fetched and resumed', () async {
     final access = _FakeAccess(_snapshot());
-    final candidate = _draft();
+    final candidate = _draft(requestedDeliveryDate: '2026-10-23');
     final repository = _FakePurchaseRequestRepository(
       initialCreationRecord: const PurchaseRequestCreationRecord.unknown(),
       drafts: {candidate.id: candidate},
@@ -552,6 +608,98 @@ void main() {
     model.dispose();
     await access.dispose();
   });
+
+  test('recovered early draft stays blocked and cannot be submitted', () async {
+    final access = _FakeAccess(_snapshot());
+    final candidate = _draft(requestedDeliveryDate: '2026-10-22');
+    final repository = _FakePurchaseRequestRepository(
+      initialCreationRecord: const PurchaseRequestCreationRecord.unknown(),
+      drafts: {candidate.id: candidate},
+      listPages: {
+        0: Future.value(_draftPage([candidate])),
+      },
+    );
+    final model = PurchaseRequestComposerViewModel(
+      _FakeCatalogRepository(),
+      repository,
+      access,
+      'CAT-001',
+    );
+    await model.load();
+
+    await model.resumeDraft(candidate.id);
+    await model.submit();
+
+    expect(model.requestedDeliveryDate, DateTime(2026, 10, 22));
+    expect(model.status, PurchaseRequestComposerStatus.ready);
+    expect(model.canPrepareRequest, isFalse);
+    expect(model.message, contains('2026-10-23'));
+    expect(repository.submittedCount, 0);
+
+    model.dispose();
+    await access.dispose();
+  });
+
+  test('known recovered early draft is blocked during composer load', () async {
+    final access = _FakeAccess(_snapshot());
+    final earlyDraft = _draft(requestedDeliveryDate: '2026-10-22');
+    final repository = _FakePurchaseRequestRepository(
+      initialCreationRecord: const PurchaseRequestCreationRecord.known(
+        _draftId,
+      ),
+      drafts: {_draftId: earlyDraft},
+    );
+    final model = PurchaseRequestComposerViewModel(
+      _FakeCatalogRepository(),
+      repository,
+      access,
+      'CAT-001',
+    );
+
+    await model.load();
+    await model.submit();
+
+    expect(model.status, PurchaseRequestComposerStatus.ready);
+    expect(model.canPrepareRequest, isFalse);
+    expect(model.message, contains('2026-10-23'));
+    expect(repository.submittedCount, 0);
+
+    model.dispose();
+    await access.dispose();
+  });
+
+  test(
+    'submit rechecks the date returned by the latest server review',
+    () async {
+      final access = _FakeAccess(_snapshot());
+      final validDraft = _draft(requestedDeliveryDate: '2026-10-23');
+      final repository = _FakePurchaseRequestRepository(
+        initialCreationRecord: const PurchaseRequestCreationRecord.known(
+          _draftId,
+        ),
+        drafts: {_draftId: validDraft},
+      );
+      final model = PurchaseRequestComposerViewModel(
+        _FakeCatalogRepository(),
+        repository,
+        access,
+        'CAT-001',
+      );
+      await model.load();
+      expect(model.status, PurchaseRequestComposerStatus.reviewReady);
+
+      repository.drafts[_draftId] = _draft(requestedDeliveryDate: '2026-10-22');
+      await model.submit();
+
+      expect(model.status, PurchaseRequestComposerStatus.ready);
+      expect(model.requestedDeliveryDate, DateTime(2026, 10, 22));
+      expect(model.message, contains('2026-10-23'));
+      expect(repository.submittedCount, 0);
+
+      model.dispose();
+      await access.dispose();
+    },
+  );
 
   test(
     'recovery pages remain user selected and stale page results are purged',
@@ -871,6 +1019,7 @@ final class _FakePurchaseRequestRepository
   _FakePurchaseRequestRepository({
     this.contextResult,
     this.contextError,
+    this.deliveryPolicyError,
     this.createResult,
     this.createError,
     this.beginCreationError,
@@ -881,6 +1030,7 @@ final class _FakePurchaseRequestRepository
 
   final Future<BuyerPurchaseContextProjection>? contextResult;
   final Object? contextError;
+  final Object? deliveryPolicyError;
   final Future<PurchaseRequestDraftProjection>? createResult;
   final Object? createError;
   final Object? beginCreationError;
@@ -891,6 +1041,7 @@ final class _FakePurchaseRequestRepository
   final creationRecords = <String, PurchaseRequestCreationRecord?>{};
   final listedPages = <int>[];
   int creationRecordReads = 0;
+  int deliveryPolicyCalls = 0;
   int getDraftCount = 0;
   String? createdAccountId;
   int createCount = 0;
@@ -905,6 +1056,21 @@ final class _FakePurchaseRequestRepository
   Future<BuyerPurchaseContextProjection> loadBuyerPurchaseContext() {
     if (contextError != null) return Future.error(contextError!);
     return contextResult ?? Future.value(_purchaseContext());
+  }
+
+  @override
+  Future<BuyerDeliveryLeadPolicyProjection> loadDeliveryLeadPolicy() {
+    deliveryPolicyCalls++;
+    if (deliveryPolicyError != null) {
+      return Future.error(deliveryPolicyError!);
+    }
+    return Future.value(
+      BuyerDeliveryLeadPolicyProjection(
+        minimumDeliveryLeadBusinessDays: 3,
+        minimumAllowedDeliveryDate: DateTime(2026, 10, 23),
+        timezone: 'America/Lima',
+      ),
+    );
   }
 
   @override
@@ -1038,7 +1204,7 @@ final class _FakePurchaseRequestRepository
   @override
   Future<PurchaseRequestReviewProjection> review(String draftId) async =>
       PurchaseRequestReviewProjection(
-        draft: current,
+        draft: drafts[draftId] ?? current,
         readyToSubmit: true,
         missing: const [],
       );

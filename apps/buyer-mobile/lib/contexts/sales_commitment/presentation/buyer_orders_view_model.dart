@@ -6,6 +6,13 @@ import '../../../core/application/error/nexa_api_failure.dart';
 import '../../tenant_access_governance/application/buyer_access_repository.dart';
 import '../application/buyer_orders_repository.dart';
 
+bool _isTemporaryFailure(NexaApiFailure failure) =>
+    failure.retryable ||
+    failure.statusCode == 408 ||
+    failure.statusCode == 429 ||
+    failure.code == 'network_timeout' ||
+    failure.code == 'network_unavailable';
+
 enum BuyerOrdersLoadStatus {
   idle,
   loading,
@@ -25,6 +32,9 @@ final class BuyerOrdersViewModel extends ChangeNotifier {
   late final StreamSubscription<BuyerAccessSnapshot> _subscription;
   String? _leaseKey;
   int _requestGeneration = 0;
+  Future<void>? _activeRead;
+  int? _activePage;
+  int? _queuedPage;
 
   BuyerOrdersLoadStatus status = BuyerOrdersLoadStatus.idle;
   List<BuyerOrderProjection> items = const [];
@@ -35,7 +45,7 @@ final class BuyerOrdersViewModel extends ChangeNotifier {
 
   static const readPermission = 'buyer.order.read';
 
-  Future<void> refresh() => _load(page);
+  Future<void> refresh() => _load(_queuedPage ?? _activePage ?? page);
 
   Future<void> nextPage() {
     if (status != BuyerOrdersLoadStatus.current || (page + 1) * size >= total) {
@@ -51,7 +61,44 @@ final class BuyerOrdersViewModel extends ChangeNotifier {
     return _load(page - 1);
   }
 
-  Future<void> _load(int requestedPage) async {
+  Future<void> _load(int requestedPage) {
+    final activeRead = _activeRead;
+    if (activeRead != null) {
+      if (requestedPage != _activePage) _queuedPage = requestedPage;
+      return activeRead;
+    }
+    final completer = Completer<void>();
+    _activeRead = completer.future;
+    _activePage = requestedPage;
+    unawaited(_drainReads(requestedPage, completer));
+    return completer.future;
+  }
+
+  Future<void> _drainReads(int requestedPage, Completer<void> completer) async {
+    try {
+      var pageToRead = requestedPage;
+      while (identical(_activeRead, completer.future)) {
+        _activePage = pageToRead;
+        await _loadPage(pageToRead);
+        if (!identical(_activeRead, completer.future)) break;
+        final queuedPage = _queuedPage;
+        _queuedPage = null;
+        if (queuedPage == null || queuedPage == pageToRead) break;
+        pageToRead = queuedPage;
+      }
+      completer.complete();
+    } catch (error, stackTrace) {
+      completer.completeError(error, stackTrace);
+    } finally {
+      if (identical(_activeRead, completer.future)) {
+        _activeRead = null;
+        _activePage = null;
+        _queuedPage = null;
+      }
+    }
+  }
+
+  Future<void> _loadPage(int requestedPage) async {
     final snapshot = _access.snapshot;
     final lease = _leaseKey;
     if (lease == null) {
@@ -74,6 +121,8 @@ final class BuyerOrdersViewModel extends ChangeNotifier {
       return;
     }
     final generation = ++_requestGeneration;
+    final preserveSnapshot = requestedPage == page && items.isNotEmpty;
+    if (!preserveSnapshot) items = const [];
     status = BuyerOrdersLoadStatus.loading;
     message = null;
     notifyListeners();
@@ -100,14 +149,28 @@ final class BuyerOrdersViewModel extends ChangeNotifier {
         _access.invalidateLocalSession();
         return;
       }
-      _clear(
-        failure.statusCode == 403
-            ? BuyerOrdersLoadStatus.permissionDenied
-            : BuyerOrdersLoadStatus.unavailable,
-        failure.statusCode == 403
-            ? 'No tienes permiso para consultar tus pedidos.'
-            : failure.userMessage,
-      );
+      if (failure.statusCode == 403) {
+        _clear(
+          BuyerOrdersLoadStatus.permissionDenied,
+          'No tienes permiso para consultar tus pedidos.',
+        );
+        return;
+      }
+      if (failure.statusCode == 404) {
+        _clear(
+          BuyerOrdersLoadStatus.unavailable,
+          'Los pedidos no están disponibles en este contexto.',
+        );
+        return;
+      }
+      if (_isTemporaryFailure(failure)) {
+        _retainOrClearAfterTemporaryFailure(
+          preserveSnapshot: preserveSnapshot,
+          message: failure.userMessage,
+        );
+        return;
+      }
+      _clear(BuyerOrdersLoadStatus.unavailable, failure.userMessage);
     } catch (_) {
       if (!_isCurrent(generation, lease)) return;
       _clear(
@@ -115,6 +178,19 @@ final class BuyerOrdersViewModel extends ChangeNotifier {
         'No se pudieron actualizar tus pedidos.',
       );
     }
+    notifyListeners();
+  }
+
+  void _retainOrClearAfterTemporaryFailure({
+    required bool preserveSnapshot,
+    required String message,
+  }) {
+    if (!preserveSnapshot) {
+      _clear(BuyerOrdersLoadStatus.unavailable, message);
+      return;
+    }
+    status = BuyerOrdersLoadStatus.unavailable;
+    this.message = 'No se pudieron actualizar tus pedidos. Mostrando la información anterior.';
     notifyListeners();
   }
 
@@ -154,6 +230,9 @@ final class BuyerOrdersViewModel extends ChangeNotifier {
     if (nextScope == _leaseKey) return;
     _leaseKey = nextScope;
     _requestGeneration++;
+    _activeRead = null;
+    _activePage = null;
+    _queuedPage = null;
     _clear(
       snapshot.isSignedIn && !_hasPermission(snapshot)
           ? BuyerOrdersLoadStatus.permissionDenied
@@ -171,6 +250,10 @@ final class BuyerOrdersViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _requestGeneration++;
+    _activeRead = null;
+    _activePage = null;
+    _queuedPage = null;
     _subscription.cancel();
     super.dispose();
   }
@@ -190,16 +273,38 @@ final class BuyerOrderDetailViewModel extends ChangeNotifier {
   late final StreamSubscription<BuyerAccessSnapshot> _subscription;
   String? _leaseKey;
   int _requestGeneration = 0;
+  Future<void>? _activeRead;
 
   BuyerOrderDetailStatus status = BuyerOrderDetailStatus.loading;
   BuyerOrderProjection? order;
   String? message;
 
-  Future<void> load() async {
+  Future<void> load() {
+    final activeRead = _activeRead;
+    if (activeRead != null) return activeRead;
+    final completer = Completer<void>();
+    _activeRead = completer.future;
+    unawaited(_loadOnce(completer));
+    return completer.future;
+  }
+
+  Future<void> _loadOnce(Completer<void> completer) async {
+    try {
+      await _performLoad();
+      completer.complete();
+    } catch (error, stackTrace) {
+      completer.completeError(error, stackTrace);
+    } finally {
+      if (identical(_activeRead, completer.future)) _activeRead = null;
+    }
+  }
+
+  Future<void> _performLoad() async {
     final lease = _leaseKey;
     if (lease == null) {
       status = BuyerOrderDetailStatus.unavailable;
       order = null;
+      message = 'Inicia sesión para consultar este pedido.';
       notifyListeners();
       return;
     }
@@ -213,6 +318,7 @@ final class BuyerOrderDetailViewModel extends ChangeNotifier {
       return;
     }
     final generation = ++_requestGeneration;
+    final preserveSnapshot = order != null;
     status = BuyerOrderDetailStatus.loading;
     message = null;
     notifyListeners();
@@ -239,13 +345,28 @@ final class BuyerOrderDetailViewModel extends ChangeNotifier {
         _access.invalidateLocalSession();
         return;
       }
-      order = null;
-      status = failure.statusCode == 403
-          ? BuyerOrderDetailStatus.permissionDenied
-          : BuyerOrderDetailStatus.unavailable;
-      message = failure.statusCode == 403
-          ? 'No tienes permiso para consultar este pedido.'
-          : failure.userMessage;
+      if (failure.statusCode == 403) {
+        order = null;
+        status = BuyerOrderDetailStatus.permissionDenied;
+        message = 'No tienes permiso para consultar este pedido.';
+      } else if (failure.statusCode == 404) {
+        order = null;
+        status = BuyerOrderDetailStatus.unavailable;
+        message = 'Este pedido ya no está disponible.';
+      } else if (_isTemporaryFailure(failure)) {
+        if (!preserveSnapshot) {
+          order = null;
+          status = BuyerOrderDetailStatus.unavailable;
+          message = failure.userMessage;
+        } else {
+          status = BuyerOrderDetailStatus.unavailable;
+          message = 'No se pudo actualizar este pedido. Mostrando la información anterior.';
+        }
+      } else {
+        order = null;
+        status = BuyerOrderDetailStatus.unavailable;
+        message = failure.userMessage;
+      }
     } catch (_) {
       if (!_isCurrent(generation, lease)) return;
       order = null;
@@ -277,6 +398,7 @@ final class BuyerOrderDetailViewModel extends ChangeNotifier {
     if (nextScope == _leaseKey) return;
     _leaseKey = nextScope;
     _requestGeneration++;
+    _activeRead = null;
     order = null;
     status =
         snapshot.isSignedIn && !BuyerOrdersViewModel._hasPermission(snapshot)
@@ -291,6 +413,8 @@ final class BuyerOrderDetailViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _requestGeneration++;
+    _activeRead = null;
     _subscription.cancel();
     super.dispose();
   }

@@ -15,6 +15,69 @@ const _draftId = '00000000-0000-4000-8000-000000000005';
 const _skuId = '00000000-0000-4000-8000-000000000006';
 
 void main() {
+  test('loads the server-computed Buyer delivery lead policy', () async {
+    late http.Request captured;
+    final api = NexaApiClient(
+      origin: NexaApiOrigin.parse(
+        'https://api.nexa.example',
+        allowLocalHttp: false,
+      ),
+      httpClient: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          jsonEncode({
+            'minimumDeliveryLeadBusinessDays': 3,
+            'minimumAllowedDeliveryDate': '2026-10-23',
+            'timezone': 'America/Lima',
+          }),
+          200,
+        );
+      }),
+    )..sessionCredentials = _FakeCredentials();
+    final repository = PurchaseRequestRepositoryImpl(api, _RecordingKeyStore());
+
+    final policy = await repository.loadDeliveryLeadPolicy();
+
+    expect(captured.method, 'GET');
+    expect(captured.url.path, '/api/v1/buyer/delivery-lead-policy');
+    expect(policy.minimumDeliveryLeadBusinessDays, 3);
+    expect(policy.minimumAllowedDeliveryDate, DateTime(2026, 10, 23));
+    expect(policy.timezone, 'America/Lima');
+    api.close();
+  });
+
+  test('rejects an invalid server delivery lead policy date', () async {
+    final api = NexaApiClient(
+      origin: NexaApiOrigin.parse(
+        'https://api.nexa.example',
+        allowLocalHttp: false,
+      ),
+      httpClient: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'minimumDeliveryLeadBusinessDays': 3,
+            'minimumAllowedDeliveryDate': '2026-02-31',
+            'timezone': 'America/Lima',
+          }),
+          200,
+        ),
+      ),
+    )..sessionCredentials = _FakeCredentials();
+    final repository = PurchaseRequestRepositoryImpl(api, _RecordingKeyStore());
+
+    await expectLater(
+      repository.loadDeliveryLeadPolicy(),
+      throwsA(
+        isA<NexaApiFailure>().having(
+          (failure) => failure.code,
+          'code',
+          'invalid_purchase_request_response',
+        ),
+      ),
+    );
+    api.close();
+  });
+
   test(
     'lists only server-scoped draft summaries with visible pagination',
     () async {

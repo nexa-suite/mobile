@@ -2,10 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../tenant_access_governance/application/buyer_change_feed_repository.dart';
 import '../../../core/presentation/nexa_buyer_components.dart';
 import '../../../core/presentation/buyer_visible_route_poller.dart';
 import '../application/buyer_orders_repository.dart';
 import 'buyer_orders_view_model.dart';
+
+const _orderChangeEvents = {
+  'sales.sales-order.confirmed',
+  'sales.sales-order.created',
+  'resync-required',
+};
 
 final class BuyerOrdersPage extends StatefulWidget {
   const BuyerOrdersPage({super.key});
@@ -29,6 +36,11 @@ final class _BuyerOrdersPageState extends State<BuyerOrdersPage> {
       router: router,
       routePath: '/orders',
       onRefresh: () => context.read<BuyerOrdersViewModel>().refresh(),
+      changes: () => context
+          .read<BuyerChangeFeedRepository>()
+          .watch(readPermission: BuyerOrdersViewModel.readPermission)
+          .where((event) => _orderChangeEvents.contains(event.type))
+          .map<void>((_) {}),
     );
   }
 
@@ -80,6 +92,21 @@ final class _BuyerOrdersPageState extends State<BuyerOrdersPage> {
             title: 'Pedidos',
             description: 'Estado y detalle de tus pedidos confirmados.',
           ),
+          if (orders.status == BuyerOrdersLoadStatus.loading &&
+              orders.items.isNotEmpty)
+            const LinearProgressIndicator(),
+          if (orders.status == BuyerOrdersLoadStatus.unavailable &&
+              orders.items.isNotEmpty &&
+              orders.message != null)
+            MaterialBanner(
+              content: Text(orders.message!),
+              actions: [
+                TextButton(
+                  onPressed: orders.refresh,
+                  child: const Text('Reintentar'),
+                ),
+              ],
+            ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: orders.refresh,

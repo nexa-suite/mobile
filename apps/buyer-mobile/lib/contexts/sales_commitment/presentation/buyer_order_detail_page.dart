@@ -2,10 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../tenant_access_governance/application/buyer_change_feed_repository.dart';
 import '../../../core/presentation/buyer_visible_route_poller.dart';
 import '../../../core/presentation/nexa_buyer_components.dart';
 import '../application/buyer_orders_repository.dart';
 import 'buyer_orders_view_model.dart';
+
+const _orderChangeEvents = {
+  'sales.sales-order.confirmed',
+  'sales.sales-order.created',
+  'resync-required',
+};
 
 final class BuyerOrderDetailPage extends StatefulWidget {
   const BuyerOrderDetailPage({super.key});
@@ -36,6 +43,11 @@ final class _BuyerOrderDetailPageState extends State<BuyerOrderDetailPage> {
       router: router,
       routePath: '/orders/${Uri.encodeComponent(_detail.orderId)}',
       onRefresh: _detail.load,
+      changes: () => context
+          .read<BuyerChangeFeedRepository>()
+          .watch(readPermission: BuyerOrdersViewModel.readPermission)
+          .where((event) => _orderChangeEvents.contains(event.type))
+          .map<void>((_) {}),
     );
   }
 
@@ -64,7 +76,7 @@ final class _BuyerOrderDetailPageState extends State<BuyerOrderDetailPage> {
     BuyerOrderDetailViewModel detail,
     BuyerOrderProjection? order,
   ) {
-    if (detail.status == BuyerOrderDetailStatus.loading ||
+    if ((detail.status == BuyerOrderDetailStatus.loading && order == null) ||
         (detail.status == BuyerOrderDetailStatus.current && order == null)) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -80,10 +92,11 @@ final class _BuyerOrderDetailPageState extends State<BuyerOrderDetailPage> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
-              OutlinedButton(
-                onPressed: detail.load,
-                child: const Text('Volver a consultar'),
-              ),
+              if (detail.status != BuyerOrderDetailStatus.permissionDenied)
+                OutlinedButton(
+                  onPressed: detail.load,
+                  child: const Text('Volver a consultar'),
+                ),
             ],
           ),
         ),
@@ -97,6 +110,19 @@ final class _BuyerOrderDetailPageState extends State<BuyerOrderDetailPage> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
+            if (detail.status == BuyerOrderDetailStatus.loading)
+              const LinearProgressIndicator(),
+            if (detail.status == BuyerOrderDetailStatus.unavailable &&
+                detail.message != null)
+              MaterialBanner(
+                content: Text(detail.message!),
+                actions: [
+                  TextButton(
+                    onPressed: detail.load,
+                    child: const Text('Volver a consultar'),
+                  ),
+                ],
+              ),
             NexaPageWidth(
               padding: EdgeInsets.zero,
               child: Column(
