@@ -1,5 +1,36 @@
 enum BuyerAccessStatus { signedOut, choosingContext, signedIn }
 
+enum BuyerPasswordResetRequestResult { requested, rateLimited, unavailable }
+
+abstract interface class BuyerPasswordRecoveryRepository {
+  Future<BuyerPasswordResetRequestResult> requestPasswordReset(String email);
+}
+
+abstract interface class BuyerPasswordChangeRepository {
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  });
+}
+
+abstract interface class BuyerSessionSecurityRepository {
+  Future<void> revokeOtherSessions();
+}
+
+abstract interface class BuyerBiometricSessionRepository {
+  Future<bool> hasBiometricSession();
+
+  Future<void> setBiometricUnlockEnabled(bool enabled);
+
+  Future<bool> restoreBiometricSession();
+}
+
+abstract interface class BuyerBiometricAuthenticator {
+  Future<bool> isAvailable();
+
+  Future<bool> authenticate(String reason);
+}
+
 final class BuyerAccessContext {
   const BuyerAccessContext({
     required this.membershipId,
@@ -32,6 +63,8 @@ final class BuyerAccessContext {
   final String? email;
 
   String get scopeKey => '$membershipId|$tenantId|$workspaceId';
+
+  String get biometricScopeKey => '$userId|$scopeKey';
 
   String get authorityFingerprint {
     final sortedRoles = roles.toList()..sort();
