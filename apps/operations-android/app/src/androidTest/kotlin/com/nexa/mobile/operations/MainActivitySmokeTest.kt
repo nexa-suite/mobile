@@ -1,6 +1,8 @@
 package com.nexa.mobile.operations
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -22,8 +24,9 @@ class MainActivitySmokeTest {
         composeRule.onNodeWithText(
             composeRule.activity.getString(AccessR.string.access_welcome_continue)
         ).performClick()
-        composeRule.onNodeWithText(
-            composeRule.activity.getString(AccessR.string.access_sign_in_title)
+        composeRule.onNode(
+            hasText(composeRule.activity.getString(AccessR.string.access_sign_in_title))
+                .and(!hasClickAction())
         ).assertIsDisplayed()
         composeRule.onNodeWithText(
             composeRule.activity.getString(AccessR.string.access_identifier_label)
