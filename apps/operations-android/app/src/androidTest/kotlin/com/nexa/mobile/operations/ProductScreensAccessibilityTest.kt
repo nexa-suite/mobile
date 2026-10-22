@@ -255,6 +255,13 @@ class ProductScreensAccessibilityTest {
                         },
                         onSearch = { searches += 1 },
                         onLoadMore = {},
+                        onOpenFilterOptions = {},
+                        onCloseFilterOptions = {},
+                        onFilterSearchChanged = {},
+                        onLoadFilterOptions = {},
+                        onLoadMoreFilterOptions = {},
+                        onRetryFilterOptions = {},
+                        onSelectFilter = { _, _ -> },
                         onSelectCandidate = {}
                     )
                 }
@@ -393,6 +400,13 @@ class ProductScreensAccessibilityTest {
                         onQueryChanged = {},
                         onSearch = {},
                         onLoadMore = {},
+                        onOpenFilterOptions = {},
+                        onCloseFilterOptions = {},
+                        onFilterSearchChanged = {},
+                        onLoadFilterOptions = {},
+                        onLoadMoreFilterOptions = {},
+                        onRetryFilterOptions = {},
+                        onSelectFilter = { _, _ -> },
                         onSelectCandidate = {}
                     )
                 }

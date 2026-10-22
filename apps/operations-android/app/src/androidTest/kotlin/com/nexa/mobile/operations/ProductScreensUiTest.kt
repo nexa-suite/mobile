@@ -267,6 +267,13 @@ class ProductScreensUiTest {
                     onQueryChanged = { query = it },
                     onSearch = { searchCalls++ },
                     onLoadMore = {},
+                    onOpenFilterOptions = {},
+                    onCloseFilterOptions = {},
+                    onFilterSearchChanged = {},
+                    onLoadFilterOptions = {},
+                    onLoadMoreFilterOptions = {},
+                    onRetryFilterOptions = {},
+                    onSelectFilter = { _, _ -> },
                     onSelectCandidate = {}
                 )
             }
@@ -301,6 +308,13 @@ class ProductScreensUiTest {
                     onQueryChanged = {},
                     onSearch = {},
                     onLoadMore = {},
+                    onOpenFilterOptions = {},
+                    onCloseFilterOptions = {},
+                    onFilterSearchChanged = {},
+                    onLoadFilterOptions = {},
+                    onLoadMoreFilterOptions = {},
+                    onRetryFilterOptions = {},
+                    onSelectFilter = { _, _ -> },
                     onSelectCandidate = {}
                 )
             }
@@ -383,6 +397,13 @@ class ProductScreensUiTest {
                     onQueryChanged = {},
                     onSearch = {},
                     onLoadMore = {},
+                    onOpenFilterOptions = {},
+                    onCloseFilterOptions = {},
+                    onFilterSearchChanged = {},
+                    onLoadFilterOptions = {},
+                    onLoadMoreFilterOptions = {},
+                    onRetryFilterOptions = {},
+                    onSelectFilter = { _, _ -> },
                     onSelectCandidate = {}
                 )
             }
