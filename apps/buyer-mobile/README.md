@@ -39,10 +39,13 @@ map, verify a handoff code, and submit a separate receipt or discrepancy. Code
 verification is not a receipt. A disputed receipt can receive optional image or
 PDF evidence after it is recorded; the API owns receipt scope, immutable
 evidence metadata and scanning. The app keeps selected bytes in memory only and
-persists scoped retry keys and payload fingerprints. The map has no default tile provider; configure
-`NEXA_MAP_TILE_URL_TEMPLATE` with an approved HTTPS template and
-`NEXA_MAP_ATTRIBUTION` to render map tiles. Without both values, no map tile
-requests are made.
+persists scoped retry keys and payload fingerprints. Debug builds use the
+OpenStreetMap raster tiles for local development and show their attribution;
+the Flutter map cache respects tile response headers and falls back to seven
+days when the provider omits freshness metadata. Release builds require an
+explicit `NEXA_MAP_TILE_URL_TEMPLATE` and `NEXA_MAP_ATTRIBUTION`; without both,
+no map tile requests are made. Keep mock coordinates in development because a
+tile request reveals the approximate map area being viewed to the tile provider.
 
 Run on an Android emulator against a local API listening on host port 8080:
 

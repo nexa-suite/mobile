@@ -52,6 +52,16 @@ decisions, inventory, credit, payments, fulfillment and delivery outcomes.
 Permission hints only shape navigation. A successful current server response is
 required before a client projection can be treated as confirmed.
 
+## Active-delivery maps
+
+Debug builds of Operations and Buyer use OpenStreetMap raster tiles by default
+for local workflow development; both show OSM attribution. Operations uses the
+WebView's HTTP tile cache, and Buyer uses flutter_map's built-in persistent tile
+cache. Release builds do not inherit the development tile source: configure an
+approved provider and its attribution explicitly before enabling production
+maps. Use synthetic delivery coordinates during local map work because external
+tile requests reveal the approximate viewed map area.
+
 ## Build and verify
 
 From `apps/operations-android` with `JAVA_HOME` pointing to JDK 17:
