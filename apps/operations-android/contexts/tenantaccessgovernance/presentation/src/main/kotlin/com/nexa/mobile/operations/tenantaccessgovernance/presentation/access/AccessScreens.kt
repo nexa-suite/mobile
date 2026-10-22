@@ -131,10 +131,12 @@ fun AccessScreen(
             .imePadding()
     ) {
         val landscape = maxWidth > maxHeight
-        val compactForm = keyboardVisible || landscape || maxHeight < 560.dp
+        val largeFont = LocalDensity.current.fontScale >= 1.5f
+        val compactForm = keyboardVisible || landscape || maxHeight < 560.dp || largeFont
         val heroHeight = when {
             showWelcome -> maxHeight * 0.63f
             keyboardVisible || landscape || maxHeight < 480.dp -> 0.dp
+            largeFont -> 128.dp.coerceAtMost(maxHeight * 0.22f)
             maxHeight >= 700.dp -> maxHeight * 0.46f
             else -> (maxHeight * 0.21f).coerceAtMost(180.dp)
         }
@@ -148,7 +150,8 @@ fun AccessScreen(
         ) {
             if (heroHeight > 0.dp) {
                 AccessBrandPlane(
-                    modifier = Modifier.fillMaxWidth().height(heroHeight)
+                    modifier = Modifier.fillMaxWidth().height(heroHeight),
+                    compact = largeFont
                 )
             }
             Box(
@@ -285,16 +288,25 @@ fun ContextChooserScreen(
 }
 
 @Composable
-private fun AccessBrandPlane(modifier: Modifier = Modifier) {
+private fun AccessBrandPlane(modifier: Modifier = Modifier, compact: Boolean = false) {
     NexaAuthCanopy(modifier = modifier) {
         Image(
             painter = painterResource(DesignR.drawable.nexa_wordmark_white),
             contentDescription = stringResource(R.string.access_brand_description),
             modifier = Modifier.align(Alignment.TopStart)
-                .padding(start = 24.dp, top = 48.dp)
-                .width(112.dp)
-                .height(35.dp),
+                .padding(start = 24.dp, top = if (compact) 8.dp else 48.dp)
+                .width(if (compact) 96.dp else 112.dp)
+                .height(if (compact) 30.dp else 35.dp),
             contentScale = ContentScale.Fit
+        )
+        Text(
+            text = stringResource(R.string.access_product_label),
+            modifier = Modifier.align(Alignment.TopStart)
+                .padding(start = 24.dp, top = if (compact) 44.dp else 82.dp),
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = FontWeight.SemiBold
+            ),
+            color = NexaColors.BrandCeleste
         )
     }
 }
