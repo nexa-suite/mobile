@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
 import '../application/error/nexa_api_failure.dart';
+import '../application/upload_limits.dart' as upload_limits;
 
 export '../application/error/nexa_api_failure.dart';
 
@@ -90,7 +91,8 @@ final class NexaApiOrigin {
 
 final class NexaApiClient {
   static const int maxProtectedBinaryBytes = 8 * 1024 * 1024;
-  static const int maxEvidenceUploadBytes = 10 * 1024 * 1024;
+  static const int maxEvidenceUploadBytes =
+      upload_limits.maxEvidenceUploadBytes;
 
   NexaApiClient({
     required this.origin,

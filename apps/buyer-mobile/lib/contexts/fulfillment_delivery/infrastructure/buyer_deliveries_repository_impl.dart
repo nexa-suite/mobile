@@ -1,5 +1,6 @@
 import 'package:nexa_buyer_mobile/core/network/nexa_api_client.dart';
 
+import '../../../core/application/upload_limits.dart';
 import '../application/buyer_deliveries_repository.dart';
 
 final class BuyerDeliveriesRepositoryImpl implements BuyerDeliveriesRepository {
@@ -164,7 +165,7 @@ final class BuyerDeliveriesRepositoryImpl implements BuyerDeliveriesRepository {
         normalizedName.contains('\r') ||
         allowedTypes[extension] != normalizedType ||
         bytes.isEmpty ||
-        bytes.length > NexaApiClient.maxEvidenceUploadBytes) {
+        bytes.length > maxEvidenceUploadBytes) {
       _invalidRequest('buyer_receipt_evidence_invalid');
     }
     final response = await _api.postMultipart(

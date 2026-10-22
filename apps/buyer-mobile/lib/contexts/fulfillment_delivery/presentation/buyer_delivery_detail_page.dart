@@ -6,9 +6,9 @@ import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/application/upload_limits.dart';
 import '../../../core/presentation/buyer_visible_route_poller.dart';
 import '../../../core/presentation/nexa_buyer_components.dart';
-import '../../../core/network/nexa_api_client.dart';
 import '../application/buyer_deliveries_repository.dart';
 import 'buyer_live_delivery_map.dart';
 import 'buyer_deliveries_view_model.dart';
@@ -711,7 +711,7 @@ final class _BuyerDeliveryDetailPageState
         _showPickerMessage('No se pudo leer el archivo seleccionado.');
         return;
       }
-      if (size <= 0 || size > NexaApiClient.maxEvidenceUploadBytes) {
+      if (size <= 0 || size > maxEvidenceUploadBytes) {
         _showPickerMessage('El archivo excede el límite técnico de 10 MiB.');
         return;
       }
@@ -731,8 +731,7 @@ final class _BuyerDeliveryDetailPageState
       }
       final builder = BytesBuilder(copy: false);
       await for (final chunk in file.readAsByteStream()) {
-        if (chunk.length >
-            NexaApiClient.maxEvidenceUploadBytes - builder.length) {
+        if (chunk.length > maxEvidenceUploadBytes - builder.length) {
           _showPickerMessage('El archivo excede el límite técnico de 10 MiB.');
           return;
         }
