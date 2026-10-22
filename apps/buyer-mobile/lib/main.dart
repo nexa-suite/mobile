@@ -67,6 +67,9 @@ import 'contexts/sales_commitment/presentation/buyer_draft_view_model.dart';
 import 'contexts/sales_commitment/presentation/buyer_draft_page.dart';
 import 'contexts/tenant_access_governance/application/buyer_access_repository.dart';
 import 'contexts/tenant_access_governance/infrastructure/buyer_access_repository_impl.dart';
+import 'contexts/tenant_access_governance/application/buyer_password_recovery_repository.dart';
+import 'contexts/tenant_access_governance/infrastructure/buyer_password_recovery_repository_impl.dart';
+import 'contexts/tenant_access_governance/presentation/buyer_password_recovery_view_model.dart';
 import 'contexts/tenant_access_governance/presentation/buyer_access_view_model.dart';
 import 'contexts/tenant_access_governance/presentation/context_selection_page.dart';
 import 'contexts/tenant_access_governance/presentation/sign_in_page.dart';
@@ -128,6 +131,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
   http.Client? _httpClient;
   BuyerAccessRepositoryImpl? _accessRepository;
   BuyerAccessViewModel? _accessViewModel;
+  BuyerPasswordRecoveryRepositoryImpl? _passwordRecoveryRepository;
   CatalogRepositoryImpl? _catalogRepository;
   BuyerCreditExposureRepositoryImpl? _creditExposureRepository;
   BuyerPaymentsRepositoryImpl? _paymentsRepository;
@@ -157,6 +161,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
       _httpClient = widget.httpClient ?? http.Client();
       final api = NexaApiClient(origin: origin, httpClient: _httpClient!);
       _accessRepository = BuyerAccessRepositoryImpl(api);
+      _passwordRecoveryRepository = BuyerPasswordRecoveryRepositoryImpl(api);
       api.sessionCredentials = _accessRepository;
       _accessViewModel = BuyerAccessViewModel(_accessRepository!);
       _catalogRepository = CatalogRepositoryImpl(api);
@@ -206,6 +211,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
   Widget build(BuildContext context) {
     final access = _accessRepository;
     final accessViewModel = _accessViewModel;
+    final passwordRecovery = _passwordRecoveryRepository;
     final catalog = _catalogRepository;
     final creditExposure = _creditExposureRepository;
     final payments = _paymentsRepository;
@@ -225,6 +231,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
     if (_configurationInvalid ||
         access == null ||
         accessViewModel == null ||
+        passwordRecovery == null ||
         catalog == null ||
         creditExposure == null ||
         payments == null ||
@@ -246,6 +253,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
     return MultiProvider(
       providers: [
         Provider<BuyerAccessRepository>.value(value: access),
+        Provider<BuyerPasswordRecoveryRepository>.value(
+          value: passwordRecovery,
+        ),
         Provider<CatalogRepository>.value(value: catalog),
         Provider<BuyerCreditExposureRepository>.value(value: creditExposure),
         Provider<BuyerPaymentsRepository>.value(value: payments),
@@ -349,6 +359,29 @@ GoRouter _createRouter(
   ),
   routes: [
     GoRoute(path: '/sign-in', builder: (context, state) => const SignInPage()),
+    GoRoute(
+      path: '/forgot-password',
+      builder: (context, state) => ChangeNotifierProvider(
+        create: (context) => BuyerPasswordRecoveryViewModel(
+          context.read<BuyerPasswordRecoveryRepository>(),
+        ),
+        child: SignInPage(
+          startInRecovery: true,
+          initialEmail: state.extra is String ? state.extra! as String : '',
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/reset-password',
+      builder: (context, state) => ChangeNotifierProvider(
+        create: (context) => BuyerPasswordRecoveryViewModel(
+          context.read<BuyerPasswordRecoveryRepository>(),
+        ),
+        child: SignInPage(
+          passwordResetToken: state.uri.queryParameters['token'],
+        ),
+      ),
+    ),
     GoRoute(
       path: '/choose-context',
       builder: (context, state) => const ContextSelectionPage(),
@@ -802,6 +835,45 @@ final class _BuyerNavigationShell extends StatelessWidget {
                         title: Text(current?.tenantName ?? ''),
                         subtitle: Text(current?.workspaceName ?? ''),
                       ),
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        value: access.biometricStatus.isEnabled,
+                        onChanged:
+                            access.busy ||
+                                (!access.biometricStatus.canEnable &&
+                                    !access.biometricStatus.isEnabled)
+                            ? null
+                            : access.setBiometricLoginEnabled,
+                        secondary: const Icon(Icons.fingerprint_rounded),
+                        title: const Text('Entrar con huella o rostro'),
+                        subtitle: Text(
+                          access.biometricStatus.isEnabled
+                              ? access.biometricStatus.canSignIn
+                                    ? 'Puedes usarlo la próxima vez que abras Nexa.'
+                                    : 'No hay una huella o rostro disponible. '
+                                          'Puedes volver a activarlo desde aquí.'
+                              : access.biometricStatus.canEnable
+                              ? 'Actívalo para entrar sin escribir tu contraseña.'
+                              : 'Configura una huella o reconocimiento facial '
+                                    'en este dispositivo para activarlo.',
+                        ),
+                      ),
+                      if (access.biometricStatus.isEnabled) ...[
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: access.busy || !sameAuthority
+                                ? null
+                                : () {
+                                    Navigator.pop(sheetContext);
+                                    access.lockForBiometricLogin();
+                                  },
+                            icon: const Icon(Icons.fingerprint_rounded),
+                            label: const Text('Bloquear con huella o rostro'),
+                          ),
+                        ),
+                      ],
                     ],
                     const SizedBox(height: 16),
                     SizedBox(
