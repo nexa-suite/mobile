@@ -864,6 +864,13 @@ final class _Repository implements BuyerDeliveriesRepository {
   }
 
   @override
+  Future<BuyerReceiptAcceptanceProjection> acceptHandoff({
+    required String token,
+    required String expectedDeliveryId,
+    required String idempotencyKey,
+  }) => throw UnimplementedError();
+
+  @override
   Future<BuyerReceiptProjection> recordReceipt({
     required String deliveryId,
     required String token,
@@ -1064,6 +1071,21 @@ final class _FakeAccess implements BuyerAccessRepository {
   @override
   Future<void> signOut() => throw UnimplementedError();
 
+  @override
+  Future<bool> lockForBiometricLogin() async => false;
+
+  @override
+  Future<BuyerBiometricLoginStatus> biometricLoginStatus() async =>
+      const BuyerBiometricLoginStatus();
+
+  @override
+  Future<bool> enableBiometricLogin() async => false;
+
+  @override
+  Future<void> disableBiometricLogin() async {}
+
+  @override
+  Future<void> signInWithBiometrics() async {}
   @override
   void invalidateLocalSession() {
     invalidations++;

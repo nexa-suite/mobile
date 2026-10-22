@@ -106,16 +106,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.bySemanticsLabel('Nexa'), findsOneWidget);
     final signInTheme = Theme.of(
-      tester.element(find.text('Bienvenido a Nexa')),
+      tester.element(find.text('Tus compras, en un solo lugar.')),
     );
     expect(signInTheme.colorScheme.primary, const Color(0xFF2A67D9));
     expect(signInTheme.textTheme.bodyMedium?.fontFamily, 'Inter');
+    await tester.tap(find.text('Continuar'));
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.byType(TextFormField).at(0),
       'buyer@example.test',
     );
     await tester.enterText(find.byType(TextFormField).at(1), 'test-password');
-    await tester.tap(find.text('Continuar'));
+    await tester.tap(find.text('Iniciar sesión'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Empresa Norte'));
     await tester.pumpAndSettle();
@@ -463,12 +465,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.tap(find.text('Continuar'));
+      await tester.pumpAndSettle();
       await tester.enterText(
         find.byType(TextFormField).at(0),
         'buyer@example.test',
       );
       await tester.enterText(find.byType(TextFormField).at(1), 'test-password');
-      await tester.tap(find.text('Continuar'));
+      await tester.tap(find.text('Iniciar sesión'));
       await tester.pumpAndSettle();
       expect(find.text('Elige tu empresa'), findsOneWidget);
       expect(find.text('Empresa Norte'), findsOneWidget);

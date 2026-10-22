@@ -1097,5 +1097,20 @@ final class _FakeAccess implements BuyerAccessRepository {
   Future<void> signOut() => throw UnimplementedError();
 
   @override
+  Future<bool> lockForBiometricLogin() async => false;
+
+  @override
+  Future<BuyerBiometricLoginStatus> biometricLoginStatus() async =>
+      const BuyerBiometricLoginStatus();
+
+  @override
+  Future<bool> enableBiometricLogin() async => false;
+
+  @override
+  Future<void> disableBiometricLogin() async {}
+
+  @override
+  Future<void> signInWithBiometrics() async {}
+  @override
   Future<void> dispose() => _changes.close();
 }
