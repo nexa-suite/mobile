@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 - Filter Buyer catalog by brand, category, family and family-scoped variety.
+- Show API-provided cold-chain requirement and sellable availability on Buyer
+  catalog cards, without inventing temperature ranges or local stock authority.
 - Show the API-authorized active delivery location on an attributed Buyer map;
   default to OpenStreetMap tiles and allow an approved source to be configured.
 - Add Buyer biometric sign-in and password recovery; scan the Driver's QR to
