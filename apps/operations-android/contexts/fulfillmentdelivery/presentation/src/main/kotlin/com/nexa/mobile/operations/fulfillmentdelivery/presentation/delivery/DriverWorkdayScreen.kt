@@ -16,8 +16,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkdayStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverLiveLocation
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkdayStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
 import java.time.Instant
 import java.time.ZoneId
@@ -72,7 +72,7 @@ fun DriverWorkdayScreen(
                         )
                     )
 
-                    state.workday.locationAvailable -> Text(
+                    state.workday.locationAvailable && state.captureRequested -> Text(
                         stringResource(
                             R.string.driver_workday_active_starting,
                             state.workday.startedAt.displayTime()
@@ -165,13 +165,16 @@ fun DriverWorkdayPanel(
             ) {
                 when {
                     state.loading -> Text(stringResource(R.string.driver_workday_loading))
+
                     state.workday == null -> Text(stringResource(R.string.driver_workday_no_active))
+
                     state.workday.status == DriverWorkdayStatus.CLOSED -> Text(
                         stringResource(
                             R.string.driver_workday_closed,
                             (state.workday.endedAt ?: state.workday.startedAt).displayTime()
                         )
                     )
+
                     state.workday.locationAvailable && state.captureRequested &&
                         state.locationReady -> Text(
                         stringResource(
@@ -179,12 +182,14 @@ fun DriverWorkdayPanel(
                             state.workday.startedAt.displayTime()
                         )
                     )
-                    state.workday.locationAvailable -> Text(
+
+                    state.workday.locationAvailable && state.captureRequested -> Text(
                         stringResource(
                             R.string.driver_workday_active_starting,
                             state.workday.startedAt.displayTime()
                         )
                     )
+
                     else -> Text(stringResource(R.string.driver_workday_active_without_location))
                 }
                 Text(
@@ -262,21 +267,40 @@ fun DriverWorkdayPanel(
 
 private fun noticeText(notice: DriverWorkdayNotice): Int? = when (notice) {
     DriverWorkdayNotice.NONE -> null
+
     DriverWorkdayNotice.LOCATION_PERMISSION_REQUIRED -> R.string.driver_workday_permission_required
+
+    DriverWorkdayNotice.NOTIFICATION_PERMISSION_REQUIRED ->
+        R.string.driver_workday_notification_permission_required
+
     DriverWorkdayNotice.ACTIVE_DELIVERY_REQUIRED -> R.string.driver_workday_active_delivery_required
+
     DriverWorkdayNotice.LOCATION_ACQUIRING -> null
+
     DriverWorkdayNotice.CURRENT_UNAVAILABLE -> R.string.driver_workday_current_unavailable
+
     DriverWorkdayNotice.START_UNKNOWN -> R.string.driver_workday_start_unknown
+
     DriverWorkdayNotice.START_REJECTED -> R.string.driver_workday_start_rejected
+
     DriverWorkdayNotice.END_PENDING_CONFIRMATION -> R.string.driver_workday_end_confirmation
+
     DriverWorkdayNotice.AVAILABILITY_UNKNOWN -> R.string.driver_workday_availability_unknown
+
     DriverWorkdayNotice.LOCATION_UNAVAILABLE -> R.string.driver_workday_location_unavailable
+
     DriverWorkdayNotice.STALE_WORKDAY -> R.string.driver_workday_stale
+
     DriverWorkdayNotice.PERMISSION_DENIED -> R.string.driver_workday_denied
+
     DriverWorkdayNotice.CONTEXT_INVALIDATED -> R.string.driver_workday_context
+
     DriverWorkdayNotice.SESSION_INVALIDATED -> R.string.driver_workday_session
+
     DriverWorkdayNotice.COMMAND_REJECTED -> R.string.driver_workday_command_rejected
+
     DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE -> R.string.driver_workday_storage_unavailable
+
     DriverWorkdayNotice.UNKNOWN_COMMAND_PENDING -> R.string.driver_workday_unknown_command_pending
 }
 

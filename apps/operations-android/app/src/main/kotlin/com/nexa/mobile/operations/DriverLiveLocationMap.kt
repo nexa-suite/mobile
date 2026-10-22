@@ -1,5 +1,6 @@
 package com.nexa.mobile.operations
 
+import android.annotation.SuppressLint
 import android.graphics.Color
 import android.net.Uri
 import android.webkit.WebResourceRequest
@@ -20,19 +21,25 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.webkit.WebViewAssetLoader
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryCoordinates
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverLiveLocation
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R as FulfillmentR
 import java.io.ByteArrayInputStream
+import java.time.Duration
+import java.time.Instant
 import org.json.JSONObject
 
 private const val DRIVER_MAP_PAGE_URL =
     "https://appassets.androidplatform.net/assets/driver-map/index.html"
+private const val MAX_DRIVER_MAP_LOCATION_AGE_MILLIS = 120_000L
 
+@SuppressLint("MissingOnRenderProcessGone", "SetJavaScriptEnabled")
 @Composable
 internal fun DriverLiveLocationMap(
     location: DriverLiveLocation,
-    tileUrlTemplate: String = BuildConfig.MAP_TILE_URL_TEMPLATE,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    destinationCoordinates: DriverDeliveryCoordinates? = null,
+    tileUrlTemplate: String = BuildConfig.MAP_TILE_URL_TEMPLATE
 ) {
     val offlineMessage = stringResource(FulfillmentR.string.driver_map_offline)
     val providerNotConfiguredMessage =
@@ -79,7 +86,7 @@ internal fun DriverLiveLocationMap(
                     javaScriptCanOpenWindowsAutomatically = false
                     setSupportMultipleWindows(false)
                     mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                    cacheMode = WebSettings.LOAD_NO_CACHE
+                    cacheMode = WebSettings.LOAD_DEFAULT
                     userAgentString =
                         "NexaOperationsMobile/${BuildConfig.VERSION_NAME} " +
                         "(https://github.com/nexa-suite/mobile)"
@@ -90,6 +97,7 @@ internal fun DriverLiveLocationMap(
                 }
                 val pageState = DriverMapPageState(
                     location = initialLocation,
+                    destinationCoordinates = destinationCoordinates,
                     tileUrlTemplate = tileUrlTemplate,
                     offlineMessage = offlineMessage,
                     providerNotConfiguredMessage = providerNotConfiguredMessage
@@ -125,6 +133,7 @@ internal fun DriverLiveLocationMap(
                                 view.applyMapState(pageState)
                             } else {
                                 pageState.location = null
+                                pageState.destinationCoordinates = null
                                 view.clearDriverLocation()
                             }
                         }
@@ -143,11 +152,13 @@ internal fun DriverLiveLocationMap(
             if (!lifecycleState.isResumed) return@AndroidView
             if (lifecycleState.blockedSampleId == location.sampleId) {
                 pageState.location = null
+                pageState.destinationCoordinates = null
                 if (pageState.pageReady) webView.clearDriverLocation()
                 return@AndroidView
             }
             lifecycleState.blockedSampleId = null
             pageState.location = location
+            pageState.destinationCoordinates = destinationCoordinates
             pageState.tileUrlTemplate = tileUrlTemplate
             pageState.offlineMessage = offlineMessage
             pageState.providerNotConfiguredMessage = providerNotConfiguredMessage
@@ -162,6 +173,7 @@ internal fun DriverLiveLocationMap(
 
 private class DriverMapPageState(
     var location: DriverLiveLocation?,
+    var destinationCoordinates: DriverDeliveryCoordinates?,
     var tileUrlTemplate: String,
     var offlineMessage: String,
     var providerNotConfiguredMessage: String,
@@ -179,6 +191,7 @@ private class DriverMapLifecycleState(var isResumed: Boolean) {
         val pageState = view.tag as? DriverMapPageState
         blockedSampleId = pageState?.location?.sampleId
         pageState?.location = null
+        pageState?.destinationCoordinates = null
         if (pageState?.pageReady == true) view.clearDriverLocation()
         view.onPause()
         view.pauseTimers()
@@ -205,19 +218,43 @@ private fun WebView.applyMapState(state: DriverMapPageState) {
     }
     if (!location.latitude.isFinite() || location.latitude !in -90.0..90.0 ||
         !location.longitude.isFinite() || location.longitude !in -180.0..180.0 ||
-        !location.accuracyMeters.isFinite() || location.accuracyMeters < 0.0
+        !location.accuracyMeters.isFinite() || location.accuracyMeters < 0.0 ||
+        !location.isFreshForDisplay()
     ) {
+        clearDriverLocation()
         return
     }
+    val destination = state.destinationCoordinates?.takeIf { coordinates ->
+        coordinates.latitude >= java.math.BigDecimal.valueOf(-90) &&
+            coordinates.latitude <= java.math.BigDecimal.valueOf(90) &&
+            coordinates.longitude >= java.math.BigDecimal.valueOf(-180) &&
+            coordinates.longitude <= java.math.BigDecimal.valueOf(180)
+    }
+    val destinationCall = destination?.let { coordinates ->
+        "window.setDeliveryDestination(" +
+            "${coordinates.latitude.toPlainString()}," +
+            "${coordinates.longitude.toPlainString()});"
+    } ?: "window.clearDeliveryDestination();"
     evaluateJavascript(
         "window.setMapMessages(" +
             "${JSONObject.quote(state.offlineMessage)}," +
             "${JSONObject.quote(state.providerNotConfiguredMessage)});" +
             "window.setTileUrlTemplate(${JSONObject.quote(state.tileUrlTemplate)});" +
             "window.setDriverLocation(" +
-            "${location.latitude},${location.longitude},${location.accuracyMeters});",
+            "${location.latitude},${location.longitude},${location.accuracyMeters});" +
+            destinationCall,
         null
     )
+}
+
+private fun DriverLiveLocation.isFreshForDisplay(): Boolean {
+    val parsedCapturedAt = runCatching { Instant.parse(capturedAt) }.getOrNull() ?: return false
+    val parsedExpiresAt = runCatching { Instant.parse(expiresAt) }.getOrNull() ?: return false
+    val now = Instant.now()
+    val ageMillis = runCatching { Duration.between(parsedCapturedAt, now).toMillis() }.getOrNull()
+        ?: return false
+    return !parsedCapturedAt.isAfter(now) && parsedExpiresAt.isAfter(now) &&
+        ageMillis in 0..MAX_DRIVER_MAP_LOCATION_AGE_MILLIS
 }
 
 private fun WebView.clearDriverLocation() {
@@ -231,7 +268,6 @@ private fun releaseMapWebView(webView: WebView) {
     webView.pauseTimers()
     webView.clearHistory()
     webView.clearCache(true)
-    webView.webViewClient = WebViewClient()
     webView.destroy()
 }
 

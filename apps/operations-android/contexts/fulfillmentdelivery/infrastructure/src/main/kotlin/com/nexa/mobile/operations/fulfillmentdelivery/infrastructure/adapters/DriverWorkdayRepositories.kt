@@ -25,6 +25,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWork
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkdayLocationSample as WorkdayLocationSample
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkdayStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverWorkdayLocationCommand as WorkdayLocationCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverWorkdayLocationProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverWorkdayNetworkResult
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverWorkdayProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDriverWorkdayGateway
@@ -129,18 +130,23 @@ class OperationsDriverWorkdayGateway @Inject constructor(
             return when (val drift = authorityDriftRead()) {
                 DriverWorkdayReadResult.PermissionDenied ->
                     DriverWorkdayLocationReadResult.PermissionDenied
+
                 DriverWorkdayReadResult.ContextInvalidated ->
                     DriverWorkdayLocationReadResult.ContextInvalidated
+
                 DriverWorkdayReadResult.SessionInvalidated ->
                     DriverWorkdayLocationReadResult.SessionInvalidated
+
                 else -> DriverWorkdayLocationReadResult.Unavailable
             }
         }
         return when (result) {
             is DriverWorkdayNetworkResult.CurrentLocation ->
                 DriverWorkdayLocationReadResult.Current(result.location?.toLiveLocation())
+
             DriverWorkdayNetworkResult.PermissionDenied ->
                 DriverWorkdayLocationReadResult.PermissionDenied
+
             else -> DriverWorkdayLocationReadResult.Unavailable
         }
     }
@@ -218,15 +224,14 @@ class OperationsDriverWorkdayGateway @Inject constructor(
         locationAvailable
     )
 
-    private fun com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverWorkdayLocationProjection.toLiveLocation() =
-        DriverLiveLocation(
-            sampleId,
-            latitude,
-            longitude,
-            accuracyMeters,
-            capturedAt,
-            expiresAt
-        )
+    private fun DriverWorkdayLocationProjection.toLiveLocation() = DriverLiveLocation(
+        sampleId,
+        latitude,
+        longitude,
+        accuracyMeters,
+        capturedAt,
+        expiresAt
+    )
 
     private fun DriverWorkdayNetworkResult.toCommandResult(): DriverWorkdayCommandResult =
         when (this) {
@@ -257,12 +262,13 @@ class OperationsDriverWorkdayGateway @Inject constructor(
         is Authorization.Current -> error("current authorization must be executed")
     }
 
-    private fun Authorization.toLocationReadResult(): DriverWorkdayLocationReadResult = when (this) {
-        Authorization.PermissionDenied -> DriverWorkdayLocationReadResult.PermissionDenied
-        Authorization.ContextInvalidated -> DriverWorkdayLocationReadResult.ContextInvalidated
-        Authorization.SessionInvalidated -> DriverWorkdayLocationReadResult.SessionInvalidated
-        is Authorization.Current -> error("current authorization must be executed")
-    }
+    private fun Authorization.toLocationReadResult(): DriverWorkdayLocationReadResult =
+        when (this) {
+            Authorization.PermissionDenied -> DriverWorkdayLocationReadResult.PermissionDenied
+            Authorization.ContextInvalidated -> DriverWorkdayLocationReadResult.ContextInvalidated
+            Authorization.SessionInvalidated -> DriverWorkdayLocationReadResult.SessionInvalidated
+            is Authorization.Current -> error("current authorization must be executed")
+        }
 
     private fun Authorization.toCommandResult(): DriverWorkdayCommandResult = when (this) {
         Authorization.PermissionDenied -> DriverWorkdayCommandResult.PermissionDenied

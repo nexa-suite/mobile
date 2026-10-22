@@ -11,6 +11,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.Drive
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayLocationCapture
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayLocationEventStream
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayReadResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryAttempt
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkday
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkdayLocationEvent
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkdayLocationSample
@@ -62,29 +63,31 @@ class DriverWorkdayViewModelTest {
         }
 
     @Test
-    fun startingWorkdayDoesNotEnableLocationBeforeDeliveryOptIn() =
-        runTestWithViewModelCleanup {
-            val events = mutableListOf<String>()
-            val capture = FakeCapture(events)
-            val gateway = FakeGateway(events).apply {
-                reads += DriverWorkdayReadResult.Current(null)
-                reads += DriverWorkdayReadResult.Current(null)
-                reads += DriverWorkdayReadResult.Current(activeWorkday())
-                commands += DriverWorkdayCommandResult.Accepted
-            }
-            val viewModel = track(DriverWorkdayViewModel(gateway, capture, FakeCommandStore()))
-            viewModel.activate(AUTHORITY, hasFineLocationPermission = true)
-            runCurrent()
-
-            viewModel.startWorkday()
-            runCurrent()
-
-            assertEquals(listOf("get", "get", "start", "get"), events.filter { it != "capture.stop" })
-            assertEquals("ACTIVE", viewModel.state.value.workday?.status?.name)
-            assertFalse(viewModel.state.value.workday!!.locationAvailable)
-            assertFalse(viewModel.state.value.captureRequested)
-            assertEquals(0, capture.starts)
+    fun startingWorkdayDoesNotEnableLocationBeforeDeliveryOptIn() = runTestWithViewModelCleanup {
+        val events = mutableListOf<String>()
+        val capture = FakeCapture(events)
+        val gateway = FakeGateway(events).apply {
+            reads += DriverWorkdayReadResult.Current(null)
+            reads += DriverWorkdayReadResult.Current(null)
+            reads += DriverWorkdayReadResult.Current(activeWorkday())
+            commands += DriverWorkdayCommandResult.Accepted
         }
+        val viewModel = track(DriverWorkdayViewModel(gateway, capture, FakeCommandStore()))
+        viewModel.activate(AUTHORITY, hasFineLocationPermission = true)
+        runCurrent()
+
+        viewModel.startWorkday()
+        runCurrent()
+
+        assertEquals(
+            listOf("get", "get", "start", "get"),
+            events.filter { it != "capture.stop" }
+        )
+        assertEquals("ACTIVE", viewModel.state.value.workday?.status?.name)
+        assertFalse(viewModel.state.value.workday!!.locationAvailable)
+        assertFalse(viewModel.state.value.captureRequested)
+        assertEquals(0, capture.starts)
+    }
 
     @Test
     fun locationCaptureStartsOnlyAfterActiveDeliveryOptInIsConfirmedByServer() =
@@ -105,7 +108,7 @@ class DriverWorkdayViewModelTest {
             viewModel.enableLocation()
             runCurrent()
 
-            assertEquals(listOf("availability", "get", "capture.stop", "capture.start"), events)
+            assertEquals(listOf("availability", "get", "capture.start"), events)
             assertEquals("ACTIVE-DELIVERY", viewModel.state.value.eligibleDeliveryId)
             assertTrue(viewModel.state.value.captureRequested)
             assertEquals(1, capture.starts)
@@ -295,7 +298,14 @@ class DriverWorkdayViewModelTest {
             deliveredAt = null,
             updatedAt = null,
             version = 3,
-            activeAttempt = null
+            activeAttempt =
+                DriverDeliveryAttempt(
+                    id = "88888888-8888-4888-8888-888888888888",
+                    attemptNumber = 1,
+                    status = "IN_TRANSIT",
+                    startedByMembershipId = MEMBER_ID,
+                    startedAt = "2026-10-01T17:00:00Z"
+                )
         )
 
     private fun sampleEvent() = DriverWorkdayLocationEvent.Sample(

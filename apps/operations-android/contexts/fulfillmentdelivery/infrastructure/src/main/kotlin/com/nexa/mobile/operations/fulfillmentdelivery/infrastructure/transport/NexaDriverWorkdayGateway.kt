@@ -105,6 +105,7 @@ class NexaDriverWorkdayGateway(private val calls: ProtectedCallExecutor) {
         )
     ) {
         is ProtectedResult.Failure -> result.error.toWorkdayResult()
+
         is ProtectedResult.Success -> {
             if (result.status == 204 && result.body.isNullOrBlank()) {
                 DriverWorkdayNetworkResult.CurrentLocation(null)

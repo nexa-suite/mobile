@@ -14,7 +14,7 @@ val debugApiBaseUrl = providers.gradleProperty(
 ).orElse("http://10.0.2.2:8080/").get()
 val releaseApiBaseUrl = providers.gradleProperty("nexaReleaseApiBaseUrl").orNull.orEmpty()
 val debugMapTileUrlTemplate = providers.gradleProperty("nexaDebugMapTileUrlTemplate")
-    .orElse("")
+    .orElse("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
     .get()
 if (debugMapTileUrlTemplate.isNotBlank()) {
     val validatedDebugMapTileUrl = URI(

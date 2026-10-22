@@ -2,6 +2,7 @@
   let map;
   let tileLayer;
   let driverPoint;
+  let deliveryDestinationPoint;
   let accuracyCircle;
   let tileTemplate = "";
   let offlineMessage = "Map tiles unavailable. Driver location remains visible.";
@@ -53,6 +54,18 @@
     tileLayer.addTo(map);
   }
 
+  function fitVisibleLocations() {
+    if (!map || !driverPoint) return;
+    if (!deliveryDestinationPoint) {
+      map.setView(driverPoint.getLatLng(), 15, { animate: false });
+      return;
+    }
+    map.fitBounds(
+      L.latLngBounds([driverPoint.getLatLng(), deliveryDestinationPoint.getLatLng()]).pad(0.15),
+      { animate: false, maxZoom: 15 }
+    );
+  }
+
   window.setDriverLocation = (latitude, longitude, accuracyMeters) => {
     if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
         !Number.isFinite(longitude) || longitude < -180 || longitude > 180 ||
@@ -84,6 +97,7 @@
         fillColor: "#1463d6",
         fillOpacity: 0.12
       }).addTo(map);
+      fitVisibleLocations();
       return;
     }
 
@@ -91,7 +105,35 @@
     driverPoint.setLatLng(point);
     accuracyCircle.setLatLng(point);
     accuracyCircle.setRadius(accuracyMeters);
-    map.panTo(point, { animate: false });
+    fitVisibleLocations();
+  };
+
+  window.setDeliveryDestination = (latitude, longitude) => {
+    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+        !Number.isFinite(longitude) || longitude < -180 || longitude > 180 ||
+        !map || !driverPoint) return;
+    const point = [latitude, longitude];
+    if (!deliveryDestinationPoint) {
+      deliveryDestinationPoint = L.circleMarker(point, {
+        radius: 8,
+        className: "delivery-destination-point",
+        color: "#ffffff",
+        weight: 2,
+        fillColor: "#db6a16",
+        fillOpacity: 1
+      }).addTo(map);
+    } else {
+      deliveryDestinationPoint.setLatLng(point);
+    }
+    fitVisibleLocations();
+  };
+
+  window.clearDeliveryDestination = () => {
+    if (map && deliveryDestinationPoint) {
+      map.removeLayer(deliveryDestinationPoint);
+      deliveryDestinationPoint = undefined;
+      fitVisibleLocations();
+    }
   };
 
   window.clearDriverLocation = () => {
@@ -101,6 +143,7 @@
     }
     tileLayer = undefined;
     driverPoint = undefined;
+    deliveryDestinationPoint = undefined;
     accuracyCircle = undefined;
     document.getElementById("map").replaceChildren();
     setStatus("");
