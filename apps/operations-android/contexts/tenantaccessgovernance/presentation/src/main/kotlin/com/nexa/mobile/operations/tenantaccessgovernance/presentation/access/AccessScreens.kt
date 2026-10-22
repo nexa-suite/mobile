@@ -133,17 +133,20 @@ fun AccessScreen(
         val landscape = maxWidth > maxHeight
         val largeFont = LocalDensity.current.fontScale >= 1.5f
         val compactForm = keyboardVisible || landscape || maxHeight < 560.dp || largeFont
+        val loginStage = state.stage == AccessStage.IdentityRequired ||
+            state.stage == AccessStage.SessionExpired
+        val scrollableLogin = loginStage &&
+            (keyboardVisible || largeFont || landscape || maxHeight < 480.dp)
         val heroHeight = when {
             showWelcome -> maxHeight * 0.63f
             keyboardVisible || landscape || maxHeight < 480.dp -> 0.dp
-            largeFont -> 128.dp.coerceAtMost(maxHeight * 0.22f)
+            largeFont -> 96.dp.coerceAtMost(maxHeight * 0.22f)
             maxHeight >= 700.dp -> maxHeight * 0.46f
             else -> (maxHeight * 0.21f).coerceAtMost(180.dp)
         }
         val contentHeight = (maxHeight - heroHeight).coerceAtLeast(0.dp)
-        val loginStage = state.stage == AccessStage.IdentityRequired ||
-            state.stage == AccessStage.SessionExpired
         val horizontalInset = if (maxWidth >= 700.dp) 32.dp else 24.dp
+        val loginScrollState = rememberScrollState()
         Column(
             modifier = Modifier.fillMaxSize()
                 .semantics { isTraversalGroup = true }
@@ -151,7 +154,7 @@ fun AccessScreen(
             if (heroHeight > 0.dp) {
                 AccessBrandPlane(
                     modifier = Modifier.fillMaxWidth().height(heroHeight),
-                    compact = largeFont
+                    compact = largeFont && !showWelcome
                 )
             }
             Box(
@@ -172,13 +175,22 @@ fun AccessScreen(
                     Column(
                         modifier = Modifier.widthIn(max = 620.dp).fillMaxWidth()
                             .fillMaxHeight()
+                            .then(
+                                if (scrollableLogin) {
+                                    Modifier.verticalScroll(loginScrollState)
+                                } else {
+                                    Modifier
+                                }
+                            )
                             .padding(
                                 top = if (compactForm) 4.dp else 8.dp,
                                 bottom = if (keyboardVisible) 12.dp else 16.dp
                             ),
                         verticalArrangement = Arrangement.spacedBy(
                             space = if (compactForm) 8.dp else 12.dp,
-                            alignment = if (keyboardVisible || loginStage) {
+                            alignment = if (scrollableLogin) {
+                                Alignment.Top
+                            } else if (keyboardVisible || loginStage) {
                                 Alignment.Bottom
                             } else {
                                 Alignment.Top
@@ -294,16 +306,21 @@ private fun AccessBrandPlane(modifier: Modifier = Modifier, compact: Boolean = f
             painter = painterResource(DesignR.drawable.nexa_wordmark_white),
             contentDescription = stringResource(R.string.access_brand_description),
             modifier = Modifier.align(Alignment.TopStart)
-                .padding(start = 24.dp, top = if (compact) 8.dp else 48.dp)
-                .width(if (compact) 96.dp else 112.dp)
-                .height(if (compact) 30.dp else 35.dp),
+                .padding(start = 24.dp, top = if (compact) 4.dp else 48.dp)
+                .width(if (compact) 88.dp else 112.dp)
+                .height(if (compact) 28.dp else 35.dp),
             contentScale = ContentScale.Fit
         )
+        val productLabelTypography = if (compact) {
+            MaterialTheme.typography.labelSmall
+        } else {
+            MaterialTheme.typography.labelMedium
+        }
         Text(
             text = stringResource(R.string.access_product_label),
             modifier = Modifier.align(Alignment.TopStart)
-                .padding(start = 24.dp, top = if (compact) 44.dp else 82.dp),
-            style = MaterialTheme.typography.labelMedium.copy(
+                .padding(start = 24.dp, top = if (compact) 34.dp else 82.dp),
+            style = productLabelTypography.copy(
                 fontWeight = FontWeight.SemiBold
             ),
             color = NexaColors.BrandCeleste

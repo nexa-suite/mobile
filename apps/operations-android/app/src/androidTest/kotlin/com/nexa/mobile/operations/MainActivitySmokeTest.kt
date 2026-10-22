@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -28,7 +29,7 @@ class MainActivitySmokeTest {
             hasText(composeRule.activity.getString(AccessR.string.access_sign_in_title))
                 .and(!hasClickAction())
         ).assertIsDisplayed()
-        composeRule.onNodeWithText(
+        composeRule.onNodeWithContentDescription(
             composeRule.activity.getString(AccessR.string.access_identifier_label)
         ).assertIsDisplayed()
     }

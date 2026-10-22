@@ -98,9 +98,13 @@ class ProductScreensUiTest {
         val signInTitle = localizedString(AccessR.string.access_sign_in_title)
         val signInSubmit = localizedString(AccessR.string.access_submit)
         composeRule.onNode(hasText(signInTitle).and(!hasClickAction())).assertIsDisplayed()
-        composeRule.onNodeWithText(localizedString(AccessR.string.access_identifier_label))
+        composeRule.onNodeWithContentDescription(
+            localizedString(AccessR.string.access_identifier_label)
+        )
             .assertIsDisplayed()
-        composeRule.onNodeWithText(localizedString(AccessR.string.access_password_label))
+        composeRule.onNodeWithContentDescription(
+            localizedString(AccessR.string.access_password_label)
+        )
             .assertIsDisplayed()
         composeRule.onNode(hasText(signInSubmit).and(hasClickAction())).assertIsDisplayed()
         composeRule.onNodeWithContentDescription(
