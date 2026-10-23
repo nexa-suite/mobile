@@ -9,6 +9,7 @@ import 'package:nexa_buyer_mobile/contexts/payments/presentation/buyer_payment_a
 import 'package:nexa_buyer_mobile/contexts/payments/presentation/buyer_payment_activity_page.dart';
 import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/application/buyer_access_repository.dart';
 import 'package:nexa_buyer_mobile/core/network/nexa_api_client.dart';
+import 'package:nexa_buyer_mobile/core/presentation/nexa_buyer_components.dart';
 
 const _receivableId = '00000000-0000-4000-8000-000000000001';
 const _accountId = '00000000-0000-4000-8000-000000000002';
@@ -242,10 +243,10 @@ void main() {
     expect(repository.reportCalls, hasLength(1));
     expect(repository.reportCalls.single.reference, 'BANK-REF-71');
     expect(find.textContaining('Estado actual: PROCESSING'), findsOneWidget);
-    final reportResult = tester.widget<Text>(
+    final reportResult = tester.widget<NexaNotice>(
       find.byKey(const Key('payment-report-result')),
     );
-    expect(reportResult.data, contains('no confirma que el pago'));
+    expect(reportResult.message, contains('no confirma que el pago'));
   });
 }
 

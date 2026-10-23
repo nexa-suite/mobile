@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
@@ -85,7 +86,12 @@ private data class NexaFeedbackPalette(
 )
 
 @Composable
-fun NexaTopAppBar(title: String, modifier: Modifier = Modifier, onBack: (() -> Unit)? = null) {
+fun NexaTopAppBar(
+    title: String,
+    modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
+    actions: @Composable RowScope.() -> Unit = {}
+) {
     Surface(color = NexaColors.Surface, modifier = modifier.fillMaxWidth()) {
         Column {
             Row(
@@ -126,6 +132,7 @@ fun NexaTopAppBar(title: String, modifier: Modifier = Modifier, onBack: (() -> U
                         color = NexaColors.TextPrimary
                     )
                 }
+                actions()
             }
             HorizontalDivider(thickness = NexaSizes.borderWidth, color = NexaColors.Border)
         }
@@ -139,6 +146,9 @@ fun NexaActiveContextBar(
     modifier: Modifier = Modifier,
     isCurrent: Boolean = true,
     enabled: Boolean = true,
+    tenantLabel: String? = null,
+    workspaceLabel: String? = null,
+    roleLabel: String? = null,
     onClick: () -> Unit
 ) {
     val description = stringResource(
@@ -157,7 +167,7 @@ fun NexaActiveContextBar(
             .heightIn(min = NexaSizes.activeContextMinHeight)
             .semantics(mergeDescendants = true) {
                 if (enabled) role = Role.Button
-                contentDescription = description
+                contentDescription = listOfNotNull(description, roleLabel).joinToString(", ")
             },
         enabled = enabled,
         shape = NexaShapes.row,
@@ -179,7 +189,13 @@ fun NexaActiveContextBar(
                     modifier = contentPadding,
                     verticalArrangement = Arrangement.spacedBy(NexaSpacing.base)
                 ) {
-                    ContextNameLabels(companyName, workspaceName)
+                    ContextNameLabels(
+                        companyName = companyName,
+                        workspaceName = workspaceName,
+                        tenantLabel = tenantLabel,
+                        workspaceLabel = workspaceLabel,
+                        roleLabel = roleLabel
+                    )
                     Text(
                         actionLabel,
                         style = MaterialTheme.typography.labelMedium,
@@ -195,7 +211,10 @@ fun NexaActiveContextBar(
                     ContextNameLabels(
                         companyName,
                         workspaceName,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        tenantLabel = tenantLabel,
+                        workspaceLabel = workspaceLabel,
+                        roleLabel = roleLabel
                     )
                     Spacer(Modifier.width(NexaSpacing.base))
                     Text(
@@ -213,22 +232,52 @@ fun NexaActiveContextBar(
 private fun ContextNameLabels(
     companyName: String,
     workspaceName: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    tenantLabel: String? = null,
+    workspaceLabel: String? = null,
+    roleLabel: String? = null
 ) {
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(NexaSpacing.textTight)
     ) {
+        if (tenantLabel != null) {
+            Text(
+                tenantLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = NexaColors.TextSecondary
+            )
+        }
         Text(
             companyName,
             style = MaterialTheme.typography.titleSmall,
             color = NexaColors.TextPrimary
         )
+        if (workspaceLabel != null) {
+            Text(
+                workspaceLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = NexaColors.TextSecondary
+            )
+        }
         Text(
             workspaceName,
             style = MaterialTheme.typography.bodyMedium,
             color = NexaColors.TextSecondary
         )
+        if (roleLabel != null) {
+            Surface(
+                color = NexaColors.PrimaryContainer,
+                shape = NexaShapes.pill
+            ) {
+                Text(
+                    roleLabel,
+                    modifier = Modifier.padding(horizontal = NexaSpacing.compact, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = NexaColors.PrimaryStrong
+                )
+            }
+        }
     }
 }
 

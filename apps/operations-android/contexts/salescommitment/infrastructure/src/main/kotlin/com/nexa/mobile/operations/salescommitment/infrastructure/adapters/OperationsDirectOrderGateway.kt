@@ -7,6 +7,7 @@ import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.customerbuyerrelationships.application.publicapi.CommercialCustomerQuery
 import com.nexa.mobile.operations.customerbuyerrelationships.application.publicapi.CommercialCustomerRead
+import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderDeliveryLeadPolicyRead
 import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderGateway
 import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderReview
 import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderSubmission
@@ -46,6 +47,22 @@ class OperationsDirectOrderGateway @Inject constructor(
             verified.workspaceId == a.workspaceId &&
             verified.membershipId == a.membershipId && verified.permissions == a.permissions
     }
+
+    override suspend fun deliveryLeadPolicy(
+        authority: CommercialAuthority
+    ): DirectOrderDeliveryLeadPolicyRead {
+        if (!current(authority) || authority.permissions.none { it in SALES_WRITE }) {
+            return DirectOrderDeliveryLeadPolicyRead.PermissionDenied
+        }
+        val lease = sessions.currentAccess()
+            ?: return DirectOrderDeliveryLeadPolicyRead.PermissionDenied
+        val result = directOrders.deliveryLeadPolicy(authority.workspaceId)
+        if (!current(authority) || !sessions.isEpochCurrent(lease.epoch)) {
+            return DirectOrderDeliveryLeadPolicyRead.PermissionDenied
+        }
+        return result
+    }
+
     override suspend fun quote(
         authority: CommercialAuthority,
         customerId: String,

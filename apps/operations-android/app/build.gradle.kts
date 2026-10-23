@@ -13,6 +13,27 @@ val debugApiBaseUrl = providers.gradleProperty(
     "nexaDebugApiBaseUrl"
 ).orElse("http://10.0.2.2:8080/").get()
 val releaseApiBaseUrl = providers.gradleProperty("nexaReleaseApiBaseUrl").orNull.orEmpty()
+val debugMapTileUrlTemplate = providers.gradleProperty("nexaDebugMapTileUrlTemplate")
+    .orElse("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+    .get()
+if (debugMapTileUrlTemplate.isNotBlank()) {
+    val validatedDebugMapTileUrl = URI(
+        debugMapTileUrlTemplate.replace("{z}", "1")
+            .replace("{x}", "1")
+            .replace("{y}", "1")
+    )
+    require(
+        debugMapTileUrlTemplate.contains("{z}") && debugMapTileUrlTemplate.contains("{x}") &&
+            debugMapTileUrlTemplate.contains("{y}") &&
+            validatedDebugMapTileUrl.scheme == "https" &&
+            validatedDebugMapTileUrl.host == "tile.openstreetmap.org" &&
+            validatedDebugMapTileUrl.rawUserInfo == null &&
+            validatedDebugMapTileUrl.rawQuery == null &&
+            validatedDebugMapTileUrl.rawFragment == null
+    ) {
+        "Development map tile URL must use OSM HTTPS tiles and contain {z}, {x} and {y}"
+    }
+}
 fun String.asBuildConfigString(): String = "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
 android {
@@ -23,8 +44,8 @@ android {
         applicationId = "com.nexa.mobile.operations"
         minSdk = 29
         targetSdk = 37
-        versionCode = 11
-        versionName = "1.2.0"
+        versionCode = 12
+        versionName = "1.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -41,9 +62,15 @@ android {
     buildTypes {
         getByName("debug") {
             buildConfigField("String", "API_BASE_URL", debugApiBaseUrl.asBuildConfigString())
+            buildConfigField(
+                "String",
+                "MAP_TILE_URL_TEMPLATE",
+                debugMapTileUrlTemplate.asBuildConfigString()
+            )
         }
         getByName("release") {
             buildConfigField("String", "API_BASE_URL", releaseApiBaseUrl.asBuildConfigString())
+            buildConfigField("String", "MAP_TILE_URL_TEMPLATE", "\"\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -143,6 +170,7 @@ dependencies {
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.viewmodel.ktx)
+    implementation(libs.androidx.webkit)
     implementation(libs.navigation3.runtime)
     implementation(libs.navigation3.ui)
     implementation(libs.hilt.android)

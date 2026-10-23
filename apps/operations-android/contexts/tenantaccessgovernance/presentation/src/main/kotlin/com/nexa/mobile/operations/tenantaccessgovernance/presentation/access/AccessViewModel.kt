@@ -6,8 +6,10 @@ import com.nexa.mobile.operations.tenantaccessgovernance.application.access.Acce
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.ContextListResult
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.ContextSelectionResult
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.CurrentSessionContextResult
+import com.nexa.mobile.operations.tenantaccessgovernance.application.access.PasswordResetRequestResult
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.SignInResult
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -21,6 +23,7 @@ class AccessViewModel(
     val state = mutableState.asStateFlow()
 
     private var requestGeneration = 0L
+    private var recoveryRequestGeneration = 0L
 
     fun identifierChanged(value: String) {
         mutableState.update { it.copy(identifier = value, identifierError = false, notice = null) }
@@ -32,6 +35,59 @@ class AccessViewModel(
 
     fun togglePasswordVisibility() {
         mutableState.update { it.copy(passwordVisible = !it.passwordVisible) }
+    }
+
+    fun recoveryEmailChanged(value: String) {
+        recoveryRequestGeneration++
+        mutableState.update {
+            it.copy(
+                recoveryEmail = value,
+                recoveryEmailError = false,
+                recoveryStatus = PasswordRecoveryStatus.Idle
+            )
+        }
+    }
+
+    fun requestPasswordReset() {
+        val email = mutableState.value.recoveryEmail.trim()
+        if (!WORK_EMAIL_PATTERN.matches(email)) {
+            mutableState.update {
+                it.copy(
+                    recoveryEmail = email,
+                    recoveryEmailError = true,
+                    recoveryStatus = PasswordRecoveryStatus.Idle
+                )
+            }
+            return
+        }
+
+        val generation = ++recoveryRequestGeneration
+        mutableState.update {
+            it.copy(
+                recoveryEmail = email,
+                recoveryEmailError = false,
+                recoveryStatus = PasswordRecoveryStatus.Sending
+            )
+        }
+        viewModelScope.launch {
+            val result = try {
+                gateway.requestPasswordReset(email)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                PasswordResetRequestResult.ServiceUnavailable
+            }
+            if (generation != recoveryRequestGeneration) return@launch
+            val status = when (result) {
+                PasswordResetRequestResult.Requested -> PasswordRecoveryStatus.Sent
+
+                PasswordResetRequestResult.RateLimited -> PasswordRecoveryStatus.RateLimited
+
+                PasswordResetRequestResult.NetworkUnavailable,
+                PasswordResetRequestResult.ServiceUnavailable -> PasswordRecoveryStatus.Failed
+            }
+            mutableState.update { it.copy(recoveryStatus = status) }
+        }
     }
 
     fun signIn() {
@@ -449,3 +505,5 @@ class AccessViewModel(
         mutableState.update { it.copy(stage = stage, notice = notice, chooser = null) }
     }
 }
+
+private val WORK_EMAIL_PATTERN = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")

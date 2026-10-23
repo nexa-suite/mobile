@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/presentation/nexa_buyer_components.dart';
 import 'buyer_credit_exposure_view_model.dart';
 
 final class BuyerCreditExposurePage extends StatefulWidget {
@@ -28,151 +29,167 @@ final class _BuyerCreditExposurePageState
     final exposure = viewModel.exposure;
     return RefreshIndicator(
       onRefresh: viewModel.refresh,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        children: [
-          if (viewModel.status == BuyerCreditExposureStatus.loading &&
-              exposure == null)
-            const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator()),
+      child: NexaPageWidth(
+        padding: EdgeInsets.zero,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            const NexaPageIntro(
+              title: 'Crédito',
+              description:
+                  'Exposición y cuentas por cobrar de la relación activa.',
+              icon: Icons.account_balance_outlined,
             ),
-          if (exposure == null &&
-              viewModel.status != BuyerCreditExposureStatus.loading)
-            _UnavailableCard(
-              message: viewModel.message ?? 'No se pudo consultar el crédito.',
-              onRetry: viewModel.refresh,
-            ),
-          if (exposure != null) ...[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Crédito disponible',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${exposure.availableCredit} ${exposure.currency}',
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(exposure.active ? 'Cuenta activa' : 'Cuenta inactiva'),
-                    if (exposure.asOf != null)
-                      Text('Actualizado ${_dateLabel(exposure.asOf!)}'),
-                  ],
+            if (viewModel.status == BuyerCreditExposureStatus.loading &&
+                exposure == null)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            if (exposure == null &&
+                viewModel.status != BuyerCreditExposureStatus.loading)
+              _UnavailableCard(
+                message:
+                    viewModel.message ?? 'No se pudo consultar el crédito.',
+                onRetry: viewModel.refresh,
+              ),
+            if (exposure != null) ...[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Crédito disponible',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${exposure.availableCredit} ${exposure.currency}',
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      NexaStatusBadge(
+                        exposure.active ? 'ACTIVE' : 'INACTIVE',
+                        label: exposure.active
+                            ? 'Cuenta activa'
+                            : 'Cuenta inactiva',
+                      ),
+                      if (exposure.asOf != null)
+                        Text('Actualizado ${_dateLabel(exposure.asOf!)}'),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            _CreditFact(
-              title: 'Límite de crédito',
-              amount: exposure.creditLimit,
-              currency: exposure.currency,
-            ),
-            _CreditFact(
-              title: 'Exposición usada',
-              amount: exposure.used,
-              currency: exposure.currency,
-            ),
-            _CreditFact(
-              title: 'Exposición contable',
-              amount: exposure.ledgerExposure,
-              currency: exposure.currency,
-            ),
-            _CreditFact(
-              title: 'Cuentas por cobrar',
-              amount: exposure.outstandingReceivables,
-              currency: exposure.currency,
-            ),
-            _CreditFact(
-              title: 'Reservas activas',
-              amount: exposure.reservedExposure,
-              currency: exposure.currency,
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text(
-                'Estos importes los calcula el servidor para la relación activa. El crédito disponible no es un saldo de dinero ni una confirmación de compra.',
-                textAlign: TextAlign.center,
+              _CreditFact(
+                title: 'Límite de crédito',
+                amount: exposure.creditLimit,
+                currency: exposure.currency,
               ),
-            ),
-          ],
-          const Divider(height: 32),
-          Text(
-            'Cuentas por cobrar',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          if (viewModel.receivablesStatus == BuyerReceivablesStatus.loading &&
-              viewModel.receivables.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(20),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (viewModel.receivablesStatus ==
-                  BuyerReceivablesStatus.permissionDenied ||
-              viewModel.receivablesStatus == BuyerReceivablesStatus.unavailable)
-            _UnavailableCard(
-              message:
-                  viewModel.receivablesMessage ??
-                  'No se pudieron consultar tus cuentas por cobrar.',
-              onRetry: viewModel.refresh,
-            )
-          else if (viewModel.receivablesStatus ==
-                  BuyerReceivablesStatus.current &&
-              viewModel.receivables.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('No hay cuentas por cobrar para mostrar.'),
+              _CreditFact(
+                title: 'Exposición usada',
+                amount: exposure.used,
+                currency: exposure.currency,
               ),
-            )
-          else
-            for (final receivable in viewModel.receivables)
-              Card(
-                child: ListTile(
-                  title: Text(receivable.number),
-                  subtitle: Text(
-                    '${receivable.status} · Pendiente ${receivable.remaining} ${receivable.currency}',
+              _CreditFact(
+                title: 'Exposición contable',
+                amount: exposure.ledgerExposure,
+                currency: exposure.currency,
+              ),
+              _CreditFact(
+                title: 'Cuentas por cobrar',
+                amount: exposure.outstandingReceivables,
+                currency: exposure.currency,
+              ),
+              _CreditFact(
+                title: 'Reservas activas',
+                amount: exposure.reservedExposure,
+                currency: exposure.currency,
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: NexaNotice(
+                  'Estos importes los calcula el servidor para la relación activa. El crédito disponible no es un saldo de dinero ni una confirmación de compra.',
+                ),
+              ),
+            ],
+            const Divider(height: 32),
+            Text(
+              'Cuentas por cobrar',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            if (viewModel.receivablesStatus == BuyerReceivablesStatus.loading &&
+                viewModel.receivables.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (viewModel.receivablesStatus ==
+                    BuyerReceivablesStatus.permissionDenied ||
+                viewModel.receivablesStatus ==
+                    BuyerReceivablesStatus.unavailable)
+              _UnavailableCard(
+                message:
+                    viewModel.receivablesMessage ??
+                    'No se pudieron consultar tus cuentas por cobrar.',
+                onRetry: viewModel.refresh,
+              )
+            else if (viewModel.receivablesStatus ==
+                    BuyerReceivablesStatus.current &&
+                viewModel.receivables.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('No hay cuentas por cobrar para mostrar.'),
+                ),
+              )
+            else
+              for (final receivable in viewModel.receivables)
+                NexaRecordCard(
+                  title: receivable.number,
+                  status: receivable.status,
+                  icon: Icons.request_quote_outlined,
+                  footer: NexaFactTile(
+                    label: 'Pendiente',
+                    value: '${receivable.remaining} ${receivable.currency}',
+                    emphasis: true,
                   ),
-                  trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push(
                     '/credit/receivables/${receivable.id}/payments',
                     extra: receivable,
                   ),
                 ),
+            if (viewModel.receivablesTotal > viewModel.receivablesSize)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    tooltip: 'Página anterior',
+                    onPressed: viewModel.receivablesPage > 0
+                        ? viewModel.previousReceivablesPage
+                        : null,
+                    icon: const Icon(Icons.chevron_left),
+                  ),
+                  Text(
+                    'Página ${viewModel.receivablesPage + 1} de ${((viewModel.receivablesTotal + viewModel.receivablesSize - 1) ~/ viewModel.receivablesSize)}',
+                  ),
+                  IconButton(
+                    tooltip: 'Página siguiente',
+                    onPressed:
+                        (viewModel.receivablesPage + 1) *
+                                viewModel.receivablesSize <
+                            viewModel.receivablesTotal
+                        ? viewModel.nextReceivablesPage
+                        : null,
+                    icon: const Icon(Icons.chevron_right),
+                  ),
+                ],
               ),
-          if (viewModel.receivablesTotal > viewModel.receivablesSize)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  tooltip: 'Página anterior',
-                  onPressed: viewModel.receivablesPage > 0
-                      ? viewModel.previousReceivablesPage
-                      : null,
-                  icon: const Icon(Icons.chevron_left),
-                ),
-                Text(
-                  'Página ${viewModel.receivablesPage + 1} de ${((viewModel.receivablesTotal + viewModel.receivablesSize - 1) ~/ viewModel.receivablesSize)}',
-                ),
-                IconButton(
-                  tooltip: 'Página siguiente',
-                  onPressed:
-                      (viewModel.receivablesPage + 1) *
-                              viewModel.receivablesSize <
-                          viewModel.receivablesTotal
-                      ? viewModel.nextReceivablesPage
-                      : null,
-                  icon: const Icon(Icons.chevron_right),
-                ),
-              ],
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -212,7 +229,10 @@ final class _CreditFact extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-    child: ListTile(title: Text(title), trailing: Text('$amount $currency')),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: NexaFactTile(label: title, value: '$amount $currency'),
+    ),
   );
 }
 

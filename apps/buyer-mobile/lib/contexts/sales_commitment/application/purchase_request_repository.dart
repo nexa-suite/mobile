@@ -36,6 +36,18 @@ final class BuyerPurchaseContextProjection {
   final List<BuyerDeliveryAddressProjection> addresses;
 }
 
+final class BuyerDeliveryLeadPolicyProjection {
+  const BuyerDeliveryLeadPolicyProjection({
+    required this.minimumDeliveryLeadBusinessDays,
+    required this.minimumAllowedDeliveryDate,
+    required this.timezone,
+  });
+
+  final int minimumDeliveryLeadBusinessDays;
+  final DateTime minimumAllowedDeliveryDate;
+  final String timezone;
+}
+
 final class PurchaseRequestLineProjection {
   const PurchaseRequestLineProjection({
     required this.skuId,
@@ -43,6 +55,9 @@ final class PurchaseRequestLineProjection {
     required this.unit,
     this.effectiveUnitPrice,
     this.currency,
+    this.skuCode,
+    this.presentation,
+    this.notes,
   });
 
   final String skuId;
@@ -50,6 +65,9 @@ final class PurchaseRequestLineProjection {
   final String unit;
   final String? effectiveUnitPrice;
   final String? currency;
+  final String? skuCode;
+  final String? presentation;
+  final String? notes;
 }
 
 final class PurchaseRequestDraftProjection {
@@ -136,6 +154,8 @@ final class PurchaseRequestDraftPageProjection {
 
 abstract interface class PurchaseRequestRepository {
   Future<BuyerPurchaseContextProjection> loadBuyerPurchaseContext();
+
+  Future<BuyerDeliveryLeadPolicyProjection> loadDeliveryLeadPolicy();
 
   Future<PurchaseRequestDraftPageProjection> listDrafts({required int page});
 

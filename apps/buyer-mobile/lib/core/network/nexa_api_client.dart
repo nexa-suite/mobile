@@ -5,6 +5,14 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 
+import '../application/evidence_upload_policy.dart';
+
+import 'package:http_parser/http_parser.dart';
+
+import '../application/error/nexa_api_failure.dart';
+
+export '../application/error/nexa_api_failure.dart';
+
 abstract interface class SessionCredentialProvider {
   String? get accessToken;
 
@@ -18,25 +26,6 @@ abstract interface class SessionCredentialProvider {
   );
 }
 
-final class NexaApiFailure implements Exception {
-  const NexaApiFailure({
-    required this.code,
-    required this.userMessage,
-    this.statusCode,
-    this.correlationId,
-    this.retryable = false,
-  });
-
-  final String code;
-  final String userMessage;
-  final int? statusCode;
-  final String? correlationId;
-  final bool retryable;
-
-  @override
-  String toString() => 'NexaApiFailure($code, $statusCode)';
-}
-
 final class NexaApiResponse {
   const NexaApiResponse({
     required this.body,
@@ -47,6 +36,12 @@ final class NexaApiResponse {
   final Map<String, Object?> body;
   final Map<String, String> headers;
   final Object? data;
+}
+
+final class NexaApiChangeFeedEvent {
+  const NexaApiChangeFeedEvent(this.type);
+
+  final String type;
 }
 
 final class NexaApiBinaryResponse {
@@ -104,6 +99,7 @@ final class NexaApiOrigin {
 
 final class NexaApiClient {
   static const int maxProtectedBinaryBytes = 8 * 1024 * 1024;
+  static const int maxEvidenceUploadBytes = evidenceUploadMaximumBytes;
 
   NexaApiClient({
     required this.origin,
@@ -114,6 +110,7 @@ final class NexaApiClient {
   final NexaApiOrigin origin;
   final http.Client _httpClient;
   final Duration requestTimeout;
+  final Map<String, String> _changeFeedCursors = {};
   SessionCredentialProvider? sessionCredentials;
 
   Future<NexaApiResponse> get(
@@ -132,6 +129,182 @@ final class NexaApiClient {
     contextTicket: contextTicket,
     bearerToken: bearerToken,
   );
+
+  Stream<NexaApiChangeFeedEvent> watchChangeFeed({
+    required int authorityEpoch,
+    required String authorityFingerprint,
+  }) {
+    final session = sessionCredentials;
+    if (session == null ||
+        session.authorityEpoch != authorityEpoch ||
+        session.authorityFingerprint != authorityFingerprint ||
+        session.accessToken == null) {
+      return const Stream.empty();
+    }
+
+    final cursorKey = '$authorityEpoch|$authorityFingerprint';
+    return Stream.multi((controller) {
+      var cancelled = false;
+      var lastEventId = _changeFeedCursors[cursorKey];
+      var retryDelay = const Duration(seconds: 1);
+      Timer? retryTimer;
+      Completer<void>? activeAbort;
+
+      bool hasCurrentAuthority() =>
+          session.authorityEpoch == authorityEpoch &&
+          session.authorityFingerprint == authorityFingerprint;
+
+      void abortActiveRequest() {
+        final abort = activeAbort;
+        if (abort != null && !abort.isCompleted) abort.complete();
+      }
+
+      void stop() {
+        if (cancelled) return;
+        cancelled = true;
+        retryTimer?.cancel();
+        abortActiveRequest();
+        unawaited(controller.close());
+      }
+
+      late Future<void> Function(
+        String? tokenOverride,
+        bool retriedAfterUnauthorized,
+      )
+      connect;
+
+      void retryLater() {
+        if (cancelled || !hasCurrentAuthority()) {
+          stop();
+          return;
+        }
+        final delay = retryDelay;
+        retryDelay = Duration(
+          seconds: (retryDelay.inSeconds * 2).clamp(1, 15).toInt(),
+        );
+        retryTimer?.cancel();
+        retryTimer = Timer(delay, () => unawaited(connect(null, false)));
+      }
+
+      connect = (tokenOverride, retriedAfterUnauthorized) async {
+        if (cancelled) return;
+        if (!hasCurrentAuthority()) {
+          stop();
+          return;
+        }
+        final token = tokenOverride ?? session.accessToken;
+        if (token == null || token.isEmpty) {
+          stop();
+          return;
+        }
+
+        final abort = Completer<void>();
+        activeAbort = abort;
+        try {
+          final headers = <String, String>{
+            'Accept': 'text/event-stream',
+            'Authorization': 'Bearer $token',
+            'Cache-Control': 'no-cache',
+          };
+          final cursor = lastEventId;
+          if (cursor != null) headers['Last-Event-ID'] = cursor;
+          final request = http.AbortableRequest(
+            'GET',
+            origin.uri.resolve('/api/v1/change-feed/stream'),
+            abortTrigger: abort.future,
+          )..headers.addAll(headers);
+          final response = await _httpClient.send(request);
+          if (cancelled) return;
+          if (!hasCurrentAuthority()) {
+            stop();
+            return;
+          }
+
+          if (response.statusCode == 401) {
+            abortActiveRequest();
+            if (retriedAfterUnauthorized) {
+              stop();
+              return;
+            }
+            try {
+              final refreshed = await session.refreshIfCurrent(
+                token,
+                authorityEpoch,
+              );
+              if (!hasCurrentAuthority() ||
+                  refreshed == null ||
+                  refreshed.isEmpty ||
+                  refreshed == token) {
+                stop();
+                return;
+              }
+              await connect(refreshed, true);
+            } catch (_) {
+              stop();
+            }
+            return;
+          }
+
+          final contentType = response.headers['content-type']
+              ?.split(';')
+              .first
+              .trim()
+              .toLowerCase();
+          if (response.statusCode != 200 ||
+              contentType != 'text/event-stream') {
+            abortActiveRequest();
+            if (response.statusCode == 403 || response.statusCode == 404) {
+              stop();
+            } else {
+              retryLater();
+            }
+            return;
+          }
+
+          retryDelay = const Duration(seconds: 1);
+          await for (final event in _decodeServerSentEvents(response.stream)) {
+            if (cancelled) return;
+            if (!hasCurrentAuthority()) {
+              stop();
+              return;
+            }
+            if (event.hasId) {
+              lastEventId = event.id;
+              if (lastEventId == null) {
+                _changeFeedCursors.remove(cursorKey);
+              } else {
+                _changeFeedCursors[cursorKey] = lastEventId!;
+              }
+            }
+            if (event.type == 'resync-required') {
+              lastEventId = null;
+              _changeFeedCursors.remove(cursorKey);
+              controller.add(const NexaApiChangeFeedEvent('resync-required'));
+              break;
+            }
+            if (event.type != 'heartbeat') {
+              controller.add(NexaApiChangeFeedEvent(event.type));
+            }
+          }
+          if (!cancelled) retryLater();
+        } catch (_) {
+          if (!cancelled) retryLater();
+        } finally {
+          if (!abort.isCompleted) abort.complete();
+          if (identical(activeAbort, abort)) activeAbort = null;
+        }
+      };
+
+      controller.onCancel = () {
+        if (cancelled) return;
+        cancelled = true;
+        retryTimer?.cancel();
+        abortActiveRequest();
+      };
+
+      unawaited(connect(null, false));
+    }, isBroadcast: false);
+  }
 
   Future<NexaApiBinaryResponse> getBinary(
     String path, {
@@ -252,6 +425,106 @@ final class NexaApiClient {
     ifMatch: ifMatch,
     idempotencyKey: idempotencyKey,
   );
+
+  Future<NexaApiResponse> postMultipart({
+    required String path,
+    required Map<String, String> fields,
+    required String fieldName,
+    required String filename,
+    required String contentType,
+    required List<int> bytes,
+    required String idempotencyKey,
+    bool refreshAfterUnauthorized = false,
+  }) async {
+    if (bytes.isEmpty || bytes.length > maxEvidenceUploadBytes) {
+      throw const NexaApiFailure(
+        code: 'invalid_upload_size',
+        statusCode: 400,
+        userMessage: 'Choose a file within the supported size limit.',
+      );
+    }
+    final session = sessionCredentials;
+    final tokenUsed = session?.accessToken;
+    final expectedAuthorityEpoch = session?.authorityEpoch;
+    final expectedAuthorityFingerprint = session?.authorityFingerprint;
+    if (tokenUsed == null ||
+        tokenUsed.isEmpty ||
+        session == null ||
+        expectedAuthorityEpoch == null) {
+      throw const NexaApiFailure(
+        code: 'session_required',
+        statusCode: 401,
+        userMessage: 'Sign in to continue.',
+      );
+    }
+
+    final first = await _sendMultipart(
+      path: path,
+      fields: fields,
+      fieldName: fieldName,
+      filename: filename,
+      contentType: contentType,
+      bytes: bytes,
+      token: tokenUsed,
+      idempotencyKey: idempotencyKey,
+    );
+    try {
+      _requireCurrentAuthority(
+        session,
+        expectedAuthorityEpoch,
+        expectedAuthorityFingerprint,
+      );
+    } on NexaApiFailure {
+      _clearResponseBytes(first);
+      rethrow;
+    }
+    if (first.statusCode == 401 && refreshAfterUnauthorized) {
+      final refreshedToken = await session.refreshIfCurrent(
+        tokenUsed,
+        expectedAuthorityEpoch,
+      );
+      try {
+        _requireCurrentAuthority(
+          session,
+          expectedAuthorityEpoch,
+          expectedAuthorityFingerprint,
+        );
+      } on NexaApiFailure {
+        _clearResponseBytes(first);
+        rethrow;
+      }
+      _clearResponseBytes(first);
+      if (refreshedToken == null || refreshedToken == tokenUsed) {
+        throw const NexaApiFailure(
+          code: 'session_expired',
+          statusCode: 401,
+          userMessage: 'Your session expired. Sign in again.',
+        );
+      }
+      final retried = await _sendMultipart(
+        path: path,
+        fields: fields,
+        fieldName: fieldName,
+        filename: filename,
+        contentType: contentType,
+        bytes: bytes,
+        token: refreshedToken,
+        idempotencyKey: idempotencyKey,
+      );
+      try {
+        _requireCurrentAuthority(
+          session,
+          expectedAuthorityEpoch,
+          expectedAuthorityFingerprint,
+        );
+      } on NexaApiFailure {
+        _clearResponseBytes(retried);
+        rethrow;
+      }
+      return _decode(retried);
+    }
+    return _decode(first);
+  }
 
   Future<NexaApiResponse> put(
     String path, {
@@ -448,6 +721,55 @@ final class NexaApiClient {
     }
   }
 
+  Future<http.Response> _sendMultipart({
+    required String path,
+    required Map<String, String> fields,
+    required String fieldName,
+    required String filename,
+    required String contentType,
+    required List<int> bytes,
+    required String token,
+    required String idempotencyKey,
+  }) async {
+    final request = http.MultipartRequest('POST', _endpoint(path, const {}));
+    request.followRedirects = false;
+    request.headers.addAll({
+      'Accept': 'application/json, application/problem+json',
+      'Authorization': 'Bearer $token',
+      'X-Nexa-Surface': 'PORTAL',
+      'X-Nexa-Client': 'NATIVE',
+      'Idempotency-Key': idempotencyKey,
+    });
+    request.fields.addAll(fields);
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        fieldName,
+        bytes,
+        filename: filename,
+        contentType: MediaType.parse(contentType),
+      ),
+    );
+
+    try {
+      final streamed = await _httpClient.send(request).timeout(requestTimeout);
+      return await http.Response.fromStream(streamed).timeout(requestTimeout);
+    } on TimeoutException {
+      throw const NexaApiFailure(
+        code: 'network_timeout',
+        userMessage:
+            'Nexa did not respond. Check your connection and try again.',
+        retryable: true,
+      );
+    } on http.ClientException {
+      throw const NexaApiFailure(
+        code: 'network_unavailable',
+        userMessage:
+            'Nexa is unavailable. Check your connection and try again.',
+        retryable: true,
+      );
+    }
+  }
+
   Uri _endpoint(String path, Map<String, String> query) {
     final normalized = path.startsWith('/') ? path.substring(1) : path;
     final segments = normalized.split('/');
@@ -580,4 +902,62 @@ final class NexaApiClient {
       value is String && value.isNotEmpty ? value : null;
 
   void close() => _httpClient.close();
+}
+
+Stream<_ServerSentEvent> _decodeServerSentEvents(
+  Stream<List<int>> source,
+) async* {
+  var type = 'message';
+  String? id;
+  var hasId = false;
+  var hasData = false;
+
+  await for (final line
+      in source.transform(utf8.decoder).transform(const LineSplitter())) {
+    if (line.isEmpty) {
+      if (hasData) {
+        yield _ServerSentEvent(type: type, id: id, hasId: hasId);
+      }
+      type = 'message';
+      id = null;
+      hasId = false;
+      hasData = false;
+      continue;
+    }
+    if (line.startsWith(':')) continue;
+
+    final separator = line.indexOf(':');
+    final field = separator < 0 ? line : line.substring(0, separator);
+    var value = separator < 0 ? '' : line.substring(separator + 1);
+    if (value.startsWith(' ')) value = value.substring(1);
+    switch (field) {
+      case 'event':
+        type = value.isEmpty ? 'message' : value;
+      case 'id':
+        if (!value.contains('\u0000')) {
+          id = value.isEmpty || RegExp(r'^\d+$').hasMatch(value)
+              ? value.isEmpty
+                    ? null
+                    : value
+              : null;
+          hasId = true;
+        }
+      case 'data':
+        hasData = true;
+    }
+  }
+
+  if (hasData) yield _ServerSentEvent(type: type, id: id, hasId: hasId);
+}
+
+final class _ServerSentEvent {
+  const _ServerSentEvent({
+    required this.type,
+    required this.id,
+    required this.hasId,
+  });
+
+  final String type;
+  final String? id;
+  final bool hasId;
 }

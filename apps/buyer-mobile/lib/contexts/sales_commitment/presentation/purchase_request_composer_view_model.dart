@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../../../core/network/nexa_api_client.dart';
+import '../../../core/application/error/nexa_api_failure.dart';
 import '../../catalog_commercial_policy/application/catalog_repository.dart';
 import '../../payments/application/buyer_order_payment_capability_query.dart';
 import '../../tenant_access_governance/application/buyer_access_repository.dart';
@@ -60,8 +60,10 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
   String? selectedAddressId;
   String? paymentPreference = 'BANK_TRANSFER';
   bool _orderPaymentSupported = false;
-  final DateTime minimumDeliveryDate = nextBusinessDate(3);
-  late DateTime requestedDeliveryDate = minimumDeliveryDate;
+  BuyerDeliveryLeadPolicyProjection? deliveryLeadPolicy;
+  DateTime? get minimumDeliveryDate =>
+      deliveryLeadPolicy?.minimumAllowedDeliveryDate;
+  DateTime? requestedDeliveryDate;
   String? message;
 
   bool get canCreateRequest =>
@@ -75,8 +77,20 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
 
   bool get canPrepareRequest =>
       recoveryStatus == PurchaseRequestRecoveryStatus.none &&
+      deliveryLeadPolicy != null &&
+      _deliveryDateError(requestedDeliveryDate) == null &&
       (status == PurchaseRequestComposerStatus.ready ||
           status == PurchaseRequestComposerStatus.reviewReady);
+
+  bool get canSelectDeliveryDate => deliveryLeadPolicy != null;
+
+  bool get hasOutdatedDeliveryDate {
+    final minimum = minimumDeliveryDate;
+    final selected = requestedDeliveryDate;
+    return minimum != null &&
+        selected != null &&
+        _dateOnly(selected).isBefore(minimum);
+  }
 
   List<BuyerDeliveryAddressProjection> get activeAddresses =>
       purchaseContext?.addresses.where((address) => address.active).toList() ??
@@ -104,6 +118,8 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
     recoveryTotalPages = 1;
     item = null;
     purchaseContext = null;
+    deliveryLeadPolicy = null;
+    requestedDeliveryDate = null;
     draft = null;
     review = null;
     message = null;
@@ -131,8 +147,12 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
               'La cuenta Buyer no coincide con el contexto de acceso actual.',
         );
       }
+      final leadPolicy = await _repository.loadDeliveryLeadPolicy();
+      if (!_isCurrent(generation, lease)) return;
       item = loadedItem;
       purchaseContext = context;
+      deliveryLeadPolicy = leadPolicy;
+      requestedDeliveryDate = leadPolicy.minimumAllowedDeliveryDate;
       final defaultAddresses = context.addresses.where(
         (address) => address.active && address.defaultAddress,
       );
@@ -188,6 +208,16 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
         _requireSameBuyerAccount(serverReview.draft, context.clientAccountId);
         draft = serverReview.draft;
         review = serverReview;
+        requestedDeliveryDate = _dateFromServer(
+          serverReview.draft.requestedDeliveryDate,
+        );
+        final deliveryDateError = _deliveryDateError(requestedDeliveryDate);
+        if (deliveryDateError != null) {
+          status = PurchaseRequestComposerStatus.ready;
+          message = deliveryDateError;
+          notifyListeners();
+          return;
+        }
         if (serverReview.draft.paymentPreference == 'WALLET') {
           if (canOfferWalletTender) {
             paymentPreference = 'WALLET';
@@ -265,11 +295,11 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
   }
 
   void selectDeliveryDate(DateTime value) {
-    if (value.isBefore(minimumDeliveryDate) ||
-        value.weekday >= DateTime.saturday) {
+    final minimum = minimumDeliveryDate;
+    if (minimum == null || _dateOnly(value).isBefore(minimum)) {
       return;
     }
-    requestedDeliveryDate = DateTime(value.year, value.month, value.day);
+    requestedDeliveryDate = _dateOnly(value);
     invalidateReview();
   }
 
@@ -312,6 +342,17 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    final selectedDeliveryDate = requestedDeliveryDate;
+    final minimumDate = minimumDeliveryDate;
+    if (selectedDeliveryDate == null ||
+        minimumDate == null ||
+        _dateOnly(selectedDeliveryDate).isBefore(minimumDate)) {
+      message = minimumDate == null
+          ? 'No se pudo consultar la fecha mínima de entrega. Actualiza e inténtalo de nuevo.'
+          : 'La fecha solicitada debe ser igual o posterior a ${_dateValue(minimumDate)}.';
+      notifyListeners();
+      return;
+    }
     final sellableSkuId = skuId!;
     final clientAccountId = account!;
     final deliveryAddressId = addressId!;
@@ -347,7 +388,7 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
         try {
           current = await _repository.createDraft(
             clientAccountId: clientAccountId,
-            requestedDeliveryDate: _dateValue(requestedDeliveryDate),
+            requestedDeliveryDate: _dateValue(selectedDeliveryDate),
           );
         } on NexaApiFailure catch (failure) {
           if (failure.retryable || failure.statusCode == null) {
@@ -434,7 +475,7 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
         draft = current;
       }
       if (current.paymentPreference != requestedPaymentPreference ||
-          current.requestedDeliveryDate != _dateValue(requestedDeliveryDate)) {
+          current.requestedDeliveryDate != _dateValue(selectedDeliveryDate)) {
         if (requestedPaymentPreference == 'WALLET' &&
             !await _refreshOrderPaymentCapability(generation, lease)) {
           if (!_isCurrent(generation, lease)) return;
@@ -448,7 +489,7 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
         current = await _repository.setPreferences(
           draft: current,
           paymentPreference: requestedPaymentPreference,
-          requestedDeliveryDate: _dateValue(requestedDeliveryDate),
+          requestedDeliveryDate: _dateValue(selectedDeliveryDate),
         );
         if (!_isCurrent(generation, lease)) return;
         draft = current;
@@ -463,10 +504,18 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
       }
       draft = serverReview.draft;
       review = serverReview;
-      status = serverReview.readyToSubmit
+      final deliveryDateError = _deliveryDateError(
+        _dateFromServer(serverReview.draft.requestedDeliveryDate),
+      );
+      status = serverReview.readyToSubmit && deliveryDateError == null
           ? PurchaseRequestComposerStatus.reviewReady
           : PurchaseRequestComposerStatus.ready;
-      if (!serverReview.readyToSubmit) {
+      if (deliveryDateError != null) {
+        requestedDeliveryDate = _dateFromServer(
+          serverReview.draft.requestedDeliveryDate,
+        );
+        message = deliveryDateError;
+      } else if (!serverReview.readyToSubmit) {
         message = 'El servidor requiere: ${serverReview.missing.join(', ')}.';
       }
     } on NexaApiFailure catch (failure) {
@@ -502,6 +551,15 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
     final existing = draft;
     final accountId = purchaseContext?.clientAccountId;
     final scopeKey = _access.snapshot.currentContext?.scopeKey;
+    final deliveryDateError = _deliveryDateError(requestedDeliveryDate);
+    if (status == PurchaseRequestComposerStatus.reviewReady &&
+        deliveryDateError != null) {
+      status = PurchaseRequestComposerStatus.ready;
+      review = null;
+      message = deliveryDateError;
+      notifyListeners();
+      return;
+    }
     if (lease == null ||
         existing == null ||
         accountId == null ||
@@ -550,6 +608,18 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
         review = serverReview;
         status = PurchaseRequestComposerStatus.ready;
         message = 'El servidor requiere: ${serverReview.missing.join(', ')}.';
+        notifyListeners();
+        return;
+      }
+      requestedDeliveryDate = _dateFromServer(
+        serverReview.draft.requestedDeliveryDate,
+      );
+      final latestDeliveryDateError = _deliveryDateError(requestedDeliveryDate);
+      if (latestDeliveryDateError != null) {
+        draft = latest;
+        review = serverReview;
+        status = PurchaseRequestComposerStatus.ready;
+        message = latestDeliveryDateError;
         notifyListeners();
         return;
       }
@@ -737,6 +807,16 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
         recoveryStatus = PurchaseRequestRecoveryStatus.none;
         draft = serverReview.draft;
         review = serverReview;
+        requestedDeliveryDate = _dateFromServer(
+          serverReview.draft.requestedDeliveryDate,
+        );
+        final deliveryDateError = _deliveryDateError(requestedDeliveryDate);
+        if (deliveryDateError != null) {
+          status = PurchaseRequestComposerStatus.ready;
+          message = deliveryDateError;
+          notifyListeners();
+          return;
+        }
         if (serverReview.draft.paymentPreference == 'WALLET') {
           if (canOfferWalletTender) {
             paymentPreference = 'WALLET';
@@ -790,6 +870,7 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
       inspectedRecoveryDraft = null;
       draft = null;
       review = null;
+      requestedDeliveryDate = minimumDeliveryDate;
       status = PurchaseRequestComposerStatus.ready;
       message = 'La solicitud anterior aún podría aparecer después. Prepara otra solo si esa incertidumbre es aceptable.';
     } catch (_) {
@@ -948,6 +1029,8 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
     _requestGeneration++;
     item = null;
     purchaseContext = null;
+    deliveryLeadPolicy = null;
+    requestedDeliveryDate = null;
     draft = null;
     review = null;
     recoveryStatus = PurchaseRequestRecoveryStatus.none;
@@ -966,6 +1049,8 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
   void _closeForChangedAccess() {
     item = null;
     purchaseContext = null;
+    deliveryLeadPolicy = null;
+    requestedDeliveryDate = null;
     draft = null;
     review = null;
     recoveryStatus = PurchaseRequestRecoveryStatus.none;
@@ -996,6 +1081,31 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
       '${value.month.toString().padLeft(2, '0')}-'
       '${value.day.toString().padLeft(2, '0')}';
 
+  static DateTime _dateOnly(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
+
+  String? _deliveryDateError(DateTime? selected) {
+    final minimum = minimumDeliveryDate;
+    if (minimum == null) {
+      return 'No se pudo consultar la fecha mínima de entrega. Actualiza e inténtalo de nuevo.';
+    }
+    if (selected == null) return 'Selecciona una fecha de entrega.';
+    if (_dateOnly(selected).isBefore(_dateOnly(minimum))) {
+      return 'La fecha solicitada debe ser igual o posterior a ${_dateValue(minimum)}.';
+    }
+    return null;
+  }
+
+  static DateTime? _dateFromServer(String? value) {
+    if (value == null || !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value)) {
+      return null;
+    }
+    final parts = value.split('-').map(int.tryParse).toList(growable: false);
+    if (parts.any((part) => part == null)) return null;
+    final date = DateTime(parts[0]!, parts[1]!, parts[2]!);
+    return _dateValue(date) == value ? date : null;
+  }
+
   static String _creationIntentKey(String scopeKey, String sellableSkuId) =>
       '$scopeKey|purchase-request-create|$sellableSkuId';
 
@@ -1011,12 +1121,4 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
     _subscription.cancel();
     super.dispose();
   }
-}
-
-DateTime nextBusinessDate(int businessDays) {
-  var candidate = DateTime.now().toUtc().add(Duration(days: businessDays));
-  while (candidate.weekday >= DateTime.saturday) {
-    candidate = candidate.add(const Duration(days: 1));
-  }
-  return DateTime(candidate.year, candidate.month, candidate.day);
 }

@@ -709,7 +709,8 @@ class OperationsDriverDeliveryGateway @Inject constructor(
         },
         arrival = arrival?.let { fact ->
             DriverDeliveryArrivalFact(fact.id, fact.attemptId, fact.arrivedAt)
-        }
+        },
+        destinationCoordinates = destinationCoordinates
     )
 
     private fun AttemptProjection.toFeature() =

@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+const maxProtectedBusinessDocumentBytes = 8 * 1024 * 1024;
+
 final class BusinessDocumentProjection {
   const BusinessDocumentProjection({
     required this.id,

@@ -12,6 +12,26 @@ sealed interface SignInResult {
     data object IntegrationUnavailable : SignInResult
 }
 
+enum class PasswordResetRequestResult {
+    Requested,
+    RateLimited,
+    NetworkUnavailable,
+    ServiceUnavailable
+}
+
+enum class OwnPasswordChangeResult {
+    Changed,
+    Rejected,
+    SessionExpired,
+    Unavailable
+}
+
+enum class OtherSessionsRevocationResult {
+    Revoked,
+    SessionExpired,
+    Unavailable
+}
+
 sealed interface CurrentSessionContextResult {
     data class Available(val context: WorkforceContextSummary) : CurrentSessionContextResult
     data object Invalid : CurrentSessionContextResult
@@ -40,6 +60,14 @@ sealed interface ContextSelectionResult {
 
 interface AccessGateway {
     suspend fun signIn(identifier: String, password: String): SignInResult
+    suspend fun requestPasswordReset(email: String): PasswordResetRequestResult =
+        PasswordResetRequestResult.ServiceUnavailable
+    suspend fun changeOwnPassword(
+        currentPassword: String,
+        newPassword: String
+    ): OwnPasswordChangeResult = OwnPasswordChangeResult.Unavailable
+    suspend fun revokeOtherSessions(): OtherSessionsRevocationResult =
+        OtherSessionsRevocationResult.Unavailable
     suspend fun currentSessionContext(): CurrentSessionContextResult
     suspend fun listContexts(): ContextListResult
     suspend fun selectContext(context: WorkforceContextSummary): ContextSelectionResult

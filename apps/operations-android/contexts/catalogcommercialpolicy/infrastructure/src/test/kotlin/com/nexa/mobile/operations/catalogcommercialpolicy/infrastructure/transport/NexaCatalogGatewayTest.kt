@@ -27,7 +27,7 @@ class NexaCatalogGatewayTest {
             server.enqueue(
                 jsonResponse(
                     200,
-                    """{"items":[{"catalogItemId":"CAT-0001","itemName":"Grana Padano","presentation":"150G","skuCode":"PROD-0001","brandName":"Agriform","productVariantName":"Gold","productFamilyName":"Cheese","image":{"url":"/catalog-items/agriform-queso-grana-padano-dop-150g.png","fileName":"agriform-queso-grana-padano-dop-150g.png"}}],"page":0,"size":20,"totalItems":1,"totalPages":1}"""
+                    """{"items":[{"catalogItemId":"CAT-0001","itemName":"Grana Padano","presentation":"150G","skuCode":"PROD-0001","brandName":"Agriform","categoryName":"Dairy","familyId":"FAM-1","familyName":"Cheese","variantName":"Gold","image":{"url":"/catalog-items/agriform-queso-grana-padano-dop-150g.png","fileName":"agriform-queso-grana-padano-dop-150g.png"}}],"page":0,"size":20,"totalItems":1,"totalPages":1}"""
                 )
             )
 
@@ -51,12 +51,61 @@ class NexaCatalogGatewayTest {
             assertEquals("150G", candidate.presentation)
             assertEquals("PROD-0001", candidate.skuCode)
             assertEquals("Agriform", candidate.brandName)
+            assertEquals("Dairy", candidate.categoryName)
             assertEquals("Gold", candidate.productVariantName)
             assertEquals("Cheese", candidate.productFamilyName)
+            assertEquals("FAM-1", candidate.productFamilyId)
             assertEquals("agriform-queso-grana-padano-dop-150g.png", candidate.imageFileName)
             assertNull(page.nextPageKey)
             assertFalse(candidate.toString().contains("CAT-0001"))
             assertFalse(candidate.toString().contains("PROD-0001"))
+        }
+    }
+
+    @Test
+    fun brandAndTypeFiltersAreSentToServerWithoutLocalPageFiltering() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(jsonResponse(200, pageJson(page = 0, totalPages = 1, items = "")))
+
+            val outcome = gateway(server).search("", null, "  Agriform  ", "Lácteos")
+            val request = server.takeRequest()
+
+            assertTrue(outcome is CatalogSearchOutcome.Page)
+            assertNull(request.requestUrl?.queryParameter("q"))
+            assertEquals("Agriform", request.requestUrl?.queryParameter("brand"))
+            assertEquals("Lácteos", request.requestUrl?.queryParameter("category"))
+            assertEquals("0", request.requestUrl?.queryParameter("page"))
+            assertEquals("20", request.requestUrl?.queryParameter("size"))
+        }
+    }
+
+    @Test
+    fun warehouseFilterOptionsUseAuthorizedPagedCatalogLists() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(
+                jsonResponse(
+                    200,
+                    """{"items":[{"id":"brand-1","name":"Agriform"}],"page":1,"size":100,"total":101}"""
+                )
+            )
+
+            val outcome = gateway(server).filterOptions("brand", "Agr", page = 1)
+            val request = server.takeRequest()
+
+            assertEquals("GET", request.method)
+            assertEquals("/api/v1/catalog-items/filter-options", request.requestUrl?.encodedPath)
+            assertEquals("brand", request.requestUrl?.queryParameter("kind"))
+            assertEquals("Agr", request.requestUrl?.queryParameter("search"))
+            assertEquals("1", request.requestUrl?.queryParameter("page"))
+            assertEquals("100", request.requestUrl?.queryParameter("size"))
+            assertTrue(outcome is CatalogFilterOptionsOutcome.Page)
+            val options = (outcome as CatalogFilterOptionsOutcome.Page)
+            assertEquals(CatalogFilterOption("brand-1", "Agriform"), options.items.single())
+            assertEquals(1, options.page)
+            assertEquals(100, options.size)
+            assertEquals(101L, options.total)
         }
     }
 

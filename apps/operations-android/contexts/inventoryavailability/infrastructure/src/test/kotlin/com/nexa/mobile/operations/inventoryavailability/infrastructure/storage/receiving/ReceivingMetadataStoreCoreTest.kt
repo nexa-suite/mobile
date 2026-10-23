@@ -37,9 +37,14 @@ class ReceivingMetadataStoreCoreTest {
             ReceivingMetadataSnapshot(scope(), null, null),
             ReceivingMetadataCodec.decode(legacy)
         )
+        val legacyV2 = valid.copyOf().also { it[4] = 2 }
+        assertEquals(
+            ReceivingMetadataSnapshot(scope(), null, null),
+            ReceivingMetadataCodec.decode(legacyV2)
+        )
         assertFails { ReceivingMetadataCodec.decode(valid.copyOf(valid.size - 1)) }
         assertFails { ReceivingMetadataCodec.decode(valid + 1) }
-        assertFails { ReceivingMetadataCodec.decode(valid.also { it[4] = 3 }) }
+        assertFails { ReceivingMetadataCodec.decode(valid.also { it[4] = 4 }) }
     }
 
     @Test

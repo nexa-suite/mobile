@@ -27,10 +27,18 @@ data class DriverDeliverySnapshot(
     val version: Long,
     val activeAttempt: DriverDeliveryAttempt?,
     val outcomeLines: List<DriverDeliveryOutcomeLine> = emptyList(),
-    val arrival: DriverDeliveryArrivalFact? = null
+    val arrival: DriverDeliveryArrivalFact? = null,
+    val destinationCoordinates: DriverDeliveryCoordinates? = null
 ) {
     override fun toString(): String =
         "DriverDeliverySnapshot(status=$status, version=$version, active=$activeAttempt)"
+}
+
+data class DriverDeliveryCoordinates(val latitude: BigDecimal, val longitude: BigDecimal) {
+    init {
+        require(latitude >= BigDecimal.valueOf(-90) && latitude <= BigDecimal.valueOf(90))
+        require(longitude >= BigDecimal.valueOf(-180) && longitude <= BigDecimal.valueOf(180))
+    }
 }
 
 data class DriverDeliveryArrivalFact(val id: String, val attemptId: String, val arrivedAt: String)

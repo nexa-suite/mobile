@@ -87,6 +87,8 @@ class ProductScreensUiTest {
             }
         }
 
+        composeRule.onNodeWithText(localizedString(AccessR.string.access_welcome_continue))
+            .performClick()
         composeRule.onNodeWithContentDescription(
             localizedString(AccessR.string.access_brand_description)
         ).assertIsDisplayed()
@@ -96,9 +98,13 @@ class ProductScreensUiTest {
         val signInTitle = localizedString(AccessR.string.access_sign_in_title)
         val signInSubmit = localizedString(AccessR.string.access_submit)
         composeRule.onNode(hasText(signInTitle).and(!hasClickAction())).assertIsDisplayed()
-        composeRule.onNodeWithText(localizedString(AccessR.string.access_identifier_label))
+        composeRule.onNodeWithContentDescription(
+            localizedString(AccessR.string.access_identifier_label)
+        )
             .assertIsDisplayed()
-        composeRule.onNodeWithText(localizedString(AccessR.string.access_password_label))
+        composeRule.onNodeWithContentDescription(
+            localizedString(AccessR.string.access_password_label)
+        )
             .assertIsDisplayed()
         composeRule.onNode(hasText(signInSubmit).and(hasClickAction())).assertIsDisplayed()
         composeRule.onNodeWithContentDescription(
@@ -267,6 +273,13 @@ class ProductScreensUiTest {
                     onQueryChanged = { query = it },
                     onSearch = { searchCalls++ },
                     onLoadMore = {},
+                    onOpenFilterOptions = {},
+                    onCloseFilterOptions = {},
+                    onFilterSearchChanged = {},
+                    onLoadFilterOptions = {},
+                    onLoadMoreFilterOptions = {},
+                    onRetryFilterOptions = {},
+                    onSelectFilter = { _, _ -> },
                     onSelectCandidate = {}
                 )
             }
@@ -301,6 +314,13 @@ class ProductScreensUiTest {
                     onQueryChanged = {},
                     onSearch = {},
                     onLoadMore = {},
+                    onOpenFilterOptions = {},
+                    onCloseFilterOptions = {},
+                    onFilterSearchChanged = {},
+                    onLoadFilterOptions = {},
+                    onLoadMoreFilterOptions = {},
+                    onRetryFilterOptions = {},
+                    onSelectFilter = { _, _ -> },
                     onSelectCandidate = {}
                 )
             }
@@ -308,7 +328,7 @@ class ProductScreensUiTest {
 
         composeRule.onNodeWithText(
             localizedString(CatalogR.string.warehouse_search_empty_title)
-        ).assertIsDisplayed()
+        ).performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText(
             localizedString(CoreR.string.nexa_candidate_sku, candidate.sku)
         ).assertDoesNotExist()
@@ -383,13 +403,30 @@ class ProductScreensUiTest {
                     onQueryChanged = {},
                     onSearch = {},
                     onLoadMore = {},
+                    onOpenFilterOptions = {},
+                    onCloseFilterOptions = {},
+                    onFilterSearchChanged = {},
+                    onLoadFilterOptions = {},
+                    onLoadMoreFilterOptions = {},
+                    onRetryFilterOptions = {},
+                    onSelectFilter = { _, _ -> },
                     onSelectCandidate = {}
                 )
             }
         }
 
-        composeRule.onNode(hasClickAction().and(hasText("Queso Gouda Demo", substring = true)))
+        val candidateDetails = listOf(
+            candidate.productDisplayName,
+            candidate.brandOrVariant,
+            candidate.presentation,
+            localizedString(CoreR.string.nexa_candidate_sku, candidate.sku)
+        ).joinToString()
+        composeRule.onNodeWithContentDescription(
+            localizedString(CoreR.string.nexa_candidate_row_action_description, candidateDetails)
+        )
+            .performScrollTo()
             .assertIsDisplayed()
+            .assert(hasClickAction())
         composeRule.onNodeWithText(
             localizedString(CoreR.string.nexa_candidate_sku, candidate.sku),
             useUnmergedTree = true

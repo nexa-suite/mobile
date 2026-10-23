@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../../../core/network/nexa_api_client.dart';
+import '../../../core/application/error/nexa_api_failure.dart';
 import '../../tenant_access_governance/application/buyer_access_repository.dart';
 import '../application/catalog_repository.dart';
 
@@ -25,11 +25,22 @@ final class CatalogItemDetailViewModel extends ChangeNotifier {
   CatalogItemProjection? item;
   String? message;
 
+  static const readPermission = 'catalog.read';
+
   Future<void> load() async {
     final lease = _leaseKey;
     if (lease == null) {
       status = CatalogItemDetailStatus.unavailable;
       message = 'Sign in again to view this product.';
+      notifyListeners();
+      return;
+    }
+    final snapshot = _access.snapshot;
+    if (!snapshot.hasActiveBuyerScope ||
+        !snapshot.currentContext!.permissions.contains(readPermission)) {
+      status = CatalogItemDetailStatus.unavailable;
+      item = null;
+      message = 'No tienes permiso para consultar este producto.';
       notifyListeners();
       return;
     }
@@ -78,7 +89,7 @@ final class CatalogItemDetailViewModel extends ChangeNotifier {
   }
 
   static String? _activeLease(BuyerAccessSnapshot snapshot) =>
-      snapshot.isSignedIn
+      snapshot.hasActiveBuyerScope
       ? '${snapshot.authorityEpoch}:${snapshot.currentContext!.authorityFingerprint}'
       : null;
 

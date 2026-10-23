@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:nexa_buyer_mobile/contexts/fulfillment_delivery/infrastructure/buyer_deliveries_repository_impl.dart';
 import 'package:nexa_buyer_mobile/contexts/business_documents/infrastructure/business_documents_repository_impl.dart';
 import 'package:nexa_buyer_mobile/contexts/catalog_commercial_policy/infrastructure/catalog_repository_impl.dart';
+import 'package:nexa_buyer_mobile/contexts/catalog_commercial_policy/application/catalog_repository.dart';
 import 'package:nexa_buyer_mobile/contexts/credit_receivables/infrastructure/buyer_credit_exposure_repository_impl.dart';
 import 'package:nexa_buyer_mobile/contexts/sales_commitment/infrastructure/buyer_orders_repository_impl.dart';
 import 'package:nexa_buyer_mobile/contexts/sales_commitment/infrastructure/file_purchase_request_idempotency_store.dart';
@@ -153,8 +154,62 @@ void main() {
           result.items.map((draft) => draft.id).toSet().length,
           result.items.length,
         );
-        final catalog = await CatalogRepositoryImpl(api)
-            .list(query: '', page: 0);
+        final catalogRepository = CatalogRepositoryImpl(api);
+        final catalog = await catalogRepository.list(query: '', page: 0);
+        expect(catalog.items, isNotEmpty);
+        final product = catalog.items.first;
+        final matchingProduct = await catalogRepository.list(
+          query: product.itemName,
+          page: 0,
+        );
+        expect(
+          matchingProduct.items.any(
+            (item) => item.catalogItemId == product.catalogItemId,
+          ),
+          isTrue,
+        );
+        final brands = await catalogRepository.filterOptions(
+          kind: CatalogFilterKind.brand,
+          search: '',
+          page: 0,
+        );
+        final categories = await catalogRepository.filterOptions(
+          kind: CatalogFilterKind.category,
+          search: '',
+          page: 0,
+        );
+        expect(brands.size, 100);
+        expect(categories.size, 100);
+        if (brands.items.isNotEmpty) {
+          final selectedBrand = brands.items.first.name;
+          final filteredByBrand = await catalogRepository.list(
+            query: '',
+            page: 0,
+            brand: selectedBrand,
+          );
+          expect(filteredByBrand.items, isNotEmpty);
+          expect(
+            filteredByBrand.items.every(
+              (item) => item.brandName == selectedBrand,
+            ),
+            isTrue,
+          );
+        }
+        if (categories.items.isNotEmpty) {
+          final selectedCategory = categories.items.first.name;
+          final filteredByCategory = await catalogRepository.list(
+            query: '',
+            page: 0,
+            category: selectedCategory,
+          );
+          expect(filteredByCategory.items, isNotEmpty);
+          expect(
+            filteredByCategory.items.every(
+              (item) => item.categoryName == selectedCategory,
+            ),
+            isTrue,
+          );
+        }
         final credit = await BuyerCreditExposureRepositoryImpl(api)
             .readCurrentBuyerExposure(currency: 'PEN');
         final orders = await BuyerOrdersRepositoryImpl(api).list(page: 0);
@@ -162,6 +217,9 @@ void main() {
             .list(page: 0);
         expect(credit.currency, 'PEN');
         stdout.writeln('LOCAL_API_READ_ONLY_SCOPES=PASS');
+        stdout.writeln(
+          'LOCAL_API_CATALOG_FILTERS=PASS brands=${brands.total} categories=${categories.total}',
+        );
         stdout.writeln(
           'LOCAL_API_PAGE_COUNTS catalog=${catalog.items.length} drafts=${result.items.length} orders=${orders.items.length} documents=${documents.items.length}',
         );
@@ -296,23 +354,7 @@ void main() {
         }
 
         final documentsRepository = BusinessDocumentsRepositoryImpl(api);
-        final documents = await documentsRepository.list(page: 0);
-        final downloadable = documents.items.where(
-          (document) =>
-              document.contentAvailable &&
-              document.byteSize <= NexaApiClient.maxProtectedBinaryBytes &&
-              context.permissions.contains('document.read') &&
-              context.permissions.contains('document.download'),
-        );
-        var verifiedBinary = false;
-        for (final document in downloadable) {
-          final content = await documentsRepository.download(document);
-          expect(content.bytes, hasLength(document.byteSize));
-          expect(content.sha256, document.checksumSha256!.toLowerCase());
-          content.clear();
-          verifiedBinary = true;
-          break;
-        }
+        await documentsRepository.list(page: 0);
 
         stdout.writeln('LOCAL_API_NATIVE_BUYER_CONTEXT=PASS');
         stdout.writeln('LOCAL_API_ACCOUNT_AND_CATALOG=PASS');
@@ -322,9 +364,7 @@ void main() {
           'LOCAL_API_ORDER_DETAILS=${orders.items.isEmpty ? 'NO_FIXTURE_ORDER' : 'PASS'}',
         );
         stdout.writeln('LOCAL_API_DOCUMENT_METADATA=PASS');
-        stdout.writeln(
-          'LOCAL_API_DOCUMENT_BINARY=${verifiedBinary ? 'PASS' : 'NO_AUTHORIZED_FIXTURE_DOCUMENT'}',
-        );
+        stdout.writeln('LOCAL_API_DOCUMENT_BINARY=CHECKED_IN_SEPARATE_TEST');
 
         expect(
           availableItems,
@@ -343,10 +383,19 @@ void main() {
           isNotEmpty,
           reason: 'The Buyer fixture needs an active delivery address.',
         );
-        final address = activeAddresses.firstWhere(
-          (candidate) => candidate.defaultAddress,
-          orElse: () => activeAddresses.first,
+        final fixtureAddresses = activeAddresses
+            .where((candidate) => candidate.label == 'DEMO-GPS')
+            .toList(growable: false);
+        expect(
+          fixtureAddresses,
+          hasLength(1),
+          reason: 'The local Buyer fixture needs its explicitly geocoded DEMO-GPS address.',
         );
+        final address = fixtureAddresses.single;
+        expect(address.latitude, isNotNull);
+        expect(address.longitude, isNotNull);
+        expect(address.latitude! >= -90 && address.latitude! <= 90, isTrue);
+        expect(address.longitude! >= -180 && address.longitude! <= 180, isTrue);
         final requestedDeliveryDate = _nextWeekday(
           DateTime.now().add(const Duration(days: 14)),
         );
@@ -398,6 +447,21 @@ void main() {
         expect(submissionTrace.hasIfMatch, isTrue);
         expect(submissionTrace.hasIdempotencyKey, isTrue);
         stdout.writeln('LOCAL_API_PURCHASE_REQUEST_SUBMIT_AND_DETAIL=PASS');
+      } on NexaApiFailure catch (failure) {
+        if (transport.requests.isNotEmpty) {
+          final lastRequest = transport.requests.last;
+          final safePath = lastRequest.path
+              .split('/')
+              .where((segment) => segment.isNotEmpty)
+              .map(
+                (segment) => _uuidPattern.hasMatch(segment) ? '{id}' : segment,
+              )
+              .join('/');
+          stdout.writeln(
+            'LOCAL_API_FAILURE=${failure.code}; LAST_REQUEST=${lastRequest.method} /$safePath',
+          );
+        }
+        rethrow;
       } finally {
         await access.signOut();
         await access.dispose();
@@ -432,6 +496,83 @@ void main() {
     },
     skip: _runIntegration ? false : 'Set NEXA_RUN_LOCAL_API_INTEGRATION=true to use the local fixture API.',
   );
+
+  test(
+    'downloads authorized Buyer document content independently of request submission',
+    () async {
+      final environment = Platform.environment;
+      final identifier = environment['NEXA_DEV_BUYER_EMAIL'];
+      final password = environment['NEXA_DEV_BUYER_PASSWORD'];
+      final tenantSlug = environment['NEXA_DEV_TENANT_SLUG'];
+      final workspaceSlug = environment['NEXA_DEV_WORKSPACE_SLUG'];
+      expect(identifier, isNotNull);
+      expect(password, isNotNull);
+      expect(tenantSlug, isNotNull);
+      expect(workspaceSlug, isNotNull);
+
+      final origin = NexaApiOrigin.parse(_apiOrigin, allowLocalHttp: true);
+      expect(
+        {'localhost', '127.0.0.1', '::1'}.contains(origin.uri.host),
+        isTrue,
+        reason: 'This integration test must target the local Docker API.',
+      );
+
+      final api = NexaApiClient(origin: origin, httpClient: http.Client());
+      final access = BuyerAccessRepositoryImpl(api);
+      api.sessionCredentials = access;
+      try {
+        await access.signIn(identifier: identifier!, password: password!);
+        if (access.snapshot.status == BuyerAccessStatus.choosingContext) {
+          final contexts = access.snapshot.availableContexts
+              .where(
+                (context) =>
+                    context.roles.contains('BUYER') &&
+                    context.tenantSlug == tenantSlug &&
+                    context.workspaceSlug == workspaceSlug,
+              )
+              .toList(growable: false);
+          expect(contexts, hasLength(1));
+          await access.selectContext(contexts.single.membershipId);
+        }
+        final context = access.snapshot.currentContext;
+        expect(access.snapshot.isSignedIn, isTrue);
+        expect(context, isNotNull);
+        expect(context!.permissions, contains('document.read'));
+        expect(context.permissions, contains('document.download'));
+
+        final documents = await BusinessDocumentsRepositoryImpl(api)
+            .list(page: 0);
+        final downloadable = documents.items
+            .where(
+              (document) =>
+                  document.contentAvailable &&
+                  document.byteSize <= NexaApiClient.maxProtectedBinaryBytes,
+            )
+            .toList(growable: false);
+        expect(
+          downloadable,
+          isNotEmpty,
+          reason: 'The fixture must include an authorized document with available content.',
+        );
+
+        final document = downloadable.first;
+        final content = await BusinessDocumentsRepositoryImpl(api)
+            .download(document);
+        try {
+          expect(content.bytes, hasLength(document.byteSize));
+          expect(content.sha256, document.checksumSha256!.toLowerCase());
+        } finally {
+          content.clear();
+        }
+        stdout.writeln('LOCAL_API_DOCUMENT_BINARY=PASS');
+      } finally {
+        await access.signOut();
+        await access.dispose();
+        api.close();
+      }
+    },
+    skip: _runIntegration ? false : 'Set NEXA_RUN_LOCAL_API_INTEGRATION=true to use the local fixture API.',
+  );
 }
 
 final _uuidPattern = RegExp(
@@ -462,7 +603,7 @@ final class _NativeTransportAudit extends http.BaseClient {
   bool mixedAuthoritiesAbsent = true;
 
   @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) {
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final client = request.headers['X-Nexa-Client'];
     final surface = request.headers['X-Nexa-Surface'];
     final origin = request.headers['Origin'];
@@ -488,7 +629,17 @@ final class _NativeTransportAudit extends http.BaseClient {
         hasIdempotencyKey: _hasValue(request.headers['Idempotency-Key']),
       ),
     );
-    return _delegate.send(request);
+    try {
+      return await _delegate.send(request);
+    } on http.ClientException {
+      final safePath = request.url.pathSegments
+          .map((segment) => _uuidPattern.hasMatch(segment) ? '{id}' : segment)
+          .join('/');
+      stdout.writeln(
+        'LOCAL_API_HTTP_TRANSPORT_FAILURE=${request.method} /$safePath',
+      );
+      rethrow;
+    }
   }
 
   static bool _hasValue(String? value) => value != null && value.isNotEmpty;

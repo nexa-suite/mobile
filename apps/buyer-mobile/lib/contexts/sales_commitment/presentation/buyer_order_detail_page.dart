@@ -1,11 +1,61 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../tenant_access_governance/application/buyer_change_feed_repository.dart';
+import '../../../core/presentation/buyer_visible_route_poller.dart';
+import '../../../core/presentation/nexa_buyer_components.dart';
 import '../application/buyer_orders_repository.dart';
 import 'buyer_orders_view_model.dart';
 
-final class BuyerOrderDetailPage extends StatelessWidget {
+const _orderChangeEvents = {
+  'sales.sales-order.confirmed',
+  'sales.sales-order.created',
+  'resync-required',
+};
+
+final class BuyerOrderDetailPage extends StatefulWidget {
   const BuyerOrderDetailPage({super.key});
+
+  @override
+  State<BuyerOrderDetailPage> createState() => _BuyerOrderDetailPageState();
+}
+
+final class _BuyerOrderDetailPageState extends State<BuyerOrderDetailPage> {
+  GoRouter? _router;
+  BuyerVisibleRoutePoller? _poller;
+  late final BuyerOrderDetailViewModel _detail;
+
+  @override
+  void initState() {
+    super.initState();
+    _detail = context.read<BuyerOrderDetailViewModel>();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final router = GoRouter.of(context);
+    if (identical(router, _router)) return;
+    _poller?.dispose();
+    _router = router;
+    _poller = BuyerVisibleRoutePoller(
+      router: router,
+      routePath: '/orders/${Uri.encodeComponent(_detail.orderId)}',
+      onRefresh: _detail.load,
+      changes: () => context
+          .read<BuyerChangeFeedRepository>()
+          .watch(readPermission: BuyerOrdersViewModel.readPermission)
+          .where((event) => _orderChangeEvents.contains(event.type))
+          .map<void>((_) {}),
+    );
+  }
+
+  @override
+  void dispose() {
+    _poller?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +67,7 @@ final class BuyerOrderDetailPage extends StatelessWidget {
           order == null ? 'Detalle del pedido' : 'Pedido ${order.number}',
         ),
       ),
-      body: _content(context, detail, order),
+      body: SafeArea(top: false, child: _content(context, detail, order)),
     );
   }
 
@@ -26,7 +76,7 @@ final class BuyerOrderDetailPage extends StatelessWidget {
     BuyerOrderDetailViewModel detail,
     BuyerOrderProjection? order,
   ) {
-    if (detail.status == BuyerOrderDetailStatus.loading ||
+    if ((detail.status == BuyerOrderDetailStatus.loading && order == null) ||
         (detail.status == BuyerOrderDetailStatus.current && order == null)) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -42,10 +92,11 @@ final class BuyerOrderDetailPage extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
-              OutlinedButton(
-                onPressed: detail.load,
-                child: const Text('Volver a consultar'),
-              ),
+              if (detail.status != BuyerOrderDetailStatus.permissionDenied)
+                OutlinedButton(
+                  onPressed: detail.load,
+                  child: const Text('Volver a consultar'),
+                ),
             ],
           ),
         ),
@@ -53,31 +104,74 @@ final class BuyerOrderDetailPage extends StatelessWidget {
     }
     return RefreshIndicator(
       onRefresh: detail.load,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(
-            'Pedido ${order.number}',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 8),
-          Text('Estado: ${_detailStatus(order.status)}'),
-          if (order.createdAt != null) Text(_detailDate(order.createdAt!)),
-          if (order.requestedDeliveryDate != null)
-            Text('Entrega solicitada: ${order.requestedDeliveryDate}'),
-          if (order.total != null && order.currency != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Total ${order.total} ${order.currency}',
-              style: Theme.of(context).textTheme.titleMedium,
+      child: NexaPageWidth(
+        padding: EdgeInsets.zero,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            if (detail.status == BuyerOrderDetailStatus.loading)
+              const LinearProgressIndicator(),
+            if (detail.status == BuyerOrderDetailStatus.unavailable &&
+                detail.message != null)
+              MaterialBanner(
+                content: Text(detail.message!),
+                actions: [
+                  TextButton(
+                    onPressed: detail.load,
+                    child: const Text('Volver a consultar'),
+                  ),
+                ],
+              ),
+            NexaPageWidth(
+              padding: EdgeInsets.zero,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  NexaPageIntro(
+                    title: 'Pedido ${order.number}',
+                    description: 'Información actual de este pedido.',
+                    icon: Icons.receipt_long_outlined,
+                  ),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          NexaStatusBadge(order.status),
+                          if (order.createdAt != null)
+                            NexaFactTile(
+                              label: 'Creado',
+                              value: _detailDate(order.createdAt!),
+                            ),
+                          if (order.requestedDeliveryDate != null)
+                            NexaFactTile(
+                              label: 'Entrega solicitada',
+                              value: order.requestedDeliveryDate!,
+                            ),
+                          if (order.total != null && order.currency != null)
+                            NexaFactTile(
+                              label: 'Total',
+                              value: '${order.total} ${order.currency}',
+                              emphasis: true,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Productos',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  for (final line in order.lines) _OrderLineCard(line: line),
+                ],
+              ),
             ),
           ],
-          const SizedBox(height: 20),
-          Text('Productos', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          for (final line in order.lines) _OrderLineCard(line: line),
-        ],
+        ),
       ),
     );
   }
@@ -112,13 +206,10 @@ final class _OrderLineCard extends StatelessWidget {
   }
 }
 
-String _detailStatus(String status) =>
-    status.replaceAll('_', ' ').toLowerCase();
-
 String _detailDate(String value) {
   final date = DateTime.tryParse(value)?.toLocal();
   if (date == null) return 'Fecha registrada';
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
-  return 'Creado el $day/$month/${date.year}';
+  return '$day/$month/${date.year}';
 }

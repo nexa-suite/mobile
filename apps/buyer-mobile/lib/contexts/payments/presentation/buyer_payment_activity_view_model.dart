@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../../core/network/nexa_api_client.dart';
+import '../../../core/application/error/nexa_api_failure.dart';
 import '../../tenant_access_governance/application/buyer_access_repository.dart';
 import '../application/buyer_payments_repository.dart';
 import '../application/payment_report_idempotency_store.dart';

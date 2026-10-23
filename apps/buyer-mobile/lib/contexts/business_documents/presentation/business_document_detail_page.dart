@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/presentation/nexa_buyer_components.dart';
 import '../application/business_documents_repository.dart';
 import 'business_documents_view_model.dart';
 
@@ -14,150 +15,166 @@ final class BusinessDocumentDetailPage extends StatelessWidget {
     if (document == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Documento')),
-        body: switch (viewModel.status) {
-          BusinessDocumentDetailStatus.loading => const Center(
-            child: CircularProgressIndicator(),
-          ),
-          BusinessDocumentDetailStatus.permissionDenied ||
-          BusinessDocumentDetailStatus.unavailable => _DocumentDetailMessage(
-            message: viewModel.message ?? 'Este documento no está disponible.',
-            onRetry:
-                viewModel.status == BusinessDocumentDetailStatus.unavailable
-                ? viewModel.load
-                : null,
-          ),
-          BusinessDocumentDetailStatus.current => const SizedBox.shrink(),
-        },
+        body: SafeArea(
+          top: false,
+          child: switch (viewModel.status) {
+            BusinessDocumentDetailStatus.loading => const Center(
+              child: CircularProgressIndicator(),
+            ),
+            BusinessDocumentDetailStatus.permissionDenied ||
+            BusinessDocumentDetailStatus.unavailable => _DocumentDetailMessage(
+              message:
+                  viewModel.message ?? 'Este documento no está disponible.',
+              onRetry:
+                  viewModel.status == BusinessDocumentDetailStatus.unavailable
+                  ? viewModel.load
+                  : null,
+            ),
+            BusinessDocumentDetailStatus.current => const SizedBox.shrink(),
+          },
+        ),
       );
     }
 
     return Scaffold(
       appBar: AppBar(title: Text(document.documentNumber ?? 'Documento')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    document.documentType,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  _Metadata(label: 'Estado', value: document.status),
-                  _Metadata(label: 'Formato', value: document.format),
-                  _Metadata(label: 'Versión', value: '${document.version}'),
-                  _Metadata(
-                    label: 'Tamaño',
-                    value: _byteSize(document.byteSize),
-                  ),
-                  _Metadata(
-                    label: 'Asunto',
-                    value: '${document.subjectType} · ${document.subjectId}',
-                  ),
-                  _Metadata(
-                    label: 'Creado',
-                    value: _dateLabel(document.createdAt),
-                  ),
-                  if (document.generatedAt != null)
-                    _Metadata(
-                      label: 'Generado',
-                      value: _dateLabel(document.generatedAt!),
-                    ),
-                  if (document.checksumSha256 != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      'SHA-256',
-                      style: Theme.of(context).textTheme.labelLarge,
-                    ),
-                    const SizedBox(height: 4),
-                    SelectableText(
-                      document.checksumSha256!,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ],
+      body: SafeArea(
+        top: false,
+        child: NexaPageWidth(
+          padding: EdgeInsets.zero,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              NexaPageIntro(
+                title: document.documentNumber ?? 'Documento',
+                description: 'Contenido y metadatos del documento.',
+                icon: Icons.description_outlined,
               ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (viewModel.canDownload)
-            FilledButton.icon(
-              onPressed:
-                  viewModel.downloadStatus ==
-                      BusinessDocumentDownloadStatus.loading
-                  ? null
-                  : viewModel.download,
-              icon:
-                  viewModel.downloadStatus ==
-                      BusinessDocumentDownloadStatus.loading
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.download_outlined),
-              label: Text(
-                viewModel.downloadStatus ==
-                        BusinessDocumentDownloadStatus.loading
-                    ? 'Verificando contenido…'
-                    : 'Cargar contenido protegido',
-              ),
-            )
-          else
-            _AvailabilityMessage(document: document, viewModel: viewModel),
-          if (viewModel.downloadStatus ==
-                  BusinessDocumentDownloadStatus.permissionDenied ||
-              viewModel.downloadStatus ==
-                  BusinessDocumentDownloadStatus.unavailable)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Text(
-                viewModel.message ?? 'No se pudo verificar el contenido.',
-                textAlign: TextAlign.center,
-              ),
-            ),
-          if (viewModel.content case final content?) ...[
-            const SizedBox(height: 16),
-            Card(
-              color: Theme.of(context).colorScheme.primaryContainer,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.verified_outlined),
-                        SizedBox(width: 8),
-                        Expanded(child: Text('Contenido verificado')),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${content.bytes.length} bytes · SHA-256 ${content.sha256}',
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'El contenido permanece solo en la memoria de esta vista. '
-                      'No se guardó en el dispositivo.',
-                    ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        onPressed: viewModel.discardContent,
-                        icon: const Icon(Icons.delete_outline),
-                        label: const Text('Descartar contenido'),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        document.documentType,
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      NexaStatusBadge(document.status),
+                      _Metadata(label: 'Formato', value: document.format),
+                      _Metadata(label: 'Versión', value: '${document.version}'),
+                      _Metadata(
+                        label: 'Tamaño',
+                        value: _byteSize(document.byteSize),
+                      ),
+                      _Metadata(
+                        label: 'Asunto',
+                        value:
+                            '${document.subjectType} · ${document.subjectId}',
+                      ),
+                      _Metadata(
+                        label: 'Creado',
+                        value: _dateLabel(document.createdAt),
+                      ),
+                      if (document.generatedAt != null)
+                        _Metadata(
+                          label: 'Generado',
+                          value: _dateLabel(document.generatedAt!),
+                        ),
+                      if (document.checksumSha256 != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          'SHA-256',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        const SizedBox(height: 4),
+                        SelectableText(
+                          document.checksumSha256!,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
-        ],
+              const SizedBox(height: 16),
+              if (viewModel.canDownload)
+                FilledButton.icon(
+                  onPressed:
+                      viewModel.downloadStatus ==
+                          BusinessDocumentDownloadStatus.loading
+                      ? null
+                      : viewModel.download,
+                  icon:
+                      viewModel.downloadStatus ==
+                          BusinessDocumentDownloadStatus.loading
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.download_outlined),
+                  label: Text(
+                    viewModel.downloadStatus ==
+                            BusinessDocumentDownloadStatus.loading
+                        ? 'Verificando contenido…'
+                        : 'Cargar contenido protegido',
+                  ),
+                )
+              else
+                _AvailabilityMessage(document: document, viewModel: viewModel),
+              if (viewModel.downloadStatus ==
+                      BusinessDocumentDownloadStatus.permissionDenied ||
+                  viewModel.downloadStatus ==
+                      BusinessDocumentDownloadStatus.unavailable)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(
+                    viewModel.message ?? 'No se pudo verificar el contenido.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              if (viewModel.content case final content?) ...[
+                const SizedBox(height: 16),
+                Card(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.verified_outlined),
+                            SizedBox(width: 8),
+                            Expanded(child: Text('Contenido verificado')),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${content.bytes.length} bytes · SHA-256 ${content.sha256}',
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'El contenido permanece solo en la memoria de esta vista. '
+                          'No se guardó en el dispositivo.',
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: viewModel.discardContent,
+                            icon: const Icon(Icons.delete_outline),
+                            label: const Text('Descartar contenido'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

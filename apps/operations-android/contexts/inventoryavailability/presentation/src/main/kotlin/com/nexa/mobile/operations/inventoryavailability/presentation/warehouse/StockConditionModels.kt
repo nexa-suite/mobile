@@ -4,6 +4,8 @@ import androidx.compose.runtime.Immutable
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockConditionAvailability
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockConditionLot
 import java.time.Instant
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 enum class StockConditionStatus {
     Initial,
@@ -53,7 +55,8 @@ data class StockConditionUiState(
     val detailObservedAt: Instant? = null,
     val availability: StockConditionAvailability? = null,
     val availabilityStatus: StockConditionAvailabilityStatus =
-        StockConditionAvailabilityStatus.NotRequested
+        StockConditionAvailabilityStatus.NotRequested,
+    val stockConditionChangeSignals: Flow<Unit> = emptyFlow()
 ) {
     override fun toString(): String = "StockConditionUiState(status=$status, lots=${lots.size}, " +
         "detailStatus=$detailStatus, availabilityStatus=$availabilityStatus, " +

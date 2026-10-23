@@ -18,12 +18,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,6 +36,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.WarehouseCatalogFilterChoice
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.WarehouseCatalogFilterKind
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.CatalogOperationsContext
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
@@ -61,8 +67,27 @@ fun ProductSearchScreen(
     onQueryChanged: (String) -> Unit,
     onSearch: () -> Unit,
     onLoadMore: () -> Unit,
+    onOpenFilterOptions: (WarehouseCatalogFilterKind) -> Unit,
+    onCloseFilterOptions: () -> Unit,
+    onFilterSearchChanged: (String) -> Unit,
+    onLoadFilterOptions: () -> Unit,
+    onLoadMoreFilterOptions: () -> Unit,
+    onRetryFilterOptions: () -> Unit,
+    onSelectFilter: (WarehouseCatalogFilterKind, WarehouseCatalogFilterChoice?) -> Unit,
     onSelectCandidate: (String) -> Unit
 ) {
+    state.filterKind?.let { kind ->
+        WarehouseCatalogFilterDialog(
+            state = state,
+            kind = kind,
+            onClose = onCloseFilterOptions,
+            onSearchChanged = onFilterSearchChanged,
+            onSearch = onLoadFilterOptions,
+            onLoadMore = onLoadMoreFilterOptions,
+            onRetry = onRetryFilterOptions,
+            onSelect = onSelectFilter
+        )
+    }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -89,7 +114,8 @@ fun ProductSearchScreen(
             ProductSearchQuerySection(
                 state = state,
                 onQueryChanged = onQueryChanged,
-                onSearch = onSearch
+                onSearch = onSearch,
+                onOpenFilterOptions = onOpenFilterOptions
             )
             ProductSearchResultsSection(
                 state = state,
@@ -419,7 +445,8 @@ private fun WarehouseSurfaceHeader(
 private fun ProductSearchQuerySection(
     state: ProductSearchUiState,
     onQueryChanged: (String) -> Unit,
-    onSearch: () -> Unit
+    onSearch: () -> Unit,
+    onOpenFilterOptions: (WarehouseCatalogFilterKind) -> Unit
 ) {
     Text(
         stringResource(R.string.warehouse_search_title),
@@ -447,6 +474,26 @@ private fun ProductSearchQuerySection(
         },
         onImeSearch = onSearch
     )
+    OutlinedButton(
+        onClick = { onOpenFilterOptions(WarehouseCatalogFilterKind.Brand) },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            state.brand?.let {
+                stringResource(R.string.warehouse_filter_brand_value, it.name)
+            } ?: stringResource(R.string.warehouse_filter_brand)
+        )
+    }
+    OutlinedButton(
+        onClick = { onOpenFilterOptions(WarehouseCatalogFilterKind.Category) },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            state.category?.let {
+                stringResource(R.string.warehouse_filter_category_value, it.name)
+            } ?: stringResource(R.string.warehouse_filter_category)
+        )
+    }
     NexaPrimaryButton(
         label = stringResource(
             com.nexa.mobile.operations.core.designsystem.R.string.nexa_search_button
@@ -454,6 +501,128 @@ private fun ProductSearchQuerySection(
         onClick = onSearch,
         loading = state.status == ProductSearchStatus.Loading
     )
+}
+
+@Composable
+private fun WarehouseCatalogFilterDialog(
+    state: ProductSearchUiState,
+    kind: WarehouseCatalogFilterKind,
+    onClose: () -> Unit,
+    onSearchChanged: (String) -> Unit,
+    onSearch: () -> Unit,
+    onLoadMore: () -> Unit,
+    onRetry: () -> Unit,
+    onSelect: (WarehouseCatalogFilterKind, WarehouseCatalogFilterChoice?) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = {
+            Text(
+                stringResource(
+                    if (kind == WarehouseCatalogFilterKind.Brand) {
+                        R.string.warehouse_filter_brand
+                    } else {
+                        R.string.warehouse_filter_category
+                    }
+                )
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = state.filterSearch,
+                    onValueChange = onSearchChanged,
+                    label = { Text(stringResource(R.string.warehouse_filter_search)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Button(
+                    onClick = onSearch,
+                    enabled = state.filterStatus !in setOf(
+                        ProductFilterStatus.Loading,
+                        ProductFilterStatus.LoadingMore
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.warehouse_filter_search_action))
+                }
+                WarehouseFilterStatus(state.filterStatus)
+                TextButton(onClick = { onSelect(kind, null) }) {
+                    Text(stringResource(R.string.warehouse_filter_all))
+                }
+                state.filterOptions.forEach { option ->
+                    TextButton(
+                        onClick = { onSelect(kind, option) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(option.name)
+                    }
+                }
+                if (state.filterStatus == ProductFilterStatus.LoadingMore) {
+                    CircularProgressIndicator()
+                }
+                if (state.nextFilterPage != null &&
+                    state.filterStatus in setOf(
+                        ProductFilterStatus.Ready,
+                        ProductFilterStatus.Empty,
+                        ProductFilterStatus.LoadMoreFailed
+                    )
+                ) {
+                    TextButton(onClick = onLoadMore) {
+                        Text(stringResource(R.string.warehouse_filter_more))
+                    }
+                }
+                if (state.filterStatus in setOf(
+                        ProductFilterStatus.NetworkUnavailable,
+                        ProductFilterStatus.ServiceUnavailable,
+                        ProductFilterStatus.LoadMoreFailed
+                    )
+                ) {
+                    TextButton(onClick = onRetry) {
+                        Text(stringResource(R.string.warehouse_filter_retry))
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onClose) {
+                Text(stringResource(R.string.warehouse_filter_close))
+            }
+        }
+    )
+}
+
+@Composable
+private fun WarehouseFilterStatus(status: ProductFilterStatus) {
+    val message = when (status) {
+        ProductFilterStatus.Idle -> R.string.warehouse_filter_idle
+
+        ProductFilterStatus.Loading, ProductFilterStatus.LoadingMore ->
+            R.string.warehouse_filter_loading
+
+        ProductFilterStatus.Ready -> R.string.warehouse_filter_ready
+
+        ProductFilterStatus.Empty -> R.string.warehouse_filter_empty
+
+        ProductFilterStatus.LoadMoreFailed -> R.string.warehouse_filter_load_more_failed
+
+        ProductFilterStatus.InvalidQuery -> R.string.warehouse_filter_invalid
+
+        ProductFilterStatus.NetworkUnavailable -> R.string.warehouse_filter_network
+
+        ProductFilterStatus.ServiceUnavailable -> R.string.warehouse_filter_service
+
+        ProductFilterStatus.PermissionDenied -> R.string.warehouse_filter_permission
+
+        ProductFilterStatus.ContextInvalidated -> R.string.warehouse_context_error
+
+        ProductFilterStatus.SessionInvalidated -> R.string.warehouse_session_error
+    }
+    Text(stringResource(message), style = MaterialTheme.typography.bodySmall)
 }
 
 @Composable

@@ -3,6 +3,7 @@ package com.nexa.mobile.operations.core.designsystem
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
@@ -119,6 +120,23 @@ private val NexaLightColors = lightColorScheme(
     primaryContainer = NexaColors.PrimaryContainer,
     onPrimaryContainer = NexaColors.OnPrimaryContainer,
     secondary = NexaColors.TextSecondary,
+    secondaryContainer = NexaColors.SurfaceInset,
+    onSecondaryContainer = NexaColors.TextPrimary,
+    tertiary = NexaColors.Info,
+    onTertiary = NexaColors.OnPrimary,
+    tertiaryContainer = NexaColors.InfoSurface,
+    onTertiaryContainer = NexaColors.Info,
+    inversePrimary = NexaColors.PrimaryContainer,
+    inverseSurface = NexaColors.TextPrimary,
+    inverseOnSurface = NexaColors.Surface,
+    surfaceTint = NexaColors.Primary,
+    surfaceDim = NexaColors.SurfaceInset,
+    surfaceBright = NexaColors.Surface,
+    surfaceContainerLowest = NexaColors.Surface,
+    surfaceContainerLow = NexaColors.Surface,
+    surfaceContainer = NexaColors.SurfaceInset,
+    surfaceContainerHigh = NexaColors.SurfaceInset,
+    surfaceContainerHighest = NexaColors.SurfaceInset,
     onSecondary = NexaColors.OnPrimary,
     background = NexaColors.Canvas,
     onBackground = NexaColors.TextPrimary,
@@ -240,6 +258,13 @@ fun OperationsTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = NexaLightColors,
         typography = NexaTypography.material,
+        shapes = Shapes(
+            extraSmall = NexaShapes.control,
+            small = NexaShapes.control,
+            medium = NexaShapes.button,
+            large = NexaShapes.card,
+            extraLarge = NexaShapes.dialog
+        ),
         content = {
             Surface(
                 modifier = Modifier.fillMaxSize(),

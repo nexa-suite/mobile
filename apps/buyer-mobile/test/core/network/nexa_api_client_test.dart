@@ -117,6 +117,99 @@ void main() {
   );
 
   test(
+    'refreshes a multipart evidence upload without changing its key',
+    () async {
+      final credentials = _FakeCredentials('old-access')..authorityEpoch = 3;
+      final requests = <http.Request>[];
+      final client = NexaApiClient(
+        origin: NexaApiOrigin.parse(
+          'https://api.nexa.example',
+          allowLocalHttp: false,
+        ),
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          if (requests.length == 1) return http.Response('{}', 401);
+          return http.Response('{"lifecycleStatus":"QUARANTINED"}', 201);
+        }),
+      )..sessionCredentials = credentials;
+
+      final response = await client.postMultipart(
+        path: '/business-document-evidence',
+        fields: const {
+          'subjectType': 'BUYER_RECEIPT',
+          'subjectId': 'receipt-id',
+        },
+        fieldName: 'file',
+        filename: 'receipt.png',
+        contentType: 'image/png',
+        bytes: const [1, 2, 3],
+        idempotencyKey: 'retry-key',
+        refreshAfterUnauthorized: true,
+      );
+
+      expect(response.body['lifecycleStatus'], 'QUARANTINED');
+      expect(requests, hasLength(2));
+      expect(_headers(requests[0])['authorization'], 'Bearer old-access');
+      expect(_headers(requests[1])['authorization'], 'Bearer new-access');
+      expect(_headers(requests[0])['idempotency-key'], 'retry-key');
+      expect(_headers(requests[1])['idempotency-key'], 'retry-key');
+      expect(
+        _normalizedMultipartBody(requests[0]),
+        _normalizedMultipartBody(requests[1]),
+      );
+      expect(credentials.refreshCount, 1);
+      client.close();
+    },
+  );
+
+  test(
+    'does not replay multipart upload after Buyer authority changes',
+    () async {
+      final credentials = _FakeCredentials('old-access')..authorityEpoch = 4;
+      var requestCount = 0;
+      final client = NexaApiClient(
+        origin: NexaApiOrigin.parse(
+          'https://api.nexa.example',
+          allowLocalHttp: false,
+        ),
+        httpClient: MockClient((_) async {
+          requestCount++;
+          credentials.authorityEpoch++;
+          credentials.replaceAccessToken('replacement-access');
+          return http.Response('{}', 401);
+        }),
+      )..sessionCredentials = credentials;
+
+      await expectLater(
+        client.postMultipart(
+          path: '/business-document-evidence',
+          fields: const {
+            'subjectType': 'BUYER_RECEIPT',
+            'subjectId': 'receipt-id',
+          },
+          fieldName: 'file',
+          filename: 'receipt.png',
+          contentType: 'image/png',
+          bytes: const [1],
+          idempotencyKey: 'retry-key',
+          refreshAfterUnauthorized: true,
+        ),
+        throwsA(
+          isA<NexaApiFailure>().having(
+            (failure) => failure.code,
+            'code',
+            'authority_changed',
+          ),
+        ),
+      );
+
+      expect(requestCount, 1);
+      expect(credentials.refreshCount, 0);
+      client.close();
+    },
+  );
+
+  test(
     'does not replay an old request under a replacement authority',
     () async {
       final credentials = _FakeCredentials('old-access');
@@ -268,6 +361,12 @@ Map<String, String> _headers(http.BaseRequest request) => {
   for (final entry in request.headers.entries)
     entry.key.toLowerCase(): entry.value,
 };
+
+String _normalizedMultipartBody(http.Request request) {
+  final contentType = _headers(request)['content-type']!;
+  final boundary = RegExp(r'boundary=(.+)$').firstMatch(contentType)!.group(1)!;
+  return request.body.replaceAll(boundary, '<boundary>');
+}
 
 final class _FakeCredentials implements SessionCredentialProvider {
   _FakeCredentials(this._accessToken);

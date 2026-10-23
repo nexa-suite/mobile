@@ -28,6 +28,14 @@ enum class AccessNotice {
     NoContexts
 }
 
+enum class PasswordRecoveryStatus {
+    Idle,
+    Sending,
+    Sent,
+    RateLimited,
+    Failed
+}
+
 enum class ContextChooserMode { Initial, Change }
 
 enum class ContextChooserPhase {
@@ -63,6 +71,9 @@ data class AccessUiState(
     val stage: AccessStage = AccessStage.IdentityRequired,
     val identifierError: Boolean = false,
     val passwordError: Boolean = false,
+    val recoveryEmail: String = "",
+    val recoveryEmailError: Boolean = false,
+    val recoveryStatus: PasswordRecoveryStatus = PasswordRecoveryStatus.Idle,
     val notice: AccessNotice? = null,
     val chooser: ContextChooserUiState? = null,
     val activeContext: WorkforceContextSummary? = null,

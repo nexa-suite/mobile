@@ -24,19 +24,131 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.nexa.mobile.operations.core.designsystem.NexaFeedbackBanner
+import com.nexa.mobile.operations.core.designsystem.NexaFeedbackTone
+import com.nexa.mobile.operations.core.designsystem.NexaPrimaryButton
+import com.nexa.mobile.operations.core.designsystem.NexaWorkSection
+import com.nexa.mobile.operations.core.designsystem.NexaWorkSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliverySnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeKind
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.launch
+
+@OptIn(FlowPreview::class)
+@Composable
+private fun DriverDeliveryAutoRefresh(
+    state: DriverDeliveryUiState,
+    onRefresh: () -> Unit,
+    enabled: Boolean
+) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var isResumed by remember(lifecycleOwner) {
+        mutableStateOf(
+            lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        )
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> isResumed = true
+
+                Lifecycle.Event.ON_PAUSE,
+                Lifecycle.Event.ON_STOP,
+                Lifecycle.Event.ON_DESTROY -> isResumed = false
+
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val latestState = rememberUpdatedState(state)
+    val refreshAction = rememberUpdatedState(onRefresh)
+    val authorityEpoch = state.authorityEpoch
+    val changeFeedSignals = state.changeFeedSignals
+    LaunchedEffect(lifecycleOwner, isResumed, authorityEpoch, enabled, changeFeedSignals) {
+        if (!isResumed || !enabled || authorityEpoch <= 0) return@LaunchedEffect
+        launch {
+            changeFeedSignals.debounce(CHANGE_FEED_COALESCE_MILLIS).collect {
+                while (true) {
+                    val current = latestState.value
+                    if (current.authorityEpoch != authorityEpoch || !current.canRead ||
+                        current.selectedDelivery != null
+                    ) {
+                        return@collect
+                    }
+                    if (current.listStatus == DriverDeliveryLoadStatus.Loading) {
+                        delay(CHANGE_FEED_LOADING_RECHECK_MILLIS)
+                        continue
+                    }
+                    if (current.commandStatus in DRIVER_DELIVERY_REFRESH_BLOCKING_COMMANDS ||
+                        current.listStatus !in DRIVER_DELIVERY_REFRESHABLE_STATUSES
+                    ) {
+                        return@collect
+                    }
+                    refreshAction.value()
+                    return@collect
+                }
+            }
+        }
+        while (true) {
+            delay(DRIVER_DELIVERY_REFRESH_INTERVAL_MILLIS)
+            if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                return@LaunchedEffect
+            }
+            val current = latestState.value
+            if (current.authorityEpoch != authorityEpoch || !current.canRead ||
+                current.selectedDelivery != null
+            ) {
+                return@LaunchedEffect
+            }
+            if (current.listStatus == DriverDeliveryLoadStatus.Loading ||
+                current.commandStatus in DRIVER_DELIVERY_REFRESH_BLOCKING_COMMANDS
+            ) {
+                continue
+            }
+            if (current.listStatus !in DRIVER_DELIVERY_REFRESHABLE_STATUSES) {
+                return@LaunchedEffect
+            }
+            refreshAction.value()
+        }
+    }
+}
+
+private const val DRIVER_DELIVERY_REFRESH_INTERVAL_MILLIS = 15_000L
+private const val CHANGE_FEED_COALESCE_MILLIS = 250L
+private const val CHANGE_FEED_LOADING_RECHECK_MILLIS = 100L
+private val DRIVER_DELIVERY_REFRESHABLE_STATUSES = setOf(
+    DriverDeliveryLoadStatus.Ready,
+    DriverDeliveryLoadStatus.NetworkUnavailable,
+    DriverDeliveryLoadStatus.ServiceUnavailable
+)
+private val DRIVER_DELIVERY_REFRESH_BLOCKING_COMMANDS = setOf(
+    DriverDeliveryCommandStatus.CheckingCurrent,
+    DriverDeliveryCommandStatus.Pending,
+    DriverDeliveryCommandStatus.UnknownOutcome
+)
 
 @Composable
 fun DriverDeliveryScreen(
@@ -66,9 +178,18 @@ fun DriverDeliveryScreen(
     onOpenOperationalExceptions: ((String) -> Unit)? = null,
     onOpenExecutionTemperature: ((String) -> Unit)? = null,
     onOpenIncident: ((String, String, Long, Boolean) -> Unit)? = null,
-    onOpenHandoffCode: ((String, String, Long) -> Unit)? = null
+    onOpenHandoffCode: ((String, String, Long) -> Unit)? = null,
+    workdayContent: (@Composable () -> Unit)? = null
 ) {
     var navigationUnavailable by remember { mutableStateOf(false) }
+    var showDeliveryList by remember(state.selectedDelivery?.id) {
+        mutableStateOf(state.selectedDelivery == null)
+    }
+    DriverDeliveryAutoRefresh(
+        state = state,
+        onRefresh = onRefresh,
+        enabled = showDeliveryList && state.selectedDelivery == null
+    )
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
             modifier = Modifier
@@ -80,16 +201,11 @@ fun DriverDeliveryScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             TextButton(onClick = onBack) { Text(stringResource(R.string.driver_delivery_back)) }
-            Text(
-                text = stringResource(R.string.driver_delivery_title),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold
+            NexaWorkSummary(
+                title = stringResource(R.string.driver_delivery_title),
+                description = stringResource(R.string.driver_work_support)
             )
-            Text(
-                stringResource(R.string.driver_delivery_authority_note),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            workdayContent?.invoke()
             if (!state.canRead) {
                 Notice(stringResource(R.string.driver_delivery_read_permission), isError = true)
             }
@@ -138,37 +254,63 @@ fun DriverDeliveryScreen(
                 DriverDeliveryLoadStatus.Ready -> Unit
             }
 
-            OutlinedButton(onClick = onRefresh, enabled = state.canRead) {
+            OutlinedButton(
+                onClick = onRefresh,
+                enabled = state.canRead &&
+                    state.listStatus != DriverDeliveryLoadStatus.Loading
+            ) {
                 Text(stringResource(R.string.driver_delivery_refresh))
             }
 
             if (state.listStatus == DriverDeliveryLoadStatus.Ready && state.deliveries.isEmpty()) {
                 Notice(stringResource(R.string.driver_delivery_empty))
             }
-            state.deliveries.forEach { delivery ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = state.commandStatus !in FROZEN_COMMANDS) {
-                            onSelectDelivery(delivery.id)
-                        }
-                ) {
-                    Column(
-                        Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            delivery.destination
-                                ?: stringResource(R.string.driver_delivery_destination_unknown)
+            if (state.selectedDelivery != null && state.deliveries.size > 1) {
+                TextButton(onClick = { showDeliveryList = !showDeliveryList }) {
+                    Text(
+                        stringResource(
+                            if (showDeliveryList) {
+                                R.string.driver_delivery_hide_list
+                            } else {
+                                R.string.driver_delivery_change_selection
+                            }
                         )
-                        Text(stringResource(R.string.driver_delivery_status, delivery.status))
-                        delivery.activeAttempt?.let { attempt ->
+                    )
+                }
+            }
+            if (showDeliveryList && state.deliveries.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.driver_work_assigned),
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+            if (showDeliveryList) {
+                state.deliveries.forEach { delivery ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = state.commandStatus !in FROZEN_COMMANDS) {
+                                onSelectDelivery(delivery.id)
+                            }
+                    ) {
+                        Column(
+                            Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                             Text(
-                                stringResource(
-                                    R.string.driver_delivery_active_attempt,
-                                    attempt.attemptNumber
-                                )
+                                delivery.destination
+                                    ?: stringResource(R.string.driver_delivery_destination_unknown),
+                                style = MaterialTheme.typography.titleMedium
                             )
+                            Text(stringResource(R.string.driver_delivery_status, delivery.status))
+                            delivery.activeAttempt?.let { attempt ->
+                                Text(
+                                    stringResource(
+                                        R.string.driver_delivery_active_attempt,
+                                        attempt.attemptNumber
+                                    )
+                                )
+                            }
                         }
                     }
                 }
@@ -270,19 +412,25 @@ fun DriverDeliveryScreen(
             }
 
             state.selectedDelivery?.let { delivery ->
-                Text(
-                    stringResource(R.string.driver_delivery_detail_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    delivery.destination
-                        ?: stringResource(R.string.driver_delivery_destination_unknown)
-                )
-                Text(stringResource(R.string.driver_delivery_status, delivery.status))
-                delivery.scheduledAt?.let {
-                    Text(stringResource(R.string.driver_delivery_scheduled, it))
+                NexaWorkSummary(
+                    title = delivery.destination
+                        ?: stringResource(R.string.driver_delivery_destination_unknown),
+                    description = stringResource(R.string.driver_delivery_status, delivery.status)
+                ) {
+                    delivery.scheduledAt?.let {
+                        Text(stringResource(R.string.driver_delivery_scheduled, it))
+                    }
                 }
+                Text(
+                    stringResource(
+                        if (delivery.activeAttempt == null) {
+                            R.string.driver_delivery_detail_title
+                        } else {
+                            R.string.driver_work_execution
+                        }
+                    ),
+                    style = MaterialTheme.typography.titleMedium
+                )
                 if (onOpenInstructions != null &&
                     state.authorizedInstructionsDeliveryId == delivery.id
                 ) {
@@ -454,9 +602,9 @@ fun DriverDeliveryScreen(
                             Text(stringResource(R.string.driver_delivery_arrival_signal))
                         }
                     }
-                    Notice(stringResource(R.string.driver_delivery_location_sharing_unavailable))
-                    Notice(stringResource(R.string.driver_delivery_contact_unavailable))
-                    Notice(stringResource(R.string.driver_delivery_handoff_code_unavailable))
+                    if (onOpenHandoffCode == null) {
+                        Notice(stringResource(R.string.driver_delivery_handoff_code_unavailable))
+                    }
                     if (delivery.outcomeLines.isNotEmpty()) {
                         Text(
                             stringResource(R.string.driver_delivery_quantities_title),
@@ -478,11 +626,13 @@ fun DriverDeliveryScreen(
                             }
                         }
                     }
-                    OutcomeEntry(
-                        delivery = delivery,
-                        state = state,
-                        onRecordOutcome = onRecordOutcome
-                    )
+                    NexaWorkSection(stringResource(R.string.driver_work_evidence)) {
+                        OutcomeEntry(
+                            delivery = delivery,
+                            state = state,
+                            onRecordOutcome = onRecordOutcome
+                        )
+                    }
                 }
                 val activeAttempt = delivery.activeAttempt
                 if (onOpenHandoffCode != null && activeAttempt != null) {
@@ -502,7 +652,7 @@ fun DriverDeliveryScreen(
                                     DriverOutcomeCommandStatus.UnknownOutcome
                                 )
                     ) {
-                        Text("Presentar código de entrega")
+                        Text(stringResource(R.string.driver_work_handoff))
                     }
                 }
                 val incidentAttemptId = delivery.activeAttempt?.id ?: state.outcomeSummary
@@ -530,7 +680,7 @@ fun DriverDeliveryScreen(
                                     DriverOutcomeCommandStatus.UnknownOutcome
                                 )
                     ) {
-                        Text("Registrar incidente para revisión")
+                        Text(stringResource(R.string.driver_work_incident))
                     }
                 }
                 if (delivery.status == "DELIVERED" || state.proofId != null) {
@@ -636,13 +786,12 @@ fun DriverDeliveryScreen(
                         DriverDeliveryCommandStatus.StaleVersion
                     )
                 ) {
-                    Button(
+                    NexaPrimaryButton(
+                        label = stringResource(R.string.driver_delivery_begin),
                         onClick = onBeginDelivery,
                         enabled =
                             state.canStart && state.detailStatus == DriverDeliveryLoadStatus.Ready
-                    ) {
-                        Text(stringResource(R.string.driver_delivery_begin))
-                    }
+                    )
                 }
             }
         }
@@ -914,14 +1063,9 @@ private fun DriverOutcomeKind.label(): Int = when (this) {
 
 @Composable
 private fun Notice(text: String, isError: Boolean = false) {
-    Text(
-        text = text,
-        color = if (isError) {
-            MaterialTheme.colorScheme.error
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        },
-        style = MaterialTheme.typography.bodyMedium
+    NexaFeedbackBanner(
+        message = text,
+        tone = if (isError) NexaFeedbackTone.Error else NexaFeedbackTone.Information
     )
 }
 

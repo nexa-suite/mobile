@@ -101,6 +101,32 @@ tasks.register("verifyAndroidArchitecture") {
                             "\"/api/v1/catalog/products\"",
                             "\"<operations-catalog-read-route>\""
                         )
+                    } else if (source.name == "NexaDirectOrderGateway.kt") {
+                        val authorizedMethods = listOf(
+                            "ProtectedMethod.GET",
+                            "ProtectedMethod.POST"
+                        )
+                        val forbiddenMethods = listOf(
+                            "ProtectedMethod.PUT",
+                            "ProtectedMethod.PATCH",
+                            "ProtectedMethod.DELETE"
+                        )
+                        check(
+                            it.contains("DIRECT_ORDER_PATH = \"/api/v1/direct-orders\"") &&
+                                it.contains("\"\$DIRECT_ORDER_PATH/delivery-policy\"")
+                        ) {
+                            "Direct orders must use their scoped Sales Commitment routes"
+                        }
+                        check(
+                            authorizedMethods.all(it::contains) &&
+                                forbiddenMethods.none(it::contains)
+                        ) {
+                            "Direct order transport must keep policy reads and authorized POST commands"
+                        }
+                        it.replace(
+                            "\"\$DIRECT_ORDER_PATH/delivery-policy\"",
+                            "\"<sales-direct-order-policy-route>\""
+                        )
                     } else if (source.name == "NexaCommercialCatalogGateway.kt") {
                         check(
                             it.contains("COMMERCIAL_CATALOG_PATH = \"/api/v1/client-accounts\"")

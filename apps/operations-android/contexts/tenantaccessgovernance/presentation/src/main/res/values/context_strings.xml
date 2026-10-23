@@ -1,6 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="access_brand_description">Nexa brand</string>
+    <string name="access_back_to_welcome">Back to welcome</string>
     <string name="access_context_loading_body">Your work will appear after an authorized context is confirmed.</string>
     <string name="access_context_loading_title">Checking work contexts</string>
     <string name="access_context_retry">Check again</string>
@@ -25,6 +26,17 @@
     <string name="access_password_hide">Hide password</string>
     <string name="access_password_label">Password</string>
     <string name="access_password_show">Show password</string>
+    <string name="access_recover_account">Forgot password?</string>
+    <string name="access_recovery_back">Back to sign in</string>
+    <string name="access_recovery_title">Recover your account</string>
+    <string name="access_recovery_support">Enter your work email. If it matches an account, we’ll send recovery instructions.</string>
+    <string name="access_recovery_email">Work email</string>
+    <string name="access_recovery_email_error">Enter a valid work email.</string>
+    <string name="access_recovery_submit">Send instructions</string>
+    <string name="access_recovery_sending">Sending instructions…</string>
+    <string name="access_recovery_sent">If the account exists, recovery instructions have been sent.</string>
+    <string name="access_recovery_rate_limited">Too many requests. Try again later.</string>
+    <string name="access_recovery_failed">Could not send instructions. Try again.</string>
     <string name="access_product_label">Operations</string>
     <string name="access_session_restoring_body">We are verifying your access before showing work information.</string>
     <string name="access_session_restoring_title">Checking your session</string>
@@ -33,6 +45,10 @@
     <string name="access_sign_in_support">Use your work identity to continue.</string>
     <string name="access_sign_in_title">Sign in</string>
     <string name="access_submit">Sign in</string>
+    <string name="access_welcome_continue">Continue</string>
+    <string name="access_welcome_illustration_description">A package moves through cold-chain handling to dispatch.</string>
+    <string name="access_welcome_support">Sign in with your work identity to continue to your Operations workspace.</string>
+    <string name="access_welcome_title">A clear start to your workday</string>
     <string name="context_back_to_work">Return to current work</string>
     <string name="context_change_support">Your current context stays available until another one is confirmed.</string>
     <string name="context_change_title">Change work context</string>

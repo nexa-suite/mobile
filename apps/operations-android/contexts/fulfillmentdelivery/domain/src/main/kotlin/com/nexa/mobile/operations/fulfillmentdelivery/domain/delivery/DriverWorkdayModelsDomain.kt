@@ -21,7 +21,20 @@ data class DriverWorkdayLocationSample(
     val longitude: Double,
     val accuracyMeters: Double,
     val capturedAt: String
-)
+) {
+    override fun toString(): String = "DriverWorkdayLocationSample(REDACTED)"
+}
+
+data class DriverLiveLocation(
+    val sampleId: String,
+    val latitude: Double,
+    val longitude: Double,
+    val accuracyMeters: Double,
+    val capturedAt: String,
+    val expiresAt: String
+) {
+    override fun toString(): String = "DriverLiveLocation(REDACTED)"
+}
 
 sealed interface DriverWorkdayLocationEvent {
     val captureId: String
@@ -30,5 +43,7 @@ sealed interface DriverWorkdayLocationEvent {
         DriverWorkdayLocationEvent
 
     data class PermissionUnavailable(override val captureId: String) : DriverWorkdayLocationEvent
+    data class NotificationUnavailable(override val captureId: String) : DriverWorkdayLocationEvent
     data class ProviderUnavailable(override val captureId: String) : DriverWorkdayLocationEvent
+    data class UserStopped(override val captureId: String) : DriverWorkdayLocationEvent
 }

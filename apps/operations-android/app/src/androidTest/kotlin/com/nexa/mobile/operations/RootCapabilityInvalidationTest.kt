@@ -9,7 +9,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.CandidateConfirmationResult
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductFilterOptionsResult
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductSearchResult
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.WarehouseCatalogFilterKind
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.warehouse.WarehouseGateway
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.CatalogOperationsContext
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
@@ -24,7 +26,9 @@ import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.VerifiedOperationsIdentity
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.VerifiedContextAuthority
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
@@ -40,13 +44,34 @@ class RootCapabilityInvalidationTest {
 
     @Test
     fun permissionLossClearsDeepRouteAndRegrantRequiresNewIdentification() {
-        val context = ActiveOperationsContext("Test Company", "Test Workspace", 4)
+        val verifiedIdentity = VerifiedOperationsIdentity(
+            userId = "user-1",
+            tenantId = "tenant-1",
+            workspaceId = "workspace-1",
+            membershipId = "membership-1",
+            permissions = setOf("inventory.read"),
+            roles = setOf("WAREHOUSE")
+        )
+        val context = ActiveOperationsContext(
+            "Test Company",
+            "Test Workspace",
+            4,
+            verifiedIdentity
+        )
         val authority = WorkforceContextSummary(
             key = "test-membership",
             companyName = context.companyName,
             workspaceName = context.workspaceName,
             permissionHint = PermissionHint.Available,
-            isCurrent = true
+            isCurrent = true,
+            verifiedAuthority = VerifiedContextAuthority(
+                userId = verifiedIdentity.userId,
+                tenantId = verifiedIdentity.tenantId,
+                workspaceId = verifiedIdentity.workspaceId,
+                membershipId = verifiedIdentity.membershipId,
+                permissions = verifiedIdentity.permissions,
+                roles = verifiedIdentity.roles
+            )
         )
         val access = mutableStateOf(
             AccessUiState(
@@ -118,9 +143,18 @@ class RootCapabilityInvalidationTest {
     private object NoRemoteCalls : WarehouseGateway {
         override suspend fun search(
             query: String,
+            brandName: String?,
+            categoryName: String?,
             pageKey: String?,
             authorityEpoch: Long
         ): ProductSearchResult = error("Navigation must not dispatch a search")
+
+        override suspend fun filterOptions(
+            kind: WarehouseCatalogFilterKind,
+            search: String,
+            page: Int,
+            authorityEpoch: Long
+        ): ProductFilterOptionsResult = error("Navigation must not load filter options")
 
         override suspend fun confirm(
             candidate: ProductCandidate,

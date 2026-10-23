@@ -8,6 +8,7 @@ import android.net.Uri
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.nexa.mobile.operations.fulfillmentdelivery.application.changefeed.OperationsChangeFeedGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverAttemptMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverOutcomeMetadataStore
@@ -15,14 +16,31 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.Drive
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.OperationsDriverDeliveryGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.delivery.JsonDeliveryRequestBodyCodec
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery.DriverDeliveryViewModel
+import java.math.BigDecimal
 import javax.inject.Inject
+
+private val driverDirectionsCoordinatesPattern =
+    Regex("(?i)^geo:(-?\\d+(?:\\.\\d+)?),(-?\\d+(?:\\.\\d+)?)$")
 
 /** Hands the server-authorized destination snapshot to an external navigation app. */
 fun launchDriverDirections(context: Context, destination: String): Boolean {
     val address = destination.trim().takeIf(String::isNotEmpty) ?: return false
+    val navigationUri = if (address.startsWith("geo:", ignoreCase = true)) {
+        val match = driverDirectionsCoordinatesPattern.matchEntire(address) ?: return false
+        val latitude = match.groupValues[1].toBigDecimalOrNull() ?: return false
+        val longitude = match.groupValues[2].toBigDecimalOrNull() ?: return false
+        if (latitude < BigDecimal.valueOf(-90) || latitude > BigDecimal.valueOf(90) ||
+            longitude < BigDecimal.valueOf(-180) || longitude > BigDecimal.valueOf(180)
+        ) {
+            return false
+        }
+        "geo:${latitude.toPlainString()},${longitude.toPlainString()}".toUri()
+    } else {
+        "geo:0,0?q=${Uri.encode(address)}".toUri()
+    }
     val navigationIntent = Intent(
         Intent.ACTION_VIEW,
-        "geo:0,0?q=${Uri.encode(address)}".toUri()
+        navigationUri
     )
     return try {
         if (navigationIntent.resolveActivity(context.packageManager) == null) return false
@@ -40,6 +58,7 @@ fun launchDriverDirections(context: Context, destination: String): Boolean {
 /** Integration entry for Root without feature dependencies on auth, network, or Hilt. */
 internal class DriverDeliveryGatewayBindings @Inject constructor(
     private val gateway: OperationsDriverDeliveryGateway,
+    private val changeFeedGateway: OperationsChangeFeedGateway,
     private val metadataStore: DriverAttemptMetadataStore,
     private val outcomeMetadataStore: DriverOutcomeMetadataStore,
     private val arrivalMetadataStore: DriverArrivalMetadataStore,
@@ -55,7 +74,8 @@ internal class DriverDeliveryGatewayBindings @Inject constructor(
                 outcomeMetadataStore = outcomeMetadataStore,
                 arrivalMetadataStore = arrivalMetadataStore,
                 proofMetadataStore = proofMetadataStore,
-                requestBodyCodec = JsonDeliveryRequestBodyCodec()
+                requestBodyCodec = JsonDeliveryRequestBodyCodec(),
+                changeFeedGateway = changeFeedGateway
             ) as T
         }
     }

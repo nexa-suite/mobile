@@ -1,12 +1,17 @@
 package com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry
 
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.CandidateConfirmationResult
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductFilterOptionsResult
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductSearchResult
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.WarehouseCatalogFilterChoice
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.WarehouseCatalogFilterKind
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.WarehouseCatalogFilterPage
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.warehouse.CatalogOperationsContextProjector
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.warehouse.WarehouseGateway
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.CatalogOperationsContext
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductFilterStatus
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchStatus
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
@@ -198,6 +203,100 @@ class WarehouseViewModelTest {
         advanceUntilIdle()
         assertEquals(listOf(candidate, second), viewModel.state.value.search?.candidates)
         assertNull(viewModel.state.value.search?.nextPageKey)
+    }
+
+    @Test
+    fun serverFilterOptionsPageAndApplyBrandAndCategoryWithoutQuery() = runTest {
+        val brand = WarehouseCatalogFilterChoice("brand-1", "Agriform")
+        val category = WarehouseCatalogFilterChoice("category-1", "Lácteos")
+        val gateway = FakeWarehouseGateway().apply {
+            filterResults += ProductFilterOptionsResult.Page(
+                WarehouseCatalogFilterPage(listOf(brand), page = 0, size = 100, total = 1)
+            )
+            filterResults += ProductFilterOptionsResult.Page(
+                WarehouseCatalogFilterPage(listOf(category), page = 0, size = 100, total = 1)
+            )
+            searchResult = ProductSearchResult.Page(listOf(candidate), null)
+        }
+        val viewModel = readySearch(gateway)
+        viewModel.queryChanged("")
+
+        viewModel.openFilterOptions(WarehouseCatalogFilterKind.Brand)
+        advanceUntilIdle()
+        assertEquals(ProductFilterStatus.Ready, viewModel.state.value.search?.filterStatus)
+        assertEquals(listOf(brand), viewModel.state.value.search?.filterOptions)
+        viewModel.selectFilter(WarehouseCatalogFilterKind.Brand, brand)
+
+        viewModel.openFilterOptions(WarehouseCatalogFilterKind.Category)
+        advanceUntilIdle()
+        assertEquals(listOf(category), viewModel.state.value.search?.filterOptions)
+        viewModel.selectFilter(WarehouseCatalogFilterKind.Category, category)
+        viewModel.submitSearch()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(WarehouseCatalogFilterKind.Brand, WarehouseCatalogFilterKind.Category),
+            gateway.filterKinds
+        )
+        assertEquals(listOf(0, 0), gateway.filterPages)
+        assertEquals("", gateway.lastQuery)
+        assertEquals(listOf("Agriform" to "Lácteos"), gateway.searchFilters)
+        assertEquals(ProductSearchStatus.OneCandidate, viewModel.state.value.search?.status)
+    }
+
+    @Test
+    fun filterOptionPagesAppendUsingServerPageMetadata() = runTest {
+        val choices = (1..100).map { WarehouseCatalogFilterChoice("brand-$it", "Brand $it") }
+        val gateway = FakeWarehouseGateway().apply {
+            filterResults += ProductFilterOptionsResult.Page(
+                WarehouseCatalogFilterPage(choices, page = 0, size = 100, total = 101)
+            )
+        }
+        val viewModel = readySearch(gateway)
+        viewModel.openFilterOptions(WarehouseCatalogFilterKind.Brand)
+        advanceUntilIdle()
+        assertEquals(1, viewModel.state.value.search?.nextFilterPage)
+        gateway.filterResult = ProductFilterOptionsResult.Page(
+            WarehouseCatalogFilterPage(
+                listOf(WarehouseCatalogFilterChoice("brand-101", "Brand 101")),
+                page = 1,
+                size = 100,
+                total = 101
+            )
+        )
+
+        viewModel.loadMoreFilterOptions()
+        advanceUntilIdle()
+
+        assertEquals(101, viewModel.state.value.search?.filterOptions?.size)
+        assertEquals(listOf(0, 1), gateway.filterPages)
+        assertNull(viewModel.state.value.search?.nextFilterPage)
+    }
+
+    @Test
+    fun lateFilterOptionsFromPreviousContextCannotRestorePrivateChoices() = runTest {
+        val deferred = CompletableDeferred<ProductFilterOptionsResult>()
+        val gateway = FakeWarehouseGateway().apply { filterDeferred = deferred }
+        val viewModel = readySearch(gateway)
+        viewModel.openFilterOptions(WarehouseCatalogFilterKind.Brand)
+        runCurrent()
+
+        viewModel.authorityReplaced(context(2), TaskVisibilityHint.Available)
+        deferred.complete(
+            ProductFilterOptionsResult.Page(
+                WarehouseCatalogFilterPage(
+                    listOf(WarehouseCatalogFilterChoice("brand-1", "Private brand")),
+                    page = 0,
+                    size = 100,
+                    total = 1
+                )
+            )
+        )
+        advanceUntilIdle()
+
+        assertEquals(WarehouseRoute.WorkEntry, viewModel.state.value.route)
+        assertEquals(2L, viewModel.state.value.authorityEpoch)
+        assertNull(viewModel.state.value.search)
     }
 
     @Test
@@ -433,16 +532,46 @@ class WarehouseViewModelTest {
         val pageKeys = mutableListOf<String?>()
         var searchCalls = 0
         var lastQuery: String? = null
+        val searchFilters = mutableListOf<Pair<String?, String?>>()
+        val filterKinds = mutableListOf<WarehouseCatalogFilterKind>()
+        val filterSearches = mutableListOf<String>()
+        val filterPages = mutableListOf<Int>()
+        var filterCalls = 0
+        var filterResult: ProductFilterOptionsResult = ProductFilterOptionsResult.Page(
+            WarehouseCatalogFilterPage(emptyList(), page = 0, size = 100, total = 0)
+        )
+        var filterDeferred: CompletableDeferred<ProductFilterOptionsResult>? = null
+        val filterResults = mutableListOf<ProductFilterOptionsResult>()
 
         override suspend fun search(
             query: String,
+            brandName: String?,
+            categoryName: String?,
             pageKey: String?,
             authorityEpoch: Long
         ): ProductSearchResult {
             searchCalls++
             pageKeys += pageKey
             lastQuery = query
+            searchFilters += brandName to categoryName
             return searchDeferred?.await() ?: searchResult
+        }
+
+        override suspend fun filterOptions(
+            kind: WarehouseCatalogFilterKind,
+            search: String,
+            page: Int,
+            authorityEpoch: Long
+        ): ProductFilterOptionsResult {
+            filterCalls++
+            filterKinds += kind
+            filterSearches += search
+            filterPages += page
+            return filterDeferred?.await() ?: if (filterResults.isNotEmpty()) {
+                filterResults.removeAt(0)
+            } else {
+                filterResult
+            }
         }
 
         override suspend fun confirm(

@@ -52,6 +52,8 @@ sealed interface DriverWorkdayNetworkResult {
     data class Current(val workday: DriverWorkdayProjection?) : DriverWorkdayNetworkResult
     data class LocationAccepted(val location: DriverWorkdayLocationProjection) :
         DriverWorkdayNetworkResult
+    data class CurrentLocation(val location: DriverWorkdayLocationProjection?) :
+        DriverWorkdayNetworkResult
     data object Accepted : DriverWorkdayNetworkResult
     data class Rejected(val code: String?) : DriverWorkdayNetworkResult
     data object NotFound : DriverWorkdayNetworkResult
@@ -91,10 +93,32 @@ class NexaDriverWorkdayGateway(private val calls: ProtectedCallExecutor) {
             ProtectedRequest(
                 method = ProtectedMethod.POST,
                 path = DRIVER_WORKDAY_PATH,
-                payload = JsonObject(mapOf("locationAvailable" to JsonPrimitive(true))).toString(),
+                payload = JsonObject(mapOf("locationAvailable" to JsonPrimitive(false))).toString(),
                 idempotencyKey = idempotencyKey
             )
         )
+    }
+
+    suspend fun liveLocation(): DriverWorkdayNetworkResult = when (
+        val result = calls.execute(
+            ProtectedRequest(ProtectedMethod.GET, "/api/v1/driver/location")
+        )
+    ) {
+        is ProtectedResult.Failure -> result.error.toWorkdayResult()
+
+        is ProtectedResult.Success -> {
+            if (result.status == 204 && result.body.isNullOrBlank()) {
+                DriverWorkdayNetworkResult.CurrentLocation(null)
+            } else if (result.status != 200) {
+                DriverWorkdayNetworkResult.Unavailable
+            } else if (result.body.isNullOrBlank() || result.body?.trim() == "null") {
+                DriverWorkdayNetworkResult.CurrentLocation(null)
+            } else {
+                val location = result.body?.toLocationProjection()
+                    ?: return DriverWorkdayNetworkResult.Unavailable
+                DriverWorkdayNetworkResult.CurrentLocation(location)
+            }
+        }
     }
 
     suspend fun end(
