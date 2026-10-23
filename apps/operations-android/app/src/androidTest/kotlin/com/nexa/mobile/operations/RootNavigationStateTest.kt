@@ -111,6 +111,7 @@ class RootNavigationStateTest {
                 composeRule.activity.getString(AccessR.string.access_submit)
             )
         )
+            .performScrollTo()
             .assertIsDisplayed()
             .performClick()
 
