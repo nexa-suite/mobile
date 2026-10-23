@@ -1,9 +1,14 @@
 package com.nexa.mobile.operations
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.R as AccessR
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -14,6 +19,18 @@ class MainActivitySmokeTest {
 
     @Test
     fun applicationGraphResolvesAndAccessProductScreenRenders() {
-        composeRule.onNodeWithText("Operations").assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(AccessR.string.access_welcome_title)
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(AccessR.string.access_welcome_continue)
+        ).performClick()
+        composeRule.onNode(
+            hasText(composeRule.activity.getString(AccessR.string.access_sign_in_title))
+                .and(!hasClickAction())
+        ).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(
+            composeRule.activity.getString(AccessR.string.access_identifier_label)
+        ).assertIsDisplayed()
     }
 }

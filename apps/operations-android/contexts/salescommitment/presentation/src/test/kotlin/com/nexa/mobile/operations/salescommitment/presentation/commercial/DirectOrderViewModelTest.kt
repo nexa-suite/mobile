@@ -1,5 +1,7 @@
 package com.nexa.mobile.operations.salescommitment.presentation.commercial
 
+import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderDeliveryLeadPolicy
+import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderDeliveryLeadPolicyRead
 import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderGateway
 import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderRead
 import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderReview
@@ -11,6 +13,7 @@ import com.nexa.mobile.operations.salescommitment.application.model.commercial.D
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.DirectOrderDraft
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.DirectOrderLine
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
+import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
@@ -65,14 +68,36 @@ class DirectOrderViewModelTest {
     }
     private open class Gateway : DirectOrderGateway {
         val sent = mutableListOf<DirectOrderIntent>()
+        var deliveryPolicyRead: DirectOrderDeliveryLeadPolicyRead =
+            DirectOrderDeliveryLeadPolicyRead.Available(
+                DirectOrderDeliveryLeadPolicy(
+                    minimumDeliveryLeadDays = 3,
+                    earliestAllowedDeliveryDate = LocalDate.parse("2026-01-01")
+                )
+            )
+        var deliveryPolicyReads = 0
+        var reviewCalls = 0
+
+        override suspend fun deliveryLeadPolicy(
+            authority: CommercialAuthority
+        ): DirectOrderDeliveryLeadPolicyRead {
+            deliveryPolicyReads++
+            return deliveryPolicyRead
+        }
+
         override suspend fun quote(
             authority: CommercialAuthority,
             customerId: String,
             productId: String,
             quantity: String
         ): DirectOrderLine? = null
-        override suspend fun review(authority: CommercialAuthority, draft: DirectOrderDraft) =
-            DirectOrderReview.Current(draft)
+        override suspend fun review(
+            authority: CommercialAuthority,
+            draft: DirectOrderDraft
+        ): DirectOrderReview {
+            reviewCalls++
+            return DirectOrderReview.Current(draft)
+        }
         override fun freeze(draft: DirectOrderDraft) = "exact-original-body"
         override suspend fun submit(
             authority: CommercialAuthority,
@@ -81,6 +106,74 @@ class DirectOrderViewModelTest {
             sent += intent
             return DirectOrderSubmission.UnknownOutcome
         }
+    }
+
+    @Test fun latestWorkspacePolicyControlsDateReviewAndFailureBlocksIt() = runTest {
+        val store = Store(DirectOrderRecord(draft))
+        val gateway = Gateway().apply {
+            deliveryPolicyRead = DirectOrderDeliveryLeadPolicyRead.Available(
+                DirectOrderDeliveryLeadPolicy(
+                    minimumDeliveryLeadDays = 3,
+                    earliestAllowedDeliveryDate = LocalDate.parse("2026-10-02")
+                )
+            )
+        }
+        val model = DirectOrderViewModel(gateway, store)
+        model.activate(authority)
+        runCurrent()
+
+        assertEquals(
+            DirectOrderDeliveryPolicyStatus.Available,
+            model.state.value.deliveryPolicyStatus
+        )
+        assertEquals(
+            LocalDate.parse("2026-10-02"),
+            model.state.value.deliveryLeadPolicy?.earliestAllowedDeliveryDate
+        )
+        assertTrue(model.state.value.isDeliveryDateBeforeMinimum())
+        assertFalse(model.state.value.canReviewDirectOrder())
+
+        model.review()
+        runCurrent()
+
+        assertEquals(DirectOrderStatus.Draft, model.state.value.status)
+        assertEquals(0, gateway.reviewCalls)
+
+        gateway.deliveryPolicyRead = DirectOrderDeliveryLeadPolicyRead.Available(
+            DirectOrderDeliveryLeadPolicy(
+                minimumDeliveryLeadDays = 5,
+                earliestAllowedDeliveryDate = LocalDate.parse("2026-10-01")
+            )
+        )
+        model.review()
+        runCurrent()
+
+        assertEquals(DirectOrderStatus.Reviewed, model.state.value.status)
+        assertEquals(1, gateway.reviewCalls)
+        assertEquals(5, model.state.value.deliveryLeadPolicy?.minimumDeliveryLeadDays)
+    }
+
+    @Test fun unavailableWorkspacePolicyIsNotDisplayedOrUsedForReview() = runTest {
+        val store = Store(DirectOrderRecord(draft))
+        val gateway = Gateway().apply {
+            deliveryPolicyRead = DirectOrderDeliveryLeadPolicyRead.Unavailable
+        }
+        val model = DirectOrderViewModel(gateway, store)
+        model.activate(authority)
+        runCurrent()
+
+        assertEquals(
+            DirectOrderDeliveryPolicyStatus.Unavailable,
+            model.state.value.deliveryPolicyStatus
+        )
+        assertEquals(null, model.state.value.deliveryLeadPolicy)
+        assertFalse(model.state.value.canReviewDirectOrder())
+
+        model.review()
+        runCurrent()
+
+        assertEquals(DirectOrderStatus.Unavailable, model.state.value.status)
+        assertEquals(0, gateway.reviewCalls)
     }
 
     @Test fun storageFailureBlocksPost() = runTest {

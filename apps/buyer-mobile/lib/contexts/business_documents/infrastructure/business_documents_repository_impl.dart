@@ -72,7 +72,7 @@ final class BusinessDocumentsRepositoryImpl
   ) async {
     if (!_isUuid(document.id) ||
         !document.contentAvailable ||
-        document.byteSize > NexaApiClient.maxProtectedBinaryBytes ||
+        document.byteSize > maxProtectedBusinessDocumentBytes ||
         _formats[document.format] != document.contentType ||
         !_isSha256(document.checksumSha256)) {
       throw const NexaApiFailure(
@@ -85,6 +85,7 @@ final class BusinessDocumentsRepositoryImpl
     final response = await _api.getBinary(
       '/business-documents/${Uri.encodeComponent(document.id)}/downloads',
       refreshAfterUnauthorized: true,
+      maxBytes: maxProtectedBusinessDocumentBytes,
     );
     try {
       final headers = {

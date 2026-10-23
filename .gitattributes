@@ -1,0 +1,4 @@
+# Preserve upstream Leaflet asset bytes, including their original line endings.
+apps/operations-android/app/src/main/assets/leaflet/LICENSE -text whitespace=cr-at-eol
+apps/operations-android/app/src/main/assets/leaflet/leaflet.css -text whitespace=cr-at-eol
+apps/operations-android/app/src/main/assets/leaflet/leaflet.js -text

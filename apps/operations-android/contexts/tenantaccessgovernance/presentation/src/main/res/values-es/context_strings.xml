@@ -1,6 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="access_brand_description">Marca Nexa</string>
+    <string name="access_back_to_welcome">Volver a bienvenida</string>
     <string name="access_context_loading_body">Tu trabajo aparecerá después de confirmar un contexto permitido.</string>
     <string name="access_context_loading_title">Comprobando contextos</string>
     <string name="access_context_retry">Volver a comprobar</string>
@@ -25,6 +26,17 @@
     <string name="access_password_hide">Ocultar contraseña</string>
     <string name="access_password_label">Contraseña</string>
     <string name="access_password_show">Mostrar contraseña</string>
+    <string name="access_recover_account">¿Olvidaste tu contraseña?</string>
+    <string name="access_recovery_back">Volver al inicio de sesión</string>
+    <string name="access_recovery_title">Recupera tu cuenta</string>
+    <string name="access_recovery_support">Ingresa tu correo de trabajo. Si pertenece a una cuenta, enviaremos instrucciones.</string>
+    <string name="access_recovery_email">Correo de trabajo</string>
+    <string name="access_recovery_email_error">Ingresa un correo de trabajo válido.</string>
+    <string name="access_recovery_submit">Enviar instrucciones</string>
+    <string name="access_recovery_sending">Enviando instrucciones…</string>
+    <string name="access_recovery_sent">Si la cuenta existe, enviamos instrucciones para recuperar el acceso.</string>
+    <string name="access_recovery_rate_limited">Hubo demasiadas solicitudes. Inténtalo más tarde.</string>
+    <string name="access_recovery_failed">No pudimos enviar las instrucciones. Inténtalo otra vez.</string>
     <string name="access_product_label">Operations</string>
     <string name="access_session_restoring_body">Estamos verificando tu acceso antes de mostrar información de trabajo.</string>
     <string name="access_session_restoring_title">Comprobando tu sesión</string>
@@ -33,6 +45,10 @@
     <string name="access_sign_in_support">Usa tu identidad de trabajo para continuar.</string>
     <string name="access_sign_in_title">Inicia sesión</string>
     <string name="access_submit">Iniciar sesión</string>
+    <string name="access_welcome_continue">Continuar</string>
+    <string name="access_welcome_illustration_description">Un paquete avanza por la cadena de frío hasta el despacho.</string>
+    <string name="access_welcome_support">Inicia sesión con tu identidad de trabajo para continuar a tu espacio de Operations.</string>
+    <string name="access_welcome_title">Empieza tu jornada con claridad</string>
     <string name="context_back_to_work">Volver al trabajo actual</string>
     <string name="context_change_support">El contexto actual sigue visible hasta que se confirme otro.</string>
     <string name="context_change_title">Cambiar contexto de trabajo</string>

@@ -6,6 +6,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.Drive
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayCommandResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayCommandScope
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverWorkdayReadResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverLiveLocation
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkdayLocationEvent
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverWorkdayLocationSample
 import kotlinx.coroutines.channels.BufferOverflow
@@ -27,17 +28,11 @@ class DriverWorkdayLocationEventStream {
 /** The app adapter is an Android foreground location service; events are never buffered to disk. */
 interface DriverWorkdayLocationCapture {
     val events: Flow<DriverWorkdayLocationEvent>
-    suspend fun acquireFreshLocation(timeoutMillis: Long): DriverWorkdayLocationAcquisition
+
+    /** Starts the visible foreground service before location availability is sent to Nexa. */
+    fun prepare(workdayId: String): Boolean = true
     fun start(workdayId: String): Boolean
     fun stop()
-}
-
-enum class DriverWorkdayLocationAcquisition {
-    SAMPLE_AVAILABLE,
-    PERMISSION_UNAVAILABLE,
-    PROVIDER_UNAVAILABLE,
-    TIMED_OUT,
-    SERVICE_UNAVAILABLE
 }
 
 interface DriverWorkdayGateway {
@@ -64,6 +59,17 @@ interface DriverWorkdayGateway {
         workdayId: String,
         location: DriverWorkdayLocationSample
     ): DriverWorkdayCommandResult
+
+    suspend fun liveLocation(authority: DriverDeliveryAuthority): DriverWorkdayLocationReadResult =
+        DriverWorkdayLocationReadResult.Unavailable
+}
+
+sealed interface DriverWorkdayLocationReadResult {
+    data class Current(val location: DriverLiveLocation?) : DriverWorkdayLocationReadResult
+    data object Unavailable : DriverWorkdayLocationReadResult
+    data object PermissionDenied : DriverWorkdayLocationReadResult
+    data object ContextInvalidated : DriverWorkdayLocationReadResult
+    data object SessionInvalidated : DriverWorkdayLocationReadResult
 }
 
 interface DriverWorkdayCommandStore {

@@ -1,11 +1,13 @@
 package com.nexa.mobile.operations
 
+import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -70,6 +72,8 @@ class RootNavigationSecurityTest {
             }
         }
 
+        composeRule.onNodeWithText(targetString(AccessR.string.access_welcome_continue))
+            .performClick()
         composeRule.onNode(
             hasText(targetString(AccessR.string.access_sign_in_title)) and !hasClickAction()
         )
@@ -96,8 +100,11 @@ class RootNavigationSecurityTest {
         }
 
         composeRule.onNodeWithText(targetString(CatalogR.string.warehouse_identify_product))
+            .performScrollTo()
             .assertIsDisplayed()
-        composeRule.onNodeWithText("Almacén Principal").assertIsDisplayed()
+        composeRule.onNodeWithText("Almacén Principal")
+            .performScrollTo()
+            .assertIsDisplayed()
         composeRule.onNodeWithText(targetString(AccessR.string.access_sign_in_title))
             .assertDoesNotExist()
     }
@@ -110,7 +117,8 @@ class RootNavigationSecurityTest {
             tenantId = "tenant-1",
             workspaceId = "workspace-1",
             membershipId = "membership-1",
-            permissions = permissions
+            permissions = permissions,
+            roles = setOf("LOGISTICS")
         )
         val context = WorkforceContextSummary(
             key = "context-1",
@@ -141,7 +149,8 @@ class RootNavigationSecurityTest {
                         authority.tenantId,
                         authority.workspaceId,
                         authority.membershipId,
-                        authority.permissions
+                        authority.permissions,
+                        authority.roles
                     )
                 ),
                 authorityEpoch = 4
@@ -170,6 +179,7 @@ class RootNavigationSecurityTest {
                 visibleInHub = false
             )
         )
+        val connectedRoute = mutableStateOf<ConnectedOperationRoute?>(null)
         var logoutCalls = 0
 
         composeRule.setContent {
@@ -178,7 +188,20 @@ class RootNavigationSecurityTest {
                     state = session.value,
                     accessState = accessState.value,
                     warehouseState = warehouseState.value,
+                    connectedOperationRoute = connectedRoute.value,
                     connectedOperationEntries = entries,
+                    onOpenConnectedOperation = { entry ->
+                        connectedRoute.value = ConnectedOperationsNavigation.open(
+                            entry,
+                            session.value,
+                            accessState.value,
+                            warehouseState.value
+                        )
+                    },
+                    connectedOperationContent = {
+                        Text("Connected route: ${connectedRoute.value?.entryKey}")
+                    },
+                    onConnectedOperationBack = { connectedRoute.value = null },
                     onLogout = {
                         logoutCalls += 1
                         session.value = SessionState.SignedOut
@@ -189,19 +212,24 @@ class RootNavigationSecurityTest {
             }
         }
 
-        composeRule.onNodeWithText("Cargas y paradas")
-            .performScrollTo()
+        composeRule.onNodeWithText(targetString(R.string.work_hub_dispatch))
             .assertIsDisplayed()
-            .assert(hasClickAction())
+            .performClick()
+        composeRule.onNodeWithText("Connected route: dispatch.loads").assertIsDisplayed()
         composeRule.onNodeWithText("Traslado interno").assertDoesNotExist()
         composeRule.onNodeWithText("Visita al cliente").assertDoesNotExist()
         composeRule.onNodeWithText("Privacidad y coordinación: límites actuales")
             .assertDoesNotExist()
-        composeRule.onNodeWithText(targetString(CatalogR.string.warehouse_logout))
+        composeRule.onNodeWithText(targetString(R.string.work_nav_profile))
+            .assertIsDisplayed()
+            .performClick()
+        composeRule.onNodeWithText(targetString(R.string.work_nav_logout))
             .performScrollTo()
             .assertIsDisplayed()
             .performClick()
 
+        composeRule.onNodeWithText(targetString(AccessR.string.access_welcome_continue))
+            .performClick()
         composeRule.onNode(
             hasText(targetString(AccessR.string.access_sign_in_title)) and !hasClickAction()
         )
@@ -223,12 +251,21 @@ class RootNavigationSecurityTest {
         InstrumentationRegistry.getInstrumentation().targetContext.getString(resourceId)
 
     private companion object {
+        val primaryAuthority = VerifiedContextAuthority(
+            userId = "user-1",
+            tenantId = "tenant-1",
+            workspaceId = "workspace-1",
+            membershipId = "membership-1",
+            permissions = setOf("catalog.read", "inventory.read"),
+            roles = setOf("WAREHOUSE")
+        )
         val primaryContext = WorkforceContextSummary(
             key = "test-context",
             companyName = "Nexa Demo Distribución",
             workspaceName = "Almacén Principal",
             permissionHint = PermissionHint.Available,
-            isCurrent = true
+            isCurrent = true,
+            verifiedAuthority = primaryAuthority
         )
         val authorizedWorkState = WarehouseUiState(
             workEntryStatus = WorkEntryStatus.TaskAvailable,
@@ -236,7 +273,15 @@ class RootNavigationSecurityTest {
             activeContext = ActiveOperationsContext(
                 companyName = primaryContext.companyName,
                 workspaceName = primaryContext.workspaceName,
-                authorityEpoch = 4
+                authorityEpoch = 4,
+                verifiedIdentity = VerifiedOperationsIdentity(
+                    userId = primaryAuthority.userId,
+                    tenantId = primaryAuthority.tenantId,
+                    workspaceId = primaryAuthority.workspaceId,
+                    membershipId = primaryAuthority.membershipId,
+                    permissions = primaryAuthority.permissions,
+                    roles = primaryAuthority.roles
+                )
             ),
             authorityEpoch = 4
         )

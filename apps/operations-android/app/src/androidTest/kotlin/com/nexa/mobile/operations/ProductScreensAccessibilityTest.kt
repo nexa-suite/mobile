@@ -8,6 +8,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -85,16 +87,27 @@ class ProductScreensAccessibilityTest {
             }
         }
 
+        composeRule.onNodeWithText(localizedString(AccessR.string.access_welcome_continue))
+            .performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(localizedString(AccessR.string.access_welcome_title))
+            .assertDoesNotExist()
         val signInTitle = localizedString(AccessR.string.access_sign_in_title)
         val signInSubmit = localizedString(AccessR.string.access_submit)
-        composeRule.onNode(hasText(signInTitle).and(!hasClickAction())).assertIsDisplayed()
-        composeRule.onNodeWithText(localizedString(AccessR.string.access_sign_in_support))
+        composeRule.onNode(
+            SemanticsMatcher.expectValue(SemanticsProperties.Heading, Unit)
+                .and(hasText(signInTitle))
+        )
             .performScrollTo()
             .assertIsDisplayed()
-        composeRule.onNodeWithText(localizedString(AccessR.string.access_identifier_label))
+        composeRule.onNodeWithContentDescription(
+            localizedString(AccessR.string.access_identifier_label)
+        )
             .performScrollTo()
             .assertIsDisplayed()
-        composeRule.onNodeWithText(localizedString(AccessR.string.access_password_label))
+        composeRule.onNodeWithContentDescription(
+            localizedString(AccessR.string.access_password_label)
+        )
             .performScrollTo()
             .assertIsDisplayed()
         composeRule.onNodeWithContentDescription(
@@ -255,6 +268,13 @@ class ProductScreensAccessibilityTest {
                         },
                         onSearch = { searches += 1 },
                         onLoadMore = {},
+                        onOpenFilterOptions = {},
+                        onCloseFilterOptions = {},
+                        onFilterSearchChanged = {},
+                        onLoadFilterOptions = {},
+                        onLoadMoreFilterOptions = {},
+                        onRetryFilterOptions = {},
+                        onSelectFilter = { _, _ -> },
                         onSelectCandidate = {}
                     )
                 }
@@ -393,6 +413,13 @@ class ProductScreensAccessibilityTest {
                         onQueryChanged = {},
                         onSearch = {},
                         onLoadMore = {},
+                        onOpenFilterOptions = {},
+                        onCloseFilterOptions = {},
+                        onFilterSearchChanged = {},
+                        onLoadFilterOptions = {},
+                        onLoadMoreFilterOptions = {},
+                        onRetryFilterOptions = {},
+                        onSelectFilter = { _, _ -> },
                         onSelectCandidate = {}
                     )
                 }

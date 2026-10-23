@@ -19,10 +19,9 @@ class RootViewModel @Inject constructor(private val session: SessionCoordinator)
         viewModelScope.launch { session.retrySessionValidation() }
     }
 
-    fun verifyForegroundReturn(onCompleted: () -> Unit = {}) {
+    fun verifyForegroundReturn(onCompleted: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
-            session.verifyForegroundReturn()
-            onCompleted()
+            onCompleted(session.verifyForegroundReturn())
         }
     }
 

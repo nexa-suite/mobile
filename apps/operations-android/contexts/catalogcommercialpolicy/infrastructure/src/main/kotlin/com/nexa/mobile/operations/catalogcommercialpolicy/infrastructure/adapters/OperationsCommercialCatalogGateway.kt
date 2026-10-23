@@ -1,9 +1,13 @@
 package com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters
 
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.commercial.CommercialCatalogFilterChoice
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.commercial.CommercialCatalogFilterKind
+import com.nexa.mobile.operations.catalogcommercialpolicy.application.commercial.CommercialCatalogFilterOptionsResult
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.commercial.CommercialCatalogGateway
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.commercial.CommercialCatalogResult
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.commercial.CommercialProductChoice
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.commercial.CommercialProductFacts
+import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transport.CatalogFilterOptionsOutcome
 import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transport.CatalogSearchOutcome
 import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transport.CommercialCatalogNetworkResult
 import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.transport.NexaCatalogGateway
@@ -26,20 +30,65 @@ class OperationsCommercialCatalogGateway @Inject constructor(
 ) : CommercialCatalogGateway {
     private val catalog = NexaCatalogGateway(calls)
     private val commercial = NexaCommercialCatalogGateway(calls)
+
+    override suspend fun filterOptions(
+        authority: CommercialAuthority,
+        kind: CommercialCatalogFilterKind,
+        search: String,
+        page: Int
+    ): CommercialCatalogFilterOptionsResult {
+        if (!current(authority)) return CommercialCatalogFilterOptionsResult.PermissionDenied
+        val lease =
+            sessions.currentAccess() ?: return CommercialCatalogFilterOptionsResult.PermissionDenied
+        val result = catalog.filterOptions(kind.wireValue, search, page)
+        if (!sessions.isEpochCurrent(lease.epoch) || !current(authority)) {
+            return CommercialCatalogFilterOptionsResult.PermissionDenied
+        }
+        return when (result) {
+            is CatalogFilterOptionsOutcome.Page -> CommercialCatalogFilterOptionsResult.Choices(
+                result.items.map { CommercialCatalogFilterChoice(it.id, it.name) },
+                result.page,
+                result.size,
+                result.total
+            )
+
+            CatalogFilterOptionsOutcome.PermissionDenied,
+            CatalogFilterOptionsOutcome.ContextInvalidated,
+            CatalogFilterOptionsOutcome.SessionExpired ->
+                CommercialCatalogFilterOptionsResult.PermissionDenied
+
+            else -> CommercialCatalogFilterOptionsResult.Unavailable
+        }
+    }
     override suspend fun search(
         authority: CommercialAuthority,
         customerId: String,
         query: String,
         page: String?
+    ): CommercialCatalogResult = search(authority, customerId, query, "", "", page)
+
+    override suspend fun search(
+        authority: CommercialAuthority,
+        customerId: String,
+        query: String,
+        brandName: String,
+        categoryName: String,
+        page: String?
     ): CommercialCatalogResult = execute(authority, customerId) {
-        when (val result = catalog.search(query, page)) {
+        when (val result = catalog.search(query, page, brandName, categoryName)) {
             is CatalogSearchOutcome.Page -> CommercialCatalogResult.Choices(
                 result.value.candidates.map {
                     CommercialProductChoice(
                         id = it.catalogItemId,
                         name = it.itemName,
                         skuCode = it.skuCode,
-                        imageFileName = it.imageFileName
+                        imageFileName = it.imageFileName,
+                        brandName = it.brandName,
+                        categoryName = it.categoryName,
+                        familyName = it.productFamilyName,
+                        variantName = it.productVariantName,
+                        presentation = it.presentation,
+                        familyId = it.productFamilyId
                     )
                 },
                 result.value.nextPageKey
@@ -92,7 +141,12 @@ class OperationsCommercialCatalogGateway @Inject constructor(
                             null
                         },
                         availabilityTime,
-                        item.image?.fileName
+                        item.image?.fileName,
+                        item.brandName,
+                        item.categoryName,
+                        item.familyName,
+                        item.variantName,
+                        item.familyId
                     )
                 )
             }

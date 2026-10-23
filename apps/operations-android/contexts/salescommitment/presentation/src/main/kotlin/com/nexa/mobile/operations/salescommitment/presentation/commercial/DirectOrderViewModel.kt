@@ -2,6 +2,7 @@ package com.nexa.mobile.operations.salescommitment.presentation.commercial
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderDeliveryLeadPolicyRead
 import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderExecution
 import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderGateway
 import com.nexa.mobile.operations.salescommitment.application.commercial.DirectOrderRead
@@ -13,6 +14,7 @@ import com.nexa.mobile.operations.salescommitment.application.model.commercial.D
 import com.nexa.mobile.operations.salescommitment.application.model.commercial.DirectOrderRecord
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.DirectOrderDraft
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
+import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,9 +50,10 @@ class DirectOrderViewModel(
             mutex.withLock {
                 val loaded = store.load(value)
                 if (!current(value, epoch)) return@withLock
-                mutableState.value = when (loaded) {
+                val initial = when (loaded) {
                     DirectOrderRead.Unavailable -> DirectOrderState(
-                        status = DirectOrderStatus.MetadataUnavailable
+                        status = DirectOrderStatus.MetadataUnavailable,
+                        deliveryPolicyStatus = DirectOrderDeliveryPolicyStatus.Unavailable
                     )
 
                     is DirectOrderRead.Available -> {
@@ -89,6 +92,13 @@ class DirectOrderViewModel(
                         )
                     }
                 }
+                if (!current(value, epoch)) return@withLock
+                mutableState.value = initial
+                if (initial.record.intent == null &&
+                    initial.status != DirectOrderStatus.MetadataUnavailable
+                ) {
+                    refreshDeliveryLeadPolicy(value, epoch)
+                }
             }
         }
     }
@@ -108,6 +118,22 @@ class DirectOrderViewModel(
         edit { it.copy(customerId = value.trim(), customerVersion = null, lines = emptyList()) }
     fun deliveryDateChanged(value: String) = edit { it.copy(deliveryDate = value.take(10)) }
     fun deliveryProfileChanged(value: String) = edit { it.copy(deliveryProfile = value.take(2000)) }
+    fun refreshDeliveryPolicy() {
+        if (!editable() || state.value.record.intent != null) return
+        val captured = authority ?: return
+        val epoch = generation
+        mutableState.value = state.value.copy(
+            deliveryLeadPolicy = null,
+            deliveryPolicyStatus = DirectOrderDeliveryPolicyStatus.Loading
+        )
+        viewModelScope.launch {
+            mutex.withLock {
+                if (current(captured, epoch) && state.value.record.intent == null) {
+                    refreshDeliveryLeadPolicy(captured, epoch)
+                }
+            }
+        }
+    }
     fun paymentChanged(value: String) = edit { it.copy(paymentOption = value) }
     fun commentChanged(value: String) = edit { it.copy(comment = value.take(2000)) }
     fun removeLine(id: String) = edit {
@@ -205,9 +231,41 @@ class DirectOrderViewModel(
         val captured = authority ?: return
         val input = state.value
         val epoch = generation
-        mutableState.value = input.copy(status = DirectOrderStatus.Reviewing)
+        mutableState.value = input.copy(
+            status = DirectOrderStatus.Reviewing,
+            deliveryLeadPolicy = null,
+            deliveryPolicyStatus = DirectOrderDeliveryPolicyStatus.Loading
+        )
         viewModelScope.launch {
             mutex.withLock {
+                val policyRead = refreshDeliveryLeadPolicy(captured, epoch)
+                if (!current(captured, epoch)) return@withLock
+                val policy = when (policyRead) {
+                    is DirectOrderDeliveryLeadPolicyRead.Available -> policyRead.policy
+
+                    DirectOrderDeliveryLeadPolicyRead.PermissionDenied -> {
+                        mutableState.value = state.value.copy(
+                            status = DirectOrderStatus.PermissionDenied,
+                            deliveryPolicyStatus = DirectOrderDeliveryPolicyStatus.PermissionDenied
+                        )
+                        return@withLock
+                    }
+
+                    DirectOrderDeliveryLeadPolicyRead.Unavailable -> {
+                        mutableState.value = state.value.copy(
+                            status = DirectOrderStatus.Unavailable,
+                            deliveryPolicyStatus = DirectOrderDeliveryPolicyStatus.Unavailable
+                        )
+                        return@withLock
+                    }
+                }
+                val currentPolicyState = state.value
+                if (LocalDate.parse(input.record.draft.deliveryDate)
+                        .isBefore(policy.earliestAllowedDeliveryDate)
+                ) {
+                    mutableState.value = currentPolicyState.copy(status = DirectOrderStatus.Draft)
+                    return@withLock
+                }
                 val result =
                     safely { gateway.review(captured, input.record.draft) }
                         ?: DirectOrderReview.Unavailable
@@ -229,7 +287,7 @@ class DirectOrderViewModel(
                         val record = DirectOrderRecord(result.draft)
                         val saved = store.save(captured, record)
                         if (!current(captured, epoch)) return@withLock
-                        mutableState.value = input.copy(
+                        mutableState.value = currentPolicyState.copy(
                             record = record,
                             status = if (!saved) {
                                 DirectOrderStatus.MetadataUnavailable
@@ -243,11 +301,11 @@ class DirectOrderViewModel(
 
                     DirectOrderReview.PermissionDenied ->
                         mutableState.value =
-                            input.copy(status = DirectOrderStatus.PermissionDenied)
+                            currentPolicyState.copy(status = DirectOrderStatus.PermissionDenied)
 
                     DirectOrderReview.Unavailable ->
                         mutableState.value =
-                            input.copy(status = DirectOrderStatus.Unavailable)
+                            currentPolicyState.copy(status = DirectOrderStatus.Unavailable)
                 }
             }
         }
@@ -259,7 +317,9 @@ class DirectOrderViewModel(
     }
     fun submit() {
         if (state.value.status != DirectOrderStatus.Reviewed ||
-            !state.value.record.draft.isValidForSubmission()
+            !state.value.record.draft.isValidForSubmission() ||
+            state.value.deliveryPolicyStatus != DirectOrderDeliveryPolicyStatus.Available ||
+            state.value.deliveryLeadPolicy == null || state.value.isDeliveryDateBeforeMinimum()
         ) {
             return
         }
@@ -295,7 +355,12 @@ class DirectOrderViewModel(
                     state.value.record.copy(intent = null)
                 }
                 if (store.save(captured, record) && current(captured, epoch)) {
-                    mutableState.value = DirectOrderState(record, DirectOrderStatus.Draft)
+                    mutableState.value = DirectOrderState(
+                        record,
+                        DirectOrderStatus.Draft,
+                        deliveryPolicyStatus = DirectOrderDeliveryPolicyStatus.Loading
+                    )
+                    refreshDeliveryLeadPolicy(captured, epoch)
                 }
             }
         }
@@ -338,6 +403,33 @@ class DirectOrderViewModel(
     }
     private fun current(captured: CommercialAuthority, epoch: Long) =
         authority == captured && generation == epoch
+
+    private suspend fun refreshDeliveryLeadPolicy(
+        captured: CommercialAuthority,
+        epoch: Long
+    ): DirectOrderDeliveryLeadPolicyRead {
+        val result = safely { gateway.deliveryLeadPolicy(captured) }
+            ?: DirectOrderDeliveryLeadPolicyRead.Unavailable
+        if (!current(captured, epoch)) return result
+        val next = when (result) {
+            is DirectOrderDeliveryLeadPolicyRead.Available -> state.value.copy(
+                deliveryLeadPolicy = result.policy,
+                deliveryPolicyStatus = DirectOrderDeliveryPolicyStatus.Available
+            )
+
+            DirectOrderDeliveryLeadPolicyRead.PermissionDenied -> state.value.copy(
+                deliveryLeadPolicy = null,
+                deliveryPolicyStatus = DirectOrderDeliveryPolicyStatus.PermissionDenied
+            )
+
+            DirectOrderDeliveryLeadPolicyRead.Unavailable -> state.value.copy(
+                deliveryLeadPolicy = null,
+                deliveryPolicyStatus = DirectOrderDeliveryPolicyStatus.Unavailable
+            )
+        }
+        mutableState.value = next
+        return result
+    }
 
     private fun DirectOrderRecord.statusFromStoredIntent(): DirectOrderStatus {
         val intent = intent ?: return DirectOrderStatus.Draft

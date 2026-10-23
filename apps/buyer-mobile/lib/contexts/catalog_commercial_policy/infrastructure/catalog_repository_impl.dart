@@ -10,11 +10,15 @@ final class CatalogRepositoryImpl implements CatalogRepository {
   Future<CatalogPageProjection> list({
     required String query,
     required int page,
+    String brand = '',
+    String category = '',
   }) async {
     final response = await _api.get(
       '/catalog-items',
       query: {
         if (query.trim().isNotEmpty) 'q': query.trim(),
+        if (brand.trim().isNotEmpty) 'brand': brand.trim(),
+        if (category.trim().isNotEmpty) 'category': category.trim(),
         'page': '$page',
         'size': '20',
         'sort': 'itemName',
@@ -30,6 +34,51 @@ final class CatalogRepositoryImpl implements CatalogRepository {
       size: _int(response.body['size']) ?? 20,
       totalItems: _int(response.body['totalItems']) ?? 0,
       totalPages: _int(response.body['totalPages']) ?? 0,
+    );
+  }
+
+  @override
+  Future<CatalogFilterOptionPageProjection> filterOptions({
+    required CatalogFilterKind kind,
+    required String search,
+    required int page,
+  }) async {
+    if (page < 0) _invalidResponse();
+    final response = await _api.get(
+      '/catalog-items/filter-options',
+      query: {
+        'kind': kind.name,
+        if (search.trim().isNotEmpty) 'search': search.trim(),
+        'page': '$page',
+        'size': '100',
+      },
+      refreshAfterUnauthorized: true,
+    );
+    final items = response.body['items'];
+    final responsePage = _int(response.body['page']);
+    final size = _int(response.body['size']);
+    final total = _int(response.body['total']);
+    if (items is! List ||
+        responsePage == null ||
+        size == null ||
+        size < 1 ||
+        total == null ||
+        responsePage != page) {
+      _invalidResponse();
+    }
+    return CatalogFilterOptionPageProjection(
+      items: items
+          .map((value) {
+            final item = _map(value);
+            final id = item == null ? null : _string(item['id']);
+            final name = item == null ? null : _string(item['name']);
+            if (id == null || name == null) _invalidResponse();
+            return CatalogFilterOptionProjection(id: id, name: name);
+          })
+          .toList(growable: false),
+      page: responsePage,
+      size: size,
+      total: total,
     );
   }
 

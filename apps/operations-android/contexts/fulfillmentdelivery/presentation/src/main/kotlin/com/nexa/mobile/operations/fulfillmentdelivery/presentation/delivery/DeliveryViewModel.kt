@@ -2,6 +2,7 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.fulfillmentdelivery.application.changefeed.OperationsChangeFeedGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DeliveryRequestBodyCodec
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverArrivalIntentMetadata
@@ -45,6 +46,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.Drive
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverProofUploadResult
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverArrivalSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryArrivalFact
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryCoordinates
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryOutcomeLine
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliverySnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeKind
@@ -57,8 +59,10 @@ import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -155,17 +159,36 @@ data class DriverDeliveryUiState(
     val proofSummary: DriverProofSummary? = null,
     val proofEvidenceSummary: DriverProofEvidenceSummary? = null,
     val hasRecoverableProof: Boolean = false,
-    val proofRejectionCode: String? = null
+    val proofRejectionCode: String? = null,
+    val changeFeedSignals: Flow<Unit> = emptyFlow()
 ) {
     /** Destination leaves Nexa only after current assigned detail confirms an active attempt. */
     val authorizedDirectionsDestination: String?
         get() = if (canRead && detailStatus == DriverDeliveryLoadStatus.Ready) {
             selectedDelivery?.takeIf { it.activeAttempt != null }
-                ?.destination
-                ?.trim()
-                ?.takeIf(String::isNotEmpty)
+                ?.let { delivery ->
+                    delivery.destinationCoordinates?.let { coordinates ->
+                        "geo:${coordinates.latitude.toPlainString()},${coordinates.longitude.toPlainString()}"
+                    } ?: delivery.destination?.trim()?.takeIf(String::isNotEmpty)
+                }
         } else {
             null
+        }
+
+    fun authorizedActiveMapDeliveryIdFor(deliveryId: String?): String? {
+        if (!canRead || detailStatus != DriverDeliveryLoadStatus.Ready ||
+            deliveryId.isNullOrBlank()
+        ) {
+            return null
+        }
+        return selectedDelivery
+            ?.takeIf { it.id == deliveryId && it.activeAttempt != null }
+            ?.id
+    }
+
+    fun authorizedMapDestinationCoordinatesFor(deliveryId: String?): DriverDeliveryCoordinates? =
+        authorizedActiveMapDeliveryIdFor(deliveryId)?.let {
+            selectedDelivery?.destinationCoordinates
         }
 
     /** Instructions are available for a current operational assignment before its first attempt starts. */
@@ -199,8 +222,10 @@ class DriverDeliveryViewModel(
     private val timeFactory: () -> String = { Instant.now().toString() },
     private val keyFactory: () -> String = { UUID.randomUUID().toString() },
     private val proofMetadataStore: DriverProofMetadataStore? = null,
-    private val requestBodyCodec: DeliveryRequestBodyCodec
+    private val requestBodyCodec: DeliveryRequestBodyCodec,
+    private val changeFeedGateway: OperationsChangeFeedGateway = OperationsChangeFeedGateway.None
 ) : ViewModel() {
+    private val changeFeedSignals = changeFeedGateway.relevantChangeSignals()
     private val mutableState = MutableStateFlow(DriverDeliveryUiState())
     val state = mutableState.asStateFlow()
 
@@ -238,6 +263,11 @@ class DriverDeliveryViewModel(
                 DriverDeliveryLoadStatus.Loading
             } else {
                 DriverDeliveryLoadStatus.PermissionDenied
+            },
+            changeFeedSignals = if (currentAuthority.canRead) {
+                changeFeedSignals
+            } else {
+                OperationsChangeFeedGateway.None.relevantChangeSignals()
             }
         )
         if (!currentAuthority.canRead) return

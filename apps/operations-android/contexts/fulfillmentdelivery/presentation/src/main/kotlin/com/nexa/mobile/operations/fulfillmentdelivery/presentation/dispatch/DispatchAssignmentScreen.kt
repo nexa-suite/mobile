@@ -1,7 +1,9 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,12 +30,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.core.designsystem.NexaColors
+import com.nexa.mobile.operations.core.designsystem.NexaShapes
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDriverCandidate
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.PreparedFulfillmentDriverAssignment
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
@@ -260,17 +266,61 @@ private fun AssignmentStatusCard(status: DispatchAssignmentStatus) {
         DispatchAssignmentStatus.SessionInvalidated ->
             R.string.dispatch_assignment_session_title to R.string.dispatch_assignment_session_body
     }
+    val (containerColor, borderColor, titleColor) = when (status) {
+        DispatchAssignmentStatus.Current -> Triple(
+            NexaColors.SuccessSurface,
+            NexaColors.SuccessBorder,
+            NexaColors.Success
+        )
+
+        DispatchAssignmentStatus.NotReady,
+        DispatchAssignmentStatus.PermissionUnknown,
+        DispatchAssignmentStatus.Stale,
+        DispatchAssignmentStatus.UnknownOutcome,
+        DispatchAssignmentStatus.NetworkUnavailable,
+        DispatchAssignmentStatus.ServiceUnavailable -> Triple(
+            NexaColors.WarningSurface,
+            NexaColors.WarningBorder,
+            NexaColors.Warning
+        )
+
+        DispatchAssignmentStatus.PermissionDenied,
+        DispatchAssignmentStatus.Conflict,
+        DispatchAssignmentStatus.ContextInvalidated,
+        DispatchAssignmentStatus.SessionInvalidated -> Triple(
+            NexaColors.DangerSurface,
+            NexaColors.DangerBorder,
+            NexaColors.Danger
+        )
+
+        DispatchAssignmentStatus.Initial,
+        DispatchAssignmentStatus.Loading,
+        DispatchAssignmentStatus.Saving -> Triple(
+            NexaColors.InfoSurface,
+            NexaColors.InfoBorder,
+            NexaColors.Info
+        )
+    }
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        border = BorderStroke(1.dp, borderColor),
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(stringResource(title), fontWeight = FontWeight.SemiBold)
-            Text(stringResource(body), style = MaterialTheme.typography.bodyMedium)
+            Text(
+                stringResource(title),
+                color = titleColor,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                stringResource(body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }
@@ -289,22 +339,49 @@ private fun DriverCandidateCard(
             .semantics { contentDescription = "${candidate.displayName}, ${candidate.email}" },
         colors = CardDefaults.cardColors(
             containerColor = if (selected) {
-                MaterialTheme.colorScheme.secondaryContainer
+                NexaColors.InfoSurface
             } else {
-                MaterialTheme.colorScheme.surfaceVariant
+                NexaColors.Surface
             }
         ),
-        shape = RoundedCornerShape(16.dp)
+        border = BorderStroke(1.dp, if (selected) NexaColors.Primary else NexaColors.Border),
+        shape = NexaShapes.card
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            RadioButton(selected = selected, onClick = onClick, enabled = enabled)
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(candidate.displayName, fontWeight = FontWeight.SemiBold)
-                Text(candidate.email, style = MaterialTheme.typography.bodySmall)
+            Surface(
+                shape = androidx.compose.foundation.shape.CircleShape,
+                color = if (selected) NexaColors.PrimaryContainer else NexaColors.SurfaceInset
+            ) {
+                Box(modifier = Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        candidate.displayName.trim().firstOrNull()?.uppercase() ?: "?",
+                        color = NexaColors.PrimaryStrong,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    candidate.displayName,
+                    color = NexaColors.TextPrimary,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    candidate.email,
+                    color = NexaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            RadioButton(selected = selected, onClick = onClick, enabled = enabled)
         }
     }
 }

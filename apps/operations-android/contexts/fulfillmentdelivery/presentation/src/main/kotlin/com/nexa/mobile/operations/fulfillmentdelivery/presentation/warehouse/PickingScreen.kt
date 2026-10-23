@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.core.designsystem.NexaWorkSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
 
 @Composable
@@ -54,15 +55,9 @@ fun PickingScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             TextButton(onClick = onBack) { Text("Volver") }
-            Text(
-                text = stringResource(R.string.picking_title),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                stringResource(R.string.picking_authority_note),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            NexaWorkSummary(
+                title = stringResource(R.string.picking_title),
+                description = stringResource(R.string.picking_authority_note)
             )
 
             if (!state.canRead) {

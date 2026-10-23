@@ -2,12 +2,24 @@ import 'dart:async';
 
 import '../../../core/network/nexa_api_client.dart';
 import '../application/buyer_access_repository.dart';
+import 'buyer_secure_biometric_session_store.dart';
 
 final class BuyerAccessRepositoryImpl
-    implements BuyerAccessRepository, SessionCredentialProvider {
-  BuyerAccessRepositoryImpl(this._api);
+    implements
+        BuyerAccessRepository,
+        BuyerPasswordRecoveryRepository,
+        BuyerPasswordChangeRepository,
+        BuyerSessionSecurityRepository,
+        BuyerBiometricSessionRepository,
+        SessionCredentialProvider {
+  BuyerAccessRepositoryImpl(
+    this._api, {
+    BuyerSecureBiometricSessionStore? biometricSessionStore,
+  }) : _biometricSessionStore =
+           biometricSessionStore ?? BuyerSecureBiometricSessionStore();
 
   final NexaApiClient _api;
+  final BuyerSecureBiometricSessionStore _biometricSessionStore;
   final StreamController<BuyerAccessSnapshot> _changes =
       StreamController<BuyerAccessSnapshot>.broadcast(sync: true);
 
@@ -21,6 +33,7 @@ final class BuyerAccessRepositoryImpl
   int? _refreshAuthorityEpoch;
   String? _refreshTokenUsed;
   int _authorityEpoch = 0;
+  bool _biometricEnabled = false;
 
   @override
   String? get accessToken => _accessToken;
@@ -38,6 +51,113 @@ final class BuyerAccessRepositoryImpl
 
   @override
   Stream<BuyerAccessSnapshot> get changes => _changes.stream;
+
+  @override
+  Future<bool> hasBiometricSession() async {
+    _biometricEnabled = await _biometricSessionStore.isEnabled();
+    return _biometricEnabled;
+  }
+
+  @override
+  Future<void> setBiometricUnlockEnabled(bool enabled) async {
+    if (!enabled) {
+      _biometricEnabled = false;
+      await _biometricSessionStore.disable();
+      return;
+    }
+    final refreshToken = _refreshToken;
+    final context = _snapshot.currentContext;
+    if (!_snapshot.hasActiveBuyerScope ||
+        refreshToken == null ||
+        context == null) {
+      throw const NexaApiFailure(
+        code: 'buyer_session_required',
+        statusCode: 401,
+        userMessage: 'Inicia sesión para activar el acceso biométrico.',
+      );
+    }
+    await _biometricSessionStore.enable(
+      refreshToken,
+      context.biometricScopeKey,
+    );
+    _biometricEnabled = true;
+  }
+
+  @override
+  Future<bool> restoreBiometricSession() async {
+    if (!await _biometricSessionStore.isEnabled()) {
+      _biometricEnabled = false;
+      return false;
+    }
+    final refreshToken = await _biometricSessionStore.readRefreshToken();
+    final biometricScope = await _biometricSessionStore.readScope();
+    if (refreshToken == null ||
+        refreshToken.isEmpty ||
+        biometricScope == null) {
+      await _biometricSessionStore.disable();
+      _biometricEnabled = false;
+      return false;
+    }
+    final attemptEpoch = _authorityEpoch;
+    try {
+      final response = await _api.post(
+        '/authentication/refresh',
+        authenticated: false,
+        nativeRefreshToken: refreshToken,
+      );
+      if (!_isCurrentEpoch(attemptEpoch)) return false;
+      _biometricEnabled = true;
+      await _establishSession(
+        response.body,
+        response.headers,
+        requiredBiometricScope: biometricScope,
+      );
+      return _snapshot.hasActiveBuyerScope;
+    } on NexaApiFailure catch (failure) {
+      if (failure.statusCode == 401 || failure.statusCode == 403) {
+        _biometricEnabled = false;
+        await _biometricSessionStore.disable();
+        return false;
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<BuyerPasswordResetRequestResult> requestPasswordReset(
+    String email,
+  ) async {
+    try {
+      await _api.post(
+        '/auth/password-reset-requests',
+        authenticated: false,
+        body: {'email': email.trim(), 'surface': 'PORTAL'},
+      );
+      return BuyerPasswordResetRequestResult.requested;
+    } on NexaApiFailure catch (failure) {
+      return failure.statusCode == 429
+          ? BuyerPasswordResetRequestResult.rateLimited
+          : BuyerPasswordResetRequestResult.unavailable;
+    } catch (_) {
+      return BuyerPasswordResetRequestResult.unavailable;
+    }
+  }
+
+  @override
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _api.post(
+      '/me/password-changes',
+      body: {'currentPassword': currentPassword, 'newPassword': newPassword},
+    );
+  }
+
+  @override
+  Future<void> revokeOtherSessions() async {
+    await _api.post('/me/session-revocations');
+  }
 
   @override
   Future<void> signIn({
@@ -61,7 +181,7 @@ final class BuyerAccessRepositoryImpl
         case 'SESSION_ESTABLISHED':
           final session = _map(response.body['session']);
           if (session == null) _throwInvalidResponse();
-          _establishSession(session, response.headers);
+          await _establishSession(session, response.headers);
         case 'CONTEXT_SELECTION_REQUIRED':
           final ticket = response.headers['x-nexa-context-ticket'];
           if (ticket == null || ticket.isEmpty) _throwInvalidResponse();
@@ -131,7 +251,7 @@ final class BuyerAccessRepositoryImpl
         contextTicket: ticket,
       );
       if (!_isCurrentEpoch(selectionEpoch)) return;
-      _establishSession(
+      await _establishSession(
         response.body,
         response.headers,
         selectedContext: selectedContext,
@@ -147,7 +267,16 @@ final class BuyerAccessRepositoryImpl
   @override
   Future<void> signOut() async {
     final token = _accessToken;
+    final clearBiometricSession = _biometricEnabled;
+    _biometricEnabled = false;
     _clear();
+    if (clearBiometricSession) {
+      try {
+        await _biometricSessionStore.disable();
+      } catch (_) {
+        // A revoked server session cannot be resumed even if local cleanup fails.
+      }
+    }
     if (token != null) {
       try {
         await _api.post(
@@ -165,7 +294,19 @@ final class BuyerAccessRepositoryImpl
   }
 
   @override
-  void invalidateLocalSession() => _clear();
+  void invalidateLocalSession() {
+    if (_biometricEnabled) {
+      _biometricEnabled = false;
+      unawaited(() async {
+        try {
+          await _biometricSessionStore.disable();
+        } catch (_) {
+          // A stale token is rejected by the server on the next unlock attempt.
+        }
+      }());
+    }
+    _clear();
+  }
 
   @override
   Future<String?> refreshIfCurrent(
@@ -219,27 +360,37 @@ final class BuyerAccessRepositoryImpl
           _accessToken != tokenUsed) {
         return null;
       }
-      _establishSession(
+      await _establishSession(
         response.body,
         response.headers,
         preserveLease: true,
         requiredScopeKey: oldContext.scopeKey,
       );
       return _accessToken;
-    } catch (_, stackTrace) {
+    } catch (error, stackTrace) {
       if (!_isCurrentEpoch(expectedAuthorityEpoch)) return null;
+      if (error is NexaApiFailure &&
+          (error.statusCode == 401 || error.statusCode == 403)) {
+        _biometricEnabled = false;
+        try {
+          await _biometricSessionStore.disable();
+        } catch (_) {
+          // The server has rejected the refresh credential.
+        }
+      }
       _clear();
       Error.throwWithStackTrace(_sessionExpired(), stackTrace);
     }
   }
 
-  void _establishSession(
+  Future<void> _establishSession(
     Map<String, Object?> response,
     Map<String, String> headers, {
     bool preserveLease = false,
     String? requiredScopeKey,
+    String? requiredBiometricScope,
     BuyerAccessContext? selectedContext,
-  }) {
+  }) async {
     final session = _map(response['session']);
     final accessToken = _string(response['accessToken']);
     final refreshToken = _string(headers['x-nexa-refresh-token']);
@@ -251,6 +402,8 @@ final class BuyerAccessRepositoryImpl
         _string(session['surface']) != 'PORTAL' ||
         !_stringSet(session['roles']).contains('BUYER') ||
         (requiredScopeKey != null && context.scopeKey != requiredScopeKey) ||
+        (requiredBiometricScope != null &&
+            context.biometricScopeKey != requiredBiometricScope) ||
         (selectedContext != null &&
             context.scopeKey != selectedContext.scopeKey)) {
       _throwNoBuyerContext();
@@ -272,6 +425,25 @@ final class BuyerAccessRepositoryImpl
         email: context.email,
       );
     }
+
+    final expectedEpoch = _authorityEpoch;
+    if (_biometricEnabled) {
+      try {
+        _biometricEnabled = await _biometricSessionStore.updateRefreshToken(
+          refreshToken,
+          context.biometricScopeKey,
+        );
+      } catch (_) {
+        _biometricEnabled = false;
+        try {
+          await _biometricSessionStore.disable();
+        } catch (_) {
+          // Keep the current server session available in memory.
+        }
+      }
+      if (!_isCurrentEpoch(expectedEpoch)) return;
+    }
+    if (!_isCurrentEpoch(expectedEpoch)) return;
 
     _accessToken = accessToken;
     _refreshToken = refreshToken;

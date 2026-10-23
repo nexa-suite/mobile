@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/presentation/nexa_buyer_components.dart';
 import 'business_documents_view_model.dart';
 
 final class BusinessDocumentsPage extends StatefulWidget {
@@ -61,39 +62,42 @@ final class _DocumentList extends StatelessWidget {
   final BusinessDocumentsViewModel viewModel;
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Expanded(
-        child: RefreshIndicator(
-          onRefresh: viewModel.refresh,
-          child: ListView.separated(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: viewModel.items.length,
-            separatorBuilder: (context, index) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final document = viewModel.items[index];
-              return ListTile(
-                leading: const CircleAvatar(
-                  child: Icon(Icons.description_outlined),
-                ),
-                title: Text(
-                  document.documentNumber ?? document.documentType,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(
-                  '${document.documentType} · ${document.status} · ${document.format}',
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('/documents/${document.id}'),
-              );
-            },
+  Widget build(BuildContext context) => NexaPageWidth(
+    padding: EdgeInsets.zero,
+    child: Column(
+      children: [
+        const NexaSectionHeader(
+          eyebrow: 'Archivo',
+          title: 'Documentos',
+          description: 'Documentos disponibles para tu contexto actual.',
+        ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: viewModel.refresh,
+            child: ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              itemCount: viewModel.items.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 4),
+              itemBuilder: (context, index) {
+                final document = viewModel.items[index];
+                return NexaPageWidth(
+                  padding: EdgeInsets.zero,
+                  child: NexaRecordCard(
+                    title: document.documentNumber ?? document.documentType,
+                    status: document.status,
+                    icon: Icons.description_outlined,
+                    subtitle: '${document.documentType} · ${document.format}',
+                    onTap: () => context.push('/documents/${document.id}'),
+                  ),
+                );
+              },
+            ),
           ),
         ),
-      ),
-      _DocumentPagination(viewModel: viewModel),
-    ],
+        _DocumentPagination(viewModel: viewModel),
+      ],
+    ),
   );
 }
 
@@ -113,7 +117,11 @@ final class _DocumentPagination extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text('Página ${viewModel.page + 1} · ${viewModel.total} documentos'),
+          Expanded(
+            child: Text(
+              'Página ${viewModel.page + 1} · ${viewModel.total} documentos',
+            ),
+          ),
           Row(
             children: [
               IconButton(
@@ -147,17 +155,12 @@ final class _DocumentMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 42),
-          const SizedBox(height: 12),
-          Text(message, textAlign: TextAlign.center),
-          if (action != null) ...[const SizedBox(height: 8), action!],
-        ],
-      ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        NexaEmptyState(title: message, icon: icon),
+        ?action,
+      ],
     ),
   );
 }

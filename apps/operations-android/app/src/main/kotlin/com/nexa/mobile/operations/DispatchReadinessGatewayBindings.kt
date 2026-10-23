@@ -2,6 +2,7 @@ package com.nexa.mobile.operations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.nexa.mobile.operations.fulfillmentdelivery.application.changefeed.OperationsChangeFeedGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAssignmentMetadataStore as AssignmentMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.OperationsDispatchAssignmentGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters.OperationsDispatchReadinessGateway
@@ -10,12 +11,13 @@ import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.Disp
 import javax.inject.Inject
 
 internal class DispatchReadinessViewModelFactory @Inject constructor(
-    private val gateway: OperationsDispatchReadinessGateway
+    private val gateway: OperationsDispatchReadinessGateway,
+    private val changeFeedGateway: OperationsChangeFeedGateway
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         require(modelClass.isAssignableFrom(DispatchReadinessViewModel::class.java))
-        return DispatchReadinessViewModel(gateway) as T
+        return DispatchReadinessViewModel(gateway, changeFeedGateway = changeFeedGateway) as T
     }
 }
 

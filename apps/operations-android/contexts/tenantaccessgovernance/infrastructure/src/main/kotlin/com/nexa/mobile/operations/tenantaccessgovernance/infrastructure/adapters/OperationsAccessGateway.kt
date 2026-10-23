@@ -8,6 +8,9 @@ import com.nexa.mobile.operations.tenantaccessgovernance.application.access.Acce
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.ContextListResult
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.ContextSelectionResult
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.CurrentSessionContextResult
+import com.nexa.mobile.operations.tenantaccessgovernance.application.access.OtherSessionsRevocationResult
+import com.nexa.mobile.operations.tenantaccessgovernance.application.access.OwnPasswordChangeResult
+import com.nexa.mobile.operations.tenantaccessgovernance.application.access.PasswordResetRequestResult
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.SignInResult
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.PermissionHint as PublicPermissionHint
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.catalogReadHint
@@ -20,6 +23,9 @@ import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transpor
 import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.NativeAccessContext
 import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.NativeAuthenticationSession
 import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.NexaIdentityAccessGateway
+import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.OtherSessionsRevocationOutcome
+import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.OwnPasswordChangeOutcome
+import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.PasswordResetRequestOutcome
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.map
@@ -54,6 +60,54 @@ class OperationsAccessGateway @Inject constructor(
             IdentitySignInOutcome.ServiceUnavailable,
             IdentitySignInOutcome.UnknownOutcome -> SignInResult.ServiceUnavailable
         }
+
+    override suspend fun requestPasswordReset(email: String): PasswordResetRequestResult =
+        when (identity.requestPasswordReset(email)) {
+            PasswordResetRequestOutcome.Requested -> PasswordResetRequestResult.Requested
+
+            PasswordResetRequestOutcome.RateLimited -> PasswordResetRequestResult.RateLimited
+
+            PasswordResetRequestOutcome.NetworkUnavailable ->
+                PasswordResetRequestResult.NetworkUnavailable
+
+            PasswordResetRequestOutcome.ServiceUnavailable ->
+                PasswordResetRequestResult.ServiceUnavailable
+        }
+
+    override suspend fun changeOwnPassword(
+        currentPassword: String,
+        newPassword: String
+    ): OwnPasswordChangeResult {
+        val access = sessions.currentAccess() ?: return OwnPasswordChangeResult.SessionExpired
+        return when (identity.changeOwnPassword(access.value, currentPassword, newPassword)) {
+            OwnPasswordChangeOutcome.Changed -> OwnPasswordChangeResult.Changed
+
+            OwnPasswordChangeOutcome.Rejected -> OwnPasswordChangeResult.Rejected
+
+            OwnPasswordChangeOutcome.SessionExpired -> {
+                sessions.rejectCurrentAccess(access)
+                OwnPasswordChangeResult.SessionExpired
+            }
+
+            OwnPasswordChangeOutcome.Unavailable -> OwnPasswordChangeResult.Unavailable
+        }
+    }
+
+    override suspend fun revokeOtherSessions(): OtherSessionsRevocationResult {
+        val access = sessions.currentAccess()
+            ?: return OtherSessionsRevocationResult.SessionExpired
+        return when (identity.revokeOtherSessions(access.value)) {
+            OtherSessionsRevocationOutcome.Revoked -> OtherSessionsRevocationResult.Revoked
+
+            OtherSessionsRevocationOutcome.SessionExpired -> {
+                sessions.rejectCurrentAccess(access)
+                OtherSessionsRevocationResult.SessionExpired
+            }
+
+            OtherSessionsRevocationOutcome.Unavailable ->
+                OtherSessionsRevocationResult.Unavailable
+        }
+    }
 
     override suspend fun currentSessionContext(): CurrentSessionContextResult {
         if (sessions.sessionState.value != SessionState.Active) {

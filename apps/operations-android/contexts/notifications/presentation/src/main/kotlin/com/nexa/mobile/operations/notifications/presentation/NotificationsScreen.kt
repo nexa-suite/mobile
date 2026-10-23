@@ -15,12 +15,20 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.nexa.mobile.operations.core.designsystem.NexaTopAppBar
 import com.nexa.mobile.operations.notifications.application.inbox.NotificationPreference
 import com.nexa.mobile.operations.notifications.presentation.R
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 @Composable
 fun NotificationsScreen(
@@ -34,6 +42,20 @@ fun NotificationsScreen(
     onRefreshPreferences: () -> Unit,
     onPreferenceChanged: (NotificationPreference, Boolean) -> Unit
 ) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val refreshInbox = rememberUpdatedState(onRefreshInbox)
+    LaunchedEffect(lifecycleOwner, state.tab, state.inboxStatus) {
+        if (state.tab == NotificationsTab.Inbox &&
+            state.inboxStatus != NotificationRequestStatus.Loading
+        ) {
+            lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (currentCoroutineContext().isActive) {
+                    delay(INBOX_REFRESH_INTERVAL_MILLIS)
+                    refreshInbox.value()
+                }
+            }
+        }
+    }
     Column(Modifier.fillMaxSize()) {
         NexaTopAppBar(
             title = stringResource(R.string.notifications_title),
@@ -72,6 +94,8 @@ fun NotificationsScreen(
         }
     }
 }
+
+private const val INBOX_REFRESH_INTERVAL_MILLIS = 15_000L
 
 @Composable
 private fun InboxContent(

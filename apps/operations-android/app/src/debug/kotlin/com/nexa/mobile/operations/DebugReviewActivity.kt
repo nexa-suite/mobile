@@ -139,7 +139,7 @@ private fun DebugReviewExperience(initialScenario: ReviewScenario, cleanCapture:
     var warehouseState by remember(scenario) {
         mutableStateOf((frame as? ReviewFrame.Product)?.state ?: WarehouseUiState())
     }
-    NexaSystemBars(authCanopyVisible = frame is ReviewFrame.Access)
+    NexaSystemBars(lightSurfaceVisible = true)
     val scenarioPickerLabel = stringResource(
         if (selecting) R.string.review_close_scenarios else R.string.review_choose_scenario
     )
@@ -232,6 +232,13 @@ private fun DebugReviewExperience(initialScenario: ReviewScenario, cleanCapture:
                             },
                             onSearch = { scenario = ReviewScenario.SearchLoading },
                             onLoadMore = { scenario = ReviewScenario.LoadingMore },
+                            onOpenFilterOptions = {},
+                            onCloseFilterOptions = {},
+                            onFilterSearchChanged = {},
+                            onLoadFilterOptions = {},
+                            onLoadMoreFilterOptions = {},
+                            onRetryFilterOptions = {},
+                            onSelectFilter = { _, _ -> },
                             onSelectCandidate = { scenario = ReviewScenario.ConfirmationPending }
                         )
                     }

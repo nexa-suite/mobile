@@ -147,6 +147,47 @@ void main() {
   });
 
   test(
+    'requests Buyer password recovery through the native Portal contract',
+    () async {
+      late http.Request resetRequest;
+      final client = NexaApiClient(
+        origin: NexaApiOrigin.parse(
+          'https://api.nexa.example',
+          allowLocalHttp: false,
+        ),
+        httpClient: MockClient((request) async {
+          resetRequest = request;
+          return http.Response(
+            jsonEncode({
+              'message': 'If the account exists, instructions were sent.',
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      final repository = BuyerAccessRepositoryImpl(client);
+
+      final result = await repository.requestPasswordReset(
+        ' buyer@example.test ',
+      );
+
+      expect(result, BuyerPasswordResetRequestResult.requested);
+      expect(resetRequest.url.path, '/api/v1/auth/password-reset-requests');
+      expect(jsonDecode(resetRequest.body), {
+        'email': 'buyer@example.test',
+        'surface': 'PORTAL',
+      });
+      expect(resetRequest.headers['x-nexa-client'], 'NATIVE');
+      expect(resetRequest.headers['x-nexa-surface'], 'PORTAL');
+      expect(resetRequest.headers.containsKey('authorization'), isFalse);
+
+      await repository.dispose();
+      client.close();
+    },
+  );
+
+  test(
     'a late context selection cannot replace a newer signed-in identity',
     () async {
       final selectionStarted = Completer<void>();

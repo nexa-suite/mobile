@@ -101,6 +101,52 @@ void main() {
   });
 
   test(
+    'an unavailable document gives a clear message and keeps session',
+    () async {
+      final access = _FakeAccess(_signedInSnapshot());
+      final api = NexaApiClient(
+        origin: NexaApiOrigin.parse(
+          'https://api.nexa.example',
+          allowLocalHttp: false,
+        ),
+        httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('/downloads')) {
+            return http.Response(
+              '{"code":"INVALID_REQUEST","detail":"private"}',
+              400,
+              headers: {'content-type': 'application/problem+json'},
+            );
+          }
+          return http.Response(_documentJson(), 200);
+        }),
+      )..sessionCredentials = _FakeCredentials();
+      final viewModel = BusinessDocumentDetailViewModel(
+        BusinessDocumentsRepositoryImpl(api),
+        access,
+        _documentId,
+      );
+
+      await viewModel.load();
+      await viewModel.download();
+
+      expect(
+        viewModel.downloadStatus,
+        BusinessDocumentDownloadStatus.unavailable,
+      );
+      expect(
+        viewModel.message,
+        'El archivo todavía no está disponible para descargar. Inténtalo más tarde.',
+      );
+      expect(access.snapshot.isSignedIn, isTrue);
+      expect(access.invalidations, 0);
+
+      viewModel.dispose();
+      api.close();
+      await access.dispose();
+    },
+  );
+
+  test(
     'context change clears existing and stale-completion document bytes',
     () async {
       final access = _FakeAccess(_signedInSnapshot());

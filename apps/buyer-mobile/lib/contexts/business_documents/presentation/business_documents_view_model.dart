@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../../../core/network/nexa_api_client.dart';
+import '../../../core/application/error/nexa_api_failure.dart';
 import '../../tenant_access_governance/application/buyer_access_repository.dart';
 import '../application/business_documents_repository.dart';
 
@@ -195,7 +195,7 @@ final class BusinessDocumentDetailViewModel extends ChangeNotifier {
     final snapshot = _access.snapshot;
     return current != null &&
         current.contentAvailable &&
-        current.byteSize <= NexaApiClient.maxProtectedBinaryBytes &&
+        current.byteSize <= maxProtectedBusinessDocumentBytes &&
         _hasPermission(snapshot, readPermission) &&
         _hasPermission(snapshot, downloadPermission);
   }
@@ -205,7 +205,7 @@ final class BusinessDocumentDetailViewModel extends ChangeNotifier {
 
   bool get downloadExceedsLimit =>
       document != null &&
-      document!.byteSize > NexaApiClient.maxProtectedBinaryBytes;
+      document!.byteSize > maxProtectedBusinessDocumentBytes;
 
   Future<void> load() async {
     final lease = _leaseKey;
@@ -262,10 +262,10 @@ final class BusinessDocumentDetailViewModel extends ChangeNotifier {
       return;
     }
     if (!current.contentAvailable ||
-        current.byteSize > NexaApiClient.maxProtectedBinaryBytes) {
+        current.byteSize > maxProtectedBusinessDocumentBytes) {
       _clearContent();
       downloadStatus = BusinessDocumentDownloadStatus.unavailable;
-      message = current.byteSize > NexaApiClient.maxProtectedBinaryBytes
+      message = current.byteSize > maxProtectedBusinessDocumentBytes
           ? 'El documento supera el límite de descarga protegido.'
           : 'El documento todavía no está listo para descargar.';
       notifyListeners();
@@ -303,9 +303,7 @@ final class BusinessDocumentDetailViewModel extends ChangeNotifier {
       downloadStatus = failure.statusCode == 403
           ? BusinessDocumentDownloadStatus.permissionDenied
           : BusinessDocumentDownloadStatus.unavailable;
-      message = failure.statusCode == 403
-          ? 'No tienes permiso para descargar este documento.'
-          : failure.userMessage;
+      message = _downloadFailureMessage(failure);
     } catch (_) {
       if (!_isCurrent(generation, lease)) return;
       _clearContent();
@@ -319,6 +317,16 @@ final class BusinessDocumentDetailViewModel extends ChangeNotifier {
     _clearContent();
     downloadStatus = BusinessDocumentDownloadStatus.idle;
     notifyListeners();
+  }
+
+  String _downloadFailureMessage(NexaApiFailure failure) {
+    if (failure.statusCode == 403) {
+      return 'No tienes permiso para descargar este documento.';
+    }
+    if (failure.statusCode == 400 && failure.code == 'INVALID_REQUEST') {
+      return 'El archivo todavía no está disponible para descargar. Inténtalo más tarde.';
+    }
+    return failure.userMessage;
   }
 
   bool _isCurrent(int generation, String lease) {

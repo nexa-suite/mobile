@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/presentation/nexa_buyer_components.dart';
 import '../application/buyer_wallet_repository.dart';
 import 'buyer_wallet_view_model.dart';
 
@@ -26,128 +27,128 @@ final class _BuyerWalletPageState extends State<BuyerWalletPage> {
     final wallet = viewModel.wallet;
     return RefreshIndicator(
       onRefresh: viewModel.refresh,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text('Billetera', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 12),
-          if (viewModel.canCreateRecharge ||
-              viewModel.rechargeCommand != null ||
-              viewModel.recharge != null ||
-              viewModel.rechargeActionStatus !=
-                  BuyerWalletRechargeActionStatus.idle) ...[
-            _RechargeCard(viewModel: viewModel),
-            const SizedBox(height: 12),
-          ],
-          if (viewModel.status == BuyerWalletViewStatus.loading &&
-              wallet == null)
-            const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (viewModel.status == BuyerWalletViewStatus.unavailable ||
-              viewModel.status == BuyerWalletViewStatus.permissionDenied)
-            _UnavailableCard(
-              message:
-                  viewModel.message ?? 'No se pudo consultar la billetera.',
-              onRetry: viewModel.refresh,
-            )
-          else if (wallet?.state == BuyerWalletState.notInitialized)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Billetera no inicializada'),
-                    SizedBox(height: 8),
-                    Text('No hay saldos disponibles para mostrar.'),
-                  ],
-                ),
-              ),
-            )
-          else if (viewModel.status == BuyerWalletViewStatus.current &&
-              wallet != null) ...[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Disponible',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${wallet.availableBalance} ${wallet.currency}',
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                  ],
-                ),
-              ),
+      child: NexaPageWidth(
+        padding: EdgeInsets.zero,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            const NexaPageIntro(
+              title: 'Billetera',
+              description: 'Saldo y movimientos de tu relación activa.',
+              icon: Icons.account_balance_wallet_outlined,
             ),
-            _BalanceFact(
-              title: 'Saldo contabilizado',
-              amount: wallet.postedBalance!,
-              currency: wallet.currency,
-            ),
-            _BalanceFact(
-              title: 'Reservado para pedidos',
-              amount: wallet.reservedBalance!,
-              currency: wallet.currency,
-            ),
-          ],
-          if (wallet != null) ...[
-            const SizedBox(height: 12),
-            Text('Movimientos', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            if (wallet.movements.items.isEmpty)
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('No hay movimientos para mostrar.'),
-                ),
+            if (viewModel.canCreateRecharge ||
+                viewModel.rechargeCommand != null ||
+                viewModel.recharge != null ||
+                viewModel.rechargeActionStatus !=
+                    BuyerWalletRechargeActionStatus.idle) ...[
+              _RechargeCard(viewModel: viewModel),
+              const SizedBox(height: 12),
+            ],
+            if (viewModel.status == BuyerWalletViewStatus.loading &&
+                wallet == null)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
               )
-            else
-              for (final movement in wallet.movements.items)
-                Card(
-                  child: ListTile(
-                    title: Text(movement.type.replaceAll('_', ' ')),
-                    subtitle: Text(_dateLabel(context, movement.occurredAt)),
-                    trailing: Text(
-                      '${movement.amountDelta} ${wallet.currency}',
-                    ),
+            else if (viewModel.status == BuyerWalletViewStatus.unavailable ||
+                viewModel.status == BuyerWalletViewStatus.permissionDenied)
+              _UnavailableCard(
+                message:
+                    viewModel.message ?? 'No se pudo consultar la billetera.',
+                onRetry: viewModel.refresh,
+              )
+            else if (wallet?.state == BuyerWalletState.notInitialized)
+              const NexaEmptyState(
+                title: 'Billetera no inicializada',
+                description: 'No hay saldos disponibles para mostrar.',
+                icon: Icons.account_balance_wallet_outlined,
+              )
+            else if (viewModel.status == BuyerWalletViewStatus.current &&
+                wallet != null) ...[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Disponible',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${wallet.availableBalance} ${wallet.currency}',
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                    ],
                   ),
                 ),
-            if (wallet.movements.total > wallet.movements.size)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    tooltip: 'Página anterior',
-                    onPressed: wallet.movements.page > 0
-                        ? viewModel.previousPage
-                        : null,
-                    icon: const Icon(Icons.chevron_left),
-                  ),
-                  Text(
-                    'Página ${wallet.movements.page + 1} de ${_pageCount(wallet.movements)}',
-                  ),
-                  IconButton(
-                    tooltip: 'Página siguiente',
-                    onPressed:
-                        (wallet.movements.page + 1) * wallet.movements.size <
-                            wallet.movements.total
-                        ? viewModel.nextPage
-                        : null,
-                    icon: const Icon(Icons.chevron_right),
-                  ),
-                ],
               ),
+              _BalanceFact(
+                title: 'Saldo contabilizado',
+                amount: wallet.postedBalance!,
+                currency: wallet.currency,
+              ),
+              _BalanceFact(
+                title: 'Reservado para pedidos',
+                amount: wallet.reservedBalance!,
+                currency: wallet.currency,
+              ),
+            ],
+            if (wallet != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Movimientos',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              if (wallet.movements.items.isEmpty)
+                const NexaEmptyState(
+                  title: 'Sin movimientos',
+                  description: 'No hay movimientos para mostrar.',
+                  icon: Icons.history,
+                )
+              else
+                for (final movement in wallet.movements.items)
+                  Card(
+                    child: ListTile(
+                      title: Text(movement.type.replaceAll('_', ' ')),
+                      subtitle: Text(_dateLabel(context, movement.occurredAt)),
+                      trailing: Text(
+                        '${movement.amountDelta} ${wallet.currency}',
+                      ),
+                    ),
+                  ),
+              if (wallet.movements.total > wallet.movements.size)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      tooltip: 'Página anterior',
+                      onPressed: wallet.movements.page > 0
+                          ? viewModel.previousPage
+                          : null,
+                      icon: const Icon(Icons.chevron_left),
+                    ),
+                    Text(
+                      'Página ${wallet.movements.page + 1} de ${_pageCount(wallet.movements)}',
+                    ),
+                    IconButton(
+                      tooltip: 'Página siguiente',
+                      onPressed:
+                          (wallet.movements.page + 1) * wallet.movements.size <
+                              wallet.movements.total
+                          ? viewModel.nextPage
+                          : null,
+                      icon: const Icon(Icons.chevron_right),
+                    ),
+                  ],
+                ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -199,8 +200,7 @@ final class _RechargeCardState extends State<_RechargeCard> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'El proveedor procesa el pago en su checkout seguro. Nexa actualiza el saldo '
-              'solo cuando verifica la confirmación firmada del proveedor.',
+              'Completa el pago con el proveedor. El saldo se actualizará cuando Nexa confirme la recarga.',
             ),
             if (viewModel.canCreateRecharge) ...[
               const SizedBox(height: 12),
@@ -229,12 +229,19 @@ final class _RechargeCardState extends State<_RechargeCard> {
             ],
             if (recharge != null) ...[
               const Divider(height: 24),
-              Text('Estado vigente: ${_rechargeStatusLabel(recharge.status)}'),
+              NexaStatusBadge(
+                recharge.status.name,
+                label: _rechargeStatusLabel(recharge.status),
+              ),
+              const SizedBox(height: 8),
               Text('Monto solicitado: ${recharge.amount} ${recharge.currency}'),
             ],
             if (viewModel.rechargeMessage case final message?) ...[
               const SizedBox(height: 8),
-              Text(message),
+              NexaNotice(
+                message,
+                isError: action == BuyerWalletRechargeActionStatus.conflict,
+              ),
             ],
             if (busy) ...[
               const SizedBox(height: 12),
@@ -273,8 +280,7 @@ final class _RechargeCardState extends State<_RechargeCard> {
             if (action == BuyerWalletRechargeActionStatus.conflict) ...[
               const SizedBox(height: 8),
               const Text(
-                'La solicitud conserva su clave de idempotencia para evitar duplicados. '
-                'No se puede iniciar otra con esta identidad hasta resolver el conflicto.',
+                'Esta recarga necesita revisión. Consulta su estado antes de solicitar otra.',
               ),
             ],
           ],
@@ -307,7 +313,10 @@ final class _BalanceFact extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-    child: ListTile(title: Text(title), trailing: Text('$amount $currency')),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: NexaFactTile(label: title, value: '$amount $currency'),
+    ),
   );
 }
 

@@ -6,6 +6,7 @@ import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.core.network.ProtectedMethod
 import com.nexa.mobile.operations.core.network.ProtectedRequest
 import com.nexa.mobile.operations.core.network.ProtectedResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryCoordinates
 import java.io.File
 import java.math.BigDecimal
 import kotlinx.serialization.json.Json
@@ -119,7 +120,13 @@ data class DriverDeliveryProjection(
     val version: Long,
     val activeAttempt: DriverDeliveryAttemptProjection?,
     val outcomeLines: List<DriverDeliveryOutcomeLineProjection> = emptyList(),
-    val arrival: DriverDeliveryArrivalFactProjection? = null
+    val arrival: DriverDeliveryArrivalFactProjection? = null,
+    val destinationCoordinates: DriverDeliveryCoordinates? = null
+)
+
+private data class DriverDestinationProjection(
+    val summary: String?,
+    val coordinates: DriverDeliveryCoordinates?
 )
 
 sealed interface DriverDeliveryNetworkOutcome {
@@ -574,7 +581,7 @@ class NexaDriverDeliveryGateway(private val protectedCalls: ProtectedCallExecuto
 
             is JsonPrimitive -> {
                 if (!destinationElement.isString) return null
-                destinationElement.contentOrNull?.toDriverDestinationSummary()
+                destinationElement.contentOrNull?.toDriverDestinationProjection()
             }
 
             else -> return null
@@ -632,44 +639,107 @@ class NexaDriverDeliveryGateway(private val protectedCalls: ProtectedCallExecuto
         }
         if (arrival != null && activeAttempt?.id != arrival.attemptId) return null
         DriverDeliveryProjection(
-            id, fulfillmentId, salesOrderId, status, destination, scheduled, dispatched,
-            delivered, updated, version, activeAttempt, outcomeLines, arrival
+            id = id,
+            fulfillmentId = fulfillmentId,
+            salesOrderId = salesOrderId,
+            status = status,
+            destinationSnapshot = destination?.summary,
+            scheduledAt = scheduled,
+            dispatchedAt = dispatched,
+            deliveredAt = delivered,
+            updatedAt = updated,
+            version = version,
+            activeAttempt = activeAttempt,
+            outcomeLines = outcomeLines,
+            arrival = arrival,
+            destinationCoordinates = destination?.coordinates
         )
     } catch (_: Exception) {
         null
     }
 
-    /** Keep contact and delivery-instruction fields out of the assigned-delivery projection. */
-    private fun String.toDriverDestinationSummary(): String? {
+    /** Accept known v1 destination snapshots and keep contact/instructions out of the projection. */
+    private fun String.toDriverDestinationProjection(): DriverDestinationProjection? {
         val trimmed = trim()
         if (trimmed.isEmpty()) return null
         if (!trimmed.startsWith('{')) {
-            return trimmed.takeUnless {
+            val summary = trimmed.takeUnless {
                 it.length > 240 || it.any(Char::isISOControl) ||
                     it.startsWith('[') || it.startsWith('"')
             }
+            return summary?.let { DriverDestinationProjection(it, null) }
         }
 
         val snapshot = trimmed.toObject() ?: return null
-        fun field(name: String): String? = (snapshot[name] as? JsonPrimitive)
-            ?.contentOrNull
-            ?.trim()
-            ?.takeIf { value ->
-                value.isNotEmpty() && value.length <= 120 &&
-                    value.none(Char::isISOControl)
+        val schemaVersion = (snapshot["schemaVersion"] as? JsonPrimitive)?.contentOrNull
+        val address = when (schemaVersion) {
+            "v1", "1.0" -> snapshot
+
+            null -> {
+                val delivery = snapshot["delivery"] as? JsonObject ?: return null
+                val addressSnapshot = delivery["address"] as? JsonObject ?: return null
+                addressSnapshot["address"] as? JsonObject ?: return null
             }
 
-        val street = listOf("roadType", "street", "number", "interior")
-            .mapNotNull(::field)
+            else -> return null
+        }
+
+        fun field(maxLength: Int, vararg names: String): String? = names
+            .firstNotNullOfOrNull { name ->
+                (address[name] as? JsonPrimitive)
+                    ?.contentOrNull
+                    ?.trim()
+                    ?.takeIf { value ->
+                        value.isNotEmpty() && value.length <= maxLength &&
+                            value.none(Char::isISOControl)
+                    }
+            }
+
+        fun coordinate(name: String): BigDecimal? = (address[name] as? JsonPrimitive)
+            ?.contentOrNull
+            ?.trim()
+            ?.takeIf(String::isNotEmpty)
+            ?.toBigDecimalOrNull()
+
+        val streetParts = listOf(
+            field(120, "roadType", "addressType"),
+            field(180, "street", "streetName"),
+            field(32, "number", "streetNumber"),
+            field(64, "interior")
+        ).filterNotNull()
+        val street = (
+            if (streetParts.isEmpty()) {
+                listOf(field(240, "line"))
+            } else {
+                streetParts
+            }
+            )
+            .filterNotNull()
             .joinToString(" ")
-        val locality = listOf("district", "province", "department")
-            .mapNotNull(::field)
+        val locality = listOf(
+            field(40, "district", "districtCode"),
+            field(40, "province", "provinceCode"),
+            field(40, "department", "departmentCode")
+        )
+            .filterNotNull()
             .distinct()
             .joinToString(", ")
-        return listOf(street, locality)
+        val summary = listOf(street, locality)
             .filter(String::isNotEmpty)
             .joinToString(", ")
             .takeIf(String::isNotEmpty)
+        val latitude = coordinate("latitude")
+        val longitude = coordinate("longitude")
+        val coordinates = if (
+            latitude != null && longitude != null &&
+            latitude >= BigDecimal.valueOf(-90) && latitude <= BigDecimal.valueOf(90) &&
+            longitude >= BigDecimal.valueOf(-180) && longitude <= BigDecimal.valueOf(180)
+        ) {
+            DriverDeliveryCoordinates(latitude, longitude)
+        } else {
+            null
+        }
+        return DriverDestinationProjection(summary, coordinates)
     }
 
     private fun JsonObject.toAttempt(): DriverDeliveryAttemptProjection? = try {

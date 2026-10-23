@@ -53,7 +53,41 @@ class NexaDriverWorkdayGatewayTest {
             assertEquals("/api/v1/driver/workdays", request.path)
             assertEquals("start-key", request.getHeader("Idempotency-Key"))
             assertEquals(null, request.getHeader("If-Match"))
-            assertEquals("{\"locationAvailable\":true}", request.body.readUtf8())
+            assertEquals("{\"locationAvailable\":false}", request.body.readUtf8())
+        }
+    }
+
+    @Test
+    fun liveLocationReadsOnlyCurrentDriverPointAndAcceptsNoContent() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val api = gateway(server)
+            server.enqueue(MockResponse().setResponseCode(204))
+            assertEquals(
+                DriverWorkdayNetworkResult.CurrentLocation(null),
+                api.liveLocation()
+            )
+            assertEquals("/api/v1/driver/location", server.takeRequest().path)
+
+            server.enqueue(
+                MockResponse().setResponseCode(200).setBody(locationResponse())
+            )
+            assertEquals(
+                DriverWorkdayNetworkResult.CurrentLocation(
+                    DriverWorkdayLocationProjection(
+                        SAMPLE,
+                        -12.05,
+                        -77.04,
+                        9.5,
+                        "2026-10-01T17:30:00Z",
+                        "2026-10-02T17:30:00Z"
+                    )
+                ),
+                api.liveLocation()
+            )
+            val request = server.takeRequest()
+            assertEquals("GET", request.method)
+            assertEquals("/api/v1/driver/location", request.path)
         }
     }
 

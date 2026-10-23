@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,10 +37,72 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.nexa.mobile.operations.core.designsystem.R as SharedR
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.StockConditionLot
 import com.nexa.mobile.operations.inventoryavailability.presentation.R
 import java.time.Instant
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.merge
+
+@Composable
+private fun StockConditionAutoRefresh(state: StockConditionUiState, onRefresh: () -> Unit) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var isResumed by remember(lifecycleOwner) {
+        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> isResumed = true
+
+                Lifecycle.Event.ON_PAUSE,
+                Lifecycle.Event.ON_STOP,
+                Lifecycle.Event.ON_DESTROY -> isResumed = false
+
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val latestState = rememberUpdatedState(state)
+    val refreshAction = rememberUpdatedState(onRefresh)
+    val authorityEpoch = state.authorityEpoch
+    val permitted = state.status !in STOCK_CONDITION_REFRESH_BLOCKED_STATUSES
+    val changeSignals = state.stockConditionChangeSignals
+    LaunchedEffect(lifecycleOwner, isResumed, authorityEpoch, permitted, changeSignals) {
+        if (!isResumed || !permitted || authorityEpoch <= 0) return@LaunchedEffect
+        val pollingSignals = flow {
+            while (true) {
+                delay(STOCK_CONDITION_POLL_INTERVAL_MILLIS)
+                emit(Unit)
+            }
+        }
+        merge(changeSignals, pollingSignals).collect {
+            val current = latestState.value
+            if (current.authorityEpoch != authorityEpoch ||
+                current.status in STOCK_CONDITION_REFRESH_BLOCKED_STATUSES
+            ) {
+                return@collect
+            }
+            refreshAction.value()
+        }
+    }
+}
+
+private const val STOCK_CONDITION_POLL_INTERVAL_MILLIS = 15_000L
+private val STOCK_CONDITION_REFRESH_BLOCKED_STATUSES = setOf(
+    StockConditionStatus.PermissionUnknown,
+    StockConditionStatus.PermissionDenied,
+    StockConditionStatus.ContextInvalidated,
+    StockConditionStatus.SessionInvalidated
+)
 
 @Composable
 fun StockConditionScreen(
@@ -51,6 +114,7 @@ fun StockConditionScreen(
     onDisposition: ((String) -> Unit)? = null,
     identifiedSkuId: String? = null
 ) {
+    StockConditionAutoRefresh(state, onRefresh)
     var storageReference by remember(state.authorityEpoch) { mutableStateOf("") }
     val visibleLots = if (identifiedSkuId == null) {
         state.lots
@@ -226,11 +290,7 @@ private fun StatusPanel(status: StockConditionStatus, observedAt: Instant?) {
         ) {
             Text(stringResource(title), style = MaterialTheme.typography.titleSmall)
             Text(stringResource(body), style = MaterialTheme.typography.bodyMedium)
-            if (observedAt != null && status in setOf(
-                    StockConditionStatus.Current,
-                    StockConditionStatus.Empty
-                )
-            ) {
+            if (observedAt != null) {
                 Text(
                     stringResource(R.string.stock_condition_observed_at, observedAt.toString()),
                     style = MaterialTheme.typography.bodySmall,

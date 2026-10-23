@@ -26,6 +26,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import java.math.BigDecimal
+import java.time.Instant
 import java.time.LocalDate
 import javax.inject.Singleton
 
@@ -57,7 +58,9 @@ class AppReceivingMetadataStore(private val local: LocalMetadataStore) :
                         quantityText = draft.quantityText,
                         unit = draft.unit,
                         temperatureReadingText = draft.temperatureReadingText,
-                        temperatureEvidenceObjectId = draft.temperatureEvidenceObjectId
+                        temperatureEvidenceObjectId = draft.temperatureEvidenceObjectId,
+                        productionDateText = draft.productionDateText,
+                        receivedAtText = draft.receivedAtText
                     )
                 }
             )
@@ -85,7 +88,9 @@ class AppReceivingMetadataStore(private val local: LocalMetadataStore) :
             quantityText = draft.quantityText,
             unit = draft.unit,
             temperatureReadingText = draft.temperatureReadingText,
-            temperatureEvidenceObjectId = draft.temperatureEvidenceObjectId
+            temperatureEvidenceObjectId = draft.temperatureEvidenceObjectId,
+            productionDateText = draft.productionDateText,
+            receivedAtText = draft.receivedAtText
         )
     ).toFeatureResult()
 
@@ -152,7 +157,9 @@ private fun ReceivingIntentMetadata.toLocalIntent(): ReceivingIntentMetadataReco
             unit = request.unit,
             temperatureReading = request.temperatureReading?.toPlainString(),
             notes = request.notes,
-            temperatureEvidenceObjectId = request.temperatureEvidenceObjectId
+            temperatureEvidenceObjectId = request.temperatureEvidenceObjectId,
+            productionDate = request.productionDate?.toString(),
+            receivedAt = request.receivedAt?.toString()
         ),
         status = when (status) {
             ReceivingIntentMetadataStatus.Pending -> ReceivingIntentStatus.Pending
@@ -180,7 +187,9 @@ private fun ReceivingIntentMetadataRecord.toFeatureIntentOrNull(): ReceivingInte
             unit = payload.unit,
             temperatureReading = payload.temperatureReading?.let { BigDecimal(it) },
             notes = payload.notes,
-            temperatureEvidenceObjectId = payload.temperatureEvidenceObjectId
+            temperatureEvidenceObjectId = payload.temperatureEvidenceObjectId,
+            productionDate = payload.productionDate?.let(LocalDate::parse),
+            receivedAt = payload.receivedAt?.let(Instant::parse)
         ),
         status = when (status) {
             ReceivingIntentStatus.Pending -> ReceivingIntentMetadataStatus.Pending

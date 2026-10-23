@@ -2,6 +2,7 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.fulfillmentdelivery.application.changefeed.OperationsChangeFeedGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryPodGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryPodSnapshot
@@ -12,6 +13,9 @@ import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchRe
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -19,23 +23,31 @@ import kotlinx.coroutines.launch
 class DispatchReadinessViewModel(
     private val gateway: DispatchReadinessGateway,
     private val now: () -> Instant = Instant::now,
-    private val newCommandKey: () -> String = { UUID.randomUUID().toString() }
+    private val newCommandKey: () -> String = { UUID.randomUUID().toString() },
+    private val changeFeedGateway: OperationsChangeFeedGateway = OperationsChangeFeedGateway.None
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(DispatchReadinessUiState())
     val state = mutableState.asStateFlow()
 
     private var activeContext: DispatchAuthorityContext? = null
     private var generation = 0L
+    private var listReadJob: Job? = null
+    private val changeFeedSignals = changeFeedGateway.relevantChangeSignals()
 
     fun activate(context: DispatchAuthorityContext) {
         if (activeContext == context && mutableState.value.status !in INVALIDATED_STATUS) return
+        cancelListRead()
         generation++
         activeContext = context
-        mutableState.value = DispatchReadinessUiState(authorityEpoch = context.authorityEpoch)
+        mutableState.value = DispatchReadinessUiState(
+            authorityEpoch = context.authorityEpoch,
+            changeFeedSignals = changeFeedSignals
+        )
         refresh()
     }
 
     fun refresh() {
+        if (listReadJob?.isActive == true) return
         val context = activeContext ?: return
         when (context.readPermissionHint()) {
             PermissionHint.Unknown -> {
@@ -59,77 +71,103 @@ class DispatchReadinessViewModel(
             PermissionHint.Available -> Unit
         }
 
+        val current = mutableState.value
+        val keepBoardVisible = current.selectedFulfillmentId == null &&
+            current.status in BOARD_REFRESHABLE_STATUS
         val request = ++generation
-        mutableState.value = DispatchReadinessUiState(
-            authorityEpoch = context.authorityEpoch,
-            status = DispatchReadinessStatus.Loading
-        )
-        viewModelScope.launch {
-            val result = safeCall { gateway.list(context) }
-            if (!isCurrent(request, context)) return@launch
-            when (result) {
-                is DispatchReadinessGatewayResult.ListResult -> {
-                    val ids = result.items.map { it.fulfillmentId.lowercase() }
-                    val malformed = ids.size != ids.toSet().size || result.items.any {
-                        it.subjectKind != PREPARED_FULFILLMENT
+        mutableState.value = if (keepBoardVisible) {
+            current.copy(status = DispatchReadinessStatus.Loading)
+        } else {
+            DispatchReadinessUiState(
+                authorityEpoch = context.authorityEpoch,
+                status = DispatchReadinessStatus.Loading,
+                changeFeedSignals = changeFeedSignals
+            )
+        }
+        val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                val result = safeCall { gateway.list(context) }
+                if (!isCurrent(request, context)) return@launch
+                when (result) {
+                    is DispatchReadinessGatewayResult.ListResult -> {
+                        val ids = result.items.map { it.fulfillmentId.lowercase() }
+                        val malformed = ids.size != ids.toSet().size || result.items.any {
+                            it.subjectKind != PREPARED_FULFILLMENT
+                        }
+                        if (malformed) {
+                            mutableState.value = DispatchReadinessUiState(
+                                authorityEpoch = context.authorityEpoch,
+                                status = DispatchReadinessStatus.ServiceUnavailable,
+                                changeFeedSignals = changeFeedSignals
+                            )
+                        } else {
+                            mutableState.value = DispatchReadinessUiState(
+                                authorityEpoch = context.authorityEpoch,
+                                status = if (result.items.isEmpty()) {
+                                    DispatchReadinessStatus.Empty
+                                } else {
+                                    DispatchReadinessStatus.Current
+                                },
+                                items = result.items,
+                                asOf = result.asOf,
+                                observedAt = now(),
+                                changeFeedSignals = changeFeedSignals
+                            )
+                        }
                     }
-                    if (malformed) {
-                        mutableState.value = DispatchReadinessUiState(
-                            authorityEpoch = context.authorityEpoch,
-                            status = DispatchReadinessStatus.ServiceUnavailable
-                        )
-                    } else {
-                        mutableState.value = DispatchReadinessUiState(
-                            authorityEpoch = context.authorityEpoch,
-                            status = if (result.items.isEmpty()) {
-                                DispatchReadinessStatus.Empty
-                            } else {
-                                DispatchReadinessStatus.Current
-                            },
-                            items = result.items,
-                            asOf = result.asOf,
-                            observedAt = now()
-                        )
-                    }
+
+                    DispatchReadinessGatewayResult.NetworkUnavailable -> failList(
+                        context,
+                        DispatchReadinessStatus.NetworkUnavailable
+                    )
+
+                    DispatchReadinessGatewayResult.ServiceUnavailable -> failList(
+                        context,
+                        DispatchReadinessStatus.ServiceUnavailable
+                    )
+
+                    DispatchReadinessGatewayResult.PermissionDenied -> failList(
+                        context,
+                        DispatchReadinessStatus.PermissionDenied
+                    )
+
+                    DispatchReadinessGatewayResult.ContextInvalidated -> invalidateContext()
+
+                    DispatchReadinessGatewayResult.SessionInvalidated -> invalidateSession()
+
+                    is DispatchReadinessGatewayResult.Detail -> failList(
+                        context,
+                        DispatchReadinessStatus.ServiceUnavailable
+                    )
                 }
-
-                DispatchReadinessGatewayResult.NetworkUnavailable -> failList(
-                    context,
-                    DispatchReadinessStatus.NetworkUnavailable
-                )
-
-                DispatchReadinessGatewayResult.ServiceUnavailable -> failList(
-                    context,
-                    DispatchReadinessStatus.ServiceUnavailable
-                )
-
-                DispatchReadinessGatewayResult.PermissionDenied -> failList(
-                    context,
-                    DispatchReadinessStatus.PermissionDenied
-                )
-
-                DispatchReadinessGatewayResult.ContextInvalidated -> invalidateContext()
-
-                DispatchReadinessGatewayResult.SessionInvalidated -> invalidateSession()
-
-                is DispatchReadinessGatewayResult.Detail -> failList(
-                    context,
-                    DispatchReadinessStatus.ServiceUnavailable
-                )
+            } finally {
+                if (listReadJob === currentCoroutineContext()[Job]) listReadJob = null
             }
         }
+        listReadJob = job
+        job.start()
     }
 
     fun selectFulfillment(fulfillmentId: String) {
         val context = activeContext ?: return
         val current = mutableState.value
-        if (current.status != DispatchReadinessStatus.Current ||
+        if (
+            current.status !in setOf(
+                DispatchReadinessStatus.Current,
+                DispatchReadinessStatus.Loading
+            ) ||
             current.items.none { it.fulfillmentId == fulfillmentId }
         ) {
             return
         }
+        cancelListRead()
         val request = ++generation
         mutableState.value = current.copy(
+            status = if (current.items.isEmpty()) {
+                DispatchReadinessStatus.Empty
+            } else {
+                DispatchReadinessStatus.Current
+            },
             selectedFulfillmentId = fulfillmentId,
             detail = null,
             detailStatus = DispatchReadinessDetailStatus.Loading,
@@ -275,12 +313,14 @@ class DispatchReadinessViewModel(
     }
 
     fun deactivate() {
+        cancelListRead()
         generation++
         activeContext = null
         mutableState.value = DispatchReadinessUiState()
     }
 
     fun invalidateContext() {
+        cancelListRead()
         generation++
         activeContext = null
         val epoch = mutableState.value.authorityEpoch
@@ -291,6 +331,7 @@ class DispatchReadinessViewModel(
     }
 
     fun invalidateSession() {
+        cancelListRead()
         generation++
         activeContext = null
         val epoch = mutableState.value.authorityEpoch
@@ -303,8 +344,18 @@ class DispatchReadinessViewModel(
     private fun failList(context: DispatchAuthorityContext, status: DispatchReadinessStatus) {
         mutableState.value = DispatchReadinessUiState(
             authorityEpoch = context.authorityEpoch,
-            status = status
+            status = status,
+            changeFeedSignals = if (status in BOARD_REFRESHABLE_STATUS) {
+                changeFeedSignals
+            } else {
+                OperationsChangeFeedGateway.None.relevantChangeSignals()
+            }
         )
+    }
+
+    private fun cancelListRead() {
+        listReadJob?.cancel()
+        listReadJob = null
     }
 
     private fun failDetail(status: DispatchReadinessDetailStatus) {
@@ -534,6 +585,12 @@ class DispatchReadinessViewModel(
         val INVALIDATED_STATUS = setOf(
             DispatchReadinessStatus.ContextInvalidated,
             DispatchReadinessStatus.SessionInvalidated
+        )
+        val BOARD_REFRESHABLE_STATUS = setOf(
+            DispatchReadinessStatus.Current,
+            DispatchReadinessStatus.Empty,
+            DispatchReadinessStatus.NetworkUnavailable,
+            DispatchReadinessStatus.ServiceUnavailable
         )
     }
 }

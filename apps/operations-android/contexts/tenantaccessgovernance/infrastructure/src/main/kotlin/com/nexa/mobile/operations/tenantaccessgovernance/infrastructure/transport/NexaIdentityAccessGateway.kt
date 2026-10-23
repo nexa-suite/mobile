@@ -31,6 +31,27 @@ internal interface NativeIdentityAccessService {
         @Body body: IdentitySignInRequest
     ): Response<IdentitySignInResponse>
 
+    @POST("api/v1/auth/password-reset-requests")
+    suspend fun requestPasswordReset(
+        @Header("X-Nexa-Client") client: String = NATIVE_CLIENT,
+        @Body body: NativePasswordResetRequest
+    ): Response<NativePasswordResetResponse>
+
+    @POST("api/v1/me/password-changes")
+    suspend fun changeOwnPassword(
+        @Header("X-Nexa-Client") client: String = NATIVE_CLIENT,
+        @Header("X-Nexa-Surface") surface: String = PLATFORM_SURFACE,
+        @Header("Authorization") authorization: String,
+        @Body body: NativePasswordChangeRequest
+    ): Response<Unit>
+
+    @POST("api/v1/me/session-revocations")
+    suspend fun revokeOtherSessions(
+        @Header("X-Nexa-Client") client: String = NATIVE_CLIENT,
+        @Header("X-Nexa-Surface") surface: String = PLATFORM_SURFACE,
+        @Header("Authorization") authorization: String
+    ): Response<Unit>
+
     @GET("api/v1/me/access-contexts")
     suspend fun accessContexts(
         @Header("X-Nexa-Client") client: String = NATIVE_CLIENT,
@@ -47,6 +68,41 @@ internal interface NativeIdentityAccessService {
         @Header("Authorization") authorization: String? = null,
         @Body body: AccessContextSelectionRequest
     ): Response<IdentityAuthenticationBody>
+}
+
+@Serializable
+internal data class NativePasswordResetRequest(
+    val email: String,
+    val surface: String = PLATFORM_SURFACE
+) {
+    override fun toString(): String = "NativePasswordResetRequest(email=REDACTED, surface=$surface)"
+}
+
+@Serializable
+internal data class NativePasswordResetResponse(val message: String? = null) {
+    override fun toString(): String = "NativePasswordResetResponse(message=REDACTED)"
+}
+
+@Serializable
+internal data class NativePasswordChangeRequest(
+    val currentPassword: String,
+    val newPassword: String
+) {
+    override fun toString(): String =
+        "NativePasswordChangeRequest(currentPassword=REDACTED, newPassword=REDACTED)"
+}
+
+enum class OwnPasswordChangeOutcome {
+    Changed,
+    Rejected,
+    SessionExpired,
+    Unavailable
+}
+
+enum class OtherSessionsRevocationOutcome {
+    Revoked,
+    SessionExpired,
+    Unavailable
 }
 
 @Serializable
@@ -149,6 +205,13 @@ sealed interface IdentitySignInOutcome {
     data object UnknownOutcome : IdentitySignInOutcome
 }
 
+sealed interface PasswordResetRequestOutcome {
+    data object Requested : PasswordResetRequestOutcome
+    data object RateLimited : PasswordResetRequestOutcome
+    data object NetworkUnavailable : PasswordResetRequestOutcome
+    data object ServiceUnavailable : PasswordResetRequestOutcome
+}
+
 sealed interface AccessContextsOutcome {
     data class Available(val contexts: List<NativeAccessContext>) : AccessContextsOutcome
     data object TicketExpired : AccessContextsOutcome
@@ -240,6 +303,62 @@ class NexaIdentityAccessGateway private constructor(
         } catch (_: Exception) {
             IdentitySignInOutcome.ServiceUnavailable
         }
+    }
+
+    suspend fun requestPasswordReset(email: String): PasswordResetRequestOutcome = try {
+        val response = service.requestPasswordReset(
+            body = NativePasswordResetRequest(email = email.trim())
+        )
+        when {
+            response.code() == 429 -> PasswordResetRequestOutcome.RateLimited
+            response.isSuccessful -> PasswordResetRequestOutcome.Requested
+            response.code() in 500..599 -> PasswordResetRequestOutcome.ServiceUnavailable
+            else -> PasswordResetRequestOutcome.ServiceUnavailable
+        }
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: IOException) {
+        PasswordResetRequestOutcome.NetworkUnavailable
+    } catch (_: Exception) {
+        PasswordResetRequestOutcome.ServiceUnavailable
+    }
+
+    suspend fun changeOwnPassword(
+        accessToken: String,
+        currentPassword: String,
+        newPassword: String
+    ): OwnPasswordChangeOutcome = try {
+        val response = service.changeOwnPassword(
+            authorization = "Bearer $accessToken",
+            body = NativePasswordChangeRequest(currentPassword, newPassword)
+        )
+        when {
+            response.isSuccessful -> OwnPasswordChangeOutcome.Changed
+            response.code() == 401 -> OwnPasswordChangeOutcome.SessionExpired
+            response.code() in setOf(400, 403) -> OwnPasswordChangeOutcome.Rejected
+            else -> OwnPasswordChangeOutcome.Unavailable
+        }
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: IOException) {
+        OwnPasswordChangeOutcome.Unavailable
+    } catch (_: Exception) {
+        OwnPasswordChangeOutcome.Unavailable
+    }
+
+    suspend fun revokeOtherSessions(accessToken: String): OtherSessionsRevocationOutcome = try {
+        val response = service.revokeOtherSessions(authorization = "Bearer $accessToken")
+        when {
+            response.isSuccessful -> OtherSessionsRevocationOutcome.Revoked
+            response.code() == 401 -> OtherSessionsRevocationOutcome.SessionExpired
+            else -> OtherSessionsRevocationOutcome.Unavailable
+        }
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: IOException) {
+        OtherSessionsRevocationOutcome.Unavailable
+    } catch (_: Exception) {
+        OtherSessionsRevocationOutcome.Unavailable
     }
 
     suspend fun accessContexts(accessToken: String? = null): AccessContextsOutcome {

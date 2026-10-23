@@ -7,6 +7,7 @@ import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.R
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivingZoneChoice
 import java.io.File
 import java.math.BigDecimal
+import java.time.Instant
 import java.time.LocalDate
 
 data class ReceivingAuthority(
@@ -84,7 +85,9 @@ data class InboundReceiptRequest(
     val unit: String,
     val temperatureReading: BigDecimal? = null,
     val notes: String? = null,
-    val temperatureEvidenceObjectId: String? = null
+    val temperatureEvidenceObjectId: String? = null,
+    val productionDate: LocalDate? = null,
+    val receivedAt: Instant? = null
 ) {
     init {
         require(warehouseId.isNotBlank())
@@ -158,7 +161,9 @@ data class ReceivingDraftMetadata(
     val quantityText: String,
     val unit: String,
     val temperatureReadingText: String,
-    val temperatureEvidenceObjectId: String? = null
+    val temperatureEvidenceObjectId: String? = null,
+    val productionDateText: String = "",
+    val receivedAtText: String = ""
 )
 
 enum class ReceivingIntentMetadataStatus { Pending, UnknownOutcome }

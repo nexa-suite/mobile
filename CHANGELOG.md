@@ -2,7 +2,36 @@
 
 ## [Unreleased]
 
-- Planned changes for the next release will be recorded here.
+## [1.3.0] - 2026-10-22
+
+Source-only release for controlled Nexa Suite validation. Operations Android
+source is version `1.3.0` (`versionCode` 12); Buyer Mobile source is version
+`1.2.0+3`. No signed distribution package is included.
+
+- Add Buyer biometric sign-in and password recovery, searchable brand/category
+  catalog filters, resumable purchase drafts, request/order history and active
+  delivery tracking.
+- Scope Buyer destinations to current server grants and refresh visible work
+  from the server change feed. Preserve server authority for credit, order
+  decisions, receipt evidence and payment status.
+- Organize Operations navigation by role permissions and operational tasks;
+  improve cold-chain receiving and stock capture with product catalog
+  selection, lot dates and authoritative units.
+- Refresh dispatch state from server changes and share driver location only
+  during an eligible active delivery with required consent and permission.
+- Keep the mobile flows within their bounded-context and platform boundaries.
+
+### Verification
+
+- Buyer context-boundary scripts, formatting, analysis, full Flutter test suite
+  and debug APK build passed. Five opt-in local API tests were skipped because
+  the integration environment was not enabled.
+- Operations architecture checks, ktlint, lint, JVM tests, debug APK assembly
+  and Android instrumented-test compilation passed. No local emulator/device
+  run was performed.
+- Full cross-client Product/System Acceptance, physical-device acceptance and
+  Production Readiness remain unverified. This source release makes none of
+  those claims.
 
 ## [1.2.0] - 2026-10-12
 
