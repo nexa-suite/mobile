@@ -178,7 +178,7 @@ fun AccessScreen(
                         modifier = Modifier.widthIn(max = 620.dp).fillMaxWidth()
                             .fillMaxHeight()
                             .then(
-                                if (scrollableLogin) {
+                                if (loginStage) {
                                     Modifier.verticalScroll(loginScrollState)
                                 } else {
                                     Modifier
