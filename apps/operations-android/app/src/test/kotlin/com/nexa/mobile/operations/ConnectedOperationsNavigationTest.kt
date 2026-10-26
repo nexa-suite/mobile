@@ -2,6 +2,7 @@ package com.nexa.mobile.operations
 
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseUiState
 import com.nexa.mobile.operations.core.auth.session.SessionState
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverPermissions
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.VerifiedOperationsIdentity
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
@@ -12,6 +13,7 @@ import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.Acc
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -285,6 +287,72 @@ class ConnectedOperationsNavigationTest {
                 )
             }
         }
+    }
+
+    @Test fun dispatchHandoverRequiresDispatchReadAndCanonicalOrAliasCompletion() {
+        val handover = ConnectedOperationEntry(
+            key = "dispatch.handover",
+            label = "Confirmar salida y evidencia de handoff",
+            readPermissions = DispatchHandoverPermissions.complete,
+            visibleInHub = false,
+            requiredReadPermissionGroups = listOf(
+                setOf(DispatchHandoverPermissions.READ)
+            )
+        )
+
+        for (completionPermission in DispatchHandoverPermissions.complete) {
+            val permissions = setOf(DispatchHandoverPermissions.READ, completionPermission)
+            val currentAuthority = authority.copy(permissions = permissions)
+            val currentAccess = access.copy(
+                activeContext = access.activeContext!!.copy(verifiedAuthority = currentAuthority)
+            )
+            val currentWarehouse = warehouse.copy(
+                activeContext = warehouse.activeContext!!.copy(
+                    verifiedIdentity = warehouse.activeContext!!.verifiedIdentity!!.copy(
+                        permissions = permissions
+                    )
+                )
+            )
+            val route = ConnectedOperationsNavigation.open(
+                handover,
+                SessionState.Active,
+                currentAccess,
+                currentWarehouse
+            )
+
+            assertNotNull("$completionPermission should open handover", route)
+            assertTrue(
+                ConnectedOperationsNavigation.permits(
+                    route!!,
+                    listOf(handover),
+                    SessionState.Active,
+                    currentAccess,
+                    currentWarehouse
+                )
+            )
+        }
+
+        val manageOnlyPermissions = setOf(DispatchHandoverPermissions.READ, "fulfillment.manage")
+        val manageOnlyAuthority = authority.copy(permissions = manageOnlyPermissions)
+        val manageOnlyAccess = access.copy(
+            activeContext = access.activeContext!!.copy(verifiedAuthority = manageOnlyAuthority)
+        )
+        val manageOnlyWarehouse = warehouse.copy(
+            activeContext = warehouse.activeContext!!.copy(
+                verifiedIdentity = warehouse.activeContext!!.verifiedIdentity!!.copy(
+                    permissions = manageOnlyPermissions
+                )
+            )
+        )
+
+        assertNull(
+            ConnectedOperationsNavigation.open(
+                handover,
+                SessionState.Active,
+                manageOnlyAccess,
+                manageOnlyWarehouse
+            )
+        )
     }
 
     @Test fun walletRefundRequiresAllowedVerifiedMembershipRoleAndPermission() {

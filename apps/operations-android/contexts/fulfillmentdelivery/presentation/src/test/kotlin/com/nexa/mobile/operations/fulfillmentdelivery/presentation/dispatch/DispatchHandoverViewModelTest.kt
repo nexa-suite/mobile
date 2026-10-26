@@ -9,6 +9,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.Dispa
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverMetadataRead
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverMetadataWrite
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverPermissions
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverReceipt
@@ -24,6 +25,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -74,6 +76,64 @@ class DispatchHandoverViewModelTest {
         assertNull(metadata.intent)
         assertEquals(DispatchHandoverStatus.Completed, viewModel.state.value.status)
         assertFalse(viewModel.state.value.hasPendingCommand)
+    }
+
+    @Test
+    fun canonicalAndAliasDispatchPermissionsAuthorizeHandoverWithoutFulfillmentManage() = runTest {
+        for (completionPermission in DispatchHandoverPermissions.complete) {
+            val permissions = setOf(DispatchHandoverPermissions.READ, completionPermission)
+            val events = mutableListOf<String>()
+            val metadata = FakeMetadata(events)
+            val gateway = FakeGateway(
+                events,
+                snapshot(12, 7),
+                DispatchHandoverGatewayResult.Dispatched(receipt())
+            )
+            val viewModel = DispatchHandoverViewModel(
+                gateway,
+                metadata,
+                newCommandKey = { KEY },
+                requestBodyCodec = TestDispatchRequestBodyCodec()
+            )
+            viewModel.activate(
+                readiness(12, 7),
+                context(permissions)
+            )
+            runCurrent()
+
+            assertTrue(viewModel.state.value.canConfirm)
+            viewModel.confirm()
+            runCurrent()
+            assertNotNull(gateway.command)
+            assertFalse("fulfillment.manage" in permissions)
+        }
+    }
+
+    @Test
+    fun fulfillmentManageAloneDoesNotAuthorizeDispatchHandover() = runTest {
+        val events = mutableListOf<String>()
+        val gateway = FakeGateway(
+            events,
+            snapshot(12, 7),
+            DispatchHandoverGatewayResult.Dispatched(receipt())
+        )
+        val viewModel = DispatchHandoverViewModel(
+            gateway,
+            FakeMetadata(events),
+            newCommandKey = { KEY },
+            requestBodyCodec = TestDispatchRequestBodyCodec()
+        )
+        viewModel.activate(
+            readiness(12, 7),
+            context(setOf(DispatchHandoverPermissions.READ, "fulfillment.manage"))
+        )
+        runCurrent()
+
+        assertFalse(viewModel.state.value.canConfirm)
+        viewModel.confirm()
+        runCurrent()
+        assertNull(gateway.command)
+        assertFalse("gateway.dispatch" in events)
     }
 
     @Test
@@ -239,14 +299,19 @@ class DispatchHandoverViewModelTest {
         it.copy(exactRequestBody = TestDispatchRequestBodyCodec().dispatchHandoverRequestBody(it))
     }
 
-    private fun context() = DispatchAuthorityContext(
+    private fun context(
+        permissions: Set<String> = setOf(
+            DispatchHandoverPermissions.READ,
+            DispatchHandoverPermissions.CANONICAL_COMPLETE
+        )
+    ) = DispatchAuthorityContext(
         authorityEpoch = 3,
         identity = DispatchAuthorityIdentity(
             USER_ID,
             TENANT_ID,
             WORKSPACE_ID,
             MEMBERSHIP_ID,
-            setOf("dispatch.read", "fulfillment.manage")
+            permissions
         )
     )
 
