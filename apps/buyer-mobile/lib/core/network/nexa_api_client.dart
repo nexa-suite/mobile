@@ -572,13 +572,15 @@ final class NexaApiClient {
     } on TimeoutException {
       throw const NexaApiFailure(
         code: 'network_timeout',
-        userMessage: 'Nexa did not respond. Check your connection and try again.',
+        userMessage:
+            'Nexa did not respond. Check your connection and try again.',
         retryable: true,
       );
     } on http.ClientException {
       throw const NexaApiFailure(
         code: 'network_unavailable',
-        userMessage: 'Nexa is unavailable. Check your connection and try again.',
+        userMessage:
+            'Nexa is unavailable. Check your connection and try again.',
         retryable: true,
       );
     }
