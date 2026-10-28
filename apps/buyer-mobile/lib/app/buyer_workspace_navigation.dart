@@ -74,6 +74,7 @@ abstract final class BuyerWorkspaceNavigation {
   }
 
   static String? redirectLocation(BuyerAccessSnapshot snapshot, String path) {
+    if (path == '/forgot-password' || path == '/reset-password') return null;
     switch (snapshot.status) {
       case BuyerAccessStatus.signedOut:
         return path == '/sign-in' ? null : '/sign-in';

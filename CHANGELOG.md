@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Filter Buyer catalog by brand, category, family and family-scoped variety;
+  show API-provided cold-chain requirement and sellable availability.
+- Scan the Driver's QR to submit Buyer receipt and finalize linked proof of
+  delivery through one server operation; keep retries idempotent.
+- Complete password reset through a server-issued reset token.
+
 ## [1.3.0] - 2026-10-22
 
 Source-only release for controlled Nexa Suite validation. Operations Android

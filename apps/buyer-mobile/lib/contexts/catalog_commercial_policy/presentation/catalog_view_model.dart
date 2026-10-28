@@ -52,13 +52,21 @@ final class CatalogViewModel extends ChangeNotifier {
   final Map<CatalogFilterKind, int> _lookupGenerations = {
     CatalogFilterKind.brand: 0,
     CatalogFilterKind.category: 0,
+    CatalogFilterKind.family: 0,
+    CatalogFilterKind.variant: 0,
   };
 
   CatalogLoadStatus status = CatalogLoadStatus.idle;
   List<CatalogItemProjection> items = const [];
   String query = '';
   String brand = '';
+  String brandId = '';
   String category = '';
+  String categoryId = '';
+  String family = '';
+  String familyId = '';
+  String variant = '';
+  String variantId = '';
   int page = 0;
   int totalItems = 0;
   int totalPages = 0;
@@ -67,26 +75,69 @@ final class CatalogViewModel extends ChangeNotifier {
   Map<CatalogFilterKind, CatalogFilterOptionsState> filterOptionStates = {
     CatalogFilterKind.brand: const CatalogFilterOptionsState(),
     CatalogFilterKind.category: const CatalogFilterOptionsState(),
+    CatalogFilterKind.family: const CatalogFilterOptionsState(),
+    CatalogFilterKind.variant: const CatalogFilterOptionsState(),
   };
 
   static const readPermission = 'catalog.read';
 
-  Future<void> search(String value) =>
-      _load(query: value.trim(), brand: brand, category: category, page: 0);
+  Future<void> search(String value) => _load(
+    query: value.trim(),
+    brand: brand,
+    brandId: brandId,
+    category: category,
+    categoryId: categoryId,
+    family: family,
+    familyId: familyId,
+    variant: variant,
+    variantId: variantId,
+    page: 0,
+  );
 
   Future<void> filter({
     String? query,
     required String brand,
     required String category,
+    String? brandId,
+    String? categoryId,
+    String? family,
+    String? familyId,
+    String? variant,
+    String? variantId,
   }) => _load(
     query: query?.trim() ?? this.query,
     brand: brand.trim(),
+    brandId:
+        brandId?.trim() ?? (brand.trim() == this.brand ? this.brandId : ''),
     category: category.trim(),
+    categoryId:
+        categoryId?.trim() ??
+        (category.trim() == this.category ? this.categoryId : ''),
+    family: family?.trim() ?? this.family,
+    familyId:
+        familyId?.trim() ??
+        ((family?.trim() ?? this.family) == this.family ? this.familyId : ''),
+    variant: variant?.trim() ?? this.variant,
+    variantId:
+        variantId?.trim() ??
+        ((variant?.trim() ?? this.variant) == this.variant
+            ? this.variantId
+            : ''),
     page: 0,
   );
 
-  Future<void> refresh() =>
-      _load(query: query, brand: brand, category: category, page: page);
+  Future<void> refresh() => _load(
+    query: query,
+    brand: brand,
+    brandId: brandId,
+    category: category,
+    categoryId: categoryId,
+    family: family,
+    familyId: familyId,
+    variant: variant,
+    variantId: variantId,
+    page: page,
+  );
 
   CatalogFilterOptionsState filterOptionsState(CatalogFilterKind kind) =>
       filterOptionStates[kind] ?? const CatalogFilterOptionsState();
@@ -95,6 +146,7 @@ final class CatalogViewModel extends ChangeNotifier {
     required CatalogFilterKind kind,
     required String search,
     required int page,
+    String? familyId,
   }) async {
     final snapshot = _access.snapshot;
     final lease = _leaseKey;
@@ -124,6 +176,21 @@ final class CatalogViewModel extends ChangeNotifier {
       return;
     }
     if (page < 0) return;
+    final selectedFamilyId = kind == CatalogFilterKind.variant
+        ? familyId ?? this.familyId
+        : null;
+    if (kind == CatalogFilterKind.variant &&
+        (selectedFamilyId == null || selectedFamilyId.isEmpty)) {
+      _lookupGenerations[kind] = _lookupGenerations[kind]! + 1;
+      _setFilterOptionsState(
+        kind,
+        const CatalogFilterOptionsState(
+          status: CatalogFilterOptionsStatus.unavailable,
+          message: 'Elige una familia para consultar sus variedades.',
+        ),
+      );
+      return;
+    }
     final generation = _lookupGenerations[kind]! + 1;
     _lookupGenerations[kind] = generation;
     _setFilterOptionsState(
@@ -139,6 +206,7 @@ final class CatalogViewModel extends ChangeNotifier {
         kind: kind,
         search: search,
         page: page,
+        familyId: selectedFamilyId,
       );
       if (!_isCurrentLookup(kind, generation, lease)) return;
       filterOptionStates = {
@@ -189,13 +257,61 @@ final class CatalogViewModel extends ChangeNotifier {
   Future<void> selectFilterOption({
     required CatalogFilterKind kind,
     CatalogFilterOptionProjection? option,
-  }) => filter(
-    query: query,
-    brand: kind == CatalogFilterKind.brand ? option?.name ?? '' : brand,
-    category: kind == CatalogFilterKind.category
-        ? option?.name ?? ''
-        : category,
-  );
+  }) {
+    switch (kind) {
+      case CatalogFilterKind.brand:
+        return filter(
+          brand: option?.name ?? '',
+          brandId: option?.id ?? '',
+          category: category,
+          categoryId: categoryId,
+          family: family,
+          familyId: familyId,
+          variant: variant,
+          variantId: variantId,
+        );
+      case CatalogFilterKind.category:
+        return filter(
+          brand: brand,
+          brandId: brandId,
+          category: option?.name ?? '',
+          categoryId: option?.id ?? '',
+          family: family,
+          familyId: familyId,
+          variant: variant,
+          variantId: variantId,
+        );
+      case CatalogFilterKind.family:
+        _lookupGenerations[CatalogFilterKind.variant] =
+            _lookupGenerations[CatalogFilterKind.variant]! + 1;
+        filterOptionStates = {
+          ...filterOptionStates,
+          CatalogFilterKind.variant: const CatalogFilterOptionsState(),
+        };
+        return filter(
+          brand: brand,
+          brandId: brandId,
+          category: category,
+          categoryId: categoryId,
+          family: option?.name ?? '',
+          familyId: option?.id ?? '',
+          variant: '',
+          variantId: '',
+        );
+      case CatalogFilterKind.variant:
+        if (familyId.isEmpty) return Future.value();
+        return filter(
+          brand: brand,
+          brandId: brandId,
+          category: category,
+          categoryId: categoryId,
+          family: family,
+          familyId: familyId,
+          variant: option?.name ?? '',
+          variantId: option?.id ?? '',
+        );
+    }
+  }
 
   Future<void> nextPage() {
     if (status != CatalogLoadStatus.current || page + 1 >= totalPages) {
@@ -204,7 +320,13 @@ final class CatalogViewModel extends ChangeNotifier {
     return _load(
       query: query,
       brand: brand,
+      brandId: brandId,
       category: category,
+      categoryId: categoryId,
+      family: family,
+      familyId: familyId,
+      variant: variant,
+      variantId: variantId,
       page: page + 1,
     );
   }
@@ -216,7 +338,13 @@ final class CatalogViewModel extends ChangeNotifier {
     return _load(
       query: query,
       brand: brand,
+      brandId: brandId,
       category: category,
+      categoryId: categoryId,
+      family: family,
+      familyId: familyId,
+      variant: variant,
+      variantId: variantId,
       page: page - 1,
     );
   }
@@ -224,7 +352,13 @@ final class CatalogViewModel extends ChangeNotifier {
   Future<void> _load({
     required String query,
     required String brand,
+    required String brandId,
     required String category,
+    required String categoryId,
+    required String family,
+    required String familyId,
+    required String variant,
+    required String variantId,
     required int page,
   }) async {
     final snapshot = _access.snapshot;
@@ -248,11 +382,21 @@ final class CatalogViewModel extends ChangeNotifier {
     }
     final generation = ++_requestGeneration;
     final sameFilters =
-        this.query == query && this.brand == brand && this.category == category;
+        this.query == query &&
+        this.brandId == brandId &&
+        this.categoryId == categoryId &&
+        this.familyId == familyId &&
+        this.variantId == variantId;
     status = CatalogLoadStatus.loading;
     this.query = query;
     this.brand = brand;
+    this.brandId = brandId;
     this.category = category;
+    this.categoryId = categoryId;
+    this.family = family;
+    this.familyId = familyId;
+    this.variant = variant;
+    this.variantId = variantId;
     message = null;
     if (!sameFilters) {
       items = const [];
@@ -267,6 +411,10 @@ final class CatalogViewModel extends ChangeNotifier {
         query: query,
         brand: brand,
         category: category,
+        brandId: brandId,
+        categoryId: categoryId,
+        familyId: familyId,
+        variantId: variantId,
         page: page,
       );
       if (!_isCurrent(generation, lease)) return;
@@ -340,7 +488,13 @@ final class CatalogViewModel extends ChangeNotifier {
     items = const [];
     query = '';
     brand = '';
+    brandId = '';
     category = '';
+    categoryId = '';
+    family = '';
+    familyId = '';
+    variant = '';
+    variantId = '';
     page = 0;
     totalItems = 0;
     totalPages = 0;
@@ -349,6 +503,8 @@ final class CatalogViewModel extends ChangeNotifier {
     filterOptionStates = {
       CatalogFilterKind.brand: const CatalogFilterOptionsState(),
       CatalogFilterKind.category: const CatalogFilterOptionsState(),
+      CatalogFilterKind.family: const CatalogFilterOptionsState(),
+      CatalogFilterKind.variant: const CatalogFilterOptionsState(),
     };
     notifyListeners();
   }

@@ -71,10 +71,17 @@ import 'contexts/tenant_access_governance/application/buyer_access_repository.da
 import 'contexts/tenant_access_governance/infrastructure/buyer_access_repository_impl.dart';
 import 'contexts/tenant_access_governance/infrastructure/local_buyer_biometric_authenticator.dart';
 import 'contexts/tenant_access_governance/presentation/buyer_access_view_model.dart';
+import 'contexts/tenant_access_governance/presentation/buyer_password_recovery_view_model.dart';
+import 'contexts/tenant_access_governance/presentation/buyer_password_reset_page.dart';
 import 'contexts/tenant_access_governance/presentation/context_selection_page.dart';
 import 'contexts/tenant_access_governance/presentation/sign_in_page.dart';
 import 'contexts/tenant_access_governance/application/buyer_change_feed_repository.dart';
+import 'contexts/tenant_access_governance/application/buyer_password_recovery_repository.dart'
+    as password_recovery;
 import 'contexts/tenant_access_governance/infrastructure/buyer_change_feed_repository_impl.dart';
+import 'contexts/tenant_access_governance/infrastructure/buyer_password_recovery_repository_impl.dart'
+    as password_recovery;
+import 'core/configuration/buyer_map_configuration.dart';
 import 'core/network/nexa_api_client.dart';
 import 'core/presentation/nexa_buyer_components.dart';
 import 'core/presentation/nexa_buyer_theme.dart';
@@ -84,30 +91,18 @@ Future<void> main() async {
   final walletCheckout = await StripeBuyerWalletCheckout.configure(
     const String.fromEnvironment('NEXA_STRIPE_PUBLISHABLE_KEY'),
   );
-  const publicOsmTiles = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-  const configuredMapTiles = String.fromEnvironment(
-    'NEXA_MAP_TILE_URL_TEMPLATE',
+  final mapConfiguration = BuyerMapConfiguration.resolve(
+    tileUrlTemplate: String.fromEnvironment('NEXA_MAP_TILE_URL_TEMPLATE'),
+    attribution: String.fromEnvironment('NEXA_MAP_ATTRIBUTION'),
+    isDebugBuild: kDebugMode,
   );
-  const configuredMapAttribution = String.fromEnvironment(
-    'NEXA_MAP_ATTRIBUTION',
-  );
-  final mapTileUrlTemplate = configuredMapTiles.isNotEmpty
-      ? configuredMapTiles
-      : kDebugMode
-      ? publicOsmTiles
-      : '';
-  final mapAttribution = configuredMapAttribution.isNotEmpty
-      ? configuredMapAttribution
-      : mapTileUrlTemplate == publicOsmTiles
-      ? '© OpenStreetMap contributors'
-      : '';
   runApp(
     BuyerMobileApp(
       apiBaseUrl: const String.fromEnvironment('NEXA_API_BASE_URL'),
       allowLocalHttp: kDebugMode,
       walletCheckout: walletCheckout,
-      mapTileUrlTemplate: mapTileUrlTemplate,
-      mapAttribution: mapAttribution,
+      mapTileUrlTemplate: mapConfiguration.tileUrlTemplate,
+      mapAttribution: mapConfiguration.attribution,
     ),
   );
 }
@@ -139,6 +134,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
   BuyerAccessRepositoryImpl? _accessRepository;
   BuyerChangeFeedRepositoryImpl? _buyerChangeFeedRepository;
   BuyerAccessViewModel? _accessViewModel;
+  password_recovery.BuyerPasswordRecoveryRepositoryImpl?
+  _passwordRecoveryRepository;
+  BuyerPasswordRecoveryViewModel? _passwordRecoveryViewModel;
   CatalogRepositoryImpl? _catalogRepository;
   BuyerCreditExposureRepositoryImpl? _creditExposureRepository;
   BuyerPaymentsRepositoryImpl? _paymentsRepository;
@@ -172,6 +170,11 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
       _buyerChangeFeedRepository = BuyerChangeFeedRepositoryImpl(
         api,
         _accessRepository!,
+      );
+      _passwordRecoveryRepository =
+          password_recovery.BuyerPasswordRecoveryRepositoryImpl(api);
+      _passwordRecoveryViewModel = BuyerPasswordRecoveryViewModel(
+        _passwordRecoveryRepository!,
       );
       _accessViewModel = BuyerAccessViewModel(
         _accessRepository!,
@@ -214,6 +217,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
   void dispose() {
     _router?.dispose();
     _notificationsViewModel?.dispose();
+    _passwordRecoveryViewModel?.dispose();
     _accessViewModel?.dispose();
     _accessRepository?.dispose();
     _httpClient?.close();
@@ -225,6 +229,8 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
     final access = _accessRepository;
     final changeFeed = _buyerChangeFeedRepository;
     final accessViewModel = _accessViewModel;
+    final passwordRecoveryRepository = _passwordRecoveryRepository;
+    final passwordRecoveryViewModel = _passwordRecoveryViewModel;
     final catalog = _catalogRepository;
     final creditExposure = _creditExposureRepository;
     final payments = _paymentsRepository;
@@ -245,6 +251,8 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         access == null ||
         changeFeed == null ||
         accessViewModel == null ||
+        passwordRecoveryRepository == null ||
+        passwordRecoveryViewModel == null ||
         catalog == null ||
         creditExposure == null ||
         payments == null ||
@@ -267,6 +275,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
       providers: [
         Provider<BuyerAccessRepository>.value(value: access),
         Provider<BuyerChangeFeedRepository>.value(value: changeFeed),
+        Provider<password_recovery.BuyerPasswordRecoveryRepository>.value(
+          value: passwordRecoveryRepository,
+        ),
         Provider<CatalogRepository>.value(value: catalog),
         Provider<BuyerCreditExposureRepository>.value(value: creditExposure),
         Provider<BuyerPaymentsRepository>.value(value: payments),
@@ -294,6 +305,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         Provider<BuyerNotificationsRepository>.value(value: notifications),
         ChangeNotifierProvider<BuyerAccessViewModel>.value(
           value: accessViewModel,
+        ),
+        ChangeNotifierProvider<BuyerPasswordRecoveryViewModel>.value(
+          value: passwordRecoveryViewModel,
         ),
         ChangeNotifierProvider<CatalogViewModel>(
           create: (context) => CatalogViewModel(
@@ -371,6 +385,19 @@ GoRouter _createRouter(
   ),
   routes: [
     GoRoute(path: '/sign-in', builder: (context, state) => const SignInPage()),
+    GoRoute(
+      path: '/forgot-password',
+      builder: (context, state) => SignInPage(
+        startInRecovery: true,
+        initialEmail: state.uri.queryParameters['email'] ?? '',
+      ),
+    ),
+    GoRoute(
+      path: '/reset-password',
+      builder: (context, state) => BuyerPasswordResetPage(
+        token: state.uri.queryParameters['token'] ?? '',
+      ),
+    ),
     GoRoute(
       path: '/choose-context',
       builder: (context, state) => const ContextSelectionPage(),

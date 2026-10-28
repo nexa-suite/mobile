@@ -10,7 +10,6 @@ import '../application/evidence_upload_policy.dart';
 import 'package:http_parser/http_parser.dart';
 
 import '../application/error/nexa_api_failure.dart';
-
 export '../application/error/nexa_api_failure.dart';
 
 abstract interface class SessionCredentialProvider {

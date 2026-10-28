@@ -73,7 +73,7 @@ final class CatalogPageProjection {
   final int totalPages;
 }
 
-enum CatalogFilterKind { brand, category }
+enum CatalogFilterKind { brand, category, family, variant }
 
 final class CatalogFilterOptionProjection {
   const CatalogFilterOptionProjection({required this.id, required this.name});
@@ -104,12 +104,17 @@ abstract interface class CatalogRepository {
     required int page,
     String brand = '',
     String category = '',
+    String brandId = '',
+    String categoryId = '',
+    String familyId = '',
+    String variantId = '',
   });
 
   Future<CatalogFilterOptionPageProjection> filterOptions({
     required CatalogFilterKind kind,
     required String search,
     required int page,
+    String? familyId,
   });
 
   Future<CatalogItemProjection> detail(String catalogItemId);

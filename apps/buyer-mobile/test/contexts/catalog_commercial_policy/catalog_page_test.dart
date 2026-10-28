@@ -26,9 +26,26 @@ void main() {
 
     expect(find.byKey(const Key('catalog-brand-filter')), findsOneWidget);
     expect(find.byKey(const Key('catalog-type-filter')), findsOneWidget);
+    expect(find.byKey(const Key('catalog-category-filter')), findsOneWidget);
+    expect(find.byKey(const Key('catalog-family-filter')), findsNothing);
+    expect(find.byKey(const Key('catalog-variant-filter')), findsNothing);
+    expect(find.text('Todas las marcas'), findsOneWidget);
+    expect(find.text('Todas las categorías'), findsOneWidget);
     expect(find.text('Valle'), findsOneWidget);
     expect(find.text('Bebidas'), findsOneWidget);
-    expect(find.textContaining('Lácteos · Descremada'), findsOneWidget);
+    expect(
+      find.textContaining('Familia: Lácteos · Variedad: Descremada'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'Marca: Valle · Tipo: Bebidas · Conservación: Refrigerado · '
+        'Familia: Lácteos · Variedad: Descremada · Disponible: 12,5 KG',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Conservación: Refrigerado'), findsOneWidget);
+    expect(find.textContaining('Disponible: 12,5 KG'), findsOneWidget);
 
     await tester.enterText(
       find.byKey(const Key('catalog-product-query')),
@@ -42,7 +59,7 @@ void main() {
     await tester.tap(find.text('Valle').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('catalog-type-filter')));
+    await tester.tap(find.byKey(const Key('catalog-category-filter')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Bebidas').last);
     await tester.pumpAndSettle();
@@ -50,7 +67,11 @@ void main() {
     expect(repository.calls.last, {
       'query': 'leche',
       'brand': 'Valle',
+      'brandId': '00000000-0000-4000-8000-000000000031',
       'category': 'Bebidas',
+      'categoryId': '00000000-0000-4000-8000-000000000032',
+      'familyId': '',
+      'variantId': '',
       'page': 0,
     });
 
@@ -62,7 +83,11 @@ void main() {
     expect(repository.calls.last, {
       'query': 'leche',
       'brand': 'Valle',
+      'brandId': '00000000-0000-4000-8000-000000000031',
       'category': 'Bebidas',
+      'categoryId': '00000000-0000-4000-8000-000000000032',
+      'familyId': '',
+      'variantId': '',
       'page': 1,
     });
 
@@ -108,7 +133,7 @@ void main() {
 
 final class _RecordingCatalogRepository implements CatalogRepository {
   final calls = <Map<String, Object>>[];
-  final lookupCalls = <Map<String, Object>>[];
+  final lookupCalls = <Map<String, Object?>>[];
   bool failNextList = false;
 
   @override
@@ -117,11 +142,19 @@ final class _RecordingCatalogRepository implements CatalogRepository {
     required int page,
     String brand = '',
     String category = '',
+    String brandId = '',
+    String categoryId = '',
+    String familyId = '',
+    String variantId = '',
   }) async {
     calls.add({
       'query': query,
       'brand': brand,
+      'brandId': brandId,
       'category': category,
+      'categoryId': categoryId,
+      'familyId': familyId,
+      'variantId': variantId,
       'page': page,
     });
     if (failNextList) {
@@ -136,8 +169,11 @@ final class _RecordingCatalogRepository implements CatalogRepository {
           availabilityStatus: 'AVAILABLE',
           brandName: 'Valle',
           categoryName: 'Bebidas',
+          coldChainRequirement: 'REFRIGERATED',
           productFamilyName: 'Lácteos',
           productVariantName: 'Descremada',
+          unitOfMeasure: 'KG',
+          sellableAvailability: 12.5,
         ),
       ],
       page: page,
@@ -152,15 +188,28 @@ final class _RecordingCatalogRepository implements CatalogRepository {
     required CatalogFilterKind kind,
     required String search,
     required int page,
+    String? familyId,
   }) async {
-    lookupCalls.add({'kind': kind, 'search': search, 'page': page});
+    lookupCalls.add({
+      'kind': kind,
+      'search': search,
+      'page': page,
+      'familyId': familyId,
+    });
+    final id = switch (kind) {
+      CatalogFilterKind.family => '00000000-0000-4000-8000-000000000021',
+      CatalogFilterKind.variant => '00000000-0000-4000-8000-000000000022',
+      CatalogFilterKind.brand => '00000000-0000-4000-8000-000000000031',
+      CatalogFilterKind.category => '00000000-0000-4000-8000-000000000032',
+    };
+    final name = switch (kind) {
+      CatalogFilterKind.brand => 'Valle',
+      CatalogFilterKind.category => 'Bebidas',
+      CatalogFilterKind.family => 'Lácteos',
+      CatalogFilterKind.variant => 'Descremada',
+    };
     return CatalogFilterOptionPageProjection(
-      items: [
-        CatalogFilterOptionProjection(
-          id: 'option-${kind.name}',
-          name: kind == CatalogFilterKind.brand ? 'Valle' : 'Bebidas',
-        ),
-      ],
+      items: [CatalogFilterOptionProjection(id: id, name: name)],
       page: page,
       size: 100,
       total: 1,
