@@ -27,8 +27,8 @@ void main() {
     expect(find.byKey(const Key('catalog-brand-filter')), findsOneWidget);
     expect(find.byKey(const Key('catalog-type-filter')), findsOneWidget);
     expect(find.byKey(const Key('catalog-category-filter')), findsOneWidget);
-    expect(find.byKey(const Key('catalog-family-filter')), findsOneWidget);
-    expect(find.byKey(const Key('catalog-variant-filter')), findsOneWidget);
+    expect(find.byKey(const Key('catalog-family-filter')), findsNothing);
+    expect(find.byKey(const Key('catalog-variant-filter')), findsNothing);
     expect(find.text('Todas las marcas'), findsOneWidget);
     expect(find.text('Todas las categorías'), findsOneWidget);
     expect(find.text('Valle'), findsOneWidget);
@@ -37,8 +37,6 @@ void main() {
       find.textContaining('Familia: Lácteos · Variedad: Descremada'),
       findsOneWidget,
     );
-    expect(find.text('Familia'), findsOneWidget);
-    expect(find.text('Variedad'), findsOneWidget);
     expect(
       find.textContaining(
         'Marca: Valle · Tipo: Bebidas · Conservación: Refrigerado · '
@@ -66,31 +64,14 @@ void main() {
     await tester.tap(find.text('Bebidas').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('catalog-family-filter')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Lácteos').last);
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('catalog-variant-filter')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Descremada').last);
-    await tester.pumpAndSettle();
-
-    expect(repository.lookupCalls.last, {
-      'kind': CatalogFilterKind.variant,
-      'search': '',
-      'page': 0,
-      'familyId': '00000000-0000-4000-8000-000000000021',
-    });
-
     expect(repository.calls.last, {
       'query': 'leche',
       'brand': 'Valle',
       'brandId': '00000000-0000-4000-8000-000000000031',
       'category': 'Bebidas',
       'categoryId': '00000000-0000-4000-8000-000000000032',
-      'familyId': '00000000-0000-4000-8000-000000000021',
-      'variantId': '00000000-0000-4000-8000-000000000022',
+      'familyId': '',
+      'variantId': '',
       'page': 0,
     });
 
@@ -105,8 +86,8 @@ void main() {
       'brandId': '00000000-0000-4000-8000-000000000031',
       'category': 'Bebidas',
       'categoryId': '00000000-0000-4000-8000-000000000032',
-      'familyId': '00000000-0000-4000-8000-000000000021',
-      'variantId': '00000000-0000-4000-8000-000000000022',
+      'familyId': '',
+      'variantId': '',
       'page': 1,
     });
 

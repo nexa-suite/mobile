@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 
 import '../../tenant_access_governance/application/buyer_change_feed_repository.dart';
@@ -395,30 +394,8 @@ final class _BuyerDeliveryDetailPageState
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Escanea el QR del conductor para confirmar la recepción en un paso. Si no puedes escanearlo, ingresa el código manualmente.',
-            ),
+            const Text('Ingresa el código de entrega para verificarlo.'),
             const SizedBox(height: 12),
-            OutlinedButton.icon(
-              key: const Key('buyer-scan-handoff-qr'),
-              onPressed: detail.canAcceptHandoff && !working && !locked
-                  ? () => _scanHandoff(detail)
-                  : null,
-              icon: const Icon(Icons.qr_code_scanner),
-              label: const Text('Escanear QR para confirmar recepción'),
-            ),
-            if (detail.canRetryHandoffAcceptance)
-              OutlinedButton.icon(
-                key: const Key('buyer-handoff-acceptance-retry'),
-                onPressed: detail.retryHandoffAcceptance,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Reintentar el mismo QR'),
-              ),
-            const SizedBox(height: 8),
-            Text(
-              'Alternativa manual',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
             TextField(
               key: const Key('buyer-handoff-code'),
               controller: _handoffCode,
@@ -585,20 +562,6 @@ final class _BuyerDeliveryDetailPageState
 
   Future<void> _verify(BuyerDeliveryDetailViewModel detail) =>
       detail.validateHandoff(_handoffCode.text);
-
-  Future<void> _scanHandoff(BuyerDeliveryDetailViewModel detail) async {
-    final token = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (sheetContext) => _BuyerHandoffQrScanner(
-        onScanned: (value) => Navigator.of(sheetContext).pop(value),
-      ),
-    );
-    if (!mounted || token == null) return;
-    _handoffCode.clear();
-    await detail.acceptHandoff(token);
-  }
 
   Widget _receiptHistory(
     BuildContext context,
@@ -802,83 +765,6 @@ final class _DetailRow extends StatelessWidget {
         ),
         Expanded(child: Text(value)),
       ],
-    ),
-  );
-}
-
-final class _BuyerHandoffQrScanner extends StatefulWidget {
-  const _BuyerHandoffQrScanner({required this.onScanned});
-
-  final ValueChanged<String> onScanned;
-
-  @override
-  State<_BuyerHandoffQrScanner> createState() => _BuyerHandoffQrScannerState();
-}
-
-final class _BuyerHandoffQrScannerState extends State<_BuyerHandoffQrScanner> {
-  late final MobileScannerController _controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.noDuplicates,
-    formats: const [BarcodeFormat.qrCode],
-  );
-  bool _completed = false;
-
-  void _onDetect(BarcodeCapture capture) {
-    if (_completed) return;
-    for (final barcode in capture.barcodes) {
-      final value = barcode.rawValue?.trim();
-      if (barcode.format != BarcodeFormat.qrCode ||
-          value == null ||
-          value.isEmpty ||
-          value.length > 400) {
-        continue;
-      }
-      _completed = true;
-      widget.onScanned(value);
-      return;
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => SafeArea(
-    child: SizedBox(
-      height: 560,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Escanear QR de entrega',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Centra el QR del conductor dentro del cuadro. Si no puedes escanearlo, ingresa el código manualmente.',
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: MobileScanner(
-                  controller: _controller,
-                  onDetect: _onDetect,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancelar'),
-            ),
-          ],
-        ),
-      ),
     ),
   );
 }

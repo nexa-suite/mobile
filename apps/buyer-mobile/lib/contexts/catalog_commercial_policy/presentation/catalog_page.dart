@@ -146,23 +146,6 @@ final class _CatalogPageState extends State<CatalogPage> {
                                 emptyLabel: 'Todas las categorías',
                               ),
                             ),
-                            SizedBox(
-                              width: filterWidth,
-                              child: _filterButton(
-                                kind: CatalogFilterKind.family,
-                                selectedName: catalog.family,
-                                icon: Icons.account_tree_outlined,
-                              ),
-                            ),
-                            SizedBox(
-                              width: filterWidth,
-                              child: _filterButton(
-                                kind: CatalogFilterKind.variant,
-                                selectedName: catalog.variant,
-                                icon: Icons.tune,
-                                enabled: catalog.familyId.isNotEmpty,
-                              ),
-                            ),
                           ],
                         );
                       },
