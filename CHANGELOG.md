@@ -1,12 +1,16 @@
 # Changelog
 
-## [Unreleased]
+## Academic checkpoint changes
 
-- Filter Buyer catalog by brand, category, family and family-scoped variety;
-  show API-provided cold-chain requirement and sellable availability.
-- Scan the Driver's QR to submit Buyer receipt and finalize linked proof of
-  delivery through one server operation; keep retries idempotent.
+- Filter Buyer catalog by brand and category; show API-provided cold-chain
+  requirement and sellable availability.
+- Verify and record Buyer delivery receipt using the manual handoff flow.
+  Family and variant filters and atomic QR handoff remain deferred on #60.
 - Complete password reset through a server-issued reset token.
+
+The checkpoint was validated against the API academic candidate using the
+Buyer catalog and manual handoff flows. It does not include device acceptance
+or signed distribution packages.
 
 ## [1.3.0] - 2026-10-22
 
