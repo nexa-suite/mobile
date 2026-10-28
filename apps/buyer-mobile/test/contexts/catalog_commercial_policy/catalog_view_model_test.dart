@@ -114,12 +114,117 @@ void main() {
       await viewModel.nextPage();
 
       expect(repository.calls, [
-        {'query': 'leche', 'brand': '', 'category': '', 'page': 0},
-        {'query': 'leche', 'brand': 'Valle', 'category': 'Bebidas', 'page': 0},
-        {'query': 'leche', 'brand': 'Valle', 'category': 'Bebidas', 'page': 1},
+        {
+          'query': 'leche',
+          'brand': '',
+          'brandId': '',
+          'category': '',
+          'categoryId': '',
+          'familyId': '',
+          'variantId': '',
+          'page': 0,
+        },
+        {
+          'query': 'leche',
+          'brand': 'Valle',
+          'brandId': '',
+          'category': 'Bebidas',
+          'categoryId': '',
+          'familyId': '',
+          'variantId': '',
+          'page': 0,
+        },
+        {
+          'query': 'leche',
+          'brand': 'Valle',
+          'brandId': '',
+          'category': 'Bebidas',
+          'categoryId': '',
+          'familyId': '',
+          'variantId': '',
+          'page': 1,
+        },
       ]);
       expect(viewModel.brand, 'Valle');
       expect(viewModel.category, 'Bebidas');
+
+      viewModel.dispose();
+      await access.dispose();
+    },
+  );
+
+  test(
+    'variety options and catalog results stay scoped to selected family',
+    () async {
+      const familyId = '00000000-0000-4000-8000-000000000021';
+      const variantId = '00000000-0000-4000-8000-000000000022';
+      final access = _FakeAccess(_signedInSnapshot());
+      final repository = _RecordingCatalogRepository();
+      final viewModel = CatalogViewModel(repository, access);
+
+      await viewModel.loadFilterOptions(
+        kind: CatalogFilterKind.family,
+        search: '',
+        page: 0,
+      );
+      await viewModel.selectFilterOption(
+        kind: CatalogFilterKind.family,
+        option: const CatalogFilterOptionProjection(
+          id: familyId,
+          name: 'Lácteos',
+        ),
+      );
+      await viewModel.loadFilterOptions(
+        kind: CatalogFilterKind.variant,
+        search: '',
+        page: 0,
+      );
+      await viewModel.selectFilterOption(
+        kind: CatalogFilterKind.variant,
+        option: const CatalogFilterOptionProjection(
+          id: variantId,
+          name: 'Edam',
+        ),
+      );
+
+      expect(repository.lookupCalls, [
+        {
+          'kind': CatalogFilterKind.family,
+          'search': '',
+          'page': 0,
+          'familyId': null,
+        },
+        {
+          'kind': CatalogFilterKind.variant,
+          'search': '',
+          'page': 0,
+          'familyId': familyId,
+        },
+      ]);
+      expect(repository.calls.last['familyId'], familyId);
+      expect(repository.calls.last['variantId'], variantId);
+      expect(viewModel.family, 'Lácteos');
+      expect(viewModel.variant, 'Edam');
+
+      await viewModel.selectFilterOption(
+        kind: CatalogFilterKind.family,
+        option: const CatalogFilterOptionProjection(
+          id: '00000000-0000-4000-8000-000000000023',
+          name: 'Bebidas',
+        ),
+      );
+
+      expect(viewModel.variant, '');
+      expect(viewModel.variantId, '');
+      expect(
+        viewModel.filterOptionsState(CatalogFilterKind.variant).status,
+        CatalogFilterOptionsStatus.idle,
+      );
+      expect(
+        repository.calls.last['familyId'],
+        '00000000-0000-4000-8000-000000000023',
+      );
+      expect(repository.calls.last['variantId'], '');
 
       viewModel.dispose();
       await access.dispose();
@@ -158,7 +263,12 @@ void main() {
       );
 
       expect(repository.lookupCalls, [
-        {'kind': CatalogFilterKind.category, 'search': 'Beb', 'page': 1},
+        {
+          'kind': CatalogFilterKind.category,
+          'search': 'Beb',
+          'page': 1,
+          'familyId': null,
+        },
       ]);
       expect(
         viewModel.filterOptionsState(CatalogFilterKind.category).status,
@@ -185,6 +295,27 @@ void main() {
     expect(
       viewModel.filterOptionsState(CatalogFilterKind.brand).status,
       CatalogFilterOptionsStatus.permissionDenied,
+    );
+
+    viewModel.dispose();
+    await access.dispose();
+  });
+
+  test('does not load variety choices before a family is selected', () async {
+    final access = _FakeAccess(_signedInSnapshot());
+    final repository = _RecordingCatalogRepository();
+    final viewModel = CatalogViewModel(repository, access);
+
+    await viewModel.loadFilterOptions(
+      kind: CatalogFilterKind.variant,
+      search: '',
+      page: 0,
+    );
+
+    expect(repository.lookupCalls, isEmpty);
+    expect(
+      viewModel.filterOptionsState(CatalogFilterKind.variant).status,
+      CatalogFilterOptionsStatus.unavailable,
     );
 
     viewModel.dispose();
@@ -223,6 +354,10 @@ final class _ControlledCatalogRepository implements CatalogRepository {
     required int page,
     String brand = '',
     String category = '',
+    String brandId = '',
+    String categoryId = '',
+    String familyId = '',
+    String variantId = '',
   }) => _response.future;
 
   @override
@@ -230,6 +365,7 @@ final class _ControlledCatalogRepository implements CatalogRepository {
     required CatalogFilterKind kind,
     required String search,
     required int page,
+    String? familyId,
   }) async => CatalogFilterOptionPageProjection(
     items: const [],
     page: page,
@@ -244,7 +380,7 @@ final class _ControlledCatalogRepository implements CatalogRepository {
 
 final class _RecordingCatalogRepository implements CatalogRepository {
   final calls = <Map<String, Object>>[];
-  final lookupCalls = <Map<String, Object>>[];
+  final lookupCalls = <Map<String, Object?>>[];
   bool denyList = false;
 
   @override
@@ -253,11 +389,19 @@ final class _RecordingCatalogRepository implements CatalogRepository {
     required int page,
     String brand = '',
     String category = '',
+    String brandId = '',
+    String categoryId = '',
+    String familyId = '',
+    String variantId = '',
   }) async {
     calls.add({
       'query': query,
       'brand': brand,
+      'brandId': brandId,
       'category': category,
+      'categoryId': categoryId,
+      'familyId': familyId,
+      'variantId': variantId,
       'page': page,
     });
     if (denyList) {
@@ -287,11 +431,20 @@ final class _RecordingCatalogRepository implements CatalogRepository {
     required CatalogFilterKind kind,
     required String search,
     required int page,
+    String? familyId,
   }) async {
-    lookupCalls.add({'kind': kind, 'search': search, 'page': page});
+    lookupCalls.add({
+      'kind': kind,
+      'search': search,
+      'page': page,
+      'familyId': familyId,
+    });
     return CatalogFilterOptionPageProjection(
       items: const [
-        CatalogFilterOptionProjection(id: 'option-1', name: 'Bebidas'),
+        CatalogFilterOptionProjection(
+          id: '00000000-0000-4000-8000-000000000021',
+          name: 'Lácteos',
+        ),
       ],
       page: page,
       size: 100,
@@ -311,6 +464,10 @@ final class _ForbiddenCatalogRepository implements CatalogRepository {
     required int page,
     String brand = '',
     String category = '',
+    String brandId = '',
+    String categoryId = '',
+    String familyId = '',
+    String variantId = '',
   }) => Future.error(
     const NexaApiFailure(
       code: 'permission_denied',
@@ -324,6 +481,7 @@ final class _ForbiddenCatalogRepository implements CatalogRepository {
     required CatalogFilterKind kind,
     required String search,
     required int page,
+    String? familyId,
   }) => Future.error(
     const NexaApiFailure(
       code: 'permission_denied',
@@ -346,6 +504,10 @@ final class _CountingCatalogRepository implements CatalogRepository {
     required int page,
     String brand = '',
     String category = '',
+    String brandId = '',
+    String categoryId = '',
+    String familyId = '',
+    String variantId = '',
   }) {
     listCalls++;
     throw UnimplementedError();
@@ -356,6 +518,7 @@ final class _CountingCatalogRepository implements CatalogRepository {
     required CatalogFilterKind kind,
     required String search,
     required int page,
+    String? familyId,
   }) {
     throw UnimplementedError();
   }

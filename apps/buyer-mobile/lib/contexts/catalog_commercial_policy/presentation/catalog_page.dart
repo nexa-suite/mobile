@@ -56,14 +56,26 @@ final class _CatalogPageState extends State<CatalogPage> {
 
   void _clearFilters() {
     _searchTimer?.cancel();
-    _catalog.filter(query: _search.text, brand: '', category: '');
+    _catalog.filter(
+      query: _search.text,
+      brand: '',
+      category: '',
+      family: '',
+      familyId: '',
+      variant: '',
+      variantId: '',
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final catalog = context.watch<CatalogViewModel>();
     final theme = Theme.of(context);
-    final hasFilters = catalog.brand.isNotEmpty || catalog.category.isNotEmpty;
+    final hasFilters =
+        catalog.brand.isNotEmpty ||
+        catalog.category.isNotEmpty ||
+        catalog.family.isNotEmpty ||
+        catalog.variant.isNotEmpty;
     return NexaPageWidth(
       padding: EdgeInsets.zero,
       child: Column(
@@ -117,38 +129,38 @@ final class _CatalogPageState extends State<CatalogPage> {
                           children: [
                             SizedBox(
                               width: filterWidth,
-                              child: OutlinedButton.icon(
-                                key: const Key('catalog-brand-filter'),
-                                onPressed: () => _openSelector(
-                                  context,
-                                  CatalogFilterKind.brand,
-                                ),
-                                icon: const Icon(Icons.local_offer_outlined),
-                                label: Text(
-                                  catalog.brand.isEmpty
-                                      ? 'Todas las marcas'
-                                      : 'Marca: ${catalog.brand}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                              child: _filterButton(
+                                kind: CatalogFilterKind.brand,
+                                selectedName: catalog.brand,
+                                icon: Icons.local_offer_outlined,
+                                emptyLabel: 'Todas las marcas',
                               ),
                             ),
                             SizedBox(
                               width: filterWidth,
-                              child: OutlinedButton.icon(
-                                key: const Key('catalog-type-filter'),
-                                onPressed: () => _openSelector(
-                                  context,
-                                  CatalogFilterKind.category,
-                                ),
-                                icon: const Icon(Icons.category_outlined),
-                                label: Text(
-                                  catalog.category.isEmpty
-                                      ? 'Todas las categorías'
-                                      : 'Categoría: ${catalog.category}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                              key: const Key('catalog-type-filter'),
+                              child: _filterButton(
+                                kind: CatalogFilterKind.category,
+                                selectedName: catalog.category,
+                                icon: Icons.category_outlined,
+                                emptyLabel: 'Todas las categorías',
+                              ),
+                            ),
+                            SizedBox(
+                              width: filterWidth,
+                              child: _filterButton(
+                                kind: CatalogFilterKind.family,
+                                selectedName: catalog.family,
+                                icon: Icons.account_tree_outlined,
+                              ),
+                            ),
+                            SizedBox(
+                              width: filterWidth,
+                              child: _filterButton(
+                                kind: CatalogFilterKind.variant,
+                                selectedName: catalog.variant,
+                                icon: Icons.tune,
+                                enabled: catalog.familyId.isNotEmpty,
                               ),
                             ),
                           ],
@@ -212,11 +224,46 @@ final class _CatalogPageState extends State<CatalogPage> {
     builder: (_) => _CatalogFilterSelectorDialog(
       model: _catalog,
       kind: kind,
-      selectedName: kind == CatalogFilterKind.brand
-          ? _catalog.brand
-          : _catalog.category,
+      selectedName: switch (kind) {
+        CatalogFilterKind.brand => _catalog.brand,
+        CatalogFilterKind.category => _catalog.category,
+        CatalogFilterKind.family => _catalog.family,
+        CatalogFilterKind.variant => _catalog.variant,
+      },
+      selectedId: switch (kind) {
+        CatalogFilterKind.brand => _catalog.brandId,
+        CatalogFilterKind.category => _catalog.categoryId,
+        CatalogFilterKind.family => _catalog.familyId,
+        CatalogFilterKind.variant => _catalog.variantId,
+      },
     ),
   );
+
+  Widget _filterButton({
+    required CatalogFilterKind kind,
+    required String selectedName,
+    required IconData icon,
+    String? emptyLabel,
+    bool enabled = true,
+  }) => OutlinedButton.icon(
+    key: Key('catalog-${kind.name}-filter'),
+    onPressed: enabled ? () => _openSelector(context, kind) : null,
+    icon: Icon(icon),
+    label: Text(
+      selectedName.isEmpty
+          ? emptyLabel ?? _filterLabel(kind)
+          : '${_filterLabel(kind)}: $selectedName',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    ),
+  );
+
+  String _filterLabel(CatalogFilterKind kind) => switch (kind) {
+    CatalogFilterKind.brand => 'Marca',
+    CatalogFilterKind.category => 'Categoría',
+    CatalogFilterKind.family => 'Familia',
+    CatalogFilterKind.variant => 'Variedad',
+  };
 
   Widget _catalogContent(CatalogViewModel catalog) {
     if (catalog.status == CatalogLoadStatus.loading && catalog.items.isEmpty) {
@@ -338,11 +385,13 @@ final class _CatalogFilterSelectorDialog extends StatefulWidget {
     required this.model,
     required this.kind,
     required this.selectedName,
+    required this.selectedId,
   });
 
   final CatalogViewModel model;
   final CatalogFilterKind kind;
   final String selectedName;
+  final String? selectedId;
 
   @override
   State<_CatalogFilterSelectorDialog> createState() =>
@@ -354,8 +403,12 @@ final class _CatalogFilterSelectorDialogState
   final _search = TextEditingController();
   Timer? _searchTimer;
 
-  String get _label =>
-      widget.kind == CatalogFilterKind.brand ? 'Marca' : 'Categoría';
+  String get _label => switch (widget.kind) {
+    CatalogFilterKind.brand => 'Marca',
+    CatalogFilterKind.category => 'Tipo',
+    CatalogFilterKind.family => 'Familia',
+    CatalogFilterKind.variant => 'Variedad',
+  };
 
   @override
   void initState() {
@@ -370,6 +423,9 @@ final class _CatalogFilterSelectorDialogState
       kind: widget.kind,
       search: search,
       page: page,
+      familyId: widget.kind == CatalogFilterKind.variant
+          ? widget.model.familyId
+          : null,
     );
   }
 
@@ -430,7 +486,10 @@ final class _CatalogFilterSelectorDialogState
                               'catalog-${widget.kind.name}-option-${option.id}',
                             ),
                             title: Text(option.name),
-                            trailing: option.name == widget.selectedName
+                            trailing:
+                                (widget.selectedId != null
+                                    ? option.id == widget.selectedId
+                                    : option.name == widget.selectedName)
                                 ? const Icon(Icons.check)
                                 : null,
                             onTap: () {
@@ -512,10 +571,18 @@ final class _CatalogItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final details = [
+      if (item.brandName != null) 'Marca: ${item.brandName}',
+      if (item.categoryName != null) 'Tipo: ${item.categoryName}',
+      if (item.coldChainRequirement != null)
+        'Conservación: ${_coldChainLabel(item.coldChainRequirement!)}',
       if (item.productFamilyName != null &&
           item.productFamilyName != item.itemName)
-        item.productFamilyName,
-      if (item.productVariantName != null) item.productVariantName,
+        'Familia: ${item.productFamilyName}',
+      if (item.productVariantName != null)
+        'Variedad: ${item.productVariantName}',
+      if (item.sellableAvailability case final available?)
+        'Disponible: ${_quantityLabel(available)}'
+            '${item.unitOfMeasure == null ? '' : ' ${item.unitOfMeasure}'}',
       item.presentation,
       if (item.skuCode != null) 'SKU ${item.skuCode}',
     ].whereType<String>().where((value) => value.isNotEmpty).join(' · ');
@@ -627,12 +694,13 @@ final class _CatalogItemCard extends StatelessWidget {
                           ),
                         ),
                       if (item.unitOfMeasure case final unit?)
-                        Text(
-                          'Unidad: $unit',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                        if (item.sellableAvailability == null)
+                          Text(
+                            'Unidad: $unit',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
-                        ),
                     ],
                   ),
                 ],
@@ -650,6 +718,20 @@ final class _CatalogItemCard extends StatelessWidget {
     'UNAVAILABLE' => 'No disponible',
     _ => 'Disponibilidad por confirmar',
   };
+
+  String _coldChainLabel(String requirement) =>
+      switch (requirement.trim().toUpperCase()) {
+        'NONE' => 'No requiere frío',
+        'REFRIGERATED' => 'Refrigerado',
+        'FROZEN' => 'Congelado',
+        _ => 'Por confirmar',
+      };
+
+  String _quantityLabel(num quantity) {
+    final value = quantity.toString();
+    if (value.endsWith('.0')) return value.substring(0, value.length - 2);
+    return value.replaceAll('.', ',');
+  }
 }
 
 final class _PageControls extends StatelessWidget {

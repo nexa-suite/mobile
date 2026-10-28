@@ -318,6 +318,56 @@ void main() {
     api.close();
   });
 
+  test('accepts Buyer QR and parses linked delivery completion', () async {
+    http.Request? request;
+    final api = _api((value) async {
+      request = value;
+      return http.Response(
+        jsonEncode({
+          'receiptId': '00000000-0000-4000-8000-000000000012',
+          'deliveryId': _deliveryId,
+          'attemptId': '00000000-0000-4000-8000-000000000011',
+          'podId': '00000000-0000-4000-8000-000000000014',
+          'acceptedQuantity': 12.5,
+          'occurredAt': '2026-10-09T12:30:00Z',
+          'deliveryStatus': 'DELIVERED',
+          'podStatus': 'SEALED',
+          'salesOrderStatus': 'COMPLETED',
+          'deliveryVersion': 4,
+          'orderCompleted': true,
+          'replayed': false,
+        }),
+        201,
+      );
+    });
+
+    final acceptance = await BuyerDeliveriesRepositoryImpl(api).acceptHandoff(
+      token: ' buyer-code ',
+      expectedDeliveryId: _deliveryId,
+      idempotencyKey: '00000000-0000-4000-8000-000000000013',
+    );
+
+    expect(request!.method, 'POST');
+    expect(request!.url.path, '/api/v1/delivery-handoff/receipts');
+    expect(
+      request!.headers['idempotency-key'],
+      '00000000-0000-4000-8000-000000000013',
+    );
+    expect(jsonDecode(request!.body), {
+      'token': 'buyer-code',
+      'expectedDeliveryId': _deliveryId,
+    });
+    expect(acceptance.receiptId, '00000000-0000-4000-8000-000000000012');
+    expect(acceptance.deliveryId, _deliveryId);
+    expect(acceptance.attemptId, '00000000-0000-4000-8000-000000000011');
+    expect(acceptance.podId, '00000000-0000-4000-8000-000000000014');
+    expect(acceptance.acceptedQuantity, 12.5);
+    expect(acceptance.deliveryVersion, 4);
+    expect(acceptance.orderCompleted, isTrue);
+    expect(acceptance.replayed, isFalse);
+    api.close();
+  });
+
   test(
     'records Buyer receipt with exact idempotency key and disputed quantity',
     () async {

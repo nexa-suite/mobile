@@ -12,13 +12,36 @@ final class CatalogRepositoryImpl implements CatalogRepository {
     required int page,
     String brand = '',
     String category = '',
+    String brandId = '',
+    String categoryId = '',
+    String familyId = '',
+    String variantId = '',
   }) async {
+    final selectedBrandId = brandId.trim();
+    final selectedCategoryId = categoryId.trim();
+    final selectedFamilyId = familyId.trim();
+    final selectedVariantId = variantId.trim();
+    if ((selectedBrandId.isNotEmpty && !_isUuid(selectedBrandId)) ||
+        (selectedCategoryId.isNotEmpty && !_isUuid(selectedCategoryId)) ||
+        (selectedFamilyId.isNotEmpty && !_isUuid(selectedFamilyId)) ||
+        (selectedVariantId.isNotEmpty &&
+            (!_isUuid(selectedVariantId) || selectedFamilyId.isEmpty))) {
+      _invalidResponse();
+    }
     final response = await _api.get(
       '/catalog-items',
       query: {
         if (query.trim().isNotEmpty) 'q': query.trim(),
-        if (brand.trim().isNotEmpty) 'brand': brand.trim(),
-        if (category.trim().isNotEmpty) 'category': category.trim(),
+        if (selectedBrandId.isNotEmpty)
+          'brandId': selectedBrandId
+        else if (brand.trim().isNotEmpty)
+          'brand': brand.trim(),
+        if (selectedCategoryId.isNotEmpty)
+          'categoryId': selectedCategoryId
+        else if (category.trim().isNotEmpty)
+          'category': category.trim(),
+        if (selectedFamilyId.isNotEmpty) 'familyId': selectedFamilyId,
+        if (selectedVariantId.isNotEmpty) 'variantId': selectedVariantId,
         'page': '$page',
         'size': '20',
         'sort': 'itemName',
@@ -42,13 +65,21 @@ final class CatalogRepositoryImpl implements CatalogRepository {
     required CatalogFilterKind kind,
     required String search,
     required int page,
+    String? familyId,
   }) async {
-    if (page < 0) _invalidResponse();
+    final selectedFamilyId = familyId?.trim();
+    if (page < 0 ||
+        (kind == CatalogFilterKind.variant &&
+            (selectedFamilyId == null || !_isUuid(selectedFamilyId))) ||
+        (kind != CatalogFilterKind.variant && selectedFamilyId != null)) {
+      _invalidResponse();
+    }
     final response = await _api.get(
       '/catalog-items/filter-options',
       query: {
         'kind': kind.name,
         if (search.trim().isNotEmpty) 'search': search.trim(),
+        ...?(selectedFamilyId == null ? null : {'familyId': selectedFamilyId}),
         'page': '$page',
         'size': '100',
       },
@@ -72,7 +103,7 @@ final class CatalogRepositoryImpl implements CatalogRepository {
             final item = _map(value);
             final id = item == null ? null : _string(item['id']);
             final name = item == null ? null : _string(item['name']);
-            if (id == null || name == null) _invalidResponse();
+            if (id == null || name == null || !_isUuid(id)) _invalidResponse();
             return CatalogFilterOptionProjection(id: id, name: name);
           })
           .toList(growable: false),
@@ -162,6 +193,8 @@ final class CatalogRepositoryImpl implements CatalogRepository {
     }
     return candidate;
   }
+
+  bool _isUuid(String value) => _uuid(value) != null;
 
   int? _int(Object? value) => value is int ? value : null;
 

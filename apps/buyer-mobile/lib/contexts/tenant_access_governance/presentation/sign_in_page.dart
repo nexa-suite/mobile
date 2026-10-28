@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -11,7 +12,14 @@ const _nexaWarm = Color(0xFFE4A174);
 const _nexaGreen = Color(0xFF6F9F85);
 
 final class SignInPage extends StatefulWidget {
-  const SignInPage({super.key});
+  const SignInPage({
+    super.key,
+    this.startInRecovery = false,
+    this.initialEmail = '',
+  });
+
+  final bool startInRecovery;
+  final String initialEmail;
 
   @override
   State<SignInPage> createState() => _SignInPageState();
@@ -27,9 +35,13 @@ final class _SignInPageState extends State<SignInPage> {
   @override
   void initState() {
     super.initState();
+    _showSignIn = widget.startInRecovery;
+    _identifier.text = widget.initialEmail;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        context.read<BuyerAccessViewModel>().refreshBiometricAvailability();
+      if (!mounted) return;
+      context.read<BuyerAccessViewModel>().refreshBiometricAvailability();
+      if (widget.startInRecovery) {
+        unawaited(_openPasswordRecovery(initialEmail: widget.initialEmail));
       }
     });
   }
@@ -589,13 +601,18 @@ final class _SignInPageState extends State<SignInPage> {
     );
   }
 
-  Future<void> _openPasswordRecovery() => showDialog<void>(
-    context: context,
-    builder: (context) => _BuyerPasswordRecoveryDialog(
-      initialEmail: _identifier.text.contains('@') ? _identifier.text : '',
-      requestReset: context.read<BuyerAccessViewModel>().requestPasswordReset,
-    ),
-  );
+  Future<void> _openPasswordRecovery({String? initialEmail}) =>
+      showDialog<void>(
+        context: context,
+        builder: (context) => _BuyerPasswordRecoveryDialog(
+          initialEmail:
+              initialEmail ??
+              (_identifier.text.contains('@') ? _identifier.text : ''),
+          requestReset: context
+              .read<BuyerAccessViewModel>()
+              .requestPasswordReset,
+        ),
+      );
 
   Widget _buyerSignInContextCard(
     BuildContext context, {
