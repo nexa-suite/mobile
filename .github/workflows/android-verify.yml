@@ -143,11 +143,7 @@ jobs:
           pre-emulator-launch-script: |
             grep -qx 'target=android-37.0' "$HOME/.android/avd/test.ini"
             test -f "$HOME/.android/avd/test.avd/config.ini"
-            if grep -q '^hw.initialOrientation=' "$HOME/.android/avd/test.avd/config.ini"; then
-              sed -i 's/^hw.initialOrientation=.*/hw.initialOrientation=landscape/' "$HOME/.android/avd/test.avd/config.ini"
-            else
-              printf '\nhw.initialOrientation=landscape\n' >> "$HOME/.android/avd/test.avd/config.ini"
-            fi
+            if grep -q '^hw.initialOrientation=' "$HOME/.android/avd/test.avd/config.ini"; then sed -i 's/^hw.initialOrientation=.*/hw.initialOrientation=landscape/' "$HOME/.android/avd/test.avd/config.ini"; else printf '\nhw.initialOrientation=landscape\n' >> "$HOME/.android/avd/test.avd/config.ini"; fi
             grep -qx 'hw.initialOrientation=landscape' "$HOME/.android/avd/test.avd/config.ini"
           # Each command is launched in its own shell by android-emulator-runner; keep cd and Gradle invocations in one command.
           script: cd apps/operations-android && ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.nexa.mobile.operations.AccessImeFocusTest --dependency-verification strict || { echo 'Android tablet instrumentation result XML:'; find app/build/outputs/androidTest-results/connected/debug/TEST-*.xml -exec cat {} +; exit 1; }
