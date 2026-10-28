@@ -27,6 +27,7 @@ class AccessImeFocusTest {
     @get:Rule val composeRule = createComposeRule()
 
     @Test
+    @RequiresDedicatedInstrumentationEnvironment
     fun identifierFocusSurvivesImeOpenOnWideWindow() {
         val imeBottomPx = AtomicInteger()
         val windowWidthDp = AtomicInteger()

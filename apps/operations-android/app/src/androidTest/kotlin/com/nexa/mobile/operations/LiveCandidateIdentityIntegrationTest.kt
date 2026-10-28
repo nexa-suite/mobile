@@ -42,7 +42,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@RequiresPrivateFixture
+@RequiresDedicatedInstrumentationEnvironment
 @RunWith(AndroidJUnit4::class)
 class LiveCandidateIdentityIntegrationTest {
     @get:Rule val composeRule = createAndroidComposeRule<MainActivity>()
