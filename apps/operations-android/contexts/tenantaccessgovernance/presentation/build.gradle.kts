@@ -28,6 +28,7 @@ dependencies {
     api(project(":contexts:tenantaccessgovernance:application"))
     api(project(":contexts:tenantaccessgovernance:domain"))
     implementation(project(":core:designsystem"))
+    implementation(libs.activity.compose)
     implementation(libs.coroutines.core)
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)

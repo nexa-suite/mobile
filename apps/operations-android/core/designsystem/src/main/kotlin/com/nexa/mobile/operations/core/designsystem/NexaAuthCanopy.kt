@@ -14,7 +14,11 @@ import androidx.compose.ui.unit.dp
 
 /** Frozen Design Lab/Web auth grid and Mobile Style wave, drawn as native decoration. */
 @Composable
-fun NexaAuthCanopy(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
+fun NexaAuthCanopy(
+    modifier: Modifier = Modifier,
+    showWave: Boolean = true,
+    content: @Composable BoxScope.() -> Unit
+) {
     Box(
         modifier = modifier.clipToBounds().drawWithCache {
             val width = size.width
@@ -65,7 +69,7 @@ fun NexaAuthCanopy(modifier: Modifier = Modifier, content: @Composable BoxScope.
                 gridY.forEach { y ->
                     drawLine(gridColor, Offset(0f, y), Offset(width, y), gridStroke)
                 }
-                drawPath(wave, NexaColors.Surface)
+                if (showWave) drawPath(wave, NexaColors.Surface)
             }
         },
         content = content

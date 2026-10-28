@@ -1,5 +1,6 @@
 package com.nexa.mobile.operations.tenantaccessgovernance.presentation.access
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -50,9 +51,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -126,12 +129,26 @@ fun AccessScreen(
     )
     val signInStage = state.stage == AccessStage.IdentityRequired ||
         state.stage == AccessStage.SessionExpired
-    val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    BackHandler(enabled = signInStage && (credentialsRequested || recoveryRequested)) {
+        if (recoveryRequested) recoveryRequested = false else credentialsRequested = false
+    }
+    val keyboardHeight = with(LocalDensity.current) {
+        WindowInsets.ime.getBottom(this).toDp()
+    }
+    val keyboardVisible = keyboardHeight > 0.dp
+    val windowInfo = LocalWindowInfo.current
+    val windowSize = with(LocalDensity.current) {
+        windowInfo.containerSize.width.toDp() to windowInfo.containerSize.height.toDp()
+    }
     BoxWithConstraints(
         modifier = modifier.fillMaxSize().background(NexaColors.Surface)
             .imePadding()
     ) {
-        val landscape = maxWidth > maxHeight
+        // Keep the form in the same composition when the keyboard opens.
+        val wide = windowSize.first >= 840.dp && windowSize.second >= 480.dp &&
+            LocalDensity.current.fontScale < 1.5f
+        val brandWidth = maxWidth * 0.48f
+        val landscape = maxWidth > maxHeight && !wide
         val largeFont = LocalDensity.current.fontScale >= 1.5f
         val compactForm = keyboardVisible || landscape || maxHeight < 560.dp || largeFont
         val loginStage = state.stage == AccessStage.IdentityRequired ||
@@ -146,22 +163,12 @@ fun AccessScreen(
             maxHeight >= 700.dp -> maxHeight * 0.46f
             else -> (maxHeight * 0.21f).coerceAtMost(180.dp)
         }
-        val contentHeight = (maxHeight - heroHeight).coerceAtLeast(0.dp)
+        val contentHeight = if (wide) maxHeight else (maxHeight - heroHeight).coerceAtLeast(0.dp)
         val horizontalInset = if (maxWidth >= 700.dp) 32.dp else 24.dp
         val loginScrollState = rememberScrollState()
-        Column(
-            modifier = Modifier.fillMaxSize()
-                .semantics { isTraversalGroup = true }
-        ) {
-            if (heroHeight > 0.dp) {
-                AccessBrandPlane(
-                    modifier = Modifier.fillMaxWidth().height(heroHeight),
-                    compact = largeFont
-                )
-            }
+        val form: @Composable () -> Unit = {
             Box(
                 modifier = Modifier.widthIn(max = 1080.dp).fillMaxWidth()
-                    .align(Alignment.CenterHorizontally)
                     .height(contentHeight)
                     .padding(horizontal = horizontalInset),
                 contentAlignment = Alignment.TopCenter
@@ -190,7 +197,9 @@ fun AccessScreen(
                             ),
                         verticalArrangement = Arrangement.spacedBy(
                             space = if (compactForm) 8.dp else 12.dp,
-                            alignment = if (scrollableLogin) {
+                            alignment = if (wide) {
+                                Alignment.CenterVertically
+                            } else if (scrollableLogin) {
                                 Alignment.Top
                             } else if (keyboardVisible || loginStage) {
                                 Alignment.Bottom
@@ -245,6 +254,25 @@ fun AccessScreen(
                         state.notice?.let { notice -> AccessNoticeBanner(notice) }
                     }
                 }
+            }
+        }
+        if (wide) {
+            Row(Modifier.fillMaxSize().semantics { isTraversalGroup = true }) {
+                AccessBrandPlane(
+                    modifier = Modifier.fillMaxHeight().width(brandWidth),
+                    wide = true
+                )
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { form() }
+            }
+        } else {
+            Column(Modifier.fillMaxSize().semantics { isTraversalGroup = true }) {
+                if (heroHeight > 0.dp) {
+                    AccessBrandPlane(
+                        Modifier.fillMaxWidth().height(heroHeight),
+                        compact = largeFont
+                    )
+                }
+                form()
             }
         }
     }
@@ -302,8 +330,12 @@ fun ContextChooserScreen(
 }
 
 @Composable
-private fun AccessBrandPlane(modifier: Modifier = Modifier, compact: Boolean = false) {
-    NexaAuthCanopy(modifier = modifier) {
+private fun AccessBrandPlane(
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+    wide: Boolean = false
+) {
+    NexaAuthCanopy(modifier = modifier, showWave = !wide) {
         Image(
             painter = painterResource(DesignR.drawable.nexa_wordmark_white),
             contentDescription = stringResource(R.string.access_brand_description),
@@ -313,6 +345,23 @@ private fun AccessBrandPlane(modifier: Modifier = Modifier, compact: Boolean = f
                 .height(if (compact) 28.dp else 35.dp),
             contentScale = ContentScale.Fit
         )
+        if (wide) {
+            Column(
+                Modifier.align(Alignment.CenterStart).padding(40.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                Text(
+                    stringResource(R.string.access_welcome_title),
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = NexaColors.Surface
+                )
+                Text(
+                    stringResource(R.string.access_welcome_support),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = NexaColors.Surface
+                )
+            }
+        }
         val productLabelTypography = if (compact) {
             MaterialTheme.typography.labelSmall
         } else {
@@ -519,14 +568,19 @@ private fun AccessCredentialsForm(
         modifier = modifier.padding(vertical = if (compact) 4.dp else 8.dp),
         verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp)
     ) {
-        if (onBackToWelcome != null && !loading && !compact) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(
-                    modifier = Modifier.heightIn(min = NexaSizes.minimumTouchTarget),
-                    onClick = onBackToWelcome
-                ) {
-                    Text(stringResource(R.string.access_back_to_welcome))
-                }
+        if (onBackToWelcome != null && !loading) {
+            IconButton(
+                onClick = onBackToWelcome,
+                modifier = Modifier.size(NexaSizes.minimumTouchTarget)
+            ) {
+                Icon(
+                    painterResource(DesignR.drawable.ic_chevron_right),
+                    contentDescription = stringResource(R.string.access_back_to_welcome),
+                    modifier = Modifier.graphicsLayer {
+                        rotationZ = 180f
+                    },
+                    tint = NexaColors.Primary
+                )
             }
         }
         if (!compact || !loading) {
@@ -555,7 +609,10 @@ private fun AccessCredentialsForm(
             leadingIconRes = DesignR.drawable.ic_identity,
             enabled = !loading,
             compact = compact,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardOptions = KeyboardOptions(
+                autoCorrectEnabled = false,
+                imeAction = ImeAction.Next
+            ),
             keyboardActions = KeyboardActions(
                 onNext = { focusManager.moveFocus(FocusDirection.Down) }
             ),
@@ -599,18 +656,6 @@ private fun AccessCredentialsForm(
                 null
             }
         )
-        if (onOpenRecovery != null && onSignIn != null && !loading) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(
-                    modifier = Modifier.heightIn(
-                        min = if (compact) 36.dp else NexaSizes.minimumTouchTarget
-                    ),
-                    onClick = onOpenRecovery
-                ) {
-                    Text(stringResource(R.string.access_recover_account))
-                }
-            }
-        }
         if (loading) {
             Column(verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 4.dp)) {
                 Text(
@@ -633,6 +678,18 @@ private fun AccessCredentialsForm(
                 label = stringResource(R.string.access_submit),
                 onClick = onSignIn
             )
+        }
+        if (onOpenRecovery != null && onSignIn != null && !loading) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(
+                    modifier = Modifier.heightIn(
+                        min = NexaSizes.minimumTouchTarget
+                    ),
+                    onClick = onOpenRecovery
+                ) {
+                    Text(stringResource(R.string.access_recover_account))
+                }
+            }
         }
     }
 }
@@ -756,6 +813,7 @@ private fun AccessOutlinedField(
                     contentDescription = label
                     if (errorText != null) error(errorText)
                 },
+            placeholder = { Text(label) },
             leadingIcon = {
                 Icon(
                     painter = painterResource(leadingIconRes),
