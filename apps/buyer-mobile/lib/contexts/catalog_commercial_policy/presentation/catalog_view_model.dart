@@ -433,9 +433,10 @@ final class CatalogViewModel extends ChangeNotifier {
       if (failure.statusCode == 403) {
         status = CatalogLoadStatus.permissionDenied;
         items = const [];
-        page = 0;
+        this.page = 0;
         totalItems = 0;
         totalPages = 0;
+        updatedAt = null;
         message = 'No tienes permiso para consultar el catálogo.';
       } else {
         status = CatalogLoadStatus.unavailable;
@@ -444,7 +445,7 @@ final class CatalogViewModel extends ChangeNotifier {
     } catch (_) {
       if (!_isCurrent(generation, lease)) return;
       status = CatalogLoadStatus.unavailable;
-      message = 'The catalog could not be refreshed.';
+      message = 'No se pudo actualizar el catálogo.';
     }
     notifyListeners();
   }
