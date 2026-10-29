@@ -87,6 +87,58 @@ void main() {
     },
   );
 
+  test('later-page 403 resets page and recovers after sign-in', () async {
+    final access = _FakeAccess(_signedInSnapshot());
+    final repository = _RecordingCatalogRepository();
+    final viewModel = CatalogViewModel(repository, access);
+
+    await viewModel.search('leche');
+    await viewModel.nextPage();
+    expect(viewModel.page, 1);
+    expect(viewModel.items, isNotEmpty);
+
+    repository.denyList = true;
+    await viewModel.nextPage();
+
+    expect(repository.calls.last['page'], 2);
+    expect(viewModel.status, CatalogLoadStatus.permissionDenied);
+    expect(viewModel.page, 0);
+    expect(viewModel.items, isEmpty);
+    expect(viewModel.totalItems, 0);
+    expect(viewModel.totalPages, 0);
+    expect(viewModel.updatedAt, isNull);
+    expect(access.snapshot.isSignedIn, isTrue);
+
+    repository.denyList = false;
+    access.emit(const BuyerAccessSnapshot(status: BuyerAccessStatus.signedOut));
+    access.emit(_signedInSnapshot(epoch: 2));
+    await viewModel.search('leche');
+
+    expect(viewModel.status, CatalogLoadStatus.current);
+    expect(viewModel.page, 0);
+    expect(viewModel.items, isNotEmpty);
+
+    viewModel.dispose();
+    await access.dispose();
+  });
+
+  test(
+    'an unexpected catalog error uses the Spanish fallback message',
+    () async {
+      final access = _FakeAccess(_signedInSnapshot());
+      final repository = _RecordingCatalogRepository()..failList = true;
+      final viewModel = CatalogViewModel(repository, access);
+
+      await viewModel.refresh();
+
+      expect(viewModel.status, CatalogLoadStatus.unavailable);
+      expect(viewModel.message, 'No se pudo actualizar el catálogo.');
+
+      viewModel.dispose();
+      await access.dispose();
+    },
+  );
+
   test('a Buyer role without catalog.read cannot query the catalog', () async {
     final access = _FakeAccess(_signedInSnapshot(permissions: const {}));
     final repository = _CountingCatalogRepository();
@@ -382,6 +434,7 @@ final class _RecordingCatalogRepository implements CatalogRepository {
   final calls = <Map<String, Object>>[];
   final lookupCalls = <Map<String, Object?>>[];
   bool denyList = false;
+  bool failList = false;
 
   @override
   Future<CatalogPageProjection> list({
@@ -404,6 +457,9 @@ final class _RecordingCatalogRepository implements CatalogRepository {
       'variantId': variantId,
       'page': page,
     });
+    if (failList) {
+      throw StateError('unexpected repository failure');
+    }
     if (denyList) {
       throw const NexaApiFailure(
         code: 'permission_denied',
