@@ -10,6 +10,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.Dispa
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverGatewayResult as HandoverGatewayResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverPermissions
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverEvidence
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverReceipt
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverSnapshot
@@ -263,9 +264,7 @@ class OperationsDispatchHandoverGateway @Inject constructor(
         ) {
             return Authorization.ContextInvalidated
         }
-        return if (MANAGE_PERMISSION in identity.permissions &&
-            READ_PERMISSION in identity.permissions
-        ) {
+        return if (DispatchHandoverPermissions.allowsHandover(identity.permissions)) {
             Authorization.Current(lease)
         } else {
             Authorization.PermissionDenied
@@ -283,7 +282,7 @@ class OperationsDispatchHandoverGateway @Inject constructor(
         }
         val identity = context.identity ?: return false
         return sessions.verifiedSession.value?.matches(identity) == true &&
-            MANAGE_PERMISSION in identity.permissions && READ_PERMISSION in identity.permissions
+            DispatchHandoverPermissions.allowsHandover(identity.permissions)
     }
 
     private suspend fun authorityDrift(context: DispatchAuthorityContext) = when {
@@ -546,8 +545,6 @@ class OperationsDispatchHandoverGateway @Inject constructor(
     }
 
     private companion object {
-        const val MANAGE_PERMISSION = "fulfillment.manage"
-        const val READ_PERMISSION = "dispatch.read"
         const val HANDED_OVER = "HANDED_OVER"
     }
 }

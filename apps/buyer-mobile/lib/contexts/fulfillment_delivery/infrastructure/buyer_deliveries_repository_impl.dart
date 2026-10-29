@@ -1,5 +1,6 @@
 import 'package:nexa_buyer_mobile/core/network/nexa_api_client.dart';
 
+import '../../../core/application/upload_limits.dart';
 import '../application/buyer_deliveries_repository.dart';
 
 final class BuyerDeliveriesRepositoryImpl implements BuyerDeliveriesRepository {
@@ -164,7 +165,7 @@ final class BuyerDeliveriesRepositoryImpl implements BuyerDeliveriesRepository {
         normalizedName.contains('\r') ||
         allowedTypes[extension] != normalizedType ||
         bytes.isEmpty ||
-        bytes.length > NexaApiClient.maxEvidenceUploadBytes) {
+        bytes.length > maxEvidenceUploadBytes) {
       _invalidRequest('buyer_receipt_evidence_invalid');
     }
     final response = await _api.postMultipart(
@@ -229,6 +230,79 @@ final class BuyerDeliveriesRepositoryImpl implements BuyerDeliveriesRepository {
       accuracyMeters: accuracyMeters,
       capturedAt: capturedAt,
       expiresAt: expiresAt,
+    );
+  }
+
+  @override
+  Future<BuyerReceiptAcceptanceProjection> acceptHandoff({
+    required String token,
+    required String expectedDeliveryId,
+    required String idempotencyKey,
+  }) async {
+    final normalizedToken = token.trim();
+    if (normalizedToken.isEmpty ||
+        normalizedToken.length > 400 ||
+        !_isUuid(expectedDeliveryId) ||
+        !_isUuid(idempotencyKey)) {
+      _invalidRequest('buyer_handoff_acceptance_invalid');
+    }
+    final response = await _api.request(
+      'POST',
+      '/delivery-handoff/receipts',
+      body: {
+        'token': normalizedToken,
+        'expectedDeliveryId': expectedDeliveryId,
+      },
+      idempotencyKey: idempotencyKey,
+      refreshAfterUnauthorized: true,
+    );
+    final body = _map(response.body);
+    if (body == null) _invalidResponse();
+    final receiptId = _string(body['receiptId']);
+    final deliveryId = _string(body['deliveryId']);
+    final attemptId = _string(body['attemptId']);
+    final podId = _string(body['podId']);
+    final acceptedQuantity = _num(body['acceptedQuantity']);
+    final occurredAt = _dateTime(body['occurredAt']);
+    final deliveryStatus = _string(body['deliveryStatus']);
+    final podStatus = _string(body['podStatus']);
+    final salesOrderStatus = _string(body['salesOrderStatus']);
+    final deliveryVersion = _int(body['deliveryVersion']);
+    final orderCompleted = body['orderCompleted'];
+    final replayed = body['replayed'];
+    if (receiptId == null ||
+        !_isUuid(receiptId) ||
+        deliveryId != expectedDeliveryId ||
+        attemptId == null ||
+        !_isUuid(attemptId) ||
+        podId == null ||
+        !_isUuid(podId) ||
+        acceptedQuantity == null ||
+        !acceptedQuantity.isFinite ||
+        acceptedQuantity < 0 ||
+        occurredAt == null ||
+        deliveryStatus == null ||
+        podStatus == null ||
+        salesOrderStatus == null ||
+        deliveryVersion == null ||
+        deliveryVersion < 0 ||
+        orderCompleted is! bool ||
+        replayed is! bool) {
+      _invalidResponse();
+    }
+    return BuyerReceiptAcceptanceProjection(
+      receiptId: receiptId,
+      deliveryId: deliveryId!,
+      attemptId: attemptId,
+      podId: podId,
+      acceptedQuantity: acceptedQuantity,
+      occurredAt: occurredAt,
+      deliveryStatus: deliveryStatus,
+      podStatus: podStatus,
+      salesOrderStatus: salesOrderStatus,
+      deliveryVersion: deliveryVersion,
+      orderCompleted: orderCompleted,
+      replayed: replayed,
     );
   }
 

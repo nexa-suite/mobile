@@ -283,6 +283,92 @@ void main() {
   });
 
   test(
+    'Buyer QR acceptance reports server-confirmed order completion',
+    () async {
+      final access = _FakeAccess(
+        _signedInSnapshot(
+          permissions: const {'buyer.tracking.read', 'buyer.order.read'},
+        ),
+      );
+      final repository = _Repository((_) async => _page(0, 1))
+        ..acceptanceResult = Future.value(_acceptance(orderCompleted: true));
+      final viewModel = BuyerDeliveryDetailViewModel(
+        repository,
+        access,
+        _deliveryId,
+        receiptStore: _ReceiptStore(),
+      );
+      await viewModel.load();
+
+      await viewModel.acceptHandoff('  buyer-code  ');
+
+      expect(repository.acceptanceCalls, 1);
+      expect(repository.validationCalls, 0);
+      expect(repository.receiptCalls, 0);
+      expect(repository.acceptanceCommands.single['token'], 'buyer-code');
+      expect(
+        repository.acceptanceCommands.single['expectedDeliveryId'],
+        _deliveryId,
+      );
+      expect(
+        repository.acceptanceCommands.single['idempotencyKey'],
+        isA<String>(),
+      );
+      expect(viewModel.handoffAcceptance?.orderCompleted, isTrue);
+      expect(viewModel.handoffStatus, BuyerHandoffStatus.verified);
+      expect(viewModel.receiptStatus, BuyerReceiptStatus.accepted);
+      expect(
+        viewModel.receiptMessage,
+        'Recepción confirmada. El pedido está completo.',
+      );
+
+      viewModel.dispose();
+      await access.dispose();
+    },
+  );
+
+  test('ambiguous QR retry reuses same idempotent command', () async {
+    final access = _FakeAccess(
+      _signedInSnapshot(
+        permissions: const {'buyer.tracking.read', 'buyer.order.read'},
+      ),
+    );
+    final response = Completer<BuyerReceiptAcceptanceProjection>();
+    final repository = _Repository((_) async => _page(0, 1))
+      ..acceptanceResult = response.future;
+    final viewModel = BuyerDeliveryDetailViewModel(
+      repository,
+      access,
+      _deliveryId,
+      receiptStore: _ReceiptStore(),
+    );
+    await viewModel.load();
+
+    final firstAttempt = viewModel.acceptHandoff('buyer-code');
+    response.completeError(Exception('connection lost'));
+    await firstAttempt;
+
+    expect(viewModel.receiptStatus, BuyerReceiptStatus.unavailable);
+    expect(viewModel.canRetryHandoffAcceptance, isTrue);
+    repository.acceptanceResult = Future.value(
+      _acceptance(orderCompleted: false, replayed: true),
+    );
+    await viewModel.retryHandoffAcceptance();
+
+    expect(repository.acceptanceCommands, hasLength(2));
+    expect(repository.acceptanceCommands[1], repository.acceptanceCommands[0]);
+    expect(viewModel.handoffAcceptance?.replayed, isTrue);
+    expect(viewModel.handoffAcceptance?.orderCompleted, isFalse);
+    expect(
+      viewModel.receiptMessage,
+      'Recepción confirmada. El pedido sigue pendiente de completar.',
+    );
+
+    viewModel.dispose();
+    await access.dispose();
+  });
+
+  test(
     'attaches evidence to persisted disputed receipt after delivery ends',
     () async {
       final access = _FakeAccess(
@@ -828,13 +914,16 @@ final class _Repository implements BuyerDeliveriesRepository {
   Future<BuyerDeliveryDetailProjection>? detailResult;
   int detailCalls = 0;
   int validationCalls = 0;
+  int acceptanceCalls = 0;
   int receiptCalls = 0;
   int evidenceUploadCalls = 0;
   int locationCalls = 0;
   String? lastValidatedToken;
   final receiptCommands = <Map<String, Object?>>[];
+  final acceptanceCommands = <Map<String, Object?>>[];
   final evidenceUploadCommands = <Map<String, Object?>>[];
   Future<BuyerHandoffValidationProjection>? validationResult;
+  Future<BuyerReceiptAcceptanceProjection>? acceptanceResult;
   Future<BuyerReceiptProjection>? receiptResult;
   Future<BuyerDeliveryTrackingProjection>? locationResult;
 
@@ -861,6 +950,21 @@ final class _Repository implements BuyerDeliveriesRepository {
     validationCalls++;
     lastValidatedToken = token;
     return validationResult ?? Future.value(_handoff());
+  }
+
+  @override
+  Future<BuyerReceiptAcceptanceProjection> acceptHandoff({
+    required String token,
+    required String expectedDeliveryId,
+    required String idempotencyKey,
+  }) {
+    acceptanceCalls++;
+    acceptanceCommands.add({
+      'token': token,
+      'expectedDeliveryId': expectedDeliveryId,
+      'idempotencyKey': idempotencyKey,
+    });
+    return acceptanceResult ?? Future.value(_acceptance());
   }
 
   @override
@@ -935,6 +1039,24 @@ BuyerHandoffValidationProjection _handoff({
   expiresAt: DateTime.utc(2026, 10, 10),
   deliveryStatus: 'IN_TRANSIT',
   deliveredQuantity: 3,
+);
+
+BuyerReceiptAcceptanceProjection _acceptance({
+  bool orderCompleted = false,
+  bool replayed = false,
+}) => BuyerReceiptAcceptanceProjection(
+  receiptId: '00000000-0000-4000-8000-000000000012',
+  deliveryId: _deliveryId,
+  attemptId: '00000000-0000-4000-8000-000000000002',
+  podId: '00000000-0000-4000-8000-000000000014',
+  acceptedQuantity: 3,
+  occurredAt: DateTime.utc(2026, 10, 9, 12),
+  deliveryStatus: 'DELIVERED',
+  podStatus: 'SEALED',
+  salesOrderStatus: orderCompleted ? 'COMPLETED' : 'OPEN',
+  deliveryVersion: 4,
+  orderCompleted: orderCompleted,
+  replayed: replayed,
 );
 
 BuyerReceiptProjection _receipt({

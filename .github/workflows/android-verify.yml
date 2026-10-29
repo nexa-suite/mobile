@@ -102,7 +102,51 @@ jobs:
           pre-emulator-launch-script: |
             grep -qx 'target=android-37.0' "$HOME/.android/avd/test.ini"
           # Each command is launched in its own shell by android-emulator-runner; keep cd and Gradle invocations in one command.
-          script: cd apps/operations-android && ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.nexa.mobile.operations.RequiresPrivateFixture --dependency-verification strict || { echo 'Android instrumentation result XML:'; find . -path '*/build/outputs/androidTest-results/connected/debug/TEST-*.xml' -exec cat {} +; exit 1; }
+          script: cd apps/operations-android && ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.nexa.mobile.operations.RequiresDedicatedInstrumentationEnvironment --dependency-verification strict || { echo 'Android instrumentation result XML:'; find . -path '*/build/outputs/androidTest-results/connected/debug/TEST-*.xml' -exec cat {} +; exit 1; }
+
+  android-api37-tablet-ime:
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: '15859902'
+      - name: Select Android 37 capable AVD manager
+        run: |
+          test -x "$ANDROID_HOME/cmdline-tools/22.0/bin/avdmanager"
+          rm -rf "$ANDROID_HOME/cmdline-tools/latest"
+          ln -s "$ANDROID_HOME/cmdline-tools/22.0" "$ANDROID_HOME/cmdline-tools/latest"
+          test -x "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager"
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        name: Run Android 37 tablet IME instrumentation without candidate credentials
+        with:
+          api-level: '37.0'
+          target: google_apis
+          arch: x86_64
+          profile: medium_tablet
+          disable-animations: true
+          pre-emulator-launch-script: |
+            grep -qx 'target=android-37.0' "$HOME/.android/avd/test.ini"
+            test -f "$HOME/.android/avd/test.avd/config.ini"
+            if grep -q '^hw.initialOrientation=' "$HOME/.android/avd/test.avd/config.ini"; then sed -i 's/^hw.initialOrientation=.*/hw.initialOrientation=landscape/' "$HOME/.android/avd/test.avd/config.ini"; else printf '\nhw.initialOrientation=landscape\n' >> "$HOME/.android/avd/test.avd/config.ini"; fi
+            grep -qx 'hw.initialOrientation=landscape' "$HOME/.android/avd/test.avd/config.ini"
+          # Each command is launched in its own shell by android-emulator-runner; keep cd and Gradle invocations in one command.
+          script: cd apps/operations-android && ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.nexa.mobile.operations.AccessImeFocusTest --dependency-verification strict || { echo 'Android tablet instrumentation result XML:'; find app/build/outputs/androidTest-results/connected/debug/TEST-*.xml -exec cat {} +; exit 1; }
 
   android-promotion:
     needs: changes
@@ -187,7 +231,7 @@ jobs:
           arch: x86_64
           disable-animations: true
           # Each command is launched in its own shell by android-emulator-runner; keep cd and Gradle invocations in one command.
-          script: cd apps/operations-android && ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.nexa.mobile.operations.RequiresPrivateFixture --dependency-verification strict || { echo 'Android instrumentation result XML:'; find . -path '*/build/outputs/androidTest-results/connected/debug/TEST-*.xml' -exec cat {} +; exit 1; }
+          script: cd apps/operations-android && ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.nexa.mobile.operations.RequiresDedicatedInstrumentationEnvironment --dependency-verification strict || { echo 'Android instrumentation result XML:'; find . -path '*/build/outputs/androidTest-results/connected/debug/TEST-*.xml' -exec cat {} +; exit 1; }
 
   verify:
     if: always()
@@ -195,6 +239,7 @@ jobs:
       - changes
       - android-static
       - android-api37
+      - android-api37-tablet-ime
       - android-promotion
     runs-on: ubuntu-latest
     steps:
@@ -204,6 +249,7 @@ jobs:
           ANDROID_CHANGED: ${{ needs.changes.outputs.android }}
           STATIC_RESULT: ${{ needs.android-static.result }}
           API37_RESULT: ${{ needs.android-api37.result }}
+          API37_TABLET_IME_RESULT: ${{ needs.android-api37-tablet-ime.result }}
           PROMOTION_RESULT: ${{ needs.android-promotion.result }}
           PROMOTION_REQUIRED: >-
             ${{ (github.event_name == 'pull_request' && github.base_ref == 'main') ||
@@ -214,6 +260,7 @@ jobs:
           if test "$ANDROID_CHANGED" = true; then
             test "$STATIC_RESULT" = success
             test "$API37_RESULT" = success
+            test "$API37_TABLET_IME_RESULT" = success
             if test "$PROMOTION_REQUIRED" = true; then
               test "$PROMOTION_RESULT" = success
             fi

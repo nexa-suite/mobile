@@ -949,6 +949,10 @@ final class _FakeCatalogRepository implements CatalogRepository {
     required int page,
     String brand = '',
     String category = '',
+    String brandId = '',
+    String categoryId = '',
+    String familyId = '',
+    String variantId = '',
   }) => throw UnimplementedError();
 
   @override
@@ -956,6 +960,7 @@ final class _FakeCatalogRepository implements CatalogRepository {
     required CatalogFilterKind kind,
     required String search,
     required int page,
+    String? familyId,
   }) => throw UnimplementedError();
 
   @override

@@ -61,6 +61,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.Busin
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.BusinessOperationalExceptionScopeIdentity as ExceptionScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverPermissions
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsGateway as OutgoingGoodsGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsMetadataStore as OutgoingGoodsMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTemperatureEvidenceSelectionContext as TemperatureEvidenceSelectionContext
@@ -3805,10 +3806,9 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     onConfirmHandover =
-                                        if (connectedRoute?.authority?.permissions?.contains(
-                                                "fulfillment.manage"
-                                            ) ==
-                                            true
+                                        if (connectedRoute?.authority?.permissions?.let(
+                                                DispatchHandoverPermissions::allowsHandover
+                                            ) == true
                                         ) {
                                             { fulfillmentId ->
                                                 val detail = readinessViewModel.state.value.detail
@@ -4571,8 +4571,11 @@ private val CONNECTED_OPERATIONS = listOf(
     ConnectedOperationEntry(
         "dispatch.handover",
         "Confirmar salida y evidencia de handoff",
-        setOf("fulfillment.manage"),
-        visibleInHub = false
+        readPermissions = DispatchHandoverPermissions.complete,
+        visibleInHub = false,
+        requiredReadPermissionGroups = listOf(
+            setOf(DispatchHandoverPermissions.READ)
+        )
     ),
     ConnectedOperationEntry(
         "warehouse.automation",

@@ -102,6 +102,36 @@ final class BuyerHandoffValidationProjection {
   final num deliveredQuantity;
 }
 
+final class BuyerReceiptAcceptanceProjection {
+  const BuyerReceiptAcceptanceProjection({
+    required this.receiptId,
+    required this.deliveryId,
+    required this.attemptId,
+    required this.podId,
+    required this.acceptedQuantity,
+    required this.occurredAt,
+    required this.deliveryStatus,
+    required this.podStatus,
+    required this.salesOrderStatus,
+    required this.deliveryVersion,
+    required this.orderCompleted,
+    required this.replayed,
+  });
+
+  final String receiptId;
+  final String deliveryId;
+  final String attemptId;
+  final String podId;
+  final num acceptedQuantity;
+  final DateTime occurredAt;
+  final String deliveryStatus;
+  final String podStatus;
+  final String salesOrderStatus;
+  final int deliveryVersion;
+  final bool orderCompleted;
+  final bool replayed;
+}
+
 final class BuyerReceiptProjection {
   const BuyerReceiptProjection({
     required this.id,
@@ -180,6 +210,12 @@ abstract interface class BuyerDeliveriesRepository {
   Future<BuyerDeliveryTrackingProjection?> liveLocation(String deliveryId);
 
   Future<BuyerHandoffValidationProjection> validateHandoff(String token);
+
+  Future<BuyerReceiptAcceptanceProjection> acceptHandoff({
+    required String token,
+    required String expectedDeliveryId,
+    required String idempotencyKey,
+  });
 
   Future<BuyerReceiptProjection> recordReceipt({
     required String deliveryId,

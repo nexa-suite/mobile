@@ -10,6 +10,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.Dispa
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverMetadataRead
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverMetadataStore
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverMetadataWrite
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverPermissions
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchRequestBodyCodec
@@ -447,7 +448,7 @@ class DispatchHandoverViewModel(
                 identity.workspaceId,
                 identity.membershipId
             ).none(String::isBlank) &&
-            "dispatch.read" in identity.permissions && "fulfillment.manage" in identity.permissions
+            DispatchHandoverPermissions.allowsHandover(identity.permissions)
     }
 
     private fun DispatchAuthorityContext.scopeIdentity(): DispatchOutgoingGoodsScopeIdentity? {

@@ -128,6 +128,10 @@ final class _BuyerDeliveryDetailPageState
         ),
       );
     }
+    final acceptance = detail.handoffAcceptance;
+    final deliveryStatus = acceptance?.deliveryStatus ?? delivery.status;
+    final proofOfDeliveryStatus =
+        acceptance?.podStatus ?? delivery.proofOfDeliveryStatus;
 
     return Scaffold(
       appBar: AppBar(title: Text('Pedido ${delivery.salesOrderNumber}')),
@@ -171,8 +175,8 @@ final class _BuyerDeliveryDetailPageState
                         ),
                         const SizedBox(height: 8),
                         NexaStatusBadge(
-                          delivery.status,
-                          label: _statusLabel(delivery.status),
+                          deliveryStatus,
+                          label: _statusLabel(deliveryStatus),
                         ),
                         const SizedBox(height: 12),
                         _DetailRow(
@@ -204,9 +208,9 @@ final class _BuyerDeliveryDetailPageState
                         ),
                         _DetailRow(
                           label: 'Comprobante de entrega',
-                          value: delivery.proofOfDeliveryStatus == null
+                          value: proofOfDeliveryStatus == null
                               ? 'No disponible'
-                              : _statusLabel(delivery.proofOfDeliveryStatus!),
+                              : _statusLabel(proofOfDeliveryStatus),
                         ),
                         _DetailRow(
                           label: 'Actualización',
@@ -333,6 +337,43 @@ final class _BuyerDeliveryDetailPageState
     BuildContext context,
     BuyerDeliveryDetailViewModel detail,
   ) {
+    final acceptance = detail.handoffAcceptance;
+    if (acceptance != null) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Entrega confirmada',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              NexaNotice(detail.receiptMessage ?? 'Recepción confirmada.'),
+              _DetailRow(
+                label: 'Pedido',
+                value: acceptance.orderCompleted
+                    ? 'Completado'
+                    : 'Pendiente de completar',
+              ),
+              _DetailRow(
+                label: 'Cantidad aceptada',
+                value: acceptance.acceptedQuantity.toString(),
+              ),
+              _DetailRow(
+                label: 'Recepción registrada',
+                value: _dateTimeLabel(acceptance.occurredAt)!,
+              ),
+              _DetailRow(
+                label: 'Estado de entrega',
+                value: _statusLabel(acceptance.deliveryStatus),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     final locked =
         detail.receiptAttemptLocked ||
         detail.receiptStatus == BuyerReceiptStatus.accepted ||
@@ -349,13 +390,11 @@ final class _BuyerDeliveryDetailPageState
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Verificar y registrar recepción',
+              'Recepción de entrega',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Verificar el código identifica el intento; no confirma por sí solo la recepción.',
-            ),
+            const Text('Ingresa el código de entrega para verificarlo.'),
             const SizedBox(height: 12),
             TextField(
               key: const Key('buyer-handoff-code'),
@@ -763,14 +802,33 @@ final class _DeliveryDetailMessage extends StatelessWidget {
   );
 }
 
-String _statusLabel(String value) => value
-    .split('_')
-    .map(
-      (part) => part.isEmpty
-          ? part
-          : '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
-    )
-    .join(' ');
+String _statusLabel(String value) {
+  final known = switch (value.toUpperCase()) {
+    'PLANNED' => 'Programada',
+    'ALLOCATED' => 'Preparada',
+    'DISPATCHED' => 'Despachada',
+    'IN_TRANSIT' => 'En camino',
+    'DELIVERED' => 'Entregada',
+    'PARTIAL' || 'PARTIALLY_DELIVERED' => 'Entrega parcial',
+    'COMPLETED' => 'Completada',
+    'OPEN' || 'IN_PROGRESS' => 'En curso',
+    'PENDING' => 'Pendiente',
+    'CAPTURED' => 'Registrado',
+    'SEALED' => 'Confirmado',
+    'REJECTED' => 'Rechazado',
+    'POD_SEALED' => 'Comprobante confirmado',
+    _ => null,
+  };
+  if (known != null) return known;
+  return value
+      .split('_')
+      .map(
+        (part) => part.isEmpty
+            ? part
+            : '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+      )
+      .join(' ');
+}
 
 String? _dateTimeLabel(DateTime? value) {
   if (value == null) return null;
