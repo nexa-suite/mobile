@@ -36,9 +36,39 @@ jobs:
             -PnexaDebugApiBaseUrl=https://nexa-api-69bj.onrender.com/ \
             --dependency-verification strict
 
+      - name: Capture Operations APK metadata and checksum
+        id: apk-metadata
+        run: |
+          set -euo pipefail
+          apk_dir=app/build/outputs/apk/debug
+          metadata="$apk_dir/output-metadata.json"
+          jq -e '.applicationId == "com.nexa.mobile.operations" and
+            .variantName == "debug" and (.elements | length) == 1' \
+            "$metadata" >/dev/null
+          read -r version_name version_code apk_name <<< "$(jq -r \
+            '[.elements[0].versionName, .elements[0].versionCode,
+              .elements[0].outputFile] | @tsv' "$metadata")"
+          [[ -n "$version_name" && "$version_name" != "null" &&
+             "$version_name" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ &&
+             "$version_code" =~ ^[0-9]+$ && "$apk_name" == "app-debug.apk" ]]
+          test -s "$apk_dir/$apk_name"
+          (cd "$apk_dir" && sha256sum "$apk_name" > "$apk_name.sha256")
+          artifact_name="operations-android-v${version_name}+${version_code}-academic-"
+          artifact_name+="debug-${GITHUB_SHA}"
+          printf 'artifact_name=%s\n' "$artifact_name" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Operations academic APK"
+            echo "- Variant: \`debug\`"
+            echo "- Version: \`$version_name\` (code \`$version_code\`)"
+            echo "- Source commit: \`$GITHUB_SHA\`"
+            echo "- APK SHA-256: \`$(cut -d' ' -f1 "$apk_dir/$apk_name.sha256")\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/upload-artifact@v4
         with:
-          name: operations-android-v1.1.0-academic-debug
-          path: apps/operations-android/app/build/outputs/apk/debug/app-debug.apk
+          name: ${{ steps.apk-metadata.outputs.artifact_name }}
+          path: |
+            apps/operations-android/app/build/outputs/apk/debug/app-debug.apk
+            apps/operations-android/app/build/outputs/apk/debug/app-debug.apk.sha256
           if-no-files-found: error
           retention-days: 7
