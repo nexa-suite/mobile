@@ -24,19 +24,37 @@ final class PurchaseRequestRepositoryImpl
 
   @override
   Future<BuyerPurchaseContextProjection> loadBuyerPurchaseContext() async {
+    final credentials = _api.sessionCredentials;
+    final epoch = credentials?.authorityEpoch;
+    final fingerprint = credentials?.authorityFingerprint;
+    void requireCurrentScope() {
+      if (credentials == null ||
+          !identical(credentials, _api.sessionCredentials) ||
+          credentials.accessToken == null ||
+          credentials.authorityEpoch != epoch ||
+          credentials.authorityFingerprint != fingerprint) {
+        throw const NexaApiFailure(
+          code: 'buyer_purchase_scope_changed',
+          userMessage: 'Tu acceso cambió. Abre nuevamente la solicitud.',
+        );
+      }
+    }
+
+    requireCurrentScope();
     final account = await _api.get(
       '/client-accounts/me',
       refreshAfterUnauthorized: true,
     );
+    requireCurrentScope();
     final accountId = _uuid(account.body['id']);
-    final buyerMembershipId = _uuid(account.body['buyerMembershipId']);
-    if (accountId == null || buyerMembershipId == null) {
+    if (accountId == null) {
       _invalidResponse();
     }
     final addresses = await _api.get(
       '/client-accounts/$accountId/addresses',
       refreshAfterUnauthorized: true,
     );
+    requireCurrentScope();
     final values = addresses.data;
     if (values is! List) {
       _invalidResponse();
@@ -44,7 +62,6 @@ final class PurchaseRequestRepositoryImpl
     final parsed = values.map(_parseAddress).toList(growable: false);
     return BuyerPurchaseContextProjection(
       clientAccountId: accountId,
-      buyerMembershipId: buyerMembershipId,
       businessName:
           _string(account.body['commercialName']) ??
           _string(account.body['businessName']) ??
@@ -60,20 +77,21 @@ final class PurchaseRequestRepositoryImpl
       '/buyer/delivery-lead-policy',
       refreshAfterUnauthorized: true,
     );
-    final businessDays = _int(response.body['minimumDeliveryLeadBusinessDays']);
+    final calendarDays = _int(response.body['minimumDeliveryLeadDays']);
     final minimumDate = _canonicalDateValue(
-      response.body['minimumAllowedDeliveryDate'],
+      response.body['earliestAllowedDeliveryDate'],
     );
     final timezone = _string(response.body['timezone']);
-    if (businessDays == null ||
-        businessDays < 0 ||
+    if (response.body['dayUnit'] != 'CALENDAR' ||
+        calendarDays == null ||
+        calendarDays < 0 ||
         minimumDate == null ||
         timezone == null) {
       _invalidResponse();
     }
     return BuyerDeliveryLeadPolicyProjection(
-      minimumDeliveryLeadBusinessDays: businessDays,
-      minimumAllowedDeliveryDate: minimumDate,
+      minimumDeliveryLeadDays: calendarDays,
+      earliestAllowedDeliveryDate: minimumDate,
       timezone: timezone,
     );
   }
@@ -650,15 +668,23 @@ final class PurchaseRequestRepositoryImpl
       _invalidResponse();
     }
     final id = _uuid(address['id']);
-    if (id == null) {
+    final label = _string(address['label']);
+    final line = _string(address['line']);
+    final active = address['active'];
+    final defaultAddress = address['defaultAddress'];
+    if (id == null ||
+        label == null ||
+        line == null ||
+        active is! bool ||
+        defaultAddress is! bool) {
       _invalidResponse();
     }
     return BuyerDeliveryAddressProjection(
       id: id,
-      label: _string(address['label']) ?? 'Dirección registrada',
-      line: _string(address['line']) ?? '',
-      active: address['active'] != false,
-      defaultAddress: address['defaultAddress'] == true,
+      label: label,
+      line: line,
+      active: active,
+      defaultAddress: defaultAddress,
       latitude: _num(address['latitude']),
       longitude: _num(address['longitude']),
     );

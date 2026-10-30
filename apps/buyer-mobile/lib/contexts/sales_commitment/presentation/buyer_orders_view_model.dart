@@ -21,6 +21,19 @@ enum BuyerOrdersLoadStatus {
   permissionDenied,
 }
 
+enum BuyerOrdersBucket { active, history }
+
+const _activeOrderStatuses = [
+  'PENDING',
+  'CONFIRMED',
+  'IN_FULFILLMENT',
+  'PARTIALLY_FULFILLED',
+  'FULFILLED',
+  'PARTIALLY_DELIVERED',
+];
+
+const _historicalOrderStatuses = ['COMPLETED', 'REJECTED', 'CANCELLED'];
+
 final class BuyerOrdersViewModel extends ChangeNotifier {
   BuyerOrdersViewModel(this._repository, this._access)
     : _leaseKey = _activeLease(_access.snapshot) {
@@ -35,8 +48,11 @@ final class BuyerOrdersViewModel extends ChangeNotifier {
   Future<void>? _activeRead;
   int? _activePage;
   int? _queuedPage;
+  BuyerOrdersBucket? _activeBucket;
+  BuyerOrdersBucket? _queuedBucket;
 
   BuyerOrdersLoadStatus status = BuyerOrdersLoadStatus.idle;
+  BuyerOrdersBucket bucket = BuyerOrdersBucket.active;
   List<BuyerOrderProjection> items = const [];
   int page = 0;
   int size = 25;
@@ -46,6 +62,19 @@ final class BuyerOrdersViewModel extends ChangeNotifier {
   static const readPermission = 'buyer.order.read';
 
   Future<void> refresh() => _load(_queuedPage ?? _activePage ?? page);
+
+  Future<void> selectBucket(BuyerOrdersBucket nextBucket) {
+    if (bucket == nextBucket) return Future.value();
+    bucket = nextBucket;
+    page = 0;
+    total = 0;
+    items = const [];
+    message = null;
+    status = BuyerOrdersLoadStatus.loading;
+    _requestGeneration++;
+    notifyListeners();
+    return _load(0);
+  }
 
   Future<void> nextPage() {
     if (status != BuyerOrdersLoadStatus.current || (page + 1) * size >= total) {
@@ -64,27 +93,43 @@ final class BuyerOrdersViewModel extends ChangeNotifier {
   Future<void> _load(int requestedPage) {
     final activeRead = _activeRead;
     if (activeRead != null) {
-      if (requestedPage != _activePage) _queuedPage = requestedPage;
+      if (requestedPage != _activePage || bucket != _activeBucket) {
+        _queuedPage = requestedPage;
+        _queuedBucket = bucket;
+      }
       return activeRead;
     }
     final completer = Completer<void>();
     _activeRead = completer.future;
     _activePage = requestedPage;
-    unawaited(_drainReads(requestedPage, completer));
+    _activeBucket = bucket;
+    unawaited(_drainReads(requestedPage, bucket, completer));
     return completer.future;
   }
 
-  Future<void> _drainReads(int requestedPage, Completer<void> completer) async {
+  Future<void> _drainReads(
+    int requestedPage,
+    BuyerOrdersBucket requestedBucket,
+    Completer<void> completer,
+  ) async {
     try {
       var pageToRead = requestedPage;
+      var bucketToRead = requestedBucket;
       while (identical(_activeRead, completer.future)) {
         _activePage = pageToRead;
-        await _loadPage(pageToRead);
+        _activeBucket = bucketToRead;
+        await _loadPage(pageToRead, bucketToRead);
         if (!identical(_activeRead, completer.future)) break;
         final queuedPage = _queuedPage;
+        final queuedBucket = _queuedBucket;
         _queuedPage = null;
-        if (queuedPage == null || queuedPage == pageToRead) break;
+        _queuedBucket = null;
+        if (queuedPage == null ||
+            (queuedPage == pageToRead && queuedBucket == bucketToRead)) {
+          break;
+        }
         pageToRead = queuedPage;
+        bucketToRead = queuedBucket ?? bucketToRead;
       }
       completer.complete();
     } catch (error, stackTrace) {
@@ -93,12 +138,17 @@ final class BuyerOrdersViewModel extends ChangeNotifier {
       if (identical(_activeRead, completer.future)) {
         _activeRead = null;
         _activePage = null;
+        _activeBucket = null;
         _queuedPage = null;
+        _queuedBucket = null;
       }
     }
   }
 
-  Future<void> _loadPage(int requestedPage) async {
+  Future<void> _loadPage(
+    int requestedPage,
+    BuyerOrdersBucket requestedBucket,
+  ) async {
     final snapshot = _access.snapshot;
     final lease = _leaseKey;
     if (lease == null) {
@@ -127,7 +177,12 @@ final class BuyerOrdersViewModel extends ChangeNotifier {
     message = null;
     notifyListeners();
     try {
-      final result = await _repository.list(page: requestedPage);
+      final result = await _repository.list(
+        page: requestedPage,
+        statuses: requestedBucket == BuyerOrdersBucket.active
+            ? _activeOrderStatuses
+            : _historicalOrderStatuses,
+      );
       if (!_isCurrent(generation, lease)) return;
       items = result.items;
       page = result.page;
@@ -232,7 +287,9 @@ final class BuyerOrdersViewModel extends ChangeNotifier {
     _requestGeneration++;
     _activeRead = null;
     _activePage = null;
+    _activeBucket = null;
     _queuedPage = null;
+    _queuedBucket = null;
     _clear(
       snapshot.isSignedIn && !_hasPermission(snapshot)
           ? BuyerOrdersLoadStatus.permissionDenied

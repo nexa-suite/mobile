@@ -260,6 +260,8 @@ final class _RecordingCatalogRepository implements CatalogRepository {
     String categoryId = '',
     String familyId = '',
     String variantId = '',
+    String coldChain = '',
+    bool availableOnly = false,
   }) async {
     listCalls.add({
       'query': query,
@@ -373,7 +375,6 @@ final class _FakePurchaseRequestRepository
   Future<BuyerPurchaseContextProjection> loadBuyerPurchaseContext() async =>
       const BuyerPurchaseContextProjection(
         clientAccountId: 'account-buyer',
-        buyerMembershipId: _membershipId,
         businessName: 'Buyer company',
         paymentCondition: 'CREDIT',
         addresses: [],
@@ -385,8 +386,8 @@ final class _FakePurchaseRequestRepository
       throw StateError('Delivery lead policy unavailable');
     }
     return BuyerDeliveryLeadPolicyProjection(
-      minimumDeliveryLeadBusinessDays: 3,
-      minimumAllowedDeliveryDate: DateTime(2026, 10, 23),
+      minimumDeliveryLeadDays: 3,
+      earliestAllowedDeliveryDate: DateTime(2026, 10, 23),
       timezone: 'America/Lima',
     );
   }

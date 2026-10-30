@@ -2,8 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/presentation/buyer_visible_route_poller.dart';
 import '../../../core/presentation/nexa_buyer_components.dart';
+import '../../../core/presentation/nexa_display_format.dart';
+import '../../tenant_access_governance/application/buyer_change_feed_repository.dart';
 import 'buyer_requests_view_model.dart';
+
+const _requestChangeEvents = {
+  'sales.purchase-request.created',
+  'sales.purchase-request.updated',
+  'sales.purchase-request.submitted',
+  'sales.purchase-request.material-change-proposed',
+  'sales.purchase-request.material-change-accepted',
+  'sales.purchase-request.material-change-rejected',
+  'sales.purchase-request.approved',
+  'sales.purchase-request.rejected',
+  'sales.purchase-request.cancelled',
+  'sales.purchase-request.withdrawn',
+  'sales.purchase-request.converted',
+  'resync-required',
+};
 
 final class BuyerRequestsPage extends StatefulWidget {
   const BuyerRequestsPage({super.key});
@@ -12,12 +30,41 @@ final class BuyerRequestsPage extends StatefulWidget {
 }
 
 final class _BuyerRequestsPageState extends State<BuyerRequestsPage> {
+  GoRouter? _router;
+  BuyerVisibleRoutePoller? _poller;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<BuyerRequestsViewModel>().refresh();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return;
+    if (identical(router, _router)) return;
+    _poller?.dispose();
+    _router = router;
+    _poller = BuyerVisibleRoutePoller(
+      router: router,
+      routePath: '/requests',
+      onRefresh: () => context.read<BuyerRequestsViewModel>().refresh(),
+      changes: () => context
+          .read<BuyerChangeFeedRepository>()
+          .watch(readPermission: 'buyer.sales.read')
+          .where((event) => _requestChangeEvents.contains(event.type))
+          .map<void>((_) {}),
+    );
+  }
+
+  @override
+  void dispose() {
+    _poller?.dispose();
+    super.dispose();
   }
 
   @override
@@ -127,7 +174,7 @@ final class _BuyerRequestsPageState extends State<BuyerRequestsPage> {
                               status: draft.status,
                               icon: Icons.edit_note,
                               subtitle:
-                                  '${draft.lineCount} productos · Entrega ${draft.requestedDeliveryDate ?? 'por elegir'}',
+                                  '${draft.lineCount} ${draft.lineCount == 1 ? 'producto' : 'productos'} · Entrega ${nexaDateLabel(draft.requestedDeliveryDate, pending: 'por elegir')}',
                               footer: Text(
                                 'Actualizado ${_date(draft.updatedAt)}',
                               ),
@@ -140,10 +187,11 @@ final class _BuyerRequestsPageState extends State<BuyerRequestsPage> {
                           ...model.requests.map(
                             (request) => NexaRecordCard(
                               title: request.code,
+                              reference: true,
                               status: request.status,
                               icon: Icons.shopping_bag_outlined,
                               subtitle:
-                                  '${request.lineCount} productos · Entrega ${request.terms.deliveryDate ?? 'por confirmar'}',
+                                  '${request.lineCount} ${request.lineCount == 1 ? 'producto' : 'productos'} · Entrega ${nexaDateLabel(request.terms.deliveryDate, pending: 'por confirmar')}',
                               onTap: () => context.push(
                                 '/requests/${Uri.encodeComponent(request.id)}',
                               ),
