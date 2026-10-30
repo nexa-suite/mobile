@@ -410,6 +410,8 @@ final class _ControlledCatalogRepository implements CatalogRepository {
     String categoryId = '',
     String familyId = '',
     String variantId = '',
+    String coldChain = '',
+    bool availableOnly = false,
   }) => _response.future;
 
   @override
@@ -446,6 +448,8 @@ final class _RecordingCatalogRepository implements CatalogRepository {
     String categoryId = '',
     String familyId = '',
     String variantId = '',
+    String coldChain = '',
+    bool availableOnly = false,
   }) async {
     calls.add({
       'query': query,
@@ -524,6 +528,8 @@ final class _ForbiddenCatalogRepository implements CatalogRepository {
     String categoryId = '',
     String familyId = '',
     String variantId = '',
+    String coldChain = '',
+    bool availableOnly = false,
   }) => Future.error(
     const NexaApiFailure(
       code: 'permission_denied',
@@ -564,6 +570,8 @@ final class _CountingCatalogRepository implements CatalogRepository {
     String categoryId = '',
     String familyId = '',
     String variantId = '',
+    String coldChain = '',
+    bool availableOnly = false,
   }) {
     listCalls++;
     throw UnimplementedError();
