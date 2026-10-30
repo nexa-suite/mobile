@@ -30,6 +30,7 @@ dependencies {
     api(project(":contexts:tenantaccessgovernance:application"))
     implementation(project(":core:designsystem"))
     testImplementation(project(":contexts:fulfillmentdelivery:infrastructure"))
+    implementation(libs.zxing.core)
     implementation(libs.coroutines.core)
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
