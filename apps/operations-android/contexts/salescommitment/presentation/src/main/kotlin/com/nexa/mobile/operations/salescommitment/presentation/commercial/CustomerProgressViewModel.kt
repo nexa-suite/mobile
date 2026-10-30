@@ -9,6 +9,7 @@ import com.nexa.mobile.operations.salescommitment.application.commercial.Progres
 import com.nexa.mobile.operations.salescommitment.domain.model.commercial.CustomerCommitment
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 import java.time.Instant
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -35,6 +36,7 @@ class CustomerProgressViewModel(private val gateway: CustomerProgressGateway) : 
         deactivate()
         authority =
             value.copy(permissions = value.permissions.toSet())
+        load(0)
     }
     fun customerIdChanged(value: String) {
         generation++
@@ -43,13 +45,17 @@ class CustomerProgressViewModel(private val gateway: CustomerProgressGateway) : 
     }
     fun currencyChanged(value: String) {
         generation++
+        val current = state.value
         mutableState.value =
             CustomerProgressState(
-                customerId = state.value.customerId,
-                currency = value.uppercase().take(3)
+                customerId = current.customerId,
+                currency = value.uppercase().take(3),
+                customerName = current.customerName
             )
     }
-    fun refresh() = load(0)
+    fun refresh() {
+        load(0)
+    }
     fun nextPage() {
         val current = state.value
         if ((current.page + 1L) * 25 <
@@ -64,26 +70,27 @@ class CustomerProgressViewModel(private val gateway: CustomerProgressGateway) : 
     private fun load(page: Int) {
         val captured = authority ?: return
         val input = state.value
+        val customerSelected = input.customerId.isNotBlank()
         val request = ++generation
         mutableState.value = CustomerProgressState(
             input.customerId,
             input.currency,
             commitmentsStatus = ProgressStatus.Pending,
-            creditStatus = ProgressStatus.Pending,
+            creditStatus = if (customerSelected) ProgressStatus.Pending else ProgressStatus.Idle,
             page = page
         )
         viewModelScope.launch {
             val result = try {
                 gateway.read(captured, input.customerId, input.currency, page)
-            } catch (
-                _: Exception
-            ) {
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
                 CustomerProgressResult(
                     null,
                     emptyList(),
                     null,
                     ProgressStatus.Unavailable,
-                    ProgressStatus.Unavailable,
+                    if (customerSelected) ProgressStatus.Unavailable else ProgressStatus.Idle,
                     page,
                     null
                 )

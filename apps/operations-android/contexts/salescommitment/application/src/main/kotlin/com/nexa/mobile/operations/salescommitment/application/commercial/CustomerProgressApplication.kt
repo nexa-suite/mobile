@@ -15,6 +15,7 @@ data class CustomerProgressResult(
 )
 
 interface CustomerProgressGateway {
+    /** Blank customer ID reads authorized workspace orders; credit remains customer-specific. */
     suspend fun read(
         authority: CommercialAuthority,
         id: String,
