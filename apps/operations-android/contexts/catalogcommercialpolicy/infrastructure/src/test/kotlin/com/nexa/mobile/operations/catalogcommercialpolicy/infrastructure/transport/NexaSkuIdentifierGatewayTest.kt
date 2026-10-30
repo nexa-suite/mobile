@@ -138,7 +138,7 @@ class NexaSkuIdentifierGatewayTest {
         MockWebServer().use { server ->
             server.start()
             server.enqueue(problemResponse(401, "ACCESS_TOKEN_INVALID"))
-            server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST))
+            enqueueRetryableGetNetworkFailure(server)
             val source = FakeAccessTokenSource(recoverable = false)
             val gateway = gateway(server, source)
 
@@ -150,8 +150,16 @@ class NexaSkuIdentifierGatewayTest {
                 SkuIdentifierResolutionOutcome.NetworkUnavailable,
                 gateway.resolve("SKU-4")
             )
-            assertEquals(2, server.requestCount)
-            assertFalse(server.takeRequest().path.orEmpty().contains("CAT-"))
+            assertEquals(3, server.requestCount)
+            val requests = List(server.requestCount) { server.takeRequest() }
+            assertTrue(
+                requests.all { request ->
+                    request.method == "GET" &&
+                        request.requestUrl?.encodedPath == "/api/v1/skus/resolve" &&
+                        request.requestUrl?.queryParameter("identifier") == "SKU-4" &&
+                        request.path.orEmpty().contains("CAT-").not()
+                }
+            )
         }
     }
 
@@ -161,15 +169,15 @@ class NexaSkuIdentifierGatewayTest {
         val contract = fixture.getValue("contract").jsonObject
         val fixtureCases = fixture.getValue("cases").jsonArray
 
-        MockWebServer().use { server ->
-            server.start()
-            val gateway = gateway(server, FakeAccessTokenSource(recoverable = false))
+        fixtureCases.forEach { fixtureCase ->
+            val case = fixtureCase.jsonObject
+            val name = case.getValue("name").jsonPrimitive.content
+            val identifier = case.getValue("requestIdentifier").jsonPrimitive.content
+            val transport = case.getValue("transport").jsonPrimitive.content
 
-            fixtureCases.forEach { fixtureCase ->
-                val case = fixtureCase.jsonObject
-                val name = case.getValue("name").jsonPrimitive.content
-                val identifier = case.getValue("requestIdentifier").jsonPrimitive.content
-                val transport = case.getValue("transport").jsonPrimitive.content
+            MockWebServer().use { server ->
+                server.start()
+                val gateway = gateway(server, FakeAccessTokenSource(recoverable = false))
                 val requestCountBefore = server.requestCount
                 when (transport) {
                     "http" -> {
@@ -194,9 +202,7 @@ class NexaSkuIdentifierGatewayTest {
                         server.enqueue(response)
                     }
 
-                    "network-failure" -> server.enqueue(
-                        MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST)
-                    )
+                    "network-failure" -> enqueueRetryableGetNetworkFailure(server)
 
                     "none" -> Unit
 
@@ -204,29 +210,41 @@ class NexaSkuIdentifierGatewayTest {
                 }
 
                 val actual = gateway.resolve(identifier)
-                assertFixtureOutcome(name, case.getValue("expected").jsonObject, actual)
-
                 if (transport == "none") {
                     assertEquals(name, requestCountBefore, server.requestCount)
                 } else {
-                    val request = server.takeRequest()
-                    assertEquals(
-                        name,
-                        contract.getValue("method").jsonPrimitive.content,
-                        request.method
-                    )
-                    assertEquals(
-                        name,
-                        contract.getValue("path").jsonPrimitive.content,
-                        request.requestUrl?.encodedPath
-                    )
-                    assertEquals(
-                        name,
-                        identifier.trim(),
-                        request.requestUrl?.queryParameter("identifier")
-                    )
-                    assertEquals(name, "Bearer access-1", request.getHeader("Authorization"))
+                    val observedRequests = server.requestCount - requestCountBefore
+                    if (transport == "network-failure") {
+                        assertTrue(name, observedRequests in 1..2)
+                    } else {
+                        assertEquals(name, 1, observedRequests)
+                    }
+                    repeat(observedRequests) {
+                        val request = server.takeRequest()
+                        assertEquals(
+                            name,
+                            contract.getValue("method").jsonPrimitive.content,
+                            request.method
+                        )
+                        assertEquals(
+                            name,
+                            contract.getValue("path").jsonPrimitive.content,
+                            request.requestUrl?.encodedPath
+                        )
+                        assertEquals(
+                            name,
+                            identifier.trim(),
+                            request.requestUrl?.queryParameter("identifier")
+                        )
+                        assertEquals(
+                            name,
+                            "Bearer access-1",
+                            request.getHeader("Authorization")
+                        )
+                        assertFalse(name, request.path.orEmpty().contains("CAT-"))
+                    }
                 }
+                assertFixtureOutcome(name, case.getValue("expected").jsonObject, actual)
             }
         }
     }
@@ -252,6 +270,12 @@ class NexaSkuIdentifierGatewayTest {
         .setBody(
             """{"status":$status,"code":"$code","category":"CLIENT_ERROR","detail":"private"}"""
         )
+
+    private fun enqueueRetryableGetNetworkFailure(server: MockWebServer) {
+        repeat(2) {
+            server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST))
+        }
+    }
 
     private fun resolvedJson(identifier: String) =
         """{"outcome":"RESOLVED","identifierType":"SKU_CODE","normalizedIdentifier":"$identifier","candidateCount":1,"skuId":"c2e78931-f127-433d-b84d-f98b381d2378","skuCode":"SKU-4","gtin":"12345678","presentation":"Pack","unitOfMeasure":"EA","status":"ACTIVE"}"""
