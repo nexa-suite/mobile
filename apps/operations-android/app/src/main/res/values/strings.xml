@@ -23,13 +23,12 @@
     <string name="work_nav_profile">Profile</string>
     <string name="work_nav_actions">Available actions</string>
     <string name="work_nav_actions_support">Options available in your current workspace.</string>
-    <string name="work_nav_profile_title">Work profile</string>
-    <string name="work_nav_identity">Account</string>
+    <string name="warehouse_quick_scan_title">Scan to receive stock</string>
+    <string name="warehouse_quick_scan_support">Resolve a barcode with the current catalog and prepare a receipt.</string>
+    <string name="warehouse_quick_receive_title">Receive stock</string>
+    <string name="warehouse_quick_receive_support">Record a server-confirmed inbound stock receipt.</string>
     <string name="work_nav_tenant">Tenant</string>
     <string name="work_nav_workspace">Workspace</string>
-    <string name="work_nav_role">Role</string>
-    <string name="work_nav_user_id">User ID</string>
-    <string name="work_nav_membership_id">Membership ID</string>
     <string name="work_nav_role_missing">Not available</string>
     <string name="work_nav_role_multiple">Multiple assigned roles: %1$s</string>
     <string name="work_nav_role_unmapped">Unmapped role · %1$s</string>

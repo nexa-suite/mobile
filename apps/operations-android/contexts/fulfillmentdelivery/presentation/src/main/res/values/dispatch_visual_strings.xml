@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dispatch_visual_title">Dispatch</string>
+    <string name="dispatch_visual_updated">Updated %1$s</string>
+    <string name="dispatch_visual_refresh">Refresh</string>
+    <string name="dispatch_visual_show_checks">View preparation details</string>
+    <string name="dispatch_visual_hide_checks">Hide preparation details</string>
+    <string name="dispatch_visual_handed_over">Handed over</string>
+    <string name="dispatch_visual_consumed">Stock issued</string>
+    <string name="dispatch_visual_released">Reservation released</string>
+    <string name="dispatch_visual_packed">Packed</string>
+    <string name="dispatch_visual_staged">In staging</string>
+    <string name="dispatch_visual_other_status">Other status</string>
+    <string name="dispatch_visual_time_unknown">Time not available</string>
+</resources>

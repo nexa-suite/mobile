@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -33,6 +34,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -68,6 +71,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
@@ -117,22 +121,34 @@ fun NexaTopAppBar(
                         )
                     }
                 }
-                Column(
+                Row(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(NexaSpacing.textTight)
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(NexaSpacing.compact)
                 ) {
-                    Text(
-                        stringResource(R.string.nexa_brand_name),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = NexaColors.PrimaryStrong
+                    Image(
+                        painterResource(R.drawable.nexa_nx_mark),
+                        contentDescription = stringResource(R.string.nexa_brand_name),
+                        modifier = Modifier.size(36.dp),
+                        contentScale = ContentScale.Fit
                     )
                     Text(
-                        title,
+                        if (onBack == null &&
+                            title.contains("Nexa", ignoreCase = true)
+                        ) {
+                            "Operations"
+                        } else {
+                            title
+                        },
                         style = MaterialTheme.typography.titleMedium,
-                        color = NexaColors.TextPrimary
+                        color = NexaColors.TextPrimary,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 actions()
+                LocalNexaProfileAction.current?.let { NexaProfileAvatar(onClick = it) }
             }
             HorizontalDivider(thickness = NexaSizes.borderWidth, color = NexaColors.Border)
         }
@@ -149,6 +165,7 @@ fun NexaActiveContextBar(
     tenantLabel: String? = null,
     workspaceLabel: String? = null,
     roleLabel: String? = null,
+    compact: Boolean = false,
     onClick: () -> Unit
 ) {
     val description = stringResource(
@@ -171,57 +188,92 @@ fun NexaActiveContextBar(
             },
         enabled = enabled,
         shape = NexaShapes.row,
-        color = NexaColors.Surface,
-        border = BorderStroke(NexaSizes.borderWidth, NexaColors.Border)
+        color = NexaColors.CardSurface,
+        border = null
     ) {
-        BoxWithConstraints {
-            val actionLabel = stringResource(
-                if (isCurrent) R.string.nexa_change_context else R.string.nexa_open
-            )
-            val actionColor = if (enabled) NexaColors.PrimaryStrong else NexaColors.TextSecondary
-            val stacked = maxWidth < 300.dp || LocalDensity.current.fontScale >= 1.5f
-            val contentPadding = Modifier.padding(
-                horizontal = NexaSpacing.screenHorizontal,
-                vertical = NexaSpacing.rowVertical
-            )
-            if (stacked) {
-                Column(
-                    modifier = contentPadding,
-                    verticalArrangement = Arrangement.spacedBy(NexaSpacing.base)
-                ) {
-                    ContextNameLabels(
-                        companyName = companyName,
-                        workspaceName = workspaceName,
-                        tenantLabel = tenantLabel,
-                        workspaceLabel = workspaceLabel,
-                        roleLabel = roleLabel
+        if (compact) {
+            Row(
+                Modifier.padding(NexaSpacing.standard),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(NexaSpacing.compact)
+            ) {
+                Icon(painterResource(R.drawable.ic_box), null, tint = NexaColors.PrimaryStrong)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        companyName,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = NexaColors.TextPrimary
                     )
                     Text(
-                        actionLabel,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = actionColor
+                        listOfNotNull(
+                            roleLabel,
+                            workspaceName.takeIf {
+                                it != companyName
+                            }
+                        ).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = NexaColors.TextSecondary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
-            } else {
-                Row(
-                    modifier = contentPadding,
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    ContextNameLabels(
-                        companyName,
-                        workspaceName,
-                        modifier = Modifier.weight(1f),
-                        tenantLabel = tenantLabel,
-                        workspaceLabel = workspaceLabel,
-                        roleLabel = roleLabel
-                    )
-                    Spacer(Modifier.width(NexaSpacing.base))
-                    Text(
-                        actionLabel,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = actionColor
-                    )
+                Icon(
+                    painterResource(R.drawable.ic_chevron_right),
+                    null,
+                    tint = NexaColors.TextSecondary
+                )
+            }
+        } else {
+            BoxWithConstraints {
+                val actionLabel = stringResource(
+                    if (isCurrent) R.string.nexa_change_context else R.string.nexa_open
+                )
+                val actionColor =
+                    if (enabled) NexaColors.PrimaryStrong else NexaColors.TextSecondary
+                val stacked = maxWidth < 300.dp || LocalDensity.current.fontScale >= 1.5f
+                val contentPadding = Modifier.padding(
+                    horizontal = NexaSpacing.screenHorizontal,
+                    vertical = NexaSpacing.rowVertical
+                )
+                if (stacked) {
+                    Column(
+                        modifier = contentPadding,
+                        verticalArrangement = Arrangement.spacedBy(NexaSpacing.base)
+                    ) {
+                        ContextNameLabels(
+                            companyName = companyName,
+                            workspaceName = workspaceName,
+                            tenantLabel = tenantLabel,
+                            workspaceLabel = workspaceLabel,
+                            roleLabel = roleLabel
+                        )
+                        Text(
+                            actionLabel,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = actionColor
+                        )
+                    }
+                } else {
+                    Row(
+                        modifier = contentPadding,
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        ContextNameLabels(
+                            companyName,
+                            workspaceName,
+                            modifier = Modifier.weight(1f),
+                            tenantLabel = tenantLabel,
+                            workspaceLabel = workspaceLabel,
+                            roleLabel = roleLabel
+                        )
+                        Spacer(Modifier.width(NexaSpacing.base))
+                        Text(
+                            actionLabel,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = actionColor
+                        )
+                    }
                 }
             }
         }
@@ -613,6 +665,7 @@ fun NexaTaskRow(
     title: String,
     description: String,
     modifier: Modifier = Modifier,
+    iconResource: Int = R.drawable.ic_search,
     onClick: () -> Unit
 ) {
     val rowDescription = stringResource(
@@ -629,9 +682,9 @@ fun NexaTaskRow(
             contentDescription = rowDescription
         },
         shape = NexaShapes.card,
-        color = NexaColors.Surface,
-        border = BorderStroke(NexaSizes.borderWidth, NexaColors.Border),
-        shadowElevation = 1.dp
+        color = NexaColors.CardSurface,
+        border = null,
+        shadowElevation = 0.dp
     ) {
         Row(
             modifier = Modifier.padding(
@@ -642,13 +695,13 @@ fun NexaTaskRow(
             horizontalArrangement = Arrangement.spacedBy(NexaSpacing.compact)
         ) {
             Surface(
-                modifier = Modifier.size(NexaSizes.minimumTouchTarget),
+                modifier = Modifier.size(40.dp),
                 shape = NexaShapes.control,
                 color = NexaColors.InfoSurface
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        painter = painterResource(R.drawable.ic_search),
+                        painter = painterResource(iconResource),
                         contentDescription = null,
                         tint = NexaColors.PrimaryStrong
                     )
@@ -658,12 +711,16 @@ fun NexaTaskRow(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(NexaSpacing.textCompact)
             ) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = NexaColors.TextSecondary
-                )
+                Text(title, style = MaterialTheme.typography.titleSmall)
+                if (description.isNotBlank()) {
+                    Text(
+                        description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = NexaColors.TextSecondary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
             Icon(
                 painter = painterResource(R.drawable.ic_chevron_right),
@@ -719,6 +776,7 @@ fun NexaSearchField(
 }
 
 @Composable
+@Suppress("UNUSED_PARAMETER")
 fun NexaProductCandidateRow(
     name: String,
     variant: String?,
@@ -758,9 +816,9 @@ fun NexaProductCandidateRow(
         },
         enabled = enabled && !pending,
         shape = NexaShapes.row,
-        color = NexaColors.Surface,
-        border = BorderStroke(NexaSizes.borderWidth, NexaColors.Border),
-        shadowElevation = 1.dp
+        color = NexaColors.CardSurface,
+        border = null,
+        shadowElevation = 0.dp
     ) {
         Row(
             modifier = Modifier.padding(
@@ -825,7 +883,8 @@ fun NexaProductCandidateRow(
 fun NexaCatalogImage(
     fileName: String?,
     modifier: Modifier = Modifier,
-    targetSize: Dp = NexaSizes.catalogImage
+    targetSize: Dp = NexaSizes.catalogImage,
+    contentDescription: String? = null
 ) {
     val imageResId = CatalogImageRegistry.resolve(fileName) ?: return
     val configuration = LocalConfiguration.current
@@ -848,14 +907,14 @@ fun NexaCatalogImage(
     Box(
         modifier = modifier
             .clip(NexaShapes.control)
-            .background(NexaColors.SurfaceInset),
+            .background(NexaColors.Surface),
         contentAlignment = Alignment.Center
     ) {
         bitmap?.let {
             Image(
                 bitmap = it.asImageBitmap(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
+                contentDescription = contentDescription,
+                contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -991,8 +1050,8 @@ fun NexaStatePanel(
     Surface(
         modifier = modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
         shape = NexaShapes.surface,
-        color = NexaColors.Surface,
-        border = BorderStroke(NexaSizes.borderWidth, NexaColors.Border)
+        color = NexaColors.CardSurface,
+        border = null
     ) {
         Column(
             modifier = Modifier.padding(NexaSpacing.surfaceInset),
@@ -1015,6 +1074,7 @@ fun NexaStatePanel(
     }
 }
 
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun NexaConfirmedSkuSummary(
     productName: String,
@@ -1030,58 +1090,99 @@ fun NexaConfirmedSkuSummary(
     coldChainTone: NexaColdChainTone = NexaColdChainTone.Neutral,
     imageFileName: String? = null
 ) {
+    var detailsExpanded by remember(sku) { mutableStateOf(false) }
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = NexaShapes.surface,
-        color = NexaColors.Surface,
-        border = BorderStroke(NexaSizes.borderWidth, NexaColors.Border)
+        shape = NexaShapes.card,
+        color = NexaColors.CardSurface,
+        border = null
     ) {
-        Column(
-            modifier = Modifier.padding(NexaSpacing.summaryInset),
-            verticalArrangement = Arrangement.spacedBy(NexaSpacing.inline)
-        ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             NexaCatalogImage(
                 fileName = imageFileName,
-                modifier = Modifier.size(NexaSizes.catalogDetailImage),
-                targetSize = NexaSizes.catalogDetailImage
+                modifier = Modifier.fillMaxWidth().height(200.dp),
+                targetSize = 240.dp,
+                contentDescription = productName
             )
-            Text(
-                productName,
-                style = MaterialTheme.typography.titleLarge,
-                color = NexaColors.TextPrimary
-            )
-            if (!variant.isNullOrBlank()) {
-                AttributeRow(
-                    stringResource(R.string.nexa_variant),
-                    variant
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                brand?.takeIf(String::isNotBlank)?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = NexaColors.TextSecondary
+                    )
+                }
+                Text(
+                    productName,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = NexaColors.TextPrimary
                 )
-            }
-            AttributeRow(stringResource(R.string.nexa_presentation), presentation)
-            AttributeRow(
-                stringResource(R.string.nexa_candidate_sku_label),
-                sku,
-                valueStyle = NexaTypography.identifier
-            )
-            if (!brand.isNullOrBlank()) AttributeRow(stringResource(R.string.nexa_brand), brand)
-            if (!unit.isNullOrBlank()) AttributeRow(stringResource(R.string.nexa_unit), unit)
-            if (!packaging.isNullOrBlank()) {
-                AttributeRow(
-                    stringResource(R.string.nexa_packaging),
-                    packaging
+                val summary = listOfNotNull(
+                    variant?.takeIf(String::isNotBlank),
+                    presentation.takeIf(String::isNotBlank)
                 )
+                    .distinct().joinToString(" · ")
+                if (summary.isNotBlank()) {
+                    Text(
+                        summary,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = NexaColors.TextSecondary
+                    )
+                }
             }
             if (!coldChain.isNullOrBlank()) {
-                AttributeRow(
-                    stringResource(R.string.nexa_cold_chain),
-                    coldChain,
-                    valueColor = when (coldChainTone) {
-                        NexaColdChainTone.Neutral -> NexaColors.TextPrimary
-                        NexaColdChainTone.Refrigerated -> NexaColors.ColdRefrigeratedText
-                        NexaColdChainTone.Frozen -> NexaColors.ColdFrozenText
+                val tint = when (coldChainTone) {
+                    NexaColdChainTone.Neutral -> NexaColors.TextSecondary
+                    NexaColdChainTone.Refrigerated -> NexaColors.ColdRefrigeratedText
+                    NexaColdChainTone.Frozen -> NexaColors.ColdFrozenText
+                }
+                Surface(shape = NexaShapes.pill, color = NexaColors.InfoSurface) {
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.ic_snowflake),
+                            null,
+                            Modifier.size(18.dp),
+                            tint = tint
+                        )
+                        Text(coldChain, style = MaterialTheme.typography.labelLarge, color = tint)
                     }
+                }
+            }
+            HorizontalDivider(color = NexaColors.Border)
+            TextButton(onClick = {
+                detailsExpanded = !detailsExpanded
+            }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                Text(
+                    stringResource(
+                        if (detailsExpanded) {
+                            R.string.nexa_product_details_hide
+                        } else {
+                            R.string.nexa_product_details
+                        }
+                    ),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelLarge
+                )
+                Icon(
+                    painterResource(R.drawable.ic_chevron_right),
+                    null,
+                    Modifier.size(20.dp).rotate(if (detailsExpanded) 270f else 90f)
                 )
             }
-            AttributeRow(stringResource(R.string.nexa_context), activeContext)
+            if (detailsExpanded) {
+                AttributeRow(stringResource(R.string.nexa_candidate_sku_label), sku)
+                if (!unit.isNullOrBlank()) AttributeRow(stringResource(R.string.nexa_unit), unit)
+                if (!packaging.isNullOrBlank()) {
+                    AttributeRow(
+                        stringResource(R.string.nexa_packaging),
+                        packaging
+                    )
+                }
+            }
         }
     }
 }

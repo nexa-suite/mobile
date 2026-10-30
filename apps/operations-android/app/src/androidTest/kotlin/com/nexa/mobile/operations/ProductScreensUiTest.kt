@@ -239,9 +239,7 @@ class ProductScreensUiTest {
             }
         }
 
-        composeRule.onAllNodesWithText(
-            localizedString(CatalogR.string.warehouse_operations_title)
-        ).assertCountEquals(1)
+        composeRule.onNodeWithText("Operations").assertIsDisplayed()
         composeRule.onNodeWithText(localizedString(CatalogR.string.warehouse_work_available))
             .assertIsDisplayed()
         composeRule.onNodeWithText(localizedString(CatalogR.string.warehouse_identify_product))
@@ -291,9 +289,8 @@ class ProductScreensUiTest {
             assertEquals("queso", query)
             assertEquals(0, searchCalls)
         }
-        composeRule.onNodeWithText(
-            localizedString(CoreR.string.nexa_search_button),
-            useUnmergedTree = true
+        composeRule.onNodeWithContentDescription(
+            localizedString(CoreR.string.nexa_search_button)
         ).performClick()
         composeRule.runOnIdle { assertEquals(1, searchCalls) }
     }
@@ -347,8 +344,11 @@ class ProductScreensUiTest {
         }
 
         composeRule.onNodeWithText(
-            localizedString(CatalogR.string.warehouse_confirmation_title)
+            localizedString(CatalogR.string.warehouse_visual_product_detail_title)
         ).assertIsDisplayed()
+        composeRule.onNodeWithText(localizedString(CoreR.string.nexa_product_details))
+            .performScrollTo()
+            .performClick()
         composeRule.onNodeWithText("SKU-DEMO-001").assertIsDisplayed()
         composeRule.onNodeWithText(
             localizedString(CatalogR.string.warehouse_inventory_disclaimer)

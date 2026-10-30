@@ -1,0 +1,24 @@
+<resources>
+    <string name="workday_visual_title">Tu ubicación</string>
+    <string name="workday_visual_updating">Actualizando ubicación…</string>
+    <string name="workday_visual_no_workday">No hay jornada activa</string>
+    <string name="workday_visual_ended">Jornada finalizada</string>
+    <string name="workday_visual_sharing">Ubicación confirmada</string>
+    <string name="workday_visual_waiting">Esperando ubicación</string>
+    <string name="workday_visual_unavailable">Ubicación no disponible</string>
+    <string name="workday_visual_stopped">Ubicación detenida</string>
+    <string name="workday_visual_last_accepted">Última ubicación aceptada · %1$s</string>
+    <string name="workday_visual_waiting_detail">Esperando que se acepte una ubicación actual.</string>
+    <string name="workday_visual_ended_at">Finalizó %1$s</string>
+    <string name="workday_visual_select_delivery">Abre una entrega despachada para compartir tu ubicación.</string>
+    <string name="workday_visual_delivery_ready">Entrega asignada lista</string>
+    <string name="workday_visual_start_hint">Inicia tu jornada para gestionar el envío de ubicación.</string>
+    <string name="workday_visual_start">Iniciar jornada</string>
+    <string name="workday_visual_share">Compartir ubicación</string>
+    <string name="workday_visual_stop">Detener envío</string>
+    <string name="workday_visual_end">Finalizar jornada</string>
+    <string name="workday_visual_refresh">Actualizar</string>
+    <string name="workday_visual_map_title">Tu ubicación actual</string>
+    <string name="workday_visual_privacy_show">Privacidad y ubicación</string>
+    <string name="workday_visual_privacy_hide">Ocultar detalles de privacidad</string>
+</resources>

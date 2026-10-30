@@ -178,12 +178,12 @@
     <string name="receiving_select_received_at">Elegir fecha y hora</string>
     <string name="receiving_expiry_support">Usa el formato AAAA-MM-DD. El servidor valida la fecha vigente.</string>
     <string name="receiving_lookup_network">No pudimos conectar para consultar ubicaciones.</string>
-    <string name="receiving_lookup_permission_required">Tu contexto actual no tiene permiso para consultar almacenes.</string>
+    <string name="receiving_lookup_permission_required">No tienes acceso a los almacenes de este espacio. Contacta a un administrador.</string>
     <string name="receiving_lookup_service">La consulta de ubicaciones no está disponible.</string>
     <string name="receiving_lot_id">ID del lote</string>
     <string name="receiving_lot_title">Lote y cantidad real</string>
     <string name="receiving_network_unknown">Se perdió la conexión durante el envío. El resultado es incierto.</string>
-    <string name="receiving_permission_required">Tu contexto actual no tiene permiso para registrar recepciones.</string>
+    <string name="receiving_permission_required">No tienes acceso para registrar recepciones en este espacio. Contacta a un administrador.</string>
     <string name="receiving_product_draft_title">Producto del borrador</string>
     <string name="receiving_product_missing">Selecciona un producto confirmado para este contexto.</string>
     <string name="receiving_product_reconfirm">Vuelve a confirmar este producto en el contexto actual antes de iniciar una recepción nueva.</string>

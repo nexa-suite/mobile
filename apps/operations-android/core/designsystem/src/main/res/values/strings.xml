@@ -31,4 +31,5 @@
     <string name="nexa_status_success">Correcto</string>
     <string name="nexa_loading">Cargando</string>
     <string name="nexa_retry">Reintentar</string>
+    <string name="nexa_open_profile">Abrir mi perfil</string>
 </resources>
