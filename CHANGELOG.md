@@ -23,6 +23,34 @@ The checkpoint was validated against the API academic candidate using the
 Buyer catalog and manual handoff flows. It does not include device acceptance
 or signed distribution packages.
 
+- Refine Buyer and Operations access layouts across phones, tablets, keyboard
+  and enlarged text while retaining secure session and recovery adapters.
+- Group Buyer navigation into Catalog, Orders and Account; connect personal
+  favorites and current credit/order summaries to existing server contracts.
+- Show real catalog images and server-side availability/cold-chain filters.
+- Read each product's saved Favorite state from the API, refresh visible
+  favorites and recover pagination after the last item on a page is removed.
+- Encode Driver-issued delivery tokens as QR and submit Buyer scans to the
+  receipt endpoint, displaying the authoritative POD and order result.
+- Align Buyer delivery dates with the accepted five-business-day policy in
+  America/Lima, without holiday exclusions, and use the current Buyer account
+  response while preserving scoped reads and retries.
+- Add editable personal profiles to Buyer and Operations; add Buyer personal
+  addresses with controlled geography and an optional map pin.
+- Show actual order history, order-specific documents and native PDF/XML/CSV
+  export. Add versioned delivery instructions using the existing API.
+- Present dispatch preparation as actionable cards with server-backed stock,
+  picking and evidence status, accessible labels and English/Spanish text.
+- Keep scanning and dispatch handoff controls accessible on short screens and
+  with larger text; consume shared system insets once. Prevent blank Sales
+  customer-progress queries and reject incomplete delivery addresses.
+- Distinguish API-confirmed receipt quantity from current lot stock so a safe
+  retry can confirm an earlier stock receipt after subsequent movements. Keep
+  conservative behavior when the API cannot provide verified receipt metadata.
+- Separate Favorite read/write grants and reject product requests when the
+  server supplies no sales unit. End-to-end and Product acceptance remain
+  pending; this section describes unreleased source changes.
+
 ## [1.3.0] - 2026-10-22
 
 Source-only release for controlled Nexa Suite validation. Operations Android

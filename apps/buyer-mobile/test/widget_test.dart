@@ -31,8 +31,8 @@ void main() {
     final theme = Theme.of(
       tester.element(find.text('Configura el origen de Nexa API')),
     );
-    expect(theme.colorScheme.primary, const Color(0xFF2A67D9));
-    expect(theme.extension<NexaThemeExtension>()?.radiusControl, 12);
+    expect(theme.colorScheme.primary, const Color(0xFF2563EB));
+    expect(theme.extension<NexaThemeExtension>()?.radiusControl, 10);
   });
 
   testWidgets('hides delivery navigation without the exact tracking grant', (
@@ -105,11 +105,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.bySemanticsLabel('Nexa mark'), findsOneWidget);
+    expect(find.bySemanticsLabel('Nexa'), findsOneWidget);
     final signInTheme = Theme.of(
-      tester.element(find.text('Tu espacio de compra')),
+      tester.element(find.text('Todo para tu próxima compra.')),
     );
-    expect(signInTheme.colorScheme.primary, const Color(0xFF2A67D9));
+    expect(signInTheme.colorScheme.primary, const Color(0xFF2563EB));
     expect(signInTheme.textTheme.bodyMedium?.fontFamily, 'Inter');
     await tester.tap(find.text('Continuar'));
     await tester.pumpAndSettle();
@@ -608,7 +608,7 @@ void main() {
             .first,
       );
       expect(find.text('Historial de entrega'), findsOneWidget);
-      expect(find.text('Handed Over'), findsOneWidget);
+      expect(find.text('Entregada al repartidor'), findsOneWidget);
       expect(find.textContaining('PRIVATE ASSIGNMENT'), findsNothing);
       expect(find.textContaining('PRIVATE STATUS DETAIL'), findsNothing);
       expect(find.textContaining('PRIVATE ACTOR'), findsNothing);
