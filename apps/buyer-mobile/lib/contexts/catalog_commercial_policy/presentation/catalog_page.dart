@@ -178,13 +178,19 @@ final class _CatalogPageState extends State<CatalogPage> {
                             ActionChip(
                               labelStyle: theme.textTheme.labelMedium,
                               key: const Key('catalog-brand-filter'),
-                              avatar: const Icon(Icons.local_offer_outlined, size: 18),
+                              avatar: const Icon(
+                                Icons.local_offer_outlined,
+                                size: 18,
+                              ),
                               label: Text(
                                 catalog.brand.isEmpty
                                     ? 'Todas las marcas'
                                     : catalog.brand,
                               ),
-                              onPressed: () => _openSelector(context, CatalogFilterKind.brand),
+                              onPressed: () => _openSelector(
+                                context,
+                                CatalogFilterKind.brand,
+                              ),
                             ),
                             Semantics(
                               key: const Key('catalog-category-filter'),
@@ -707,14 +713,16 @@ final class _CatalogItemCard extends StatelessWidget {
         'Tipo: ${buyerCatalogCategoryLabel(item.categoryName!)}',
       if (item.coldChainRequirement != null)
         'Conservación: ${_coldChainLabel(item.coldChainRequirement!)}',
-      if (item.productFamilyName != null && item.productFamilyName != item.itemName)
+      if (item.productFamilyName != null &&
+          item.productFamilyName != item.itemName)
         'Familia: ${item.productFamilyName}',
       if (item.productVariantName != null)
         'Variedad: ${item.productVariantName}',
       if (item.sellableAvailability case final available?)
         'Disponible: ${_quantityLabel(available)}'
             '${item.unitOfMeasure == null ? '' : ' ${item.unitOfMeasure}'}',
-      if (item.presentation?.trim().isNotEmpty == true) item.presentation!.trim(),
+      if (item.presentation?.trim().isNotEmpty == true)
+        item.presentation!.trim(),
       if (item.skuCode != null) 'SKU ${item.skuCode}',
     ].whereType<String>().where((value) => value.isNotEmpty).join(' · ');
     final theme = Theme.of(context);

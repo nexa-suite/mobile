@@ -70,7 +70,9 @@ final class BuyerDeliveryInstructionsViewModel extends ChangeNotifier {
       return;
     }
     final text = content.trim();
-    if (text.isEmpty || text.length > 2000 || !instructionKinds.contains(kind)) {
+    if (text.isEmpty ||
+        text.length > 2000 ||
+        !instructionKinds.contains(kind)) {
       return;
     }
     _pending = BuyerDeliveryInstructionCommand(
