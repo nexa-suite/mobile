@@ -2,10 +2,20 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -13,6 +23,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -37,7 +51,9 @@ fun DispatchHandoffIdentityScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, onHideToken, onDeactivate) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) onHideToken()
+            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
+                onHideToken()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
@@ -47,49 +63,98 @@ fun DispatchHandoffIdentityScreen(
     }
 
     Column(
-        modifier = modifier.padding(16.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .imePadding()
+            .verticalScroll(rememberScrollState())
+            .semantics { isTraversalGroup = true }
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
             stringResource(R.string.dispatch_handoff_identity_title),
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.SemiBold
         )
         Text(stringResource(R.string.dispatch_handoff_identity_scope_notice))
-        state.deliveryId?.let {
-            Text(stringResource(R.string.dispatch_handoff_identity_delivery, it))
-        }
-        state.assignmentId?.let {
-            Text(stringResource(R.string.dispatch_handoff_identity_assignment, it))
-        }
-        Text(statusText(state.status))
-        state.errorCode?.let { Text(stringResource(R.string.dispatch_handoff_identity_error, it)) }
-        state.identity?.let {
-            Text(stringResource(R.string.dispatch_handoff_identity_status, it.status))
-            Text(stringResource(R.string.dispatch_handoff_identity_version, it.deliveryVersion))
-            Text(stringResource(R.string.dispatch_handoff_identity_expiry, it.expiresAt))
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    statusText(state.status),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                )
+                state.errorCode?.let {
+                    Text(
+                        stringResource(R.string.dispatch_handoff_identity_error, it),
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                state.deliveryId?.let {
+                    Text(stringResource(R.string.dispatch_handoff_identity_delivery, it))
+                }
+                state.assignmentId?.let {
+                    Text(stringResource(R.string.dispatch_handoff_identity_assignment, it))
+                }
+                state.identity?.let {
+                    Text(stringResource(R.string.dispatch_handoff_identity_status, it.status))
+                    Text(
+                        stringResource(
+                            R.string.dispatch_handoff_identity_version,
+                            it.deliveryVersion
+                        )
+                    )
+                    Text(stringResource(R.string.dispatch_handoff_identity_expiry, it.expiresAt))
+                }
+            }
         }
         state.oneTimeToken?.let { token ->
-            Text(
-                stringResource(R.string.dispatch_handoff_identity_token_label),
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(token, fontWeight = FontWeight.Bold)
-            OutlinedButton(onClick = onHideToken, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.dispatch_handoff_identity_hide))
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.dispatch_handoff_identity_token_label),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        token,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    OutlinedButton(
+                        onClick = onHideToken,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    ) {
+                        Text(stringResource(R.string.dispatch_handoff_identity_hide))
+                    }
+                }
             }
         }
         if (state.canIssue && state.status == DispatchHandoffIdentityStatus.Ready) {
-            Button(onClick = onIssue, modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = onIssue, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.dispatch_handoff_identity_issue))
             }
         }
         if (state.canRetrySame) {
-            Button(onClick = onRetrySame, modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = onRetrySame,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            ) {
                 Text(stringResource(R.string.dispatch_handoff_identity_retry_same))
             }
         }
         if (state.canIssue && state.status in REISSUE_STATUSES) {
-            Button(onClick = onIssueReplacement, modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = onIssueReplacement,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            ) {
                 Text(stringResource(R.string.dispatch_handoff_identity_issue_replacement))
             }
         }
@@ -97,7 +162,7 @@ fun DispatchHandoffIdentityScreen(
             OutlinedTextField(
                 value = state.enteredToken,
                 onValueChange = onTokenChanged,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                 label = { Text(stringResource(R.string.dispatch_handoff_identity_token_input)) },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
@@ -106,7 +171,7 @@ fun DispatchHandoffIdentityScreen(
             Button(
                 onClick = onValidate,
                 enabled = !state.busy && state.enteredToken.isNotBlank(),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
             ) {
                 Text(stringResource(R.string.dispatch_handoff_identity_validate))
             }

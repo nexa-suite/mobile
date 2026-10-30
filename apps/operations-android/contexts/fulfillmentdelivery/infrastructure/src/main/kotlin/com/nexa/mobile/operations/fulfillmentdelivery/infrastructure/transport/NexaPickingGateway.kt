@@ -61,7 +61,15 @@ data class PickingAllocationLineProjection(
     val consumedQuantity: BigDecimal,
     val remainingQuantity: BigDecimal,
     val unit: String,
-    val expirationDate: LocalDate?
+    val expirationDate: LocalDate?,
+    val productName: String? = null,
+    val skuCode: String? = null,
+    val imageFileName: String? = null,
+    val presentation: String? = null,
+    val brandName: String? = null,
+    val warehouseName: String? = null,
+    val zoneName: String? = null,
+    val batchNumber: String? = null
 )
 
 data class PickingAllocationProjection(
@@ -82,7 +90,8 @@ data class PickingWorkListItemProjection(
     val version: Long,
     val physicalAllocationId: String,
     val allocationVersion: Long,
-    val lineCount: Int
+    val lineCount: Int,
+    val orderNumber: String? = null
 )
 
 data class PickingWorkListProjection(
@@ -346,7 +355,9 @@ class NexaPickingGateway(private val protectedCalls: ProtectedCallExecutor) {
                 ?: return null
             val salesOrderId = item.string("salesOrderId")?.takeIf(uuidPattern::matches)
                 ?: return null
-            val status = item.string("status")?.takeIf { it in setOf("ALLOCATED", "PICKING") }
+            val status = item.string("status")?.takeIf {
+                it in setOf("ALLOCATED", "PICKING", "READY_FOR_DISPATCH")
+            }
                 ?: return null
             val version = item.long("version")?.takeIf { it >= 0 } ?: return null
             val allocationId = item.string("physicalAllocationId")?.takeIf(uuidPattern::matches)
@@ -362,7 +373,8 @@ class NexaPickingGateway(private val protectedCalls: ProtectedCallExecutor) {
                 version,
                 allocationId,
                 allocationVersion,
-                lineCount
+                lineCount,
+                item.optionalString("orderNumber")
             )
         } catch (_: Exception) {
             null
@@ -457,7 +469,15 @@ class NexaPickingGateway(private val protectedCalls: ProtectedCallExecutor) {
                 consumed,
                 remaining,
                 unit,
-                expirationDate
+                expirationDate,
+                line.optionalString("productName"),
+                line.optionalString("skuCode"),
+                line.optionalString("imageFileName"),
+                line.optionalString("presentation"),
+                line.optionalString("brandName"),
+                line.optionalString("warehouseName"),
+                line.optionalString("zoneName"),
+                line.optionalString("batchNumber")
             )
         } catch (_: Exception) {
             null

@@ -11,6 +11,7 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.time.format.DateTimeParseException
+import java.util.Locale
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -60,7 +61,10 @@ data class DispatchReadinessProjection(
     val ready: Boolean,
     val reasons: List<String>,
     val lines: List<DispatchReadinessLineProjection>,
-    val asOf: Instant
+    val asOf: Instant,
+    val orderNumber: String? = null,
+    val customerName: String? = null,
+    val priority: String? = null
 ) {
     override fun toString(): String = "DispatchReadinessProjection(fulfillmentId=REDACTED, " +
         "ready=$ready, lines=${lines.size})"
@@ -306,6 +310,10 @@ class NexaDispatchReadinessGateway(private val protectedCalls: ProtectedCallExec
         val safeLines = lines?.map { it.toProjection() ?: return null } ?: return null
         val safeDeliveryId = deliveryId?.takeIf(String::isNotBlank)
         val safeDeliveryStatus = deliveryStatus?.takeIf(String::isNotBlank)
+        val safeOrderNumber = orderNumber?.trim()?.takeIf(String::isNotEmpty)
+        val safeCustomerName = customerName?.trim()?.takeIf(String::isNotEmpty)
+        val safePriority = priority?.trim()?.uppercase(Locale.ROOT)
+            ?.takeIf { it in DISPATCH_PRIORITIES }
         val safeWindowStart = windowStart?.requiredText()?.parseInstant()
         val safeWindowEnd = windowEnd?.requiredText()?.parseInstant()
         val safeWindowSource = windowSource?.requiredText()
@@ -360,7 +368,10 @@ class NexaDispatchReadinessGateway(private val protectedCalls: ProtectedCallExec
             ready = safeReady,
             reasons = safeReasons.toList(),
             lines = safeLines,
-            asOf = safeAsOf
+            asOf = safeAsOf,
+            orderNumber = safeOrderNumber,
+            customerName = safeCustomerName,
+            priority = safePriority
         )
     }
 
@@ -469,6 +480,7 @@ class NexaDispatchReadinessGateway(private val protectedCalls: ProtectedCallExec
     private companion object {
         const val PREPARED_FULFILLMENT = "PREPARED_FULFILLMENT"
         const val ACCESS_CONTEXT_INVALID = "ACCESS_CONTEXT_INVALID"
+        val DISPATCH_PRIORITIES = setOf("NORMAL", "HIGH", "URGENT")
     }
 }
 
@@ -502,7 +514,10 @@ private data class DispatchReadinessWire(
     val ready: Boolean? = null,
     val reasons: List<String>? = null,
     val lines: List<DispatchReadinessLineWire>? = null,
-    val asOf: String? = null
+    val asOf: String? = null,
+    val orderNumber: String? = null,
+    val customerName: String? = null,
+    val priority: String? = null
 )
 
 @Serializable

@@ -113,7 +113,8 @@ class OperationsPickingWorkListGateway @Inject constructor(
         version = version,
         physicalAllocationId = physicalAllocationId,
         allocationVersion = allocationVersion,
-        lineCount = lineCount
+        lineCount = lineCount,
+        orderNumber = orderNumber
     )
 
     private sealed interface Authorization {

@@ -29,7 +29,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -37,11 +42,18 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.nexa.mobile.operations.core.designsystem.NexaColors
 import com.nexa.mobile.operations.core.designsystem.NexaShapes
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverLiveLocation
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDriverCandidate
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.PreparedFulfillmentDriverAssignment
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.common.OperationsGlyph
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.common.OperationsGlyphKind
+import kotlinx.coroutines.delay
 
 @Composable
 fun DispatchAssignmentScreen(
@@ -53,12 +65,20 @@ fun DispatchAssignmentScreen(
     onReplay: () -> Unit,
     onRouteClosed: () -> Unit,
     onChangePlan: (() -> Unit)? = null,
-    onIdentifyHandoff: (() -> Unit)? = null
+    onIdentifyHandoff: (() -> Unit)? = null,
+    onRefreshDriverLocation: () -> Unit = {},
+    onDriverLocationVisibilityChanged: (Boolean) -> Unit = {},
+    onShowDriverLocationMap: (@Composable (DriverLiveLocation) -> Unit)? = null
 ) {
     val closeAction = rememberUpdatedState(onRouteClosed)
     DisposableEffect(Unit) {
         onDispose { closeAction.value() }
     }
+    DispatchDriverLocationAutoRefresh(
+        state = state,
+        onRefresh = onRefreshDriverLocation,
+        onVisibilityChanged = onDriverLocationVisibilityChanged
+    )
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(
@@ -73,67 +93,71 @@ fun DispatchAssignmentScreen(
                 TextButton(onClick = onBack) {
                     Text(stringResource(R.string.dispatch_assignment_back))
                 }
-                Text(
-                    stringResource(R.string.dispatch_assignment_title),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    stringResource(R.string.dispatch_assignment_authority_note),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OperationsGlyph(OperationsGlyphKind.Dispatch)
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            stringResource(R.string.dispatch_assignment_title),
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            stringResource(R.string.dispatch_assignment_authority_note),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
 
             item { AssignmentStatusCard(state.status) }
 
-            state.fulfillmentId?.let { fulfillmentId ->
+            state.fulfillmentId?.let {
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        ),
-                        shape = RoundedCornerShape(16.dp)
+                        colors = CardDefaults.cardColors(containerColor = NexaColors.Surface),
+                        border = BorderStroke(1.dp, NexaColors.Border),
+                        shape = NexaShapes.card
                     ) {
-                        Column(
+                        Row(
                             modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text(
-                                stringResource(
-                                    R.string.dispatch_assignment_fulfillment,
-                                    fulfillmentId
-                                ),
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            state.readiness?.let { readiness ->
+                            OperationsGlyph(OperationsGlyphKind.Dispatch)
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
                                 Text(
-                                    stringResource(
-                                        R.string.dispatch_assignment_version,
-                                        readiness.fulfillmentVersion,
-                                        readiness.fulfillmentStatus
+                                    stringResource(R.string.dispatch_assignment_work_heading),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = NexaColors.TextPrimary
+                                )
+                                state.readiness?.let { readiness ->
+                                    Text(
+                                        if (readiness.ready) {
+                                            stringResource(R.string.dispatch_assignment_ready)
+                                        } else {
+                                            stringResource(R.string.dispatch_assignment_not_ready)
+                                        },
+                                        color = if (readiness.ready) {
+                                            NexaColors.Success
+                                        } else {
+                                            NexaColors.Warning
+                                        },
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold
                                     )
-                                )
-                                Text(
-                                    stringResource(
-                                        R.string.dispatch_assignment_allocation,
-                                        readiness.physicalAllocationId,
-                                        readiness.physicalAllocationVersion
-                                    )
-                                )
-                                Text(
-                                    if (readiness.ready) {
-                                        stringResource(R.string.dispatch_assignment_ready)
-                                    } else {
-                                        stringResource(R.string.dispatch_assignment_not_ready)
-                                    },
-                                    color = if (readiness.ready) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.error
-                                    }
-                                )
+                                }
                             }
                         }
                     }
@@ -154,6 +178,15 @@ fun DispatchAssignmentScreen(
             state.assignment?.let { assignment ->
                 item {
                     AssignmentFactCard(assignment)
+                }
+                if (state.canTrackDriverLocation) {
+                    item {
+                        DriverLocationCard(
+                            state = state,
+                            onRefresh = onRefreshDriverLocation,
+                            onShowMap = onShowDriverLocationMap
+                        )
+                    }
                 }
                 if (onIdentifyHandoff != null &&
                     assignment.current && assignment.deliveryId != null &&
@@ -212,6 +245,175 @@ fun DispatchAssignmentScreen(
                         state.status != DispatchAssignmentStatus.Saving,
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(stringResource(R.string.dispatch_assignment_refresh)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DispatchDriverLocationAutoRefresh(
+    state: DispatchAssignmentUiState,
+    onRefresh: () -> Unit,
+    onVisibilityChanged: (Boolean) -> Unit
+) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var isResumed by remember(lifecycleOwner) {
+        mutableStateOf(
+            lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        )
+    }
+    val visibilityAction = rememberUpdatedState(onVisibilityChanged)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    isResumed = true
+                    visibilityAction.value(true)
+                }
+
+                Lifecycle.Event.ON_PAUSE,
+                Lifecycle.Event.ON_STOP,
+                Lifecycle.Event.ON_DESTROY -> {
+                    isResumed = false
+                    visibilityAction.value(false)
+                }
+
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        visibilityAction.value(isResumed)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            visibilityAction.value(false)
+        }
+    }
+
+    val refreshAction = rememberUpdatedState(onRefresh)
+    val assignedMembershipId = state.assignment
+        ?.takeIf { state.canTrackDriverLocation }
+        ?.responsibleMembershipId
+    LaunchedEffect(
+        lifecycleOwner,
+        isResumed,
+        state.authorityEpoch,
+        state.fulfillmentId,
+        state.status,
+        state.readiness?.deliveryId,
+        state.readiness?.deliveryStatus,
+        state.assignment?.deliveryId,
+        assignedMembershipId
+    ) {
+        if (!isResumed || state.status != DispatchAssignmentStatus.Current ||
+            state.authorityEpoch <= 0 || assignedMembershipId == null
+        ) {
+            return@LaunchedEffect
+        }
+        refreshAction.value()
+        while (true) {
+            delay(DRIVER_LOCATION_REFRESH_INTERVAL_MILLIS)
+            refreshAction.value()
+        }
+    }
+}
+
+@Composable
+private fun DriverLocationCard(
+    state: DispatchAssignmentUiState,
+    onRefresh: () -> Unit,
+    onShowMap: (@Composable (DriverLiveLocation) -> Unit)?
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OperationsGlyph(OperationsGlyphKind.Driver)
+                Text(
+                    stringResource(R.string.dispatch_driver_location_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Text(
+                stringResource(R.string.dispatch_driver_location_authority),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            when (state.driverLocationStatus) {
+                DispatchDriverLocationStatus.Idle -> Text(
+                    stringResource(R.string.dispatch_driver_location_idle)
+                )
+
+                DispatchDriverLocationStatus.Loading -> Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                    Text(stringResource(R.string.dispatch_driver_location_loading))
+                }
+
+                DispatchDriverLocationStatus.Current -> state.driverLocation?.let { location ->
+                    Text(
+                        stringResource(
+                            R.string.dispatch_driver_location_coordinates,
+                            location.latitude,
+                            location.longitude
+                        )
+                    )
+                    Text(
+                        stringResource(
+                            R.string.dispatch_driver_location_accuracy,
+                            location.accuracyMeters
+                        )
+                    )
+                    Text(
+                        stringResource(
+                            R.string.dispatch_driver_location_captured,
+                            location.capturedAt
+                        )
+                    )
+                    Text(
+                        stringResource(
+                            R.string.dispatch_driver_location_expires,
+                            location.expiresAt
+                        )
+                    )
+                    onShowMap?.invoke(location)
+                } ?: Text(stringResource(R.string.dispatch_driver_location_no_recent))
+
+                DispatchDriverLocationStatus.NoRecentLocation -> Text(
+                    stringResource(R.string.dispatch_driver_location_no_recent)
+                )
+
+                DispatchDriverLocationStatus.AssignmentChanged -> Text(
+                    stringResource(R.string.dispatch_driver_location_assignment_changed)
+                )
+
+                DispatchDriverLocationStatus.PermissionDenied -> Text(
+                    stringResource(R.string.dispatch_driver_location_permission)
+                )
+
+                DispatchDriverLocationStatus.NetworkUnavailable -> Text(
+                    stringResource(R.string.dispatch_driver_location_network)
+                )
+
+                DispatchDriverLocationStatus.ServiceUnavailable -> Text(
+                    stringResource(R.string.dispatch_driver_location_service)
+                )
+            }
+            if (state.driverLocationStatus != DispatchDriverLocationStatus.Loading) {
+                OutlinedButton(onClick = onRefresh) {
+                    Text(stringResource(R.string.dispatch_driver_location_refresh))
+                }
             }
         }
     }
@@ -325,6 +527,8 @@ private fun AssignmentStatusCard(status: DispatchAssignmentStatus) {
     }
 }
 
+private const val DRIVER_LOCATION_REFRESH_INTERVAL_MILLIS = 15_000L
+
 @Composable
 private fun DriverCandidateCard(
     candidate: DispatchDriverCandidate,
@@ -390,25 +594,40 @@ private fun DriverCandidateCard(
 private fun AssignmentFactCard(assignment: PreparedFulfillmentDriverAssignment) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
-        ),
-        shape = RoundedCornerShape(16.dp)
+        colors = CardDefaults.cardColors(containerColor = NexaColors.SuccessSurface),
+        border = BorderStroke(1.dp, NexaColors.SuccessBorder),
+        shape = NexaShapes.card
     ) {
-        Column(
+        Row(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                stringResource(R.string.dispatch_assignment_assigned),
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(assignment.responsibleDisplayName)
-            Text(
-                stringResource(R.string.dispatch_assignment_when, assignment.assignedAt.toString())
-            )
-            assignment.deliveryId?.let {
-                Text(stringResource(R.string.dispatch_assignment_delivery, it))
+            OperationsGlyph(OperationsGlyphKind.Driver)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    stringResource(R.string.dispatch_assignment_assigned),
+                    color = NexaColors.Success,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    assignment.responsibleDisplayName,
+                    color = NexaColors.TextPrimary,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    stringResource(
+                        R.string.dispatch_assignment_when,
+                        assignment.assignedAt.toString()
+                    ),
+                    color = NexaColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
         }
     }

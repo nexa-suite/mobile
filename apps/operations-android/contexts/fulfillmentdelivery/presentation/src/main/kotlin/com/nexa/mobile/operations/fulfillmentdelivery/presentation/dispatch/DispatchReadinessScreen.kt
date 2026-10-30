@@ -5,17 +5,22 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,23 +44,29 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.core.designsystem.NexaColors
 import com.nexa.mobile.operations.core.designsystem.NexaShapes
+import com.nexa.mobile.operations.core.designsystem.NexaTopAppBar
 import com.nexa.mobile.operations.core.designsystem.NexaWorkSection
 import com.nexa.mobile.operations.core.designsystem.NexaWorkSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.common.OperationsGlyph
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.common.OperationsGlyphKind
 import java.time.Instant
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
 
 @Composable
 fun DispatchReadinessScreen(
@@ -90,133 +101,168 @@ fun DispatchReadinessScreen(
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        LazyColumn(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing)
                 .imePadding()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item {
-                TextButton(onClick = onBack) {
-                    Text(stringResource(R.string.dispatch_readiness_back))
-                }
-                NexaWorkSummary(
-                    title = stringResource(R.string.dispatch_readiness_title),
-                    description = stringResource(R.string.dispatch_readiness_authority_note)
-                )
-            }
-            item { ReadinessStatusPanel(state.status, state.asOf) }
-            item {
-                OutlinedButton(
-                    onClick = onRefresh,
-                    enabled = state.status != DispatchReadinessStatus.Loading,
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text(stringResource(R.string.dispatch_readiness_refresh)) }
-            }
-            if (state.status == DispatchReadinessStatus.Loading) {
+            val showTabletBoard = maxWidth >= 840.dp
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        CircularProgressIndicator()
-                        Text(stringResource(R.string.dispatch_readiness_loading))
-                    }
-                }
-            }
-            if (state.items.isNotEmpty()) {
-                item {
-                    Text(
-                        stringResource(R.string.dispatch_readiness_count, state.items.size),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                    NexaTopAppBar(
+                        title = stringResource(R.string.dispatch_visual_title),
+                        onBack = onBack
                     )
-                    if (state.selectedFulfillmentId != null && state.items.size > 1) {
-                        TextButton(onClick = { showWorkList = !showWorkList }) {
+                }
+                if (state.status != DispatchReadinessStatus.Current) {
+                    item { ReadinessStatusPanel(state.status, state.asOf) }
+                }
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        state.asOf?.let { asOf ->
                             Text(
                                 stringResource(
-                                    if (showWorkList) {
-                                        R.string.dispatch_readiness_hide_list
-                                    } else {
-                                        R.string.dispatch_readiness_change_selection
-                                    }
-                                )
+                                    R.string.dispatch_visual_updated,
+                                    formatInstant(asOf)
+                                ),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = NexaColors.TextSecondary,
+                                modifier = Modifier.weight(1f)
                             )
+                        }
+                        TextButton(
+                            onClick = onRefresh,
+                            enabled = state.status != DispatchReadinessStatus.Loading,
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        ) { Text(stringResource(R.string.dispatch_visual_refresh)) }
+                    }
+                }
+                if (state.status == DispatchReadinessStatus.Loading) {
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            CircularProgressIndicator()
+                            Text(stringResource(R.string.dispatch_readiness_loading))
                         }
                     }
                 }
-                if (showWorkList) {
-                    items(state.items, key = { it.fulfillmentId.lowercase() }) { item ->
-                        ReadinessCard(
-                            item = item,
-                            selected = state.selectedFulfillmentId == item.fulfillmentId,
-                            onClick = { onSelectFulfillment(item.fulfillmentId) }
+                if (state.items.isNotEmpty()) {
+                    item {
+                        Text(
+                            stringResource(R.string.dispatch_readiness_count, state.items.size),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
                         )
+                        if (state.selectedFulfillmentId != null && state.items.size > 1) {
+                            TextButton(onClick = { showWorkList = !showWorkList }) {
+                                Text(
+                                    stringResource(
+                                        if (showWorkList) {
+                                            R.string.dispatch_readiness_hide_list
+                                        } else {
+                                            R.string.dispatch_readiness_change_selection
+                                        }
+                                    )
+                                )
+                            }
+                        }
+                    }
+                    if (showWorkList) {
+                        if (showTabletBoard) {
+                            item {
+                                DispatchReadinessBoard(
+                                    readinessItems = state.items,
+                                    selectedFulfillmentId = state.selectedFulfillmentId,
+                                    onSelectFulfillment = onSelectFulfillment
+                                )
+                            }
+                        } else {
+                            items(state.items, key = { it.fulfillmentId.lowercase() }) { item ->
+                                ReadinessCard(
+                                    item = item,
+                                    selected = state.selectedFulfillmentId == item.fulfillmentId,
+                                    onClick = { onSelectFulfillment(item.fulfillmentId) }
+                                )
+                            }
+                        }
                     }
                 }
-            }
-            if (state.selectedFulfillmentId != null) {
-                item {
-                    val selectedDetail = state.detail
-                    if (selectedDetail != null &&
-                        state.detailStatus == DispatchReadinessDetailStatus.Current
-                    ) {
-                        ReadinessDetail(selectedDetail, onClearSelection)
-                        val deliveryId = selectedDetail.deliveryId
-                        if (deliveryId != null) {
-                            DeliveryPodPanel(
-                                state = state,
-                                canSeal = canSealPod,
-                                onRefresh = onRefreshDeliveryPod ?: {},
-                                onSeal = { onSealPod?.invoke(deliveryId) },
-                                onRetrySeal = onRetryPodSeal ?: {}
-                            )
-                        }
-                        NexaWorkSection(stringResource(R.string.dispatch_work_actions)) {
-                            if (onVerifyOutgoingGoods != null) {
-                                TextButton(onClick = {
-                                    onVerifyOutgoingGoods(selectedDetail.fulfillmentId)
-                                }) {
-                                    Text(stringResource(R.string.dispatch_work_outgoing))
+                if (state.selectedFulfillmentId != null) {
+                    item {
+                        val selectedDetail = state.detail
+                        if (selectedDetail != null &&
+                            state.detailStatus == DispatchReadinessDetailStatus.Current
+                        ) {
+                            ReadinessDetail(selectedDetail, onClearSelection)
+                            val deliveryId = selectedDetail.deliveryId
+                            if (deliveryId != null) {
+                                DeliveryPodPanel(
+                                    state = state,
+                                    canSeal = canSealPod,
+                                    onRefresh = onRefreshDeliveryPod ?: {},
+                                    onSeal = { onSealPod?.invoke(deliveryId) },
+                                    onRetrySeal = onRetryPodSeal ?: {}
+                                )
+                            }
+                            NexaWorkSection(stringResource(R.string.dispatch_work_actions)) {
+                                if (onVerifyOutgoingGoods != null) {
+                                    TextButton(onClick = {
+                                        onVerifyOutgoingGoods(selectedDetail.fulfillmentId)
+                                    }) {
+                                        Text(stringResource(R.string.dispatch_work_outgoing))
+                                    }
                                 }
-                            }
-                            if (onRecordTemperature != null) {
-                                TextButton(onClick = {
-                                    onRecordTemperature(selectedDetail.fulfillmentId)
-                                }) {
-                                    Text(stringResource(R.string.dispatch_work_temperature))
+                                if (onRecordTemperature != null) {
+                                    TextButton(onClick = {
+                                        onRecordTemperature(selectedDetail.fulfillmentId)
+                                    }) {
+                                        Text(stringResource(R.string.dispatch_work_temperature))
+                                    }
                                 }
-                            }
-                            if (onConfirmHandover != null) {
-                                TextButton(onClick = {
-                                    onConfirmHandover(selectedDetail.fulfillmentId)
-                                }) { Text(stringResource(R.string.dispatch_work_handover)) }
-                            }
-                            if (deliveryId != null && onEditDeliveryInstructions != null) {
-                                TextButton(
-                                    onClick = { onEditDeliveryInstructions(deliveryId) }
-                                ) {
-                                    Text(
-                                        stringResource(
-                                            R.string.dispatch_readiness_open_instructions
+                                if (onConfirmHandover != null) {
+                                    TextButton(onClick = {
+                                        onConfirmHandover(selectedDetail.fulfillmentId)
+                                    }) { Text(stringResource(R.string.dispatch_work_handover)) }
+                                }
+                                if (deliveryId != null && onEditDeliveryInstructions != null) {
+                                    TextButton(
+                                        onClick = { onEditDeliveryInstructions(deliveryId) }
+                                    ) {
+                                        Text(
+                                            stringResource(
+                                                R.string.dispatch_readiness_open_instructions
+                                            )
                                         )
-                                    )
+                                    }
+                                }
+                                if (deliveryId != null && onReviewExecutionHold != null) {
+                                    TextButton(onClick = { onReviewExecutionHold(deliveryId) }) {
+                                        Text(
+                                            stringResource(
+                                                R.string.dispatch_readiness_execution_hold
+                                            )
+                                        )
+                                    }
+                                }
+                                if (onAssignFulfillment != null) {
+                                    TextButton(onClick = {
+                                        onAssignFulfillment(selectedDetail.fulfillmentId)
+                                    }) {
+                                        Text(stringResource(R.string.dispatch_assignment_title))
+                                    }
                                 }
                             }
-                            if (deliveryId != null && onReviewExecutionHold != null) {
-                                TextButton(onClick = { onReviewExecutionHold(deliveryId) }) {
-                                    Text(stringResource(R.string.dispatch_readiness_execution_hold))
-                                }
-                            }
-                            if (onAssignFulfillment != null) {
-                                TextButton(onClick = {
-                                    onAssignFulfillment(selectedDetail.fulfillmentId)
-                                }) {
-                                    Text(stringResource(R.string.dispatch_assignment_title))
-                                }
-                            }
+                        } else {
+                            DetailStatusPanel(state.detailStatus, onClearSelection)
                         }
-                    } else {
-                        DetailStatusPanel(state.detailStatus, onClearSelection)
                     }
                 }
             }
@@ -262,10 +308,8 @@ private fun DeliveryPodPanel(
                     } else {
                         Text(
                             stringResource(
-                                R.string.dispatch_pod_delivery,
-                                current.deliveryId,
-                                current.deliveryStatus,
-                                current.deliveryVersion
+                                R.string.dispatch_pod_delivery_state,
+                                deliveryStatusLabel(current.deliveryStatus)
                             )
                         )
                         val pod = current.pod
@@ -466,18 +510,55 @@ private fun DetailStatusPanel(status: DispatchReadinessDetailStatus, onClose: ()
 
 @Composable
 private fun ReadinessCard(item: DispatchReadiness, selected: Boolean, onClick: () -> Unit) {
-    val statusResource = if (item.ready) {
-        R.string.dispatch_readiness_ready
+    val orderNumber = item.orderNumber?.trim()?.takeIf(String::isNotEmpty)
+    val orderLabel = orderNumber?.let {
+        stringResource(R.string.dispatch_readiness_order_label, it)
+    } ?: stringResource(R.string.dispatch_readiness_order_fallback)
+    val customerLabel = item.customerName?.trim()?.takeIf(String::isNotEmpty)
+        ?: stringResource(R.string.dispatch_readiness_customer_fallback)
+    val priorityLabel = dispatchPriorityResource(item.priority)?.let { stringResource(it) }
+        ?: stringResource(R.string.dispatch_readiness_priority_not_provided)
+    val hasDispatchedDelivery = item.deliveryStatus?.uppercase(Locale.ROOT) in
+        setOf("DISPATCHED", "IN_TRANSIT", "DELIVERED", "PARTIAL", "FAILED", "CANCELLED")
+    val statusLabel = if (hasDispatchedDelivery) {
+        deliveryStatusLabel(item.deliveryStatus)
     } else {
-        R.string.dispatch_readiness_not_ready
+        stringResource(
+            if (item.ready) {
+                R.string.dispatch_readiness_ready
+            } else {
+                R.string.dispatch_readiness_not_ready
+            }
+        )
     }
-    val statusLabel = stringResource(statusResource)
-    val statusColor = if (item.ready) NexaColors.Success else NexaColors.Warning
-    val statusSurface = if (item.ready) NexaColors.SuccessSurface else NexaColors.WarningSurface
-    val statusBorder = if (item.ready) NexaColors.SuccessBorder else NexaColors.WarningBorder
+    val statusColor = when {
+        item.deliveryStatus?.uppercase(
+            Locale.ROOT
+        ) in setOf("FAILED", "CANCELLED") -> NexaColors.Danger
+
+        item.ready || item.deliveryStatus.equals("DELIVERED", true) -> NexaColors.Success
+
+        hasDispatchedDelivery -> NexaColors.Info
+
+        else -> NexaColors.Warning
+    }
+    val statusSurface = when (statusColor) {
+        NexaColors.Danger -> NexaColors.DangerSurface
+        NexaColors.Success -> NexaColors.SuccessSurface
+        NexaColors.Info -> NexaColors.InfoSurface
+        else -> NexaColors.WarningSurface
+    }
+    val statusBorder = when (statusColor) {
+        NexaColors.Danger -> NexaColors.DangerBorder
+        NexaColors.Success -> NexaColors.SuccessBorder
+        NexaColors.Info -> NexaColors.InfoBorder
+        else -> NexaColors.WarningBorder
+    }
     val accessibilityLabel = stringResource(
         R.string.dispatch_readiness_card_accessibility,
-        item.fulfillmentId,
+        orderLabel,
+        customerLabel,
+        priorityLabel,
         statusLabel,
         stringResource(
             if (item.allocationComplete) {
@@ -501,7 +582,8 @@ private fun ReadinessCard(item: DispatchReadiness, selected: Boolean, onClick: (
             }
         ),
         item.lines.size,
-        item.deliveryId ?: stringResource(R.string.dispatch_readiness_no_delivery)
+        item.deliveryStatus?.let { deliveryStatusLabel(it) }
+            ?: stringResource(R.string.dispatch_readiness_no_delivery)
     )
     Card(
         modifier = Modifier
@@ -538,6 +620,7 @@ private fun ReadinessCard(item: DispatchReadiness, selected: Boolean, onClick: (
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                OperationsGlyph(OperationsGlyphKind.Dispatch)
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -549,27 +632,28 @@ private fun ReadinessCard(item: DispatchReadiness, selected: Boolean, onClick: (
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        item.fulfillmentId,
+                        orderLabel,
                         style = MaterialTheme.typography.titleSmall,
                         color = NexaColors.TextPrimary,
-                        fontFamily = FontFamily.Monospace,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Surface(
-                    shape = NexaShapes.pill,
-                    color = statusSurface,
-                    contentColor = statusColor,
-                    border = BorderStroke(1.dp, statusBorder)
-                ) {
-                    Text(
-                        statusLabel,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    customerLabel,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = NexaColors.TextSecondary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                DispatchPriorityBadge(item.priority)
             }
 
             HorizontalDivider(color = NexaColors.Border)
@@ -585,24 +669,22 @@ private fun ReadinessCard(item: DispatchReadiness, selected: Boolean, onClick: (
                     color = NexaColors.TextPrimary,
                     fontWeight = FontWeight.SemiBold
                 )
-                item.deliveryId?.let { deliveryId ->
+                Surface(
+                    shape = NexaShapes.pill,
+                    color = statusSurface,
+                    contentColor = statusColor,
+                    border = BorderStroke(1.dp, statusBorder)
+                ) {
                     Text(
-                        stringResource(
-                            R.string.dispatch_readiness_delivery,
-                            deliveryId,
-                            item.deliveryStatus.orEmpty()
-                        ),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = NexaColors.TextSecondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        statusLabel,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
 
-            ReadinessProgress(item)
-
-            if (item.reasons.isNotEmpty()) {
+            if (item.reasons.isNotEmpty() && !hasDispatchedDelivery) {
                 Surface(
                     shape = NexaShapes.control,
                     color = NexaColors.WarningSurface,
@@ -612,7 +694,7 @@ private fun ReadinessCard(item: DispatchReadiness, selected: Boolean, onClick: (
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        item.reasons.take(2).forEach { reason ->
+                        item.reasons.take(1).forEach { reason ->
                             Text(
                                 reasonLabel(reason),
                                 style = MaterialTheme.typography.bodySmall,
@@ -635,6 +717,191 @@ private fun ReadinessCard(item: DispatchReadiness, selected: Boolean, onClick: (
                 )
             }
         }
+    }
+}
+
+private enum class DispatchBoardLane(val labelResource: Int) {
+    Preparation(R.string.dispatch_board_preparation),
+    Ready(R.string.dispatch_board_ready),
+    InRoute(R.string.dispatch_board_in_route),
+    Finished(R.string.dispatch_board_finished),
+    Pending(R.string.dispatch_board_pending)
+}
+
+private val dispatchBoardLanes = listOf(
+    DispatchBoardLane.Preparation,
+    DispatchBoardLane.Ready,
+    DispatchBoardLane.InRoute,
+    DispatchBoardLane.Finished,
+    DispatchBoardLane.Pending
+)
+
+@Composable
+private fun DispatchReadinessBoard(
+    readinessItems: List<DispatchReadiness>,
+    selectedFulfillmentId: String?,
+    onSelectFulfillment: (String) -> Unit
+) {
+    val itemsByLane = remember(readinessItems) { readinessItems.groupBy { it.boardLane() } }
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(end = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(dispatchBoardLanes, key = { it.name }) { lane ->
+            val laneItems = itemsByLane[lane].orEmpty()
+            val (surface, border, foreground) = laneTone(lane)
+            Surface(
+                modifier = Modifier.width(300.dp),
+                shape = NexaShapes.card,
+                color = NexaColors.Surface,
+                border = BorderStroke(1.dp, NexaColors.Border)
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            stringResource(lane.labelResource),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = NexaColors.TextPrimary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Surface(
+                            shape = NexaShapes.pill,
+                            color = surface,
+                            contentColor = foreground,
+                            border = BorderStroke(1.dp, border)
+                        ) {
+                            Text(
+                                laneItems.size.toString(),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                    if (laneItems.isEmpty()) {
+                        Text(
+                            stringResource(R.string.dispatch_board_empty),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = NexaColors.TextSecondary
+                        )
+                    } else {
+                        laneItems.forEach { item ->
+                            ReadinessCard(
+                                item = item,
+                                selected = selectedFulfillmentId == item.fulfillmentId,
+                                onClick = { onSelectFulfillment(item.fulfillmentId) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun DispatchReadiness.boardLane(): DispatchBoardLane {
+    when (deliveryStatus?.uppercase(Locale.ROOT)) {
+        "DELIVERED" -> return DispatchBoardLane.Finished
+        "DISPATCHED", "IN_TRANSIT" -> return DispatchBoardLane.InRoute
+        "PARTIAL", "FAILED", "CANCELLED", "PLANNED" -> return DispatchBoardLane.Pending
+        null, "ASSIGNED" -> Unit
+        else -> return DispatchBoardLane.Pending
+    }
+
+    val status = fulfillmentStatus.uppercase(Locale.ROOT)
+    return when {
+        ready && status == "READY_FOR_DISPATCH" -> DispatchBoardLane.Ready
+
+        !ready && (status == "ALLOCATED" || status == "PICKING") ->
+            DispatchBoardLane.Preparation
+
+        else -> DispatchBoardLane.Pending
+    }
+}
+
+private fun laneTone(lane: DispatchBoardLane): Triple<Color, Color, Color> = when (lane) {
+    DispatchBoardLane.Preparation ->
+        Triple(NexaColors.WarningSurface, NexaColors.WarningBorder, NexaColors.Warning)
+
+    DispatchBoardLane.Ready,
+    DispatchBoardLane.Finished ->
+        Triple(NexaColors.SuccessSurface, NexaColors.SuccessBorder, NexaColors.Success)
+
+    DispatchBoardLane.InRoute ->
+        Triple(NexaColors.InfoSurface, NexaColors.InfoBorder, NexaColors.Info)
+
+    DispatchBoardLane.Pending ->
+        Triple(NexaColors.WarningSurface, NexaColors.WarningBorder, NexaColors.Warning)
+}
+
+private data class DispatchPriorityPresentation(
+    val labelResource: Int,
+    val surface: Color,
+    val border: Color,
+    val foreground: Color
+)
+
+private fun dispatchPriorityPresentation(priority: String?): DispatchPriorityPresentation? =
+    when (priority?.uppercase(Locale.ROOT)) {
+        "NORMAL" -> DispatchPriorityPresentation(
+            R.string.dispatch_readiness_priority_normal,
+            NexaColors.InfoSurface,
+            NexaColors.InfoBorder,
+            NexaColors.Info
+        )
+
+        "HIGH" -> DispatchPriorityPresentation(
+            R.string.dispatch_readiness_priority_high,
+            NexaColors.WarningSurface,
+            NexaColors.WarningBorder,
+            NexaColors.Warning
+        )
+
+        "URGENT" -> DispatchPriorityPresentation(
+            R.string.dispatch_readiness_priority_urgent,
+            NexaColors.DangerSurface,
+            NexaColors.DangerBorder,
+            NexaColors.Danger
+        )
+
+        else -> null
+    }
+
+private fun dispatchPriorityResource(priority: String?): Int? =
+    dispatchPriorityPresentation(priority)?.labelResource
+
+@Composable
+private fun DispatchPriorityBadge(priority: String?) {
+    val presentation = dispatchPriorityPresentation(priority)
+    if (presentation == null) {
+        Text(
+            stringResource(R.string.dispatch_readiness_priority_unavailable),
+            style = MaterialTheme.typography.labelSmall,
+            color = NexaColors.TextMuted
+        )
+        return
+    }
+    Surface(
+        shape = NexaShapes.pill,
+        color = presentation.surface,
+        contentColor = presentation.foreground,
+        border = BorderStroke(1.dp, presentation.border)
+    ) {
+        Text(
+            stringResource(presentation.labelResource),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 
@@ -683,102 +950,106 @@ private fun ReadinessProgress(item: DispatchReadiness) {
 
 @Composable
 private fun ReadinessDetail(item: DispatchReadiness, onClose: () -> Unit) {
+    var expanded by remember(item.fulfillmentId) { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        shape = RoundedCornerShape(16.dp)
+        colors = CardDefaults.cardColors(containerColor = NexaColors.Surface),
+        border = BorderStroke(1.dp, NexaColors.Border),
+        shape = NexaShapes.card
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                stringResource(R.string.dispatch_readiness_detail_title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(stringResource(R.string.dispatch_readiness_fulfillment, item.fulfillmentId))
-            Text(
-                stringResource(
-                    R.string.dispatch_readiness_fulfillment_version,
-                    item.fulfillmentVersion,
-                    item.fulfillmentStatus
-                )
-            )
-            Text(stringResource(R.string.dispatch_readiness_allocation, item.physicalAllocationId))
-            Text(
-                stringResource(
-                    R.string.dispatch_readiness_allocation_version,
-                    item.physicalAllocationVersion,
-                    item.physicalAllocationStatus
-                )
-            )
-            Text(
-                stringResource(
-                    R.string.dispatch_readiness_check_allocation,
-                    yesNo(item.allocationComplete)
-                )
-            )
-            Text(
-                stringResource(
-                    R.string.dispatch_readiness_check_picking,
-                    yesNo(item.pickingComplete)
-                )
-            )
-            Text(
-                stringResource(
-                    R.string.dispatch_readiness_check_evidence,
-                    yesNo(item.pickingEvidenceComplete)
-                )
-            )
-            item.deliveryId?.let { deliveryId ->
-                Text(
-                    stringResource(
-                        R.string.dispatch_readiness_delivery,
-                        deliveryId,
-                        item.deliveryStatus.orEmpty()
-                    )
-                )
-            }
-            Text(stringResource(R.string.dispatch_readiness_as_of, formatInstant(item.asOf)))
-            if (item.reasons.isNotEmpty()) {
-                Text(
-                    stringResource(R.string.dispatch_readiness_reasons),
-                    fontWeight = FontWeight.SemiBold
-                )
-                for (reason in item.reasons) Text("• ${reasonLabel(reason)}")
-            }
-            Text(
-                stringResource(R.string.dispatch_readiness_lines, item.lines.size),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            for (line in item.lines) {
-                Text(
-                    stringResource(
-                        R.string.dispatch_readiness_line_item,
-                        line.catalogItemId,
-                        line.skuId
-                    )
-                )
-                Text(
-                    stringResource(
-                        R.string.dispatch_readiness_quantities,
-                        line.allocatedQuantity.toPlainString(),
-                        line.physicallyAllocatedQuantity.toPlainString(),
-                        line.pickedQuantity.toPlainString(),
-                        line.evidencedPickedQuantity.toPlainString()
-                    ),
-                    style = MaterialTheme.typography.bodySmall
-                )
-                if (!line.allocationComplete || !line.pickingComplete || !line.evidenceComplete) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        stringResource(R.string.dispatch_readiness_line_incomplete),
-                        color = MaterialTheme.colorScheme.error
+                        item.orderNumber?.takeIf(String::isNotBlank)
+                            ?: stringResource(R.string.dispatch_readiness_order_fallback),
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    item.customerName?.takeIf(String::isNotBlank)?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = NexaColors.TextSecondary
+                        )
+                    }
+                }
+                DispatchPriorityBadge(item.priority)
+            }
+            Surface(
+                shape = NexaShapes.pill,
+                color = NexaColors.InfoSurface,
+                contentColor = NexaColors.PrimaryStrong
+            ) {
+                Text(
+                    deliveryStatusLabel(item.deliveryStatus ?: item.fulfillmentStatus),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+            ReadinessProgress(item)
+            TextButton(
+                onClick = { expanded = !expanded },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            ) {
+                Text(
+                    stringResource(
+                        if (expanded) {
+                            R.string.dispatch_visual_hide_checks
+                        } else {
+                            R.string.dispatch_visual_show_checks
+                        }
+                    )
+                )
+            }
+            if (expanded) {
+                HorizontalDivider(color = NexaColors.Border)
+                Text(
+                    stringResource(
+                        R.string.dispatch_readiness_fulfillment_state,
+                        deliveryStatusLabel(item.fulfillmentStatus)
+                    )
+                )
+                Text(
+                    stringResource(
+                        R.string.dispatch_readiness_allocation_state,
+                        deliveryStatusLabel(item.physicalAllocationStatus)
+                    )
+                )
+                for (reason in item.reasons) {
+                    Text(
+                        reasonLabel(reason),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = NexaColors.Warning
                     )
                 }
+                item.lines.forEachIndexed { index, line ->
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            stringResource(R.string.dispatch_readiness_line_number, index + 1),
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Text(
+                            stringResource(
+                                R.string.dispatch_readiness_quantities,
+                                line.allocatedQuantity.stripTrailingZeros().toPlainString(),
+                                line.physicallyAllocatedQuantity
+                                    .stripTrailingZeros().toPlainString(),
+                                line.pickedQuantity.stripTrailingZeros().toPlainString(),
+                                line.evidencedPickedQuantity.stripTrailingZeros().toPlainString()
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = NexaColors.TextSecondary
+                        )
+                    }
+                }
             }
-            Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
+            TextButton(
+                onClick = onClose,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            ) {
                 Text(stringResource(R.string.dispatch_readiness_close_detail))
             }
         }
@@ -819,4 +1090,27 @@ private fun yesNo(value: Boolean): String = stringResource(
     if (value) R.string.dispatch_readiness_complete else R.string.dispatch_readiness_pending
 )
 
-private fun formatInstant(value: Instant): String = DateTimeFormatter.ISO_INSTANT.format(value)
+@Composable
+private fun deliveryStatusLabel(status: String?): String = when (status?.uppercase()) {
+    "ALLOCATED", "ASSIGNED" -> stringResource(R.string.dispatch_status_assigned)
+    "PICKING" -> stringResource(R.string.dispatch_status_picking)
+    "READY_FOR_DISPATCH" -> stringResource(R.string.dispatch_status_ready)
+    "DISPATCHED" -> stringResource(R.string.dispatch_status_dispatched)
+    "IN_TRANSIT" -> stringResource(R.string.dispatch_status_in_transit)
+    "PARTIAL" -> stringResource(R.string.dispatch_status_partial)
+    "DELIVERED" -> stringResource(R.string.dispatch_status_delivered)
+    "CANCELLED" -> stringResource(R.string.dispatch_status_cancelled)
+    "HANDED_OVER" -> stringResource(R.string.dispatch_visual_handed_over)
+    "CONSUMED" -> stringResource(R.string.dispatch_visual_consumed)
+    "RELEASED" -> stringResource(R.string.dispatch_visual_released)
+    "PACKED" -> stringResource(R.string.dispatch_visual_packed)
+    "STAGED" -> stringResource(R.string.dispatch_visual_staged)
+    null, "" -> stringResource(R.string.dispatch_readiness_no_delivery)
+    else -> stringResource(R.string.dispatch_visual_other_status)
+}
+
+private fun formatInstant(value: Instant): String = DateTimeFormatter
+    .ofLocalizedDateTime(FormatStyle.SHORT)
+    .withLocale(Locale.getDefault())
+    .withZone(ZoneId.systemDefault())
+    .format(value)
