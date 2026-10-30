@@ -7,7 +7,8 @@ data class DriverDeliveryAttempt(
     val attemptNumber: Int,
     val status: String,
     val startedByMembershipId: String?,
-    val startedAt: String?
+    val startedAt: String?,
+    val outcome: String? = null
 ) {
     override fun toString(): String = "DriverDeliveryAttempt(number=$attemptNumber, status=$status)"
 }
@@ -28,7 +29,9 @@ data class DriverDeliverySnapshot(
     val activeAttempt: DriverDeliveryAttempt?,
     val outcomeLines: List<DriverDeliveryOutcomeLine> = emptyList(),
     val arrival: DriverDeliveryArrivalFact? = null,
-    val destinationCoordinates: DriverDeliveryCoordinates? = null
+    val destinationCoordinates: DriverDeliveryCoordinates? = null,
+    val lastAttempt: DriverDeliveryAttempt? = null,
+    val handoffRenewalEligible: Boolean = false
 ) {
     override fun toString(): String =
         "DriverDeliverySnapshot(status=$status, version=$version, active=$activeAttempt)"

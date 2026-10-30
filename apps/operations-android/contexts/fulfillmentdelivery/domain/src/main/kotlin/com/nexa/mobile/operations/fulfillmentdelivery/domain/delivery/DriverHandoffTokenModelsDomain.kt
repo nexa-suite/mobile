@@ -4,7 +4,9 @@ data class DriverHandoffCurrentDelivery(
     val deliveryId: String,
     val status: String,
     val version: Long,
-    val activeAttemptId: String?
+    val activeAttemptId: String?,
+    val lastAttempt: DriverDeliveryAttempt? = null,
+    val handoffRenewalEligible: Boolean = false
 )
 
 data class DriverHandoffTokenReceipt(

@@ -34,7 +34,8 @@ data class DriverDeliveryAttemptProjection(
     val attemptNumber: Int,
     val status: String,
     val startedByMembershipId: String?,
-    val startedAt: String?
+    val startedAt: String?,
+    val outcome: String? = null
 )
 
 data class DriverDeliveryOutcomeLineProjection(
@@ -121,7 +122,9 @@ data class DriverDeliveryProjection(
     val activeAttempt: DriverDeliveryAttemptProjection?,
     val outcomeLines: List<DriverDeliveryOutcomeLineProjection> = emptyList(),
     val arrival: DriverDeliveryArrivalFactProjection? = null,
-    val destinationCoordinates: DriverDeliveryCoordinates? = null
+    val destinationCoordinates: DriverDeliveryCoordinates? = null,
+    val lastAttempt: DriverDeliveryAttemptProjection? = null,
+    val handoffRenewalEligible: Boolean = false
 )
 
 private data class DriverDestinationProjection(
@@ -622,6 +625,19 @@ class NexaDriverDeliveryGateway(private val protectedCalls: ProtectedCallExecuto
 
             else -> return null
         }
+        val lastAttemptElement = this["lastAttempt"]
+        val lastAttempt = when (lastAttemptElement) {
+            null, JsonNull -> null
+            is JsonObject -> lastAttemptElement.toAttempt() ?: return null
+            else -> return null
+        }
+        val handoffRenewalElement = this["handoffRenewalEligible"]
+        val handoffRenewalEligible = when (handoffRenewalElement) {
+            null -> false
+            is JsonPrimitive -> handoffRenewalElement.booleanOrNull ?: return null
+            else -> return null
+        }
+        if (handoffRenewalEligible && lastAttempt == null) return null
         val outcomeLineElement = this["outcomeLines"]
         val outcomeLines = when (outcomeLineElement) {
             null, JsonNull -> emptyList()
@@ -652,7 +668,9 @@ class NexaDriverDeliveryGateway(private val protectedCalls: ProtectedCallExecuto
             activeAttempt = activeAttempt,
             outcomeLines = outcomeLines,
             arrival = arrival,
-            destinationCoordinates = destination?.coordinates
+            destinationCoordinates = destination?.coordinates,
+            lastAttempt = lastAttempt,
+            handoffRenewalEligible = handoffRenewalEligible
         )
     } catch (_: Exception) {
         null
@@ -758,7 +776,9 @@ class NexaDriverDeliveryGateway(private val protectedCalls: ProtectedCallExecuto
             }
         val startedAt = optionalText("startedAt")
             ?: if (this["startedAt"] == null || this["startedAt"] == JsonNull) null else return null
-        DriverDeliveryAttemptProjection(id, number, status, startedBy, startedAt)
+        val outcome = optionalText("outcome")
+            ?: if (this["outcome"] == null || this["outcome"] == JsonNull) null else return null
+        DriverDeliveryAttemptProjection(id, number, status, startedBy, startedAt, outcome)
     } catch (_: Exception) {
         null
     }

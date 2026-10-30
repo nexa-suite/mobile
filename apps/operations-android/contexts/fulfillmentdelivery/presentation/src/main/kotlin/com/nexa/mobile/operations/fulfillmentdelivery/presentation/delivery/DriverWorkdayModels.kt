@@ -40,14 +40,36 @@ private val ACTIVE_LOCATION_DELIVERY_STATUSES = setOf("DISPATCHED", "IN_TRANSIT"
 
 private data class EligibleDelivery(
     val id: String,
-    val attemptId: String,
-    val attemptStartedAt: Instant
+    val attemptId: String?,
+    val locationValidAfter: Instant
 ) {
     val consent: DriverLocationConsent
         get() = DriverLocationConsent(id, attemptId)
 }
 
-private data class DriverLocationConsent(val deliveryId: String, val attemptId: String)
+private data class DriverLocationConsent(val deliveryId: String, val attemptId: String?)
+
+private fun DriverDeliverySnapshot.toEligibleLocationDelivery(
+    detailReady: Boolean
+): EligibleDelivery? {
+    if (!detailReady || id.isBlank() || status !in ACTIVE_LOCATION_DELIVERY_STATUSES) {
+        return null
+    }
+    val attempt = activeAttempt
+    if (attempt != null) {
+        val attemptId = attempt.id.takeIf { it.isNotBlank() }
+            ?: return null
+        val startedAt = attempt.startedAt
+            ?.let { runCatching { Instant.parse(it) }.getOrNull() }
+            ?: return null
+        return EligibleDelivery(id, attemptId, startedAt)
+    }
+    if (status != "DISPATCHED") return null
+    val dispatchedAt = dispatchedAt
+        ?.let { runCatching { Instant.parse(it) }.getOrNull() }
+        ?: return null
+    return EligibleDelivery(id, null, dispatchedAt)
+}
 
 enum class DriverWorkdayNotice {
     NONE,
@@ -103,17 +125,24 @@ class DriverWorkdayViewModel(
     private var capturingWorkdayId: String? = null
     private var acknowledgedWorkdayId: String? = null
     private var operationGeneration = 0L
+    private var refreshGeneration = 0L
+    private var availabilityMutationGeneration = 0L
     private var availabilityChangeInFlight: Boolean? = null
     private var commandStoreAvailable = true
     private var eligibleDelivery: EligibleDelivery? = null
     private var consentedDelivery: DriverLocationConsent? = null
+    private val deliveriesWithObservedAttempts = mutableSetOf<String>()
 
     fun activate(authority: DriverDeliveryAuthority, hasFineLocationPermission: Boolean) {
         if (this.authority != authority) {
             operationGeneration += 1
+            refreshGeneration += 1
+            availabilityMutationGeneration += 1
+            availabilityChangeInFlight = null
             stopCapture()
             eligibleDelivery = null
             clearLocationConsent()
+            deliveriesWithObservedAttempts.clear()
             mutableState.value = DriverWorkdayUiState()
         }
         this.authority = authority
@@ -145,8 +174,14 @@ class DriverWorkdayViewModel(
 
     fun refresh() {
         val currentAuthority = authority ?: return
-        val requestGeneration = ++operationGeneration
+        if (availabilityChangeInFlight != null || mutableState.value.commandPending) return
+        val requestGeneration = ++refreshGeneration
         viewModelScope.launch {
+            if (!isCurrentRefresh(currentAuthority, requestGeneration) ||
+                availabilityChangeInFlight != null || mutableState.value.commandPending
+            ) {
+                return@launch
+            }
             mutableState.value = mutableState.value.copy(
                 loading = true,
                 notice = if (commandStoreAvailable) {
@@ -156,13 +191,18 @@ class DriverWorkdayViewModel(
                 }
             )
             val result = gateway.current(currentAuthority)
-            if (!isCurrent(currentAuthority, requestGeneration)) return@launch
+            if (!isCurrentRefresh(currentAuthority, requestGeneration)) return@launch
+            if (availabilityChangeInFlight != null || mutableState.value.commandPending) {
+                mutableState.value = mutableState.value.copy(loading = false)
+                return@launch
+            }
             when (result) {
                 is DriverWorkdayReadResult.Current -> {
                     val day = result.workday
                     mutableState.value = mutableState.value.copy(workday = day, loading = false)
                     val pending = mutableState.value.pendingCommand
                     if (pending != null && intentSatisfied(pending, day)) clearPending(pending)
+                    if (!isCurrentRefresh(currentAuthority, requestGeneration)) return@launch
                     if (mutableState.value.pendingCommand ==
                         null
                     ) {
@@ -199,22 +239,53 @@ class DriverWorkdayViewModel(
     }
 
     fun updateDelivery(delivery: DriverDeliverySnapshot?, detailReady: Boolean) {
-        val next = delivery
-            ?.takeIf {
-                detailReady && it.status in ACTIVE_LOCATION_DELIVERY_STATUSES &&
-                    !it.activeAttempt?.id.isNullOrBlank()
-            }
-            ?.let { selected ->
-                val attempt = selected.activeAttempt ?: return@let null
-                val attemptStartedAt = attempt.startedAt
-                    ?.let { runCatching { Instant.parse(it) }.getOrNull() }
-                    ?: return@let null
-                EligibleDelivery(selected.id, attempt.id, attemptStartedAt)
-            }
+        val previous = eligibleDelivery
+        val observedAttemptId = delivery?.activeAttempt?.id?.takeIf { it.isNotBlank() }
+        val alreadyObservedAttempt =
+            delivery?.id?.let(deliveriesWithObservedAttempts::contains) == true
+        val next = delivery?.toEligibleLocationDelivery(detailReady)
+        val workday = mutableState.value.workday
+        val preserveFirstAttemptConsent = previous != null && next != null &&
+            previous.id == next.id && previous.attemptId == null &&
+            next.attemptId != null &&
+            !alreadyObservedAttempt && consentedDelivery == previous.consent &&
+            workday?.status == DriverWorkdayStatus.ACTIVE && workday.locationAvailable &&
+            fineLocationPermission && authority?.canWriteWorkday() == true
+        if (observedAttemptId != null && delivery?.id != null) {
+            deliveriesWithObservedAttempts += delivery.id
+        }
         if (next == eligibleDelivery) return
         operationGeneration += 1
         val shouldDisable = mutableState.value.workday?.locationAvailable == true
         eligibleDelivery = next
+        if (preserveFirstAttemptConsent) {
+            consentedDelivery = next?.consent
+            deliveryEligibilityJob?.cancel()
+            deliveryEligibilityJob = null
+            acknowledgedWorkdayId = null
+            mutableState.value = mutableState.value.copy(
+                eligibleDeliveryId = next?.id,
+                liveLocation = null,
+                lastSampleAt = null,
+                locationReady = false
+            )
+            val currentAuthority = authority
+            val currentWorkday = mutableState.value.workday
+            if (currentAuthority != null && currentWorkday != null) {
+                viewModelScope.launch {
+                    val latestWorkday = mutableState.value.workday
+                    if (authority == currentAuthority && eligibleDelivery == next &&
+                        consentedDelivery == next?.consent && latestWorkday != null &&
+                        latestWorkday.id == currentWorkday.id &&
+                        latestWorkday.status == DriverWorkdayStatus.ACTIVE &&
+                        latestWorkday.locationAvailable
+                    ) {
+                        reconcileCapture(currentAuthority, latestWorkday)
+                    }
+                }
+            }
+            return
+        }
         clearLocationConsent()
         stopCapture()
         mutableState.value = mutableState.value.copy(
@@ -234,7 +305,9 @@ class DriverWorkdayViewModel(
                 mutableState.value.copy(notice = DriverWorkdayNotice.PERMISSION_DENIED)
             return
         }
-        if (mutableState.value.pendingCommand != null) {
+        if (mutableState.value.pendingCommand != null ||
+            mutableState.value.commandPending || availabilityChangeInFlight != null
+        ) {
             mutableState.value =
                 mutableState.value.copy(notice = DriverWorkdayNotice.UNKNOWN_COMMAND_PENDING)
             return
@@ -244,6 +317,7 @@ class DriverWorkdayViewModel(
                 mutableState.value.copy(notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE)
             return
         }
+        refreshGeneration += 1
         val requestGeneration = ++operationGeneration
         viewModelScope.launch {
             mutableState.value =
@@ -396,7 +470,14 @@ class DriverWorkdayViewModel(
             stopCapture()
             clearLocationSample()
         }
-        if (mutableState.value.pendingCommand != null) {
+        if (mutableState.value.pendingCommand != null ||
+            mutableState.value.commandPending || availabilityChangeInFlight != null
+        ) {
+            mutableState.value =
+                mutableState.value.copy(notice = DriverWorkdayNotice.UNKNOWN_COMMAND_PENDING)
+            return
+        }
+        if (mutableState.value.commandPending) {
             mutableState.value =
                 mutableState.value.copy(notice = DriverWorkdayNotice.UNKNOWN_COMMAND_PENDING)
             return
@@ -430,7 +511,11 @@ class DriverWorkdayViewModel(
             )
             return
         }
-        if (availabilityChangeInFlight != null) return
+        if (availabilityChangeInFlight != null) {
+            mutableState.value =
+                mutableState.value.copy(notice = DriverWorkdayNotice.UNKNOWN_COMMAND_PENDING)
+            return
+        }
         if (available && !capture.prepare(day.id)) {
             clearLocationConsent()
             mutableState.value = mutableState.value.copy(
@@ -439,11 +524,21 @@ class DriverWorkdayViewModel(
             return
         }
         availabilityChangeInFlight = available
-        val requestGeneration = ++operationGeneration
+        refreshGeneration += 1
+        val requestGeneration = ++availabilityMutationGeneration
         viewModelScope.launch {
+            if (!isCurrentAvailabilityMutation(
+                    currentAuthority,
+                    available,
+                    requestGeneration
+                )
+            ) {
+                return@launch
+            }
             mutableState.value =
                 mutableState.value.copy(
                     commandPending = true,
+                    loading = false,
                     notice = unavailableNotice ?: DriverWorkdayNotice.NONE
                 )
             val intent = DriverWorkdayCommandIntent(
@@ -456,6 +551,14 @@ class DriverWorkdayViewModel(
                 initiatedAt = clock()
             )
             if (!commandStore.save(intent)) {
+                if (!isCurrentAvailabilityMutation(
+                        currentAuthority,
+                        available,
+                        requestGeneration
+                    )
+                ) {
+                    return@launch
+                }
                 if (available) capture.stop()
                 availabilityChangeInFlight = null
                 commandStoreAvailable = false
@@ -463,6 +566,15 @@ class DriverWorkdayViewModel(
                     commandPending = false,
                     notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE
                 )
+                return@launch
+            }
+            if (!isCurrentAvailabilityMutation(
+                    currentAuthority,
+                    available,
+                    requestGeneration
+                )
+            ) {
+                commandStore.clear(intent.scope, intent.idempotencyKey)
                 return@launch
             }
             mutableState.value = mutableState.value.copy(pendingCommand = intent)
@@ -473,16 +585,58 @@ class DriverWorkdayViewModel(
                 available,
                 intent.idempotencyKey
             )
-            if (!isCurrent(currentAuthority, requestGeneration)) return@launch
+            if (!isCurrentAvailabilityMutation(
+                    currentAuthority,
+                    available,
+                    requestGeneration
+                )
+            ) {
+                return@launch
+            }
             val refreshed = gateway.current(currentAuthority)
-            if (!isCurrent(currentAuthority, requestGeneration)) return@launch
-            availabilityChangeInFlight = null
+            if (!isCurrentAvailabilityMutation(
+                    currentAuthority,
+                    available,
+                    requestGeneration
+                )
+            ) {
+                return@launch
+            }
             when (refreshed) {
                 is DriverWorkdayReadResult.Current -> {
                     if (intentSatisfied(intent, refreshed.workday) ||
                         command != DriverWorkdayCommandResult.UnknownOutcome
                     ) {
                         clearPending(intent)
+                    }
+                    if (!finishAvailabilityMutation(
+                            currentAuthority,
+                            available,
+                            requestGeneration
+                        )
+                    ) {
+                        return@launch
+                    }
+                    when (command) {
+                        DriverWorkdayCommandResult.PermissionDenied -> {
+                            clearLocationConsent()
+                            stopCapture()
+                            clearLocationSample()
+                            failCommand(DriverWorkdayNotice.PERMISSION_DENIED)
+                            return@launch
+                        }
+
+                        DriverWorkdayCommandResult.ContextInvalidated -> {
+                            invalidate(DriverWorkdayNotice.CONTEXT_INVALIDATED)
+                            return@launch
+                        }
+
+                        DriverWorkdayCommandResult.SessionInvalidated -> {
+                            invalidate(DriverWorkdayNotice.SESSION_INVALIDATED)
+                            return@launch
+                        }
+
+                        else -> Unit
                     }
                     mutableState.value = mutableState.value.copy(
                         workday = refreshed.workday,
@@ -531,6 +685,14 @@ class DriverWorkdayViewModel(
                 }
 
                 DriverWorkdayReadResult.Unavailable -> {
+                    if (!finishAvailabilityMutation(
+                            currentAuthority,
+                            available,
+                            requestGeneration
+                        )
+                    ) {
+                        return@launch
+                    }
                     stopCapture()
                     mutableState.value = mutableState.value.copy(
                         commandPending = false,
@@ -539,9 +701,19 @@ class DriverWorkdayViewModel(
                     )
                 }
 
-                DriverWorkdayReadResult.PermissionDenied -> failCommand(
-                    DriverWorkdayNotice.PERMISSION_DENIED
-                )
+                DriverWorkdayReadResult.PermissionDenied -> {
+                    if (finishAvailabilityMutation(
+                            currentAuthority,
+                            available,
+                            requestGeneration
+                        )
+                    ) {
+                        clearLocationConsent()
+                        stopCapture()
+                        clearLocationSample()
+                        failCommand(DriverWorkdayNotice.PERMISSION_DENIED)
+                    }
+                }
 
                 DriverWorkdayReadResult.ContextInvalidated -> invalidate(
                     DriverWorkdayNotice.CONTEXT_INVALIDATED
@@ -562,7 +734,9 @@ class DriverWorkdayViewModel(
                 mutableState.value.copy(notice = DriverWorkdayNotice.PERMISSION_DENIED)
             return
         }
-        if (mutableState.value.pendingCommand != null) {
+        if (mutableState.value.pendingCommand != null ||
+            mutableState.value.commandPending || availabilityChangeInFlight != null
+        ) {
             mutableState.value =
                 mutableState.value.copy(notice = DriverWorkdayNotice.UNKNOWN_COMMAND_PENDING)
             return
@@ -577,6 +751,7 @@ class DriverWorkdayViewModel(
         clearLocationConsent()
         stopCapture()
         clearLocationSample()
+        refreshGeneration += 1
         val requestGeneration = ++operationGeneration
         viewModelScope.launch {
             mutableState.value = mutableState.value.copy(
@@ -689,20 +864,56 @@ class DriverWorkdayViewModel(
     fun retryPendingCommand() {
         val currentAuthority = authority ?: return
         val intent = mutableState.value.pendingCommand ?: return
+        if (mutableState.value.commandPending) return
         if (!commandStoreAvailable || intent.scope != currentAuthority.commandScope()) {
             mutableState.value =
                 mutableState.value.copy(notice = DriverWorkdayNotice.COMMAND_STORAGE_UNAVAILABLE)
             return
         }
+        val retryAvailability = if (
+            intent.action == DriverWorkdayCommandAction.SET_LOCATION_AVAILABILITY
+        ) {
+            intent.locationAvailable ?: run {
+                failCommand(DriverWorkdayNotice.COMMAND_REJECTED)
+                return
+            }
+        } else {
+            null
+        }
+        val availabilityRetryGeneration = retryAvailability?.let { available ->
+            availabilityChangeInFlight = available
+            ++availabilityMutationGeneration
+        }
+        refreshGeneration += 1
         val requestGeneration = ++operationGeneration
+        fun isCurrentRetry(): Boolean = if (availabilityRetryGeneration != null) {
+            isCurrentAvailabilityMutation(
+                currentAuthority,
+                retryAvailability!!,
+                availabilityRetryGeneration
+            )
+        } else {
+            isCurrent(currentAuthority, requestGeneration)
+        }
+        fun finishAvailabilityRetry(): Boolean = availabilityRetryGeneration == null ||
+            finishAvailabilityMutation(
+                currentAuthority,
+                retryAvailability!!,
+                availabilityRetryGeneration
+            )
         viewModelScope.launch {
             mutableState.value =
-                mutableState.value.copy(commandPending = true, notice = DriverWorkdayNotice.NONE)
+                mutableState.value.copy(
+                    commandPending = true,
+                    loading = false,
+                    notice = DriverWorkdayNotice.NONE
+                )
             when (val current = gateway.current(currentAuthority)) {
                 is DriverWorkdayReadResult.Current -> {
-                    if (!isCurrent(currentAuthority, requestGeneration)) return@launch
+                    if (!isCurrentRetry()) return@launch
                     if (intentSatisfied(intent, current.workday)) {
                         clearPending(intent)
+                        if (!isCurrentRetry() || !finishAvailabilityRetry()) return@launch
                         mutableState.value = mutableState.value.copy(
                             workday = current.workday,
                             commandPending = false,
@@ -728,6 +939,7 @@ class DriverWorkdayViewModel(
                             )
                     ) {
                         clearPending(intent)
+                        if (!isCurrentRetry() || !finishAvailabilityRetry()) return@launch
                         mutableState.value = mutableState.value.copy(
                             workday = current.workday,
                             commandPending = false,
@@ -764,9 +976,10 @@ class DriverWorkdayViewModel(
                                 intent.idempotencyKey
                             )
                     }
-                    if (!isCurrent(currentAuthority, requestGeneration)) return@launch
+                    if (!isCurrentRetry()) return@launch
                     if (intent.action == DriverWorkdayCommandAction.END) {
                         if (result == DriverWorkdayCommandResult.Accepted) clearPending(intent)
+                        if (!isCurrentRetry()) return@launch
                         mutableState.value = mutableState.value.copy(
                             workday = current.workday,
                             commandPending = false,
@@ -792,7 +1005,7 @@ class DriverWorkdayViewModel(
                         return@launch
                     }
                     val refreshed = gateway.current(currentAuthority)
-                    if (!isCurrent(currentAuthority, requestGeneration)) return@launch
+                    if (!isCurrentRetry()) return@launch
                     when (refreshed) {
                         is DriverWorkdayReadResult.Current -> {
                             if (intentSatisfied(intent, refreshed.workday) ||
@@ -800,6 +1013,7 @@ class DriverWorkdayViewModel(
                             ) {
                                 clearPending(intent)
                             }
+                            if (!isCurrentRetry() || !finishAvailabilityRetry()) return@launch
                             mutableState.value = mutableState.value.copy(
                                 workday = refreshed.workday,
                                 commandPending = false,
@@ -823,6 +1037,7 @@ class DriverWorkdayViewModel(
                         }
 
                         else -> {
+                            if (!isCurrentRetry() || !finishAvailabilityRetry()) return@launch
                             stopCapture()
                             mutableState.value = mutableState.value.copy(
                                 workday = null,
@@ -834,6 +1049,7 @@ class DriverWorkdayViewModel(
                 }
 
                 else -> {
+                    if (!isCurrentRetry() || !finishAvailabilityRetry()) return@launch
                     stopCapture()
                     mutableState.value = mutableState.value.copy(
                         commandPending = false,
@@ -866,10 +1082,13 @@ class DriverWorkdayViewModel(
 
     private fun invalidate(notice: DriverWorkdayNotice) {
         operationGeneration += 1
+        refreshGeneration += 1
+        availabilityMutationGeneration += 1
         availabilityChangeInFlight = null
         stopCapture()
         eligibleDelivery = null
         clearLocationConsent()
+        deliveriesWithObservedAttempts.clear()
         authority = null
         mutableState.value = DriverWorkdayUiState(notice = notice)
     }
@@ -922,6 +1141,7 @@ class DriverWorkdayViewModel(
         val delivery = eligibleDelivery ?: return
         if (capturingWorkdayId == day.id && captureJob?.isActive == true) {
             startLocationFreshnessMonitor(currentAuthority, day.id)
+            startDeliveryEligibilityMonitor(currentAuthority, day.id, delivery)
             return
         }
         stopCapture(stopService = false)
@@ -933,7 +1153,7 @@ class DriverWorkdayViewModel(
                         val location = event.value
                         if (event.captureId != day.id || delivery == null ||
                             !isLocationCaptureAuthorized(currentAuthority, day.id, delivery) ||
-                            !location.isValidFor(delivery.attemptStartedAt)
+                            !location.isValidFor(delivery.locationValidAfter)
                         ) {
                             return@collect
                         }
@@ -1114,26 +1334,10 @@ class DriverWorkdayViewModel(
                             return@launch
                         }
                         val snapshot = result.item
-                        val attempt = snapshot.activeAttempt
-                        val stillEligible = snapshot.id == delivery.id &&
-                            snapshot.status in ACTIVE_LOCATION_DELIVERY_STATUSES &&
-                            attempt?.id == delivery.attemptId &&
-                            attempt?.startedAt?.let {
-                                runCatching { Instant.parse(it) }.getOrNull()
-                            } == delivery.attemptStartedAt
-                        if (!stillEligible) {
-                            eligibleDelivery = null
-                            mutableState.value = mutableState.value.copy(
-                                eligibleDeliveryId = null
-                            )
-                            clearLocationConsent()
-                            stopCapture()
-                            clearLocationSample()
-                            changeLocationAvailability(
-                                available = false,
-                                unavailableNotice = DriverWorkdayNotice.ACTIVE_DELIVERY_REQUIRED
-                            )
-                            return@launch
+                        if (snapshot.id == delivery.id) {
+                            updateDelivery(snapshot, detailReady = true)
+                        } else {
+                            updateDelivery(null, detailReady = false)
                         }
                     }
 
@@ -1223,16 +1427,16 @@ class DriverWorkdayViewModel(
             ageMillis in 0..MAX_LOCATION_SAMPLE_AGE_MILLIS
     }
 
-    private fun DriverWorkdayLocationSample.isAtOrAfter(attemptStartedAt: Instant): Boolean =
-        runCatching { Instant.parse(capturedAt) }.getOrNull()?.let { it >= attemptStartedAt } ==
+    private fun DriverWorkdayLocationSample.isAtOrAfter(locationValidAfter: Instant): Boolean =
+        runCatching { Instant.parse(capturedAt) }.getOrNull()?.let { it >= locationValidAfter } ==
             true
 
-    private fun DriverWorkdayLocationSample.isValidFor(attemptStartedAt: Instant): Boolean =
+    private fun DriverWorkdayLocationSample.isValidFor(locationValidAfter: Instant): Boolean =
         sampleId.isNotBlank() &&
             latitude.isFinite() && latitude in -90.0..90.0 &&
             longitude.isFinite() && longitude in -180.0..180.0 &&
             accuracyMeters.isFinite() && accuracyMeters >= 0.0 &&
-            isFreshLocationTimestamp(capturedAt) && isAtOrAfter(attemptStartedAt)
+            isFreshLocationTimestamp(capturedAt) && isAtOrAfter(locationValidAfter)
 
     private fun isLocationCaptureAuthorized(
         currentAuthority: DriverDeliveryAuthority,
@@ -1280,6 +1484,29 @@ class DriverWorkdayViewModel(
 
     private fun isCurrent(currentAuthority: DriverDeliveryAuthority, generation: Long): Boolean =
         authority == currentAuthority && operationGeneration == generation
+
+    private fun isCurrentRefresh(
+        currentAuthority: DriverDeliveryAuthority,
+        generation: Long
+    ): Boolean = authority == currentAuthority && refreshGeneration == generation
+
+    private fun isCurrentAvailabilityMutation(
+        currentAuthority: DriverDeliveryAuthority,
+        available: Boolean,
+        generation: Long
+    ): Boolean = authority == currentAuthority &&
+        availabilityMutationGeneration == generation &&
+        availabilityChangeInFlight == available
+
+    private fun finishAvailabilityMutation(
+        currentAuthority: DriverDeliveryAuthority,
+        available: Boolean,
+        generation: Long
+    ): Boolean {
+        if (!isCurrentAvailabilityMutation(currentAuthority, available, generation)) return false
+        availabilityChangeInFlight = null
+        return true
+    }
 
     private fun intentSatisfied(intent: DriverWorkdayCommandIntent, day: DriverWorkday?): Boolean =
         when (intent.action) {

@@ -1,5 +1,6 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.delivery
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -7,15 +8,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -34,20 +38,35 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.nexa.mobile.operations.core.designsystem.NexaColors
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackBanner
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackTone
 import com.nexa.mobile.operations.core.designsystem.NexaPrimaryButton
+import com.nexa.mobile.operations.core.designsystem.NexaShapes
+import com.nexa.mobile.operations.core.designsystem.NexaStatePanel
+import com.nexa.mobile.operations.core.designsystem.NexaTopAppBar
 import com.nexa.mobile.operations.core.designsystem.NexaWorkSection
 import com.nexa.mobile.operations.core.designsystem.NexaWorkSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliverySnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverOutcomeKind
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.common.OperationsGlyph
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.common.OperationsGlyphKind
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
@@ -149,6 +168,11 @@ private val DRIVER_DELIVERY_REFRESH_BLOCKING_COMMANDS = setOf(
     DriverDeliveryCommandStatus.Pending,
     DriverDeliveryCommandStatus.UnknownOutcome
 )
+private val TERMINAL_HANDOFF_ATTEMPTS: Set<Triple<String, String, String?>> = setOf(
+    Triple("DELIVERED", "FINAL", "DELIVERED"),
+    Triple("PARTIAL", "PARTIAL", "PARTIAL"),
+    Triple("DELIVERED", "PARTIAL", "PARTIAL")
+)
 
 @Composable
 fun DriverDeliveryScreen(
@@ -200,11 +224,7 @@ fun DriverDeliveryScreen(
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            TextButton(onClick = onBack) { Text(stringResource(R.string.driver_delivery_back)) }
-            NexaWorkSummary(
-                title = stringResource(R.string.driver_delivery_title),
-                description = stringResource(R.string.driver_work_support)
-            )
+            NexaTopAppBar(title = stringResource(R.string.driver_delivery_title), onBack = onBack)
             workdayContent?.invoke()
             if (!state.canRead) {
                 Notice(stringResource(R.string.driver_delivery_read_permission), isError = true)
@@ -254,16 +274,20 @@ fun DriverDeliveryScreen(
                 DriverDeliveryLoadStatus.Ready -> Unit
             }
 
-            OutlinedButton(
+            TextButton(
                 onClick = onRefresh,
                 enabled = state.canRead &&
-                    state.listStatus != DriverDeliveryLoadStatus.Loading
+                    state.listStatus != DriverDeliveryLoadStatus.Loading,
+                modifier = Modifier.heightIn(min = 48.dp)
             ) {
                 Text(stringResource(R.string.driver_delivery_refresh))
             }
 
             if (state.listStatus == DriverDeliveryLoadStatus.Ready && state.deliveries.isEmpty()) {
-                Notice(stringResource(R.string.driver_delivery_empty))
+                NexaStatePanel(
+                    title = stringResource(R.string.driver_delivery_title),
+                    description = stringResource(R.string.driver_delivery_empty)
+                )
             }
             if (state.selectedDelivery != null && state.deliveries.size > 1) {
                 TextButton(onClick = { showDeliveryList = !showDeliveryList }) {
@@ -286,33 +310,11 @@ fun DriverDeliveryScreen(
             }
             if (showDeliveryList) {
                 state.deliveries.forEach { delivery ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = state.commandStatus !in FROZEN_COMMANDS) {
-                                onSelectDelivery(delivery.id)
-                            }
-                    ) {
-                        Column(
-                            Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                delivery.destination
-                                    ?: stringResource(R.string.driver_delivery_destination_unknown),
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Text(stringResource(R.string.driver_delivery_status, delivery.status))
-                            delivery.activeAttempt?.let { attempt ->
-                                Text(
-                                    stringResource(
-                                        R.string.driver_delivery_active_attempt,
-                                        attempt.attemptNumber
-                                    )
-                                )
-                            }
-                        }
-                    }
+                    DriverDeliveryCard(
+                        delivery = delivery,
+                        enabled = state.commandStatus !in FROZEN_COMMANDS,
+                        onSelect = { onSelectDelivery(delivery.id) }
+                    )
                 }
             }
 
@@ -412,18 +414,37 @@ fun DriverDeliveryScreen(
             }
 
             state.selectedDelivery?.let { delivery ->
+                val activeAttempt = delivery.activeAttempt?.takeIf {
+                    delivery.status.uppercase() != "DELIVERED"
+                }
+                val terminalHandoffAttempt = delivery.lastAttempt?.takeIf { attempt ->
+                    delivery.handoffRenewalEligible &&
+                        Triple(
+                            delivery.status.uppercase(),
+                            attempt.status.uppercase(),
+                            attempt.outcome?.uppercase()
+                        ) in TERMINAL_HANDOFF_ATTEMPTS
+                }
                 NexaWorkSummary(
                     title = delivery.destination
                         ?: stringResource(R.string.driver_delivery_destination_unknown),
-                    description = stringResource(R.string.driver_delivery_status, delivery.status)
+                    description = stringResource(
+                        R.string.driver_delivery_status,
+                        driverDeliveryStatusLabel(delivery.status)
+                    )
                 ) {
                     delivery.scheduledAt?.let {
-                        Text(stringResource(R.string.driver_delivery_scheduled, it))
+                        Text(
+                            stringResource(
+                                R.string.driver_delivery_scheduled,
+                                deliveryTimeLabel(it)
+                            )
+                        )
                     }
                 }
                 Text(
                     stringResource(
-                        if (delivery.activeAttempt == null) {
+                        if (activeAttempt == null) {
                             R.string.driver_delivery_detail_title
                         } else {
                             R.string.driver_work_execution
@@ -463,22 +484,36 @@ fun DriverDeliveryScreen(
                         Text(stringResource(R.string.driver_delivery_execution_temperature_open))
                     }
                 }
-                delivery.activeAttempt?.let { attempt ->
+                activeAttempt?.let { attempt ->
                     Card(Modifier.fillMaxWidth()) {
                         Column(
                             Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text(stringResource(R.string.driver_delivery_attempt_active))
+                            Row(
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                OperationsGlyph(OperationsGlyphKind.Driver)
+                                Text(
+                                    stringResource(R.string.driver_delivery_attempt_active),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                             Text(
                                 stringResource(
                                     R.string.driver_delivery_attempt_number,
                                     attempt.attemptNumber
                                 )
                             )
-                            Text(stringResource(R.string.driver_delivery_attempt_id, attempt.id))
                             attempt.startedAt?.let {
-                                Text(stringResource(R.string.driver_delivery_attempt_started, it))
+                                Text(
+                                    stringResource(
+                                        R.string.driver_delivery_attempt_started,
+                                        deliveryTimeLabel(it)
+                                    )
+                                )
                             }
                         }
                     }
@@ -507,7 +542,7 @@ fun DriverDeliveryScreen(
                             Notice(
                                 stringResource(
                                     R.string.driver_delivery_arrival_confirmed,
-                                    arrival.arrivedAt
+                                    deliveryTimeLabel(arrival.arrivedAt)
                                 )
                             )
                         }
@@ -567,7 +602,7 @@ fun DriverDeliveryScreen(
                                 Notice(
                                     stringResource(
                                         R.string.driver_delivery_arrival_confirmed,
-                                        arrival.arrivedAt
+                                        deliveryTimeLabel(arrival.arrivedAt)
                                     )
                                 )
                             }
@@ -610,9 +645,15 @@ fun DriverDeliveryScreen(
                             stringResource(R.string.driver_delivery_quantities_title),
                             style = MaterialTheme.typography.titleMedium
                         )
-                        delivery.outcomeLines.forEach { line ->
+                        delivery.outcomeLines.forEachIndexed { index, line ->
                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text("${line.catalogItemId} · ${line.unit}")
+                                Text(
+                                    stringResource(
+                                        R.string.driver_delivery_outcome_line,
+                                        index + 1,
+                                        line.unit
+                                    )
+                                )
                                 Text(
                                     stringResource(
                                         R.string.driver_delivery_quantities,
@@ -634,13 +675,16 @@ fun DriverDeliveryScreen(
                         )
                     }
                 }
-                val activeAttempt = delivery.activeAttempt
-                if (onOpenHandoffCode != null && activeAttempt != null) {
+                val handoffAttempt = activeAttempt ?: terminalHandoffAttempt
+                if (terminalHandoffAttempt != null) {
+                    Notice(stringResource(R.string.driver_delivery_handoff_receipt_pending))
+                }
+                if (onOpenHandoffCode != null && handoffAttempt != null) {
                     OutlinedButton(
                         onClick = {
                             onOpenHandoffCode(
                                 delivery.id,
-                                activeAttempt.id,
+                                handoffAttempt.id,
                                 delivery.version
                             )
                         },
@@ -652,10 +696,18 @@ fun DriverDeliveryScreen(
                                     DriverOutcomeCommandStatus.UnknownOutcome
                                 )
                     ) {
-                        Text(stringResource(R.string.driver_work_handoff))
+                        Text(
+                            stringResource(
+                                if (activeAttempt == null && terminalHandoffAttempt != null) {
+                                    R.string.driver_work_handoff_renew
+                                } else {
+                                    R.string.driver_work_handoff
+                                }
+                            )
+                        )
                     }
                 }
-                val incidentAttemptId = delivery.activeAttempt?.id ?: state.outcomeSummary
+                val incidentAttemptId = activeAttempt?.id ?: state.outcomeSummary
                     ?.takeIf {
                         state.outcomeCommandStatus == DriverOutcomeCommandStatus.Recorded &&
                             it.deliveryVersion == delivery.version
@@ -668,7 +720,7 @@ fun DriverDeliveryScreen(
                                 delivery.id,
                                 incidentAttemptId,
                                 delivery.version,
-                                delivery.activeAttempt == null
+                                activeAttempt == null
                             )
                         },
                         enabled =
@@ -780,7 +832,8 @@ fun DriverDeliveryScreen(
                         Text(stringResource(R.string.driver_delivery_instructions_required))
                     }
                 }
-                if (delivery.activeAttempt == null && state.commandStatus in setOf(
+                if (activeAttempt == null && delivery.status.uppercase() != "DELIVERED" &&
+                    state.commandStatus in setOf(
                         DriverDeliveryCommandStatus.Idle,
                         DriverDeliveryCommandStatus.Rejected,
                         DriverDeliveryCommandStatus.StaleVersion
@@ -796,6 +849,170 @@ fun DriverDeliveryScreen(
             }
         }
     }
+}
+
+@Composable
+private fun DriverDeliveryCard(
+    delivery: DriverDeliverySnapshot,
+    enabled: Boolean,
+    onSelect: () -> Unit
+) {
+    val destination = delivery.destination
+        ?: stringResource(R.string.driver_delivery_destination_unknown)
+    val status = driverDeliveryStatusLabel(delivery.status)
+    val accessibilityLabel = stringResource(
+        R.string.driver_delivery_card_accessibility,
+        destination,
+        status
+    )
+    val statusColor = when (delivery.status.uppercase()) {
+        "DELIVERED" -> NexaColors.Success
+        "CANCELLED" -> NexaColors.Danger
+        "DISPATCHED", "IN_TRANSIT", "PARTIAL" -> NexaColors.Info
+        else -> NexaColors.TextSecondary
+    }
+    val statusSurface = when (delivery.status.uppercase()) {
+        "DELIVERED" -> NexaColors.SuccessSurface
+        "CANCELLED" -> NexaColors.DangerSurface
+        "DISPATCHED", "IN_TRANSIT", "PARTIAL" -> NexaColors.InfoSurface
+        else -> NexaColors.SurfaceInset
+    }
+    val statusBorder = when (delivery.status.uppercase()) {
+        "DELIVERED" -> NexaColors.SuccessBorder
+        "CANCELLED" -> NexaColors.DangerBorder
+        "DISPATCHED", "IN_TRANSIT", "PARTIAL" -> NexaColors.InfoBorder
+        else -> NexaColors.Border
+    }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = onSelect)
+            .semantics(mergeDescendants = true) {
+                contentDescription = accessibilityLabel
+                role = Role.Button
+            },
+        shape = NexaShapes.card,
+        colors = CardDefaults.cardColors(containerColor = NexaColors.Surface),
+        border = BorderStroke(1.dp, NexaColors.Border)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OperationsGlyph(OperationsGlyphKind.Driver)
+                Text(
+                    destination,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Surface(
+                    shape = NexaShapes.pill,
+                    color = statusSurface,
+                    contentColor = statusColor,
+                    border = BorderStroke(1.dp, statusBorder)
+                ) {
+                    Text(
+                        status,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+            delivery.scheduledAt?.let {
+                Text(
+                    stringResource(R.string.driver_delivery_scheduled, deliveryTimeLabel(it)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = NexaColors.TextSecondary
+                )
+            }
+            delivery.activeAttempt?.let { attempt ->
+                Text(
+                    stringResource(
+                        R.string.driver_delivery_active_attempt,
+                        attempt.attemptNumber
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = NexaColors.TextSecondary
+                )
+            }
+            DriverDeliveryTimeline(delivery)
+            Text(
+                stringResource(R.string.driver_delivery_card_open) + "  →",
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.labelLarge,
+                color = NexaColors.PrimaryStrong,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
+private fun DriverDeliveryTimeline(delivery: DriverDeliverySnapshot) {
+    val attempt = delivery.activeAttempt
+    delivery.dispatchedAt?.let {
+        DeliveryTimelineFact(
+            stringResource(R.string.driver_delivery_timeline_dispatched, deliveryTimeLabel(it))
+        )
+    }
+    attempt?.startedAt?.let {
+        DeliveryTimelineFact(
+            stringResource(
+                R.string.driver_delivery_timeline_started,
+                attempt.attemptNumber,
+                deliveryTimeLabel(it)
+            )
+        )
+    }
+    delivery.arrival?.takeIf { it.attemptId == attempt?.id }?.let {
+        DeliveryTimelineFact(
+            stringResource(
+                R.string.driver_delivery_timeline_arrival,
+                deliveryTimeLabel(it.arrivedAt)
+            )
+        )
+    }
+    delivery.deliveredAt?.let {
+        DeliveryTimelineFact(
+            stringResource(R.string.driver_delivery_timeline_delivered, deliveryTimeLabel(it))
+        )
+    }
+}
+
+@Composable
+private fun DeliveryTimelineFact(label: String) {
+    Row(
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Surface(
+            modifier = Modifier.size(8.dp),
+            shape = androidx.compose.foundation.shape.CircleShape,
+            color = NexaColors.Success
+        ) {}
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = NexaColors.TextSecondary
+        )
+    }
+}
+
+@Composable
+private fun driverDeliveryStatusLabel(status: String): String = when (status.uppercase()) {
+    "ASSIGNED" -> stringResource(R.string.driver_delivery_status_assigned)
+    "DISPATCHED" -> stringResource(R.string.driver_delivery_status_dispatched)
+    "IN_TRANSIT" -> stringResource(R.string.driver_delivery_status_in_transit)
+    "PARTIAL" -> stringResource(R.string.driver_delivery_status_partial)
+    "DELIVERED" -> stringResource(R.string.driver_delivery_status_delivered)
+    "CANCELLED" -> stringResource(R.string.driver_delivery_status_cancelled)
+    else -> status.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase)
 }
 
 @Composable
@@ -835,8 +1052,7 @@ private fun ProofEntry(
                 Text(stringResource(R.string.driver_delivery_proof_begin))
             }
         }
-        state.proofId?.let { id ->
-            Text(stringResource(R.string.driver_delivery_proof_id, id))
+        state.proofId?.let {
             when (state.proofCommandStatus) {
                 DriverProofCommandStatus.CheckingCurrent -> Notice(
                     stringResource(R.string.driver_delivery_proof_checking)
@@ -915,16 +1131,6 @@ private fun ProofEntry(
                 }
 
                 DriverProofCommandStatus.Captured -> state.proofSummary?.let { proof ->
-                    state.selectedDelivery?.let { delivery ->
-                        Text(stringResource(R.string.driver_delivery_proof_delivery, delivery.id))
-                    }
-                    Text(stringResource(R.string.driver_delivery_proof_attempt, proof.attemptId))
-                    Text(
-                        stringResource(
-                            R.string.driver_delivery_proof_actor,
-                            proof.actorMembershipId
-                        )
-                    )
                     Text(
                         stringResource(
                             R.string.driver_delivery_proof_receiver_value,
@@ -934,14 +1140,6 @@ private fun ProofEntry(
                     Notice(
                         stringResource(R.string.driver_delivery_proof_captured, proof.capturedAt)
                     )
-                    proof.photoEvidenceObjectId?.let { evidenceId ->
-                        Text(
-                            stringResource(
-                                R.string.driver_delivery_proof_photo_reference,
-                                evidenceId
-                            )
-                        )
-                    }
                 }
 
                 DriverProofCommandStatus.Rejected -> Notice(
@@ -1076,3 +1274,11 @@ private val FROZEN_COMMANDS = setOf(
     DriverDeliveryCommandStatus.UnknownOutcome,
     DriverDeliveryCommandStatus.PersistenceUnavailable
 )
+
+@Composable
+private fun deliveryTimeLabel(value: String): String = runCatching {
+    DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
+        .withLocale(Locale.getDefault())
+        .withZone(ZoneId.systemDefault())
+        .format(Instant.parse(value))
+}.getOrNull() ?: stringResource(R.string.dispatch_visual_time_unknown)

@@ -156,7 +156,12 @@ class DriverHandoffTokenViewModel(
                 }
                 return@launch
             }
-            if (!fresh.matches(deliveryId, attemptId)) {
+            if (!fresh.matches(
+                    deliveryId,
+                    attemptId,
+                    currentAuthority.scopeIdentity.membershipId
+                )
+            ) {
                 mutableState.update {
                     it.copy(busy = false, delivery = fresh, status = DriverHandoffUiStatus.Stale)
                 }
@@ -256,7 +261,7 @@ class DriverHandoffTokenViewModel(
                 }
 
                 is DriverHandoffIssueResult.Rejected -> {
-                    val cleared = safeClearKnownRejection(
+                    val cleared = safeClearConfirmedResult(
                         currentAuthority.scopeIdentity,
                         frozen
                     ) == DriverHandoffMetadataWrite.Saved
@@ -278,8 +283,9 @@ class DriverHandoffTokenViewModel(
                 }
 
                 DriverHandoffIssueResult.NotFound -> {
-                    val cleared = safeClearKnownRejection(currentAuthority.scopeIdentity, frozen) ==
-                        DriverHandoffMetadataWrite.Saved
+                    val cleared =
+                        safeClearConfirmedResult(currentAuthority.scopeIdentity, frozen) ==
+                            DriverHandoffMetadataWrite.Saved
                     if (cleared) command = null
                     mutableState.update {
                         it.copy(
@@ -321,6 +327,66 @@ class DriverHandoffTokenViewModel(
                     }
                 }
             }
+        }
+    }
+
+    /** Explicit renewal requires a confirmed issuance and a fresh server-eligible attempt. */
+    fun renewConfirmedToken() {
+        val currentAuthority = authority ?: return
+        val current = mutableState.value
+        val frozen = command ?: return
+        if (!canUse(currentAuthority) || !current.canRenew ||
+            current.receipt?.matches(frozen) != true
+        ) {
+            return
+        }
+        val requestGeneration = generation
+        mutableState.update { it.copy(busy = true) }
+        viewModelScope.launch {
+            val freshResult = safeCurrent(frozen.deliveryId, currentAuthority)
+            if (!isCurrent(requestGeneration, currentAuthority)) return@launch
+            val fresh = (freshResult as? CurrentDeliveryResult.Loaded)?.delivery
+            if (fresh == null || !fresh.matches(
+                    frozen.deliveryId,
+                    frozen.attemptId,
+                    currentAuthority.scopeIdentity.membershipId
+                )
+            ) {
+                mutableState.update {
+                    it.copy(
+                        busy = false,
+                        status = if (fresh ==
+                            null
+                        ) {
+                            freshResult.toStatus()
+                        } else {
+                            DriverHandoffUiStatus.Stale
+                        }
+                    )
+                }
+                return@launch
+            }
+            val cleared = safeClearConfirmedResult(currentAuthority.scopeIdentity, frozen)
+            if (!isCurrent(requestGeneration, currentAuthority)) return@launch
+            if (cleared != DriverHandoffMetadataWrite.Saved) {
+                mutableState.update {
+                    it.copy(busy = false, status = DriverHandoffUiStatus.PersistenceUnavailable)
+                }
+                return@launch
+            }
+            command = null
+            mutableState.update {
+                it.copy(
+                    busy = false,
+                    command = null,
+                    receipt = null,
+                    token = null,
+                    delivery = fresh,
+                    status = DriverHandoffUiStatus.Ready,
+                    errorCode = null
+                )
+            }
+            issueOrRetrySame()
         }
     }
 
@@ -385,7 +451,7 @@ class DriverHandoffTokenViewModel(
             }
             return
         }
-        if (!fresh.matches(deliveryId, attemptId)) {
+        if (!fresh.matches(deliveryId, attemptId, currentAuthority.scopeIdentity.membershipId)) {
             mutableState.update {
                 it.copy(status = DriverHandoffUiStatus.Stale, delivery = fresh, busy = false)
             }
@@ -443,9 +509,20 @@ class DriverHandoffTokenViewModel(
 
     private fun DriverHandoffCurrentDelivery.matches(
         deliveryId: String,
-        attemptId: String
-    ): Boolean = this.deliveryId == deliveryId && activeAttemptId == attemptId &&
-        status in ACTIVE_DELIVERY_STATUSES && version >= 0
+        attemptId: String,
+        membershipId: String
+    ): Boolean {
+        if (this.deliveryId != deliveryId || version < 0) return false
+        val activeAttemptMatches = activeAttemptId == attemptId &&
+            status in ACTIVE_DELIVERY_STATUSES
+        val terminalAttemptMatches = lastAttempt?.let { attempt ->
+            handoffRenewalEligible &&
+                Triple(status, attempt.status, attempt.outcome) in TERMINAL_HANDOFF_ATTEMPTS &&
+                attempt.id == attemptId &&
+                attempt.startedByMembershipId == membershipId
+        } == true
+        return activeAttemptMatches || terminalAttemptMatches
+    }
 
     private fun DriverHandoffIssueResult.Issued.matches(
         command: DriverHandoffIssueCommand
@@ -497,11 +574,11 @@ class DriverHandoffTokenViewModel(
         DriverHandoffMetadataWrite.Unavailable
     }
 
-    private suspend fun safeClearKnownRejection(
+    private suspend fun safeClearConfirmedResult(
         scope: DriverAttemptScopeIdentity,
         command: DriverHandoffIssueCommand
     ): DriverHandoffMetadataWrite = try {
-        metadataStore?.clearKnownRejection(
+        metadataStore?.clearConfirmedResult(
             scope,
             command.deliveryId,
             command.attemptId,
@@ -532,5 +609,10 @@ class DriverHandoffTokenViewModel(
 
     private companion object {
         val ACTIVE_DELIVERY_STATUSES = setOf("ASSIGNED", "DISPATCHED", "IN_TRANSIT", "PARTIAL")
+        val TERMINAL_HANDOFF_ATTEMPTS: Set<Triple<String, String, String?>> = setOf(
+            Triple("DELIVERED", "FINAL", "DELIVERED"),
+            Triple("PARTIAL", "PARTIAL", "PARTIAL"),
+            Triple("DELIVERED", "PARTIAL", "PARTIAL")
+        )
     }
 }

@@ -10,6 +10,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.Drive
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffIssueCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffIssueResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffTokenGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryAttempt
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverHandoffCurrentDelivery as HandoffCurrentDelivery
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverHandoffTokenReceipt
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DriverDeliveryNetworkOutcome as Outcome
@@ -58,7 +59,18 @@ class OperationsDriverHandoffTokenGateway @Inject constructor(
                             value.id,
                             value.status,
                             value.version,
-                            value.activeAttempt?.id
+                            value.activeAttempt?.id,
+                            value.lastAttempt?.let { attempt ->
+                                DriverDeliveryAttempt(
+                                    attempt.id,
+                                    attempt.attemptNumber,
+                                    attempt.status,
+                                    attempt.startedByMembershipId,
+                                    attempt.startedAt,
+                                    attempt.outcome
+                                )
+                            },
+                            value.handoffRenewalEligible
                         )
                     )
                 }

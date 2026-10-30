@@ -15,7 +15,8 @@ import kotlinx.coroutines.flow.Flow
 internal class AndroidDriverWorkdayLocationCapture(context: Context) :
     DriverWorkdayLocationCapture {
     private val appContext = context.applicationContext
-    private var prepared = false
+    private var preparedGeneration: Long? = null
+    private var preparedWorkdayId: String? = null
     override val events: Flow<DriverWorkdayLocationEvent> =
         AndroidDriverWorkdayLocationEventBus.stream.events
 
@@ -24,11 +25,7 @@ internal class AndroidDriverWorkdayLocationCapture(context: Context) :
             return false
         }
         AndroidDriverWorkdayLocationEventBus.clearUserStop(workdayId)
-        prepared = startForegroundService(
-            DriverWorkdayLocationService.ACTION_PREPARE,
-            workdayId
-        )
-        return prepared
+        return startForegroundService(DriverWorkdayLocationService.ACTION_PREPARE, workdayId)
     }
 
     override fun start(workdayId: String): Boolean {
@@ -46,36 +43,55 @@ internal class AndroidDriverWorkdayLocationCapture(context: Context) :
             )
             return false
         }
-        if (!prepared) return false
-        return startRunningService(DriverWorkdayLocationService.ACTION_START, workdayId)
+        val generation = preparedGeneration ?: return false
+        if (preparedWorkdayId != workdayId ||
+            !AndroidDriverLocationServiceStartup.canCapture(generation)
+        ) {
+            return false
+        }
+        return startRunningService(DriverWorkdayLocationService.ACTION_START, workdayId, generation)
     }
 
     override fun stop() {
-        prepared = false
-        appContext.stopService(serviceIntent(DriverWorkdayLocationService.ACTION_STOP))
-    }
-
-    private fun startForegroundService(action: String, workdayId: String): Boolean = try {
-        val intent = serviceIntent(action).apply {
-            putExtra(DriverWorkdayLocationService.EXTRA_WORKDAY_ID, workdayId)
+        preparedGeneration = null
+        preparedWorkdayId = null
+        if (!AndroidDriverLocationServiceStartup.deferStopUntilForeground()) {
+            appContext.stopService(serviceIntent(DriverWorkdayLocationService.ACTION_STOP))
         }
-        appContext.startForegroundService(intent)
-        true
-    } catch (_: IllegalStateException) {
-        false
-    } catch (_: SecurityException) {
-        false
     }
 
-    private fun startRunningService(action: String, workdayId: String): Boolean = try {
-        appContext.startService(
-            serviceIntent(action).putExtra(DriverWorkdayLocationService.EXTRA_WORKDAY_ID, workdayId)
-        ) != null
-    } catch (_: IllegalStateException) {
-        false
-    } catch (_: SecurityException) {
-        false
+    private fun startForegroundService(action: String, workdayId: String): Boolean {
+        val generation = AndroidDriverLocationServiceStartup.begin()
+        return try {
+            val intent = serviceIntent(action).apply {
+                putExtra(DriverWorkdayLocationService.EXTRA_WORKDAY_ID, workdayId)
+                putExtra(DriverWorkdayLocationService.EXTRA_START_GENERATION, generation)
+            }
+            appContext.startForegroundService(intent)
+            preparedGeneration = generation
+            preparedWorkdayId = workdayId
+            true
+        } catch (_: IllegalStateException) {
+            AndroidDriverLocationServiceStartup.failed(generation)
+            false
+        } catch (_: SecurityException) {
+            AndroidDriverLocationServiceStartup.failed(generation)
+            false
+        }
     }
+
+    private fun startRunningService(action: String, workdayId: String, generation: Long): Boolean =
+        try {
+            appContext.startService(
+                serviceIntent(action)
+                    .putExtra(DriverWorkdayLocationService.EXTRA_WORKDAY_ID, workdayId)
+                    .putExtra(DriverWorkdayLocationService.EXTRA_START_GENERATION, generation)
+            ) != null
+        } catch (_: IllegalStateException) {
+            false
+        } catch (_: SecurityException) {
+            false
+        }
 
     private fun serviceIntent(action: String) =
         Intent(appContext, DriverWorkdayLocationService::class.java).setAction(action)
@@ -93,6 +109,42 @@ internal class AndroidDriverWorkdayLocationCapture(context: Context) :
         }
         return appContext.getSystemService(NotificationManager::class.java)
             ?.areNotificationsEnabled() == true
+    }
+}
+
+/** A cancelled startup must still finish Android's foreground-service handshake. */
+internal object AndroidDriverLocationServiceStartup {
+    private var nextGeneration = 0L
+    private var activeGeneration: Long? = null
+    private val pendingGenerations = mutableSetOf<Long>()
+
+    @Synchronized
+    fun begin(): Long {
+        val generation = ++nextGeneration
+        activeGeneration = generation
+        pendingGenerations += generation
+        return generation
+    }
+
+    @Synchronized
+    fun deferStopUntilForeground(): Boolean {
+        activeGeneration = null
+        return pendingGenerations.isNotEmpty()
+    }
+
+    @Synchronized
+    fun promoted(generation: Long): Boolean {
+        pendingGenerations -= generation
+        return activeGeneration != generation
+    }
+
+    @Synchronized
+    fun canCapture(generation: Long): Boolean = activeGeneration == generation
+
+    @Synchronized
+    fun failed(generation: Long) {
+        pendingGenerations -= generation
+        if (activeGeneration == generation) activeGeneration = null
     }
 }
 
