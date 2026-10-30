@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.1] - local source release candidate, unpublished
+
+Prepared on 2026-10-29 from `main` at `22748321730b1992092064537fd4c24497b6f935`. Repository source tag candidate is `v1.3.1`; app versions remain independent. Operations Android stays at `1.3.0` (`versionCode` 12); Buyer Mobile advances from `1.2.0+3` to patch version `1.2.1+4`.
+
+- Fix Buyer catalog recovery after `403`: clear stale results and update time, reset pagination, and restore Spanish fallback text for unexpected failures.
+- Cover later-page permission recovery and unexpected catalog failures in Buyer unit tests.
+- Stabilize the Operations profile/logout instrumentation test by scrolling the profile sheet before selecting logout.
+- Make the manually triggered Operations academic APK artifact name use built version metadata and attach a generated SHA-256 sidecar.
+
+See [v1.3.1 release notes](RELEASE_NOTES_v1.3.1.md). This is a source-only candidate; it does not claim Product/System Acceptance, physical-device acceptance, signed distribution, or Production Readiness.
+
 ## Academic checkpoint changes
 
 - Filter Buyer catalog by brand and category; show API-provided cold-chain
