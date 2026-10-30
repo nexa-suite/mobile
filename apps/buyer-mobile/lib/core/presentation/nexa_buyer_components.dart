@@ -72,15 +72,17 @@ final class NexaPageWidth extends StatelessWidget {
     super.key,
     required this.child,
     this.padding = const EdgeInsets.symmetric(horizontal: 16),
+    this.maxWidth = 760,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
+  final double maxWidth;
 
   @override
   Widget build(BuildContext context) => Center(
     child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 760),
+      constraints: BoxConstraints(maxWidth: maxWidth),
       child: Padding(padding: padding, child: child),
     ),
   );
@@ -206,39 +208,30 @@ final class NexaSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) => NexaPageWidth(
     padding: EdgeInsets.zero,
     child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (eyebrow != null) ...[
-            Text(
-              eyebrow!.toUpperCase(),
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                letterSpacing: 1.3,
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-          Row(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Card.outlined(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  ?action,
+                ],
               ),
-              ?action,
+              const SizedBox(height: 4),
+              Text(description, style: Theme.of(context).textTheme.bodySmall),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            description,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
+        ),
       ),
     ),
   );
@@ -280,15 +273,32 @@ final class NexaStatusBadge extends StatelessWidget {
       'AWAITING_PAYMENT',
       'PROCESSING',
     }.contains(code);
+    final positive = {
+      'AVAILABLE',
+      'ACTIVE',
+      'APPROVED',
+      'CONFIRMED',
+      'SUCCEEDED',
+      'FULFILLED',
+      'READY_FOR_DISPATCH',
+      'DELIVERED',
+      'COMPLETED',
+      'SEALED',
+      'ACCEPTED',
+    }.contains(code);
     final foreground = negative
         ? tokens.dangerText
         : pending
         ? tokens.warningText
+        : positive
+        ? tokens.success
         : theme.colorScheme.onPrimaryContainer;
     final background = negative
         ? tokens.dangerContainer
         : pending
         ? tokens.warningContainer
+        : positive
+        ? tokens.successContainer
         : theme.colorScheme.primaryContainer;
     return Semantics(
       label: label ?? nexaStatusLabel(status),
@@ -327,10 +337,17 @@ String nexaStatusLabel(String value) => switch (value.toUpperCase()) {
   'PROCESSING' => 'Pendiente de revisión',
   'SUCCEEDED' => 'Confirmado',
   'PREPARING' || 'IN_PREPARATION' || 'PICKING' => 'En preparación',
+  'IN_FULFILLMENT' => 'En preparación',
+  'PARTIALLY_FULFILLED' => 'Preparación parcial',
+  'FULFILLED' => 'Preparado',
   'READY_FOR_DISPATCH' => 'Listo para despacho',
   'DISPATCHED' => 'Despachado',
   'IN_TRANSIT' => 'En camino',
   'DELIVERED' => 'Entregado',
+  'PARTIALLY_DELIVERED' => 'Entrega parcial',
+  'COMPLETED' => 'Completado',
+  'SEALED' => 'Constancia confirmada',
+  'ACCEPTED' => 'Aceptado',
   'REJECTED' => 'Rechazado',
   'CANCELLED' => 'Cancelado',
   'WITHDRAWN' => 'Retirada',
@@ -449,11 +466,13 @@ final class NexaRecordCard extends StatelessWidget {
     required this.title,
     required this.status,
     required this.icon,
+    this.reference = false,
     this.subtitle,
     this.footer,
     this.onTap,
   });
   final String title;
+  final bool reference;
   final String status;
   final IconData icon;
   final String? subtitle;
@@ -473,34 +492,56 @@ final class NexaRecordCard extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     icon,
+                    size: 20,
                     color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: reference
+                          ? const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 6,
+                            )
+                          : EdgeInsets.zero,
+                      decoration: reference
+                          ? BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainer,
+                              borderRadius: BorderRadius.circular(6),
+                            )
+                          : null,
+                      child: Text(
+                        title,
+                        style: reference
+                            ? Theme.of(context).textTheme.labelMedium
+                            : Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
                   ),
                 ),
                 if (onTap != null) const Icon(Icons.chevron_right),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             NexaStatusBadge(status),
             if (subtitle != null) ...[
-              const SizedBox(height: 12),
-              Text(subtitle!),
+              const SizedBox(height: 8),
+              Text(subtitle!, style: Theme.of(context).textTheme.bodySmall),
             ],
             if (footer != null) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               const Divider(),
               const SizedBox(height: 8),
               footer!,
