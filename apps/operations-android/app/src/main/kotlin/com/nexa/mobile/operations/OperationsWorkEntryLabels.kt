@@ -14,14 +14,14 @@ internal fun operationsWorkEntryAdditionalCapabilityLabels():
     mapOf(
         WorkEntryCapability.Picking to WorkEntryCapabilityLabel(
             title = stringResource(FulfillmentR.string.picking_title),
-            description = stringResource(FulfillmentR.string.picking_entry_support)
+            description = stringResource(R.string.home_picking_support)
         ),
         WorkEntryCapability.StockCondition to WorkEntryCapabilityLabel(
             title = stringResource(InventoryR.string.stock_condition_title),
-            description = stringResource(InventoryR.string.stock_condition_disclaimer)
+            description = stringResource(R.string.home_inventory_support)
         ),
         WorkEntryCapability.Receiving to WorkEntryCapabilityLabel(
             title = stringResource(InventoryR.string.receiving_title),
-            description = stringResource(InventoryR.string.receiving_choose_product)
+            description = stringResource(R.string.home_receiving_support)
         )
     )

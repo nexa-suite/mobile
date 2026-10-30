@@ -1,20 +1,17 @@
 package com.nexa.mobile.operations
 
+import android.view.KeyEvent
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.swipeUp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R as CatalogR
@@ -23,6 +20,7 @@ import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WorkEntryStatus
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.designsystem.OperationsTheme
+import com.nexa.mobile.operations.core.designsystem.R as CoreR
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.VerifiedOperationsIdentity
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.PermissionHint
@@ -89,6 +87,7 @@ class RootNavigationSecurityTest {
 
     @Test
     fun activeSessionAndMatchingConfirmedContextRenderWorkEntry() {
+        var catalogNavigationCalls = 0
         composeRule.setContent {
             OperationsTheme {
                 RootNavigation(
@@ -98,19 +97,23 @@ class RootNavigationSecurityTest {
                         activeContext = primaryContext,
                         authorityEpoch = 4
                     ),
-                    warehouseState = authorizedWorkState
+                    warehouseState = authorizedWorkState,
+                    onIdentifyProduct = { catalogNavigationCalls += 1 }
                 )
             }
         }
 
-        composeRule.onNodeWithText(targetString(CatalogR.string.warehouse_identify_product))
-            .performScrollTo()
+        composeRule.onNodeWithText("Operations").assertIsDisplayed()
+        composeRule.onNodeWithText("Nexa Demo Distribución").assertIsDisplayed()
+        composeRule.onNodeWithText("Almacén Principal").assertIsDisplayed()
+        composeRule.onNodeWithText(targetString(R.string.nav_catalog))
             .assertIsDisplayed()
+            .performClick()
         composeRule.onNodeWithText("Almacén Principal")
-            .performScrollTo()
             .assertIsDisplayed()
         composeRule.onNodeWithText(targetString(AccessR.string.access_sign_in_title))
             .assertDoesNotExist()
+        composeRule.runOnIdle { assertEquals(1, catalogNavigationCalls) }
     }
 
     @Test
@@ -216,7 +219,7 @@ class RootNavigationSecurityTest {
             }
         }
 
-        composeRule.onNodeWithText(targetString(R.string.work_hub_dispatch))
+        composeRule.onNodeWithText(targetString(R.string.nav_loads))
             .assertIsDisplayed()
             .performClick()
         composeRule.onNodeWithText("Connected route: dispatch.loads").assertIsDisplayed()
@@ -224,19 +227,13 @@ class RootNavigationSecurityTest {
         composeRule.onNodeWithText("Visita al cliente").assertDoesNotExist()
         composeRule.onNodeWithText("Privacidad y coordinación: límites actuales")
             .assertDoesNotExist()
-        composeRule.onNodeWithText(targetString(R.string.work_nav_profile))
-            .assertIsDisplayed()
+        InstrumentationRegistry.getInstrumentation()
+            .sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithContentDescription(targetString(CoreR.string.nexa_open_profile))
             .performClick()
-        composeRule.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.Expand)).assertExists()
-        val profileSheet = composeRule.onNode(
-            SemanticsMatcher.keyIsDefined(SemanticsProperties.PaneTitle)
-        )
-        val sheetNode = profileSheet.fetchSemanticsNode()
-        val visibleSheetHeight =
-            requireNotNull(sheetNode.parent).boundsInRoot.bottom - sheetNode.boundsInRoot.top
-        profileSheet.performTouchInput {
-            swipeUp(startY = visibleSheetHeight - 200f, endY = 0f, durationMillis = 250)
-        }
+        composeRule.onNodeWithText(targetString(R.string.profile_my_profile))
+            .assertIsDisplayed()
         composeRule.onNodeWithText(targetString(R.string.work_nav_logout))
             .performScrollTo()
         composeRule.onNodeWithText(targetString(R.string.work_nav_logout))

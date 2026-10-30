@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="own_profile_title">My details</string>
+    <string name="own_profile_saved">Your details were saved.</string>
+    <string name="own_profile_invalid">Check your details and phone country code.</string>
+    <string name="own_profile_denied">Your current session cannot access these details.</string>
+    <string name="own_profile_conflict">Your details changed. Reload before editing.</string>
+    <string name="own_profile_unavailable">We could not confirm your details. Reload before saving again.</string>
+    <string name="own_profile_reload">Reload my details</string>
+    <string name="own_profile_managed">Your company manages your email, role and permissions.</string>
+    <string name="own_profile_name">Display name</string>
+    <string name="own_profile_first">First names</string>
+    <string name="own_profile_last">Last names</string>
+    <string name="own_profile_phone">Phone</string>
+    <string name="own_profile_phone_hint">Include the country code, without spaces: +51999999999</string>
+    <string name="own_profile_language">Preferred language</string>
+    <string name="own_profile_save">Save my details</string>
+    <string name="own_profile_close">Back to profile</string>
+</resources>

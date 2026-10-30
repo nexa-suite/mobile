@@ -78,7 +78,7 @@ internal fun BiometricProfileSetting(modifier: Modifier = Modifier) {
     if (!actions.sessionActive || actions.scope == null) return
 
     val title = stringResource(R.string.biometric_unlock_enable)
-    val details = stringResource(R.string.biometric_unlock_prompt_subtitle)
+    val details = stringResource(R.string.biometric_unlock_profile_description)
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -107,15 +107,22 @@ internal fun BiometricProfileSetting(modifier: Modifier = Modifier) {
             )
         }
         if (actions.statusResource != 0) {
+            val unavailable = actions.statusResource == R.string.biometric_unlock_unavailable
             Text(
                 text = stringResource(actions.statusResource),
-                color = MaterialTheme.colorScheme.error,
+                color = if (unavailable) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.error
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .semantics { liveRegion = LiveRegionMode.Polite }
             )
-            TextButton(onClick = actions.dismissStatus) {
-                Text(stringResource(R.string.biometric_unlock_dismiss))
+            if (!unavailable) {
+                TextButton(onClick = actions.dismissStatus) {
+                    Text(stringResource(R.string.biometric_unlock_dismiss))
+                }
             }
         }
     }

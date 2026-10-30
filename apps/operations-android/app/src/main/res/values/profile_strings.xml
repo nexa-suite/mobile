@@ -1,0 +1,20 @@
+<resources>
+    <string name="profile_my_profile">My profile</string>
+    <string name="profile_personal_details">Personal details</string>
+    <string name="profile_security">Security and access</string>
+    <string name="home_start">Quick actions</string>
+    <string name="home_receive_title">Receive stock</string>
+    <string name="home_picking_support">Orders, products and quantities to prepare.</string>
+    <string name="home_inventory_support">Stock, lots and product condition.</string>
+    <string name="home_receiving_support">Scan a product and record its arrival.</string>
+    <string name="nav_inventory">Inventory</string>
+    <string name="nav_picking">Picking</string>
+    <string name="nav_catalog">Catalog</string>
+    <string name="nav_deliveries">Deliveries</string>
+    <string name="nav_loads">Loads</string>
+    <string name="nav_customers">Customers</string>
+    <string name="nav_orders">Orders</string>
+    <string name="nav_overview">Overview</string>
+    <string name="nav_attention">Attention</string>
+    <string name="nav_updates">Updates</string>
+</resources>

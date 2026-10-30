@@ -9,7 +9,7 @@
     <string name="biometric_unlock_prompt_enable_title">Enable biometric unlock</string>
     <string name="biometric_unlock_prompt_unlock_title">Unlock Nexa Operations</string>
     <string name="biometric_unlock_prompt_subtitle">Confirm with strong biometrics enrolled on this device.</string>
-    <string name="biometric_unlock_unavailable">Strong biometrics are unavailable or not enrolled on this device. Use your password to continue.</string>
+    <string name="biometric_unlock_unavailable">Biometric unlock is not set up on this device. Check its security settings, or continue with your password.</string>
     <string name="biometric_unlock_not_recognized">Biometrics were not recognized. The session remains locked.</string>
     <string name="biometric_unlock_lockout">Biometrics are temporarily locked. Use your password to continue.</string>
     <string name="biometric_unlock_cancelled">Authentication was cancelled. The session remains locked.</string>
@@ -17,4 +17,5 @@
     <string name="biometric_unlock_error">Biometric authentication could not complete. The session remains locked.</string>
     <string name="biometric_unlock_storage_error">Biometric protection could not be updated. Try again or use your password.</string>
     <string name="biometric_unlock_dismiss">OK</string>
+    <string name="biometric_unlock_profile_description">Use a fingerprint or face enrolled on this device.</string>
 </resources>

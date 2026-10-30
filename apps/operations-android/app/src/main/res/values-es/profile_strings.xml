@@ -1,0 +1,20 @@
+<resources>
+    <string name="profile_my_profile">Mi perfil</string>
+    <string name="profile_personal_details">Mis datos personales</string>
+    <string name="profile_security">Seguridad y acceso</string>
+    <string name="home_start">Accesos rápidos</string>
+    <string name="home_receive_title">Registrar llegada</string>
+    <string name="home_picking_support">Pedidos, productos y cantidades por preparar.</string>
+    <string name="home_inventory_support">Existencias, lotes y estado de los productos.</string>
+    <string name="home_receiving_support">Escanea un producto y registra su llegada.</string>
+    <string name="nav_inventory">Inventario</string>
+    <string name="nav_picking">Preparación</string>
+    <string name="nav_catalog">Catálogo</string>
+    <string name="nav_deliveries">Entregas</string>
+    <string name="nav_loads">Cargas</string>
+    <string name="nav_customers">Clientes</string>
+    <string name="nav_orders">Pedidos</string>
+    <string name="nav_overview">Resumen</string>
+    <string name="nav_attention">Atención</string>
+    <string name="nav_updates">Avisos</string>
+</resources>

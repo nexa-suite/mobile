@@ -23,13 +23,12 @@
     <string name="work_nav_profile">Perfil</string>
     <string name="work_nav_actions">Acciones disponibles</string>
     <string name="work_nav_actions_support">Opciones habilitadas en tu espacio actual.</string>
-    <string name="work_nav_profile_title">Perfil de trabajo</string>
-    <string name="work_nav_identity">Cuenta</string>
+    <string name="warehouse_quick_scan_title">Escanear para recibir stock</string>
+    <string name="warehouse_quick_scan_support">Confirma el código con el catálogo actual y prepara la recepción.</string>
+    <string name="warehouse_quick_receive_title">Recibir stock</string>
+    <string name="warehouse_quick_receive_support">Registra una recepción confirmada por el servidor.</string>
     <string name="work_nav_tenant">Tenant</string>
     <string name="work_nav_workspace">Espacio de trabajo</string>
-    <string name="work_nav_role">Rol</string>
-    <string name="work_nav_user_id">Identificador de usuario</string>
-    <string name="work_nav_membership_id">Identificador de membresía</string>
     <string name="work_nav_role_missing">No disponible</string>
     <string name="work_nav_role_multiple">Varios roles asignados: %1$s</string>
     <string name="work_nav_role_unmapped">Rol sin correspondencia · %1$s</string>

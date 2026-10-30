@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -244,10 +245,8 @@ class RootNavigationStateTest {
         }
 
         dismissKeyboard()
-        composeRule.onNode(
-            hasClickAction() and hasText(
-                composeRule.activity.getString(DesignSystemR.string.nexa_search_button)
-            )
+        composeRule.onNodeWithContentDescription(
+            composeRule.activity.getString(DesignSystemR.string.nexa_search_button)
         )
             .performScrollTo()
             .assertIsDisplayed()
@@ -387,11 +386,10 @@ class RootNavigationStateTest {
             }
         }
 
-        composeRule.onNodeWithText(
-            composeRule.activity.getString(R.string.work_hub_commercial)
-        )
-            .assertIsDisplayed()
-            .performClick()
+        composeRule.onNode(
+            hasClickAction() and hasText(composeRule.activity.getString(R.string.nav_catalog)) and
+                SemanticsMatcher.expectValue(SemanticsProperties.Selected, false)
+        ).assertIsDisplayed().performClick()
         composeRule.onNodeWithText("Connected route: commercial.catalog").assertIsDisplayed()
         dispatchNavigationBack()
         composeRule.onNodeWithText("Nexa Demo Distribución").assertIsDisplayed()
@@ -399,9 +397,10 @@ class RootNavigationStateTest {
             composeRule.activity.getString(CatalogR.string.warehouse_identify_product)
         ).assertDoesNotExist()
 
-        composeRule.onNodeWithContentDescription(
-            composeRule.activity.getString(R.string.work_nav_actions)
-        ).performClick()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.home_more_actions))
+            .performClick()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.work_nav_actions))
+            .assertIsDisplayed()
         composeRule.onNodeWithText("Preparar solicitud")
             .performClick()
         composeRule.onNodeWithText("Connected route: commercial.request").assertIsDisplayed()
