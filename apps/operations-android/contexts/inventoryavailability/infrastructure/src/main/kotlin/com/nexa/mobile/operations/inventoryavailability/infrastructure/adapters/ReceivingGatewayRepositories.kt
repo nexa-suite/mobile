@@ -266,7 +266,7 @@ class OperationsReceivingGateway @Inject constructor(
 
     private fun ReceivingNetworkOutcome.toSubmitResult(): ReceivingSubmitResult = when (this) {
         is ReceivingNetworkOutcome.Confirmed -> ReceivingSubmitResult.Confirmed(
-            ReceivedLotFacts(
+            facts = ReceivedLotFacts(
                 id = lot.id,
                 warehouseId = lot.warehouseId,
                 zoneId = lot.zoneId,
@@ -282,7 +282,8 @@ class OperationsReceivingGateway @Inject constructor(
                 unit = lot.unit,
                 status = lot.status,
                 version = lot.version
-            )
+            ),
+            confirmedReceivedQuantity = confirmedReceivedQuantity
         )
 
         is ReceivingNetworkOutcome.Rejected -> ReceivingSubmitResult.Rejected(code)

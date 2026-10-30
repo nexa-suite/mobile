@@ -28,6 +28,7 @@ private const val WAREHOUSES_PATH = "/api/v1/warehouses"
 private const val INBOUND_RECEIPTS_PATH = "/api/v1/inventory/inbound-receipts"
 private const val BUSINESS_EVIDENCE_PATH = "/api/v1/business-document-evidence"
 private const val RECEIVING_EVIDENCE_SUBJECT = "WAREHOUSE"
+private const val RECEIVED_QUANTITY_HEADER = "X-Nexa-Received-Quantity"
 private const val MAX_RECEIVING_EVIDENCE_BYTES = 10L * 1024L * 1024L
 private const val RECEIVING_PAGE_SIZE = 100
 private const val MAX_RECEIVING_PAGES = 100
@@ -114,7 +115,11 @@ data class ReceivingEvidenceProjection(
 sealed interface ReceivingNetworkOutcome {
     data class Warehouses(val items: List<ReceivingWarehouseProjection>) : ReceivingNetworkOutcome
     data class Zones(val items: List<ReceivingZoneProjection>) : ReceivingNetworkOutcome
-    data class Confirmed(val lot: ReceivingLotProjection) : ReceivingNetworkOutcome
+    data class Confirmed(
+        val lot: ReceivingLotProjection,
+        /** Receipt amount confirmed by the API; [lot.onHand] remains current lot stock. */
+        val confirmedReceivedQuantity: BigDecimal = lot.onHand
+    ) : ReceivingNetworkOutcome
     data class EvidenceUploaded(val evidence: ReceivingEvidenceProjection) : ReceivingNetworkOutcome
     data class EvidenceStatus(val evidence: ReceivingEvidenceProjection) : ReceivingNetworkOutcome
     data class Rejected(val code: String?) : ReceivingNetworkOutcome
@@ -229,7 +234,8 @@ class NexaReceivingGateway(private val protectedCalls: ProtectedCallExecutor) {
                 method = ProtectedMethod.POST,
                 path = INBOUND_RECEIPTS_PATH,
                 payload = command.toJson().toString(),
-                idempotencyKey = idempotencyKey
+                idempotencyKey = idempotencyKey,
+                responseHeaderNames = setOf(RECEIVED_QUANTITY_HEADER)
             )
         )
         return when (result) {
@@ -239,18 +245,22 @@ class NexaReceivingGateway(private val protectedCalls: ProtectedCallExecutor) {
                 if (result.status != HTTP_CREATED) return ReceivingNetworkOutcome.UnknownOutcome
                 val lot = result.body.decode<LotWire>()?.toProjection()
                     ?: return ReceivingNetworkOutcome.UnknownOutcome
+                val confirmedReceivedQuantity = result.confirmedReceivedQuantity(
+                    expected = command.quantity,
+                    currentOnHand = lot.onHand
+                ) ?: return ReceivingNetworkOutcome.UnknownOutcome
                 if (lot.id.isBlank() || lot.warehouseId != command.warehouseId ||
                     lot.zoneId != command.zoneId ||
                     (command.catalogItemId != null && lot.catalogItemId != command.catalogItemId) ||
                     (command.skuId != null && lot.skuId != command.skuId) ||
                     lot.batchNumber != command.batchNumber ||
                     lot.expirationDate != command.expirationDate ||
-                    lot.onHand.compareTo(command.quantity) != 0 ||
+                    lot.productionDate != command.productionDate ||
                     !lot.unit.equals(command.unit, ignoreCase = true)
                 ) {
                     ReceivingNetworkOutcome.UnknownOutcome
                 } else {
-                    ReceivingNetworkOutcome.Confirmed(lot)
+                    ReceivingNetworkOutcome.Confirmed(lot, confirmedReceivedQuantity)
                 }
             }
         }
@@ -513,6 +523,24 @@ class NexaReceivingGateway(private val protectedCalls: ProtectedCallExecutor) {
         const val ACCESS_CONTEXT_INVALID = "ACCESS_CONTEXT_INVALID"
         const val HTTP_CREATED = 201
     }
+}
+
+private fun ProtectedResult.Success.confirmedReceivedQuantity(
+    expected: BigDecimal,
+    currentOnHand: BigDecimal
+): BigDecimal? {
+    val header = responseHeaders[RECEIVED_QUANTITY_HEADER]
+    if (header == null) {
+        return currentOnHand.takeIf {
+            it.signum() > 0 && it.compareTo(expected) == 0
+        }
+    }
+    val quantity = try {
+        BigDecimal(header.trim())
+    } catch (_: NumberFormatException) {
+        return null
+    }
+    return quantity.takeIf { it.signum() > 0 && it.compareTo(expected) == 0 }
 }
 
 @Serializable

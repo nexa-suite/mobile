@@ -42,7 +42,13 @@ data class StockConditionLotProjection(
     val physicalRemaining: BigDecimal,
     val unit: String,
     val status: String,
-    val version: Long
+    val version: Long,
+    val productName: String? = null,
+    val skuCode: String? = null,
+    val imageUrl: String? = null,
+    val warehouseName: String? = null,
+    val zoneName: String? = null,
+    val imageFileName: String? = null
 ) {
     override fun toString(): String =
         "StockConditionLotProjection(id=REDACTED, quantities=REDACTED, status=$status)"
@@ -213,7 +219,12 @@ class NexaStockConditionGateway(private val protectedCalls: ProtectedCallExecuto
             physicalRemaining = remainingValue,
             unit = safeUnit,
             status = safeStatus,
-            version = safeVersion
+            version = safeVersion,
+            productName = productName?.trim()?.takeIf(String::isNotEmpty),
+            skuCode = skuCode?.trim()?.takeIf(String::isNotEmpty),
+            warehouseName = warehouseName?.trim()?.takeIf(String::isNotEmpty),
+            zoneName = zoneName?.trim()?.takeIf(String::isNotEmpty),
+            imageFileName = imageFileName?.trim()?.takeIf(String::isNotEmpty)
         )
     }
 
@@ -310,7 +321,12 @@ private data class StockConditionLotWire(
     val available: JsonElement? = null,
     val unit: String? = null,
     val status: String? = null,
-    val version: Long? = null
+    val version: Long? = null,
+    val productName: String? = null,
+    val skuCode: String? = null,
+    val warehouseName: String? = null,
+    val zoneName: String? = null,
+    val imageFileName: String? = null
 )
 
 @Serializable

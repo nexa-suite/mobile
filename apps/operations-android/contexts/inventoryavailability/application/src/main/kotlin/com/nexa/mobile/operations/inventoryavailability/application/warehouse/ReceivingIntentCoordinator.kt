@@ -61,7 +61,10 @@ class ReceivingIntentCoordinator(
         if (!isCurrent()) return ReceivingIntentExecution.Stale
 
         val result = if (rawResult is ReceivingSubmitResult.Confirmed &&
-            !rawResult.facts.matches(command.request)
+            (
+                rawResult.confirmedReceivedQuantity.compareTo(command.request.quantity) != 0 ||
+                    !rawResult.facts.matches(command.request)
+                )
         ) {
             ReceivingSubmitResult.UnknownOutcome
         } else {
@@ -136,7 +139,7 @@ class ReceivingIntentCoordinator(
             (request.skuId == null || skuId == request.skuId) &&
             batchNumber == request.batchNumber && expirationDate == request.expirationDate &&
             productionDate == request.productionDate &&
-            onHand.compareTo(request.quantity) == 0 && unit.equals(request.unit, ignoreCase = true)
+            unit.equals(request.unit, ignoreCase = true)
 }
 
 sealed interface ReceivingIntentExecution {

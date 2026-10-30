@@ -2,10 +2,13 @@ package com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehous
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,17 +16,19 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -39,11 +44,11 @@ import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.WarehouseCatalogFilterChoice
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.WarehouseCatalogFilterKind
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.CatalogOperationsContext
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedScannedSku
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ScannerIdentifierType
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R
-import com.nexa.mobile.operations.core.designsystem.NexaActiveContextBar
 import com.nexa.mobile.operations.core.designsystem.NexaColdChainTone
 import com.nexa.mobile.operations.core.designsystem.NexaColors
 import com.nexa.mobile.operations.core.designsystem.NexaConfirmedSkuSummary
@@ -53,11 +58,11 @@ import com.nexa.mobile.operations.core.designsystem.NexaPrimaryButton
 import com.nexa.mobile.operations.core.designsystem.NexaProductCandidateRow
 import com.nexa.mobile.operations.core.designsystem.NexaSearchField
 import com.nexa.mobile.operations.core.designsystem.NexaStatePanel
-import com.nexa.mobile.operations.core.designsystem.NexaTaskRow
 import com.nexa.mobile.operations.core.designsystem.NexaTopAppBar
 import com.nexa.mobile.operations.core.designsystem.R as DesignR
 
 @Composable
+@Suppress("UNUSED_PARAMETER")
 fun ProductSearchScreen(
     state: ProductSearchUiState,
     activeContext: CatalogOperationsContext?,
@@ -97,18 +102,15 @@ fun ProductSearchScreen(
             .verticalScroll(rememberScrollState())
     ) {
         WarehouseSurfaceHeader(
-            title = stringResource(R.string.warehouse_operations_title),
-            activeContext = activeContext.takeUnless {
-                state.status in setOf(
-                    ProductSearchStatus.ContextInvalidated,
-                    ProductSearchStatus.SessionInvalidated
-                )
-            },
-            onChangeContext = onChangeContext,
+            title = stringResource(R.string.warehouse_catalog_title),
             onBack = onBack
         )
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 1280.dp)
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             ProductSearchQuerySection(
@@ -128,6 +130,7 @@ fun ProductSearchScreen(
 }
 
 @Composable
+@Suppress("UNUSED_PARAMETER")
 fun ConfirmedSkuScreen(
     state: ConfirmedSkuProjection,
     modifier: Modifier = Modifier,
@@ -142,9 +145,7 @@ fun ConfirmedSkuScreen(
             .verticalScroll(rememberScrollState())
     ) {
         WarehouseSurfaceHeader(
-            title = stringResource(R.string.warehouse_operations_title),
-            activeContext = state.context,
-            onChangeContext = onChangeContext,
+            title = stringResource(R.string.warehouse_visual_product_detail_title),
             onBack = onBack
         )
         Column(
@@ -157,6 +158,7 @@ fun ConfirmedSkuScreen(
 }
 
 @Composable
+@Suppress("UNUSED_PARAMETER")
 fun ProductScannerScreen(
     state: ProductScannerUiState,
     activeContext: CatalogOperationsContext?,
@@ -168,7 +170,8 @@ fun ProductScannerScreen(
     onOpenSettings: () -> Unit,
     onRetryScan: () -> Unit,
     onManualSearch: () -> Unit,
-    onViewStorage: ((String) -> Unit)? = null
+    onViewStorage: ((String) -> Unit)? = null,
+    onReceiveProduct: ((ConfirmedScannedSku) -> Unit)? = null
 ) {
     Column(
         modifier = modifier
@@ -181,15 +184,6 @@ fun ProductScannerScreen(
             title = stringResource(R.string.warehouse_scanner_title),
             onBack = onBack
         )
-        activeContext?.let { context ->
-            NexaActiveContextBar(
-                companyName = context.companyName,
-                workspaceName = context.workspaceName,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
-                enabled = true,
-                onClick = onChangeContext
-            )
-        }
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -379,6 +373,15 @@ fun ProductScannerScreen(
                             onClick = { openStorage(state.sku.skuId.toString()) }
                         )
                     }
+                    onReceiveProduct?.takeIf {
+                        state.sku.status.equals("ACTIVE", ignoreCase = true) &&
+                            !state.sku.unitOfMeasure.isNullOrBlank()
+                    }?.let { receiveProduct ->
+                        NexaPrimaryButton(
+                            label = stringResource(R.string.warehouse_scanner_receive_action),
+                            onClick = { receiveProduct(state.sku) }
+                        )
+                    }
                     NexaPrimaryButton(
                         label = stringResource(R.string.warehouse_scanner_start_action),
                         onClick = onRetryScan
@@ -423,22 +426,8 @@ private fun ScannerValue(label: String, value: String) {
 }
 
 @Composable
-private fun WarehouseSurfaceHeader(
-    title: String,
-    activeContext: CatalogOperationsContext?,
-    onChangeContext: () -> Unit,
-    onBack: (() -> Unit)? = null
-) {
+private fun WarehouseSurfaceHeader(title: String, onBack: (() -> Unit)? = null) {
     NexaTopAppBar(title = title, onBack = onBack)
-    activeContext?.let { context ->
-        NexaActiveContextBar(
-            companyName = context.companyName,
-            workspaceName = context.workspaceName,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
-            enabled = true,
-            onClick = onChangeContext
-        )
-    }
 }
 
 @Composable
@@ -449,58 +438,78 @@ private fun ProductSearchQuerySection(
     onOpenFilterOptions: (WarehouseCatalogFilterKind) -> Unit
 ) {
     Text(
-        stringResource(R.string.warehouse_search_title),
-        style = MaterialTheme.typography.headlineSmall,
-        color = NexaColors.TextPrimary
-    )
-    Text(
         stringResource(R.string.warehouse_search_helper),
         style = MaterialTheme.typography.bodyMedium,
         color = NexaColors.TextSecondary
     )
-    NexaSearchField(
-        value = state.query,
-        onValueChange = onQueryChanged,
-        label = stringResource(
-            com.nexa.mobile.operations.core.designsystem.R.string.nexa_search_label
-        ),
-        hint = stringResource(
-            com.nexa.mobile.operations.core.designsystem.R.string.nexa_search_hint
-        ),
-        errorText = if (state.status == ProductSearchStatus.InvalidQuery) {
-            stringResource(R.string.warehouse_search_invalid)
-        } else {
-            null
-        },
-        onImeSearch = onSearch
-    )
-    OutlinedButton(
-        onClick = { onOpenFilterOptions(WarehouseCatalogFilterKind.Brand) },
-        modifier = Modifier.fillMaxWidth()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(
-            state.brand?.let {
-                stringResource(R.string.warehouse_filter_brand_value, it.name)
-            } ?: stringResource(R.string.warehouse_filter_brand)
+        NexaSearchField(
+            value = state.query,
+            onValueChange = onQueryChanged,
+            modifier = Modifier.weight(1f),
+            label = stringResource(
+                com.nexa.mobile.operations.core.designsystem.R.string.nexa_search_label
+            ),
+            hint = stringResource(
+                com.nexa.mobile.operations.core.designsystem.R.string.nexa_search_hint
+            ),
+            errorText = if (state.status == ProductSearchStatus.InvalidQuery) {
+                stringResource(R.string.warehouse_search_invalid)
+            } else {
+                null
+            },
+            onImeSearch = onSearch
+        )
+        IconButton(
+            onClick = onSearch,
+            enabled = state.status !in setOf(
+                ProductSearchStatus.Loading,
+                ProductSearchStatus.LoadingMore
+            )
+        ) {
+            if (state.status == ProductSearchStatus.Loading) {
+                CircularProgressIndicator(modifier = Modifier.width(24.dp))
+            } else {
+                Icon(
+                    painter = painterResource(DesignR.drawable.ic_search),
+                    contentDescription = stringResource(
+                        DesignR.string.nexa_search_button
+                    )
+                )
+            }
+        }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        FilterChip(
+            selected = state.brand != null,
+            onClick = { onOpenFilterOptions(WarehouseCatalogFilterKind.Brand) },
+            label = {
+                Text(
+                    state.brand?.let {
+                        stringResource(R.string.warehouse_filter_brand_value, it.name)
+                    } ?: stringResource(R.string.warehouse_filter_brand)
+                )
+            }
+        )
+        FilterChip(
+            selected = state.category != null,
+            onClick = { onOpenFilterOptions(WarehouseCatalogFilterKind.Category) },
+            label = {
+                Text(
+                    state.category?.let {
+                        stringResource(R.string.warehouse_filter_category_value, it.name)
+                    } ?: stringResource(R.string.warehouse_filter_category)
+                )
+            }
         )
     }
-    OutlinedButton(
-        onClick = { onOpenFilterOptions(WarehouseCatalogFilterKind.Category) },
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            state.category?.let {
-                stringResource(R.string.warehouse_filter_category_value, it.name)
-            } ?: stringResource(R.string.warehouse_filter_category)
-        )
-    }
-    NexaPrimaryButton(
-        label = stringResource(
-            com.nexa.mobile.operations.core.designsystem.R.string.nexa_search_button
-        ),
-        onClick = onSearch,
-        loading = state.status == ProductSearchStatus.Loading
-    )
 }
 
 @Composable
@@ -672,13 +681,31 @@ private fun ProductSearchResultsSection(
                 ProductSearchStatus.MultipleCandidates,
                 ProductSearchStatus.LoadMoreFailed
             )
-            state.candidates.forEach { candidate ->
-                ProductCandidateResult(
-                    candidate = candidate,
-                    pending = state.pendingCandidateKey == candidate.key,
-                    enabled = candidateSelectionEnabled,
-                    onSelectCandidate = onSelectCandidate
-                )
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val columns = if (maxWidth >= 720.dp) 2 else 1
+                val spacing = 12.dp
+                val cardWidth = if (columns == 1) maxWidth else (maxWidth - spacing) / 2
+                Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
+                    state.candidates.chunked(columns).forEach { rowCandidates ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(spacing)
+                        ) {
+                            rowCandidates.forEach { candidate ->
+                                ProductCandidateResult(
+                                    candidate = candidate,
+                                    pending = state.pendingCandidateKey == candidate.key,
+                                    enabled = candidateSelectionEnabled,
+                                    modifier = Modifier.width(cardWidth),
+                                    onSelectCandidate = onSelectCandidate
+                                )
+                            }
+                            if (rowCandidates.size < columns) {
+                                Spacer(modifier = Modifier.width(cardWidth))
+                            }
+                        }
+                    }
+                }
             }
             if (state.status == ProductSearchStatus.LoadMoreFailed) {
                 NexaPrimaryButton(
@@ -749,13 +776,29 @@ private fun ProductCandidateResult(
     candidate: ProductCandidate,
     pending: Boolean,
     enabled: Boolean,
+    modifier: Modifier = Modifier,
     onSelectCandidate: (String) -> Unit
 ) {
+    val variantDetails = listOfNotNull(
+        candidate.brandOrVariant?.takeIf(String::isNotBlank),
+        candidate.categoryName?.takeIf(String::isNotBlank)
+    ).joinToString(" · ").ifBlank { null }
+    val coldChain = when (candidate.coldChainRequirement?.uppercase()) {
+        "NONE" -> stringResource(R.string.warehouse_value_cold_chain_none)
+        "REFRIGERATED" -> stringResource(R.string.warehouse_value_cold_chain_refrigerated)
+        "FROZEN" -> stringResource(R.string.warehouse_value_cold_chain_frozen)
+        else -> candidate.coldChainRequirement?.takeIf { it.isNotBlank() }
+    }
+    val presentationDetails = listOfNotNull(
+        candidate.presentation.takeIf(String::isNotBlank),
+        coldChain
+    ).joinToString(" · ").ifBlank { null }
     NexaProductCandidateRow(
         name = candidate.productDisplayName,
-        variant = candidate.brandOrVariant,
-        presentation = candidate.presentation,
+        variant = variantDetails,
+        presentation = presentationDetails,
         sku = candidate.sku,
+        modifier = modifier,
         imageFileName = candidate.imageFileName,
         pending = pending,
         enabled = enabled,
@@ -765,57 +808,40 @@ private fun ProductCandidateResult(
 
 @Composable
 private fun ConfirmedSkuHierarchy(state: ConfirmedSkuProjection) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Surface(shape = CircleShape, color = NexaColors.SuccessSurface) {
-            Icon(
-                painter = painterResource(DesignR.drawable.ic_check),
-                contentDescription = null,
-                tint = NexaColors.Success,
-                modifier = Modifier.padding(8.dp)
-            )
-        }
-        Text(
-            stringResource(R.string.warehouse_confirmation_title),
-            style = MaterialTheme.typography.headlineSmall,
-            color = NexaColors.TextPrimary
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        NexaConfirmedSkuSummary(
+            productName = state.productDisplayName,
+            variant = state.variant,
+            presentation = state.presentation,
+            sku = state.sku,
+            brand = state.brand,
+            unit = when (state.unit) {
+                "UNIT" -> stringResource(R.string.warehouse_value_unit)
+                else -> state.unit
+            },
+            packaging = when (state.packaging) {
+                "UNSPECIFIED" -> null
+                else -> state.packaging
+            },
+            coldChain = when (state.coldChain) {
+                "NONE" -> stringResource(R.string.warehouse_value_cold_chain_none)
+                "REFRIGERATED" -> stringResource(R.string.warehouse_value_cold_chain_refrigerated)
+                "FROZEN" -> stringResource(R.string.warehouse_value_cold_chain_frozen)
+                else -> state.coldChain
+            },
+            coldChainTone = when (state.coldChain) {
+                "REFRIGERATED" -> NexaColdChainTone.Refrigerated
+                "FROZEN" -> NexaColdChainTone.Frozen
+                else -> NexaColdChainTone.Neutral
+            },
+            activeContext = "${state.context.companyName} · ${state.context.workspaceName}",
+            imageFileName = state.imageFileName
+        )
+        NexaFeedbackBanner(
+            message = stringResource(R.string.warehouse_inventory_disclaimer),
+            tone = NexaFeedbackTone.Information
         )
     }
-    NexaConfirmedSkuSummary(
-        productName = state.productDisplayName,
-        variant = state.variant,
-        presentation = state.presentation,
-        sku = state.sku,
-        brand = state.brand,
-        unit = when (state.unit) {
-            "UNIT" -> stringResource(R.string.warehouse_value_unit)
-            else -> state.unit
-        },
-        packaging = when (state.packaging) {
-            "UNSPECIFIED" -> stringResource(R.string.warehouse_value_packaging_unspecified)
-            else -> state.packaging
-        },
-        coldChain = when (state.coldChain) {
-            "NONE" -> stringResource(R.string.warehouse_value_cold_chain_none)
-            "REFRIGERATED" -> stringResource(R.string.warehouse_value_cold_chain_refrigerated)
-            "FROZEN" -> stringResource(R.string.warehouse_value_cold_chain_frozen)
-            else -> state.coldChain
-        },
-        coldChainTone = when (state.coldChain) {
-            "REFRIGERATED" -> NexaColdChainTone.Refrigerated
-            "FROZEN" -> NexaColdChainTone.Frozen
-            else -> NexaColdChainTone.Neutral
-        },
-        activeContext = "${state.context.companyName} · ${state.context.workspaceName}",
-        imageFileName = state.imageFileName
-    )
-    Text(
-        stringResource(R.string.warehouse_inventory_disclaimer),
-        style = MaterialTheme.typography.bodyMedium,
-        color = NexaColors.TextSecondary
-    )
 }
 
 @Composable
