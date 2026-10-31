@@ -126,7 +126,9 @@ void main() {
     expect(_navigationTab('Catálogo'), findsOneWidget);
     expect(_navigationTab('Mis entregas'), findsNothing);
     expect(_navigationTab('Billetera'), findsNothing);
-    await tester.tap(find.byTooltip('Más opciones'));
+    await tester.tap(find.byTooltip('Cuenta'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Otros servicios'));
     await tester.pumpAndSettle();
     expect(find.text('Documentos'), findsOneWidget);
     expect(find.text('Mis entregas'), findsNothing);
@@ -484,6 +486,8 @@ void main() {
 
       await tester.tap(find.text('Empresa Norte'));
       await tester.pumpAndSettle();
+      await tester.tap(_navigationTab('Catálogo'));
+      await tester.pumpAndSettle();
       expect(find.byType(CatalogPage), findsOneWidget);
       expect(
         find.descendant(
@@ -660,7 +664,9 @@ Future<void> _openMoreDestination(
   WidgetTester tester,
   String destination,
 ) async {
-  await tester.tap(find.byTooltip('Más opciones'));
+  await tester.tap(find.byTooltip('Cuenta'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Otros servicios'));
   await tester.pumpAndSettle();
   await tester.tap(find.text(destination));
   await tester.pumpAndSettle();
