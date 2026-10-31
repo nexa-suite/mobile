@@ -512,8 +512,8 @@ void main() {
 
       await tester.tap(_navigationTab('Pedidos'));
       await tester.pumpAndSettle();
-      expect(find.text('Pedido SO-0001'), findsOneWidget);
-      await tester.tap(find.text('Pedido SO-0001'));
+      expect(find.text('SO-0001'), findsOneWidget);
+      await tester.tap(find.text('SO-0001'));
       await tester.pumpAndSettle();
       expect(find.text('Productos'), findsOneWidget);
       expect(find.text('Café de altura'), findsOneWidget);
