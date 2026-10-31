@@ -20,7 +20,6 @@
     <string name="work_hub_commercial">Commercial</string>
     <string name="work_hub_other">Other</string>
     <string name="work_nav_home">Home</string>
-    <string name="work_nav_profile">Profile</string>
     <string name="work_nav_actions">Available actions</string>
     <string name="work_nav_actions_support">Options available in your current workspace.</string>
     <string name="warehouse_quick_scan_title">Scan to receive stock</string>

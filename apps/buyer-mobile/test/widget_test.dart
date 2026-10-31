@@ -498,7 +498,7 @@ void main() {
       );
       expect(_navigationTab('Catálogo'), findsOneWidget);
       expect(find.text('Café de altura'), findsOneWidget);
-      expect(find.text('12.50 PEN'), findsOneWidget);
+      expect(find.text('S/ 12,5'), findsOneWidget);
 
       await tester.tap(find.text('Café de altura'));
       await tester.pumpAndSettle();
