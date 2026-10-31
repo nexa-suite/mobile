@@ -502,18 +502,55 @@ void main() {
 
       await tester.tap(find.text('Café de altura'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Más información'));
+      await tester.tap(find.text('Más información'));
+      await tester.pumpAndSettle();
       expect(find.text('Café tostado en pequeños lotes.'), findsOneWidget);
       expect(find.textContaining('18 UN'), findsOneWidget);
       await tester.pageBack();
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Mis pedidos'));
+      await tester.tap(_navigationTab('Pedidos'));
       await tester.pumpAndSettle();
       expect(find.text('Pedido SO-0001'), findsOneWidget);
       await tester.tap(find.text('Pedido SO-0001'));
       await tester.pumpAndSettle();
       expect(find.text('Productos'), findsOneWidget);
       expect(find.text('Café de altura'), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Seguimiento'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pedido SO-0001'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(BuyerDeliveriesPage),
+          matching: find.text('Despachado'),
+        ),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(find.text('Pedido SO-0001'));
+      await tester.tap(find.text('Pedido SO-0001'));
+      await tester.pumpAndSettle();
+      expect(find.byType(BuyerDeliveryDetailPage), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Historial de entrega'),
+        300,
+        scrollable: find
+            .descendant(
+              of: find.byType(BuyerDeliveryDetailPage),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(find.text('Historial de entrega'), findsOneWidget);
+      expect(find.text('Entregada al repartidor'), findsOneWidget);
+      expect(find.textContaining('PRIVATE ASSIGNMENT'), findsNothing);
+      expect(find.textContaining('PRIVATE STATUS DETAIL'), findsNothing);
+      expect(find.textContaining('PRIVATE ACTOR'), findsNothing);
+      expect(find.textContaining('PRIVATE INTERNAL REASON'), findsNothing);
+
       await tester.pageBack();
       await tester.pumpAndSettle();
 
@@ -584,39 +621,6 @@ void main() {
         findsOneWidget,
       );
       expect(documentDownloads, 1);
-
-      await tester.pageBack();
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Mis entregas'));
-      await tester.pumpAndSettle();
-      expect(find.text('Pedido SO-0001'), findsOneWidget);
-      expect(
-        find.descendant(
-          of: find.byType(BuyerDeliveriesPage),
-          matching: find.text('Despachado'),
-        ),
-        findsOneWidget,
-      );
-      await tester.ensureVisible(find.text('Pedido SO-0001'));
-      await tester.tap(find.text('Pedido SO-0001'));
-      await tester.pumpAndSettle();
-      expect(find.byType(BuyerDeliveryDetailPage), findsOneWidget);
-      await tester.scrollUntilVisible(
-        find.text('Historial de entrega'),
-        300,
-        scrollable: find
-            .descendant(
-              of: find.byType(BuyerDeliveryDetailPage),
-              matching: find.byType(Scrollable),
-            )
-            .first,
-      );
-      expect(find.text('Historial de entrega'), findsOneWidget);
-      expect(find.text('Entregada al repartidor'), findsOneWidget);
-      expect(find.textContaining('PRIVATE ASSIGNMENT'), findsNothing);
-      expect(find.textContaining('PRIVATE STATUS DETAIL'), findsNothing);
-      expect(find.textContaining('PRIVATE ACTOR'), findsNothing);
-      expect(find.textContaining('PRIVATE INTERNAL REASON'), findsNothing);
 
       await tester.pageBack();
       await tester.pumpAndSettle();
