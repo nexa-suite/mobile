@@ -577,14 +577,14 @@ void main() {
       expect(documentDownloads, 0);
       await tester.tap(find.text('INV-2026-01'));
       await tester.pumpAndSettle();
-      expect(find.text('INVOICE'), findsOneWidget);
+      expect(find.text('Factura'), findsOneWidget);
       expect(find.text('GENERATED'), findsOneWidget);
       expect(documentDownloads, 0);
-      await tester.ensureVisible(find.text('Cargar contenido protegido'));
+      await tester.ensureVisible(find.text('Cargar documento'));
       final detailViewModel = tester
           .element(find.byType(BusinessDocumentDetailPage))
           .read<BusinessDocumentDetailViewModel>();
-      await tester.tap(find.text('Cargar contenido protegido'));
+      await tester.tap(find.text('Cargar documento'));
       await tester.pump();
       await tester.runAsync(() async {
         for (
@@ -606,7 +606,7 @@ void main() {
       );
       expect(detailViewModel.content, isNotNull);
       await tester.scrollUntilVisible(
-        find.text('Contenido verificado'),
+        find.text('Documento listo'),
         400,
         scrollable: find
             .descendant(
@@ -615,11 +615,9 @@ void main() {
             )
             .first,
       );
-      expect(find.text('Contenido verificado'), findsOneWidget);
-      expect(
-        find.textContaining('No se guardó en el dispositivo.'),
-        findsOneWidget,
-      );
+      expect(find.text('Documento listo'), findsOneWidget);
+      expect(find.text('Guardar documento'), findsOneWidget);
+      expect(find.text('Cerrar documento'), findsOneWidget);
       expect(documentDownloads, 1);
 
       await tester.pageBack();
