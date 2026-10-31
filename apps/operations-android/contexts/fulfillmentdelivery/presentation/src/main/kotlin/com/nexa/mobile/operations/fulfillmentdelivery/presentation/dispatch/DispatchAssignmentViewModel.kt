@@ -11,9 +11,11 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.Dispa
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAssignmentMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAssignmentScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDriverLocationGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchAssignmentSnapshot
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -31,6 +33,8 @@ class DispatchAssignmentViewModel(
     private var pendingIntent: DispatchAssignmentIntent? = null
     private var restoringMetadata = false
     private var generation = 0L
+    private var driverLocationGeneration = 0L
+    private var driverLocationJob: Job? = null
 
     fun activate(fulfillmentId: String, context: DispatchAuthorityContext) {
         if (activeFulfillmentId == fulfillmentId && activeContext == context &&
@@ -152,6 +156,93 @@ class DispatchAssignmentViewModel(
         mutableState.value = current.copy(selectedMembershipId = membershipId)
     }
 
+    fun refreshDriverLocation() {
+        val context = activeContext ?: return
+        val fulfillmentId = activeFulfillmentId ?: return
+        val current = mutableState.value
+        if (!current.canTrackDriverLocation) return
+        val assignment = current.assignment ?: return
+        if (current.status != DispatchAssignmentStatus.Current ||
+            current.driverLocationStatus == DispatchDriverLocationStatus.Loading
+        ) {
+            return
+        }
+        val deliveryId = assignment.deliveryId ?: return
+        val membershipId = assignment.responsibleMembershipId
+        val request = ++driverLocationGeneration
+        mutableState.value = current.copy(
+            driverLocationStatus = DispatchDriverLocationStatus.Loading,
+            driverLocation = null
+        )
+        driverLocationJob?.cancel()
+        driverLocationJob = viewModelScope.launch {
+            val result = safeDriverLocationCall {
+                gateway.driverLocation(fulfillmentId, deliveryId, membershipId, context)
+            }
+            if (!isCurrentDriverLocation(
+                    request,
+                    context,
+                    fulfillmentId,
+                    deliveryId,
+                    membershipId
+                )
+            ) {
+                return@launch
+            }
+            when (result) {
+                is DispatchDriverLocationGatewayResult.Current -> {
+                    mutableState.value = mutableState.value.copy(
+                        driverLocationStatus = if (result.location == null) {
+                            DispatchDriverLocationStatus.NoRecentLocation
+                        } else {
+                            DispatchDriverLocationStatus.Current
+                        },
+                        driverLocation = result.location
+                    )
+                }
+
+                DispatchDriverLocationGatewayResult.AssignmentChanged -> {
+                    mutableState.value = mutableState.value.copy(
+                        driverLocationStatus = DispatchDriverLocationStatus.AssignmentChanged,
+                        driverLocation = null
+                    )
+                }
+
+                DispatchDriverLocationGatewayResult.DeliveryInactive -> {
+                    suspendDriverLocationReads()
+                    refresh()
+                }
+
+                DispatchDriverLocationGatewayResult.PermissionDenied ->
+                    setDriverLocationUnavailable(DispatchDriverLocationStatus.PermissionDenied)
+
+                DispatchDriverLocationGatewayResult.NetworkUnavailable ->
+                    setDriverLocationUnavailable(DispatchDriverLocationStatus.NetworkUnavailable)
+
+                DispatchDriverLocationGatewayResult.ServiceUnavailable ->
+                    setDriverLocationUnavailable(DispatchDriverLocationStatus.ServiceUnavailable)
+
+                DispatchDriverLocationGatewayResult.ContextInvalidated -> invalidate(
+                    DispatchAssignmentStatus.ContextInvalidated
+                )
+
+                DispatchDriverLocationGatewayResult.SessionInvalidated -> invalidate(
+                    DispatchAssignmentStatus.SessionInvalidated
+                )
+            }
+        }
+    }
+
+    fun suspendDriverLocationReads() {
+        driverLocationGeneration++
+        driverLocationJob?.cancel()
+        driverLocationJob = null
+        mutableState.value = mutableState.value.copy(
+            driverLocationStatus = DispatchDriverLocationStatus.Idle,
+            driverLocation = null
+        )
+    }
+
     fun assign() {
         val context = activeContext ?: return
         val current = mutableState.value
@@ -226,6 +317,7 @@ class DispatchAssignmentViewModel(
 
     fun deactivate() {
         generation++
+        suspendDriverLocationReads()
         activeContext = null
         activeFulfillmentId = null
         pendingIntent = null
@@ -468,12 +560,38 @@ class DispatchAssignmentViewModel(
 
     private fun invalidate(status: DispatchAssignmentStatus) {
         generation++
+        suspendDriverLocationReads()
         activeContext = null
         mutableState.value = DispatchAssignmentUiState(
             authorityEpoch = mutableState.value.authorityEpoch,
             fulfillmentId = mutableState.value.fulfillmentId,
             status = status
         )
+    }
+
+    private fun setDriverLocationUnavailable(status: DispatchDriverLocationStatus) {
+        mutableState.value = mutableState.value.copy(
+            driverLocationStatus = status,
+            driverLocation = null
+        )
+    }
+
+    private fun isCurrentDriverLocation(
+        request: Long,
+        context: DispatchAuthorityContext,
+        fulfillmentId: String,
+        deliveryId: String,
+        membershipId: String
+    ): Boolean {
+        val current = mutableState.value
+        return request == driverLocationGeneration && activeContext == context &&
+            activeFulfillmentId == fulfillmentId &&
+            current.authorityEpoch == context.authorityEpoch &&
+            current.status == DispatchAssignmentStatus.Current &&
+            current.canTrackDriverLocation &&
+            current.assignment?.deliveryId == deliveryId &&
+            current.readiness?.deliveryId == deliveryId &&
+            current.assignment?.responsibleMembershipId == membershipId
     }
 
     private suspend fun safeCall(
@@ -484,6 +602,16 @@ class DispatchAssignmentViewModel(
         throw cancelled
     } catch (_: Exception) {
         DispatchAssignmentGatewayResult.ServiceUnavailable
+    }
+
+    private suspend fun safeDriverLocationCall(
+        block: suspend () -> DispatchDriverLocationGatewayResult
+    ): DispatchDriverLocationGatewayResult = try {
+        block()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        DispatchDriverLocationGatewayResult.ServiceUnavailable
     }
 
     private fun isCurrent(

@@ -183,7 +183,13 @@ class OperationsStockConditionGateway @Inject constructor(
         physicalRemaining = physicalRemaining,
         unit = unit,
         status = status,
-        version = version
+        version = version,
+        productName = productName,
+        skuCode = skuCode,
+        imageUrl = imageUrl,
+        warehouseName = warehouseName,
+        zoneName = zoneName,
+        imageFileName = imageFileName
     )
 
     private sealed interface Authorization {

@@ -71,7 +71,7 @@ class DirectOrderViewModelTest {
         var deliveryPolicyRead: DirectOrderDeliveryLeadPolicyRead =
             DirectOrderDeliveryLeadPolicyRead.Available(
                 DirectOrderDeliveryLeadPolicy(
-                    minimumDeliveryLeadDays = 3,
+                    minimumDeliveryLeadDays = 5,
                     earliestAllowedDeliveryDate = LocalDate.parse("2026-01-01")
                 )
             )
@@ -108,12 +108,12 @@ class DirectOrderViewModelTest {
         }
     }
 
-    @Test fun latestWorkspacePolicyControlsDateReviewAndFailureBlocksIt() = runTest {
+    @Test fun serverBusinessDayPolicyControlsDateReviewAndFailureBlocksIt() = runTest {
         val store = Store(DirectOrderRecord(draft))
         val gateway = Gateway().apply {
             deliveryPolicyRead = DirectOrderDeliveryLeadPolicyRead.Available(
                 DirectOrderDeliveryLeadPolicy(
-                    minimumDeliveryLeadDays = 3,
+                    minimumDeliveryLeadDays = 5,
                     earliestAllowedDeliveryDate = LocalDate.parse("2026-10-02")
                 )
             )
@@ -153,7 +153,7 @@ class DirectOrderViewModelTest {
         assertEquals(5, model.state.value.deliveryLeadPolicy?.minimumDeliveryLeadDays)
     }
 
-    @Test fun unavailableWorkspacePolicyIsNotDisplayedOrUsedForReview() = runTest {
+    @Test fun unavailableDeliveryPolicyIsNotDisplayedOrUsedForReview() = runTest {
         val store = Store(DirectOrderRecord(draft))
         val gateway = Gateway().apply {
             deliveryPolicyRead = DirectOrderDeliveryLeadPolicyRead.Unavailable

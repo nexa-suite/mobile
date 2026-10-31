@@ -158,6 +158,28 @@ tasks.register("verifyAndroidArchitecture") {
                         ) {
                             "Dispatch assignment must use current authorized assignee projection"
                         }
+                        val driverLocationSource = it
+                            .substringAfter("suspend fun driverLocation(")
+                            .substringBefore("\n    suspend fun history(")
+                        val driverLocationRequest =
+                            driverLocationSource.filterNot(Char::isWhitespace)
+                        val isScopedDriverLocationGet =
+                            listOf(
+                                "ProtectedRequest(ProtectedMethod.GET,",
+                                "/api/v1/dispatch/drivers/",
+                                "membershipId",
+                                "/location?deliveryId="
+                            ).all(driverLocationRequest::contains)
+                        check(isScopedDriverLocationGet) {
+                            "Driver location must be a scoped GET for the selected delivery"
+                        }
+                        check(
+                            listOf("POST", "PUT", "PATCH", "DELETE").none { method ->
+                                driverLocationRequest.contains("ProtectedMethod.$method")
+                            }
+                        ) {
+                            "Driver location must remain read-only"
+                        }
                         check(
                             listOf("PUT", "PATCH", "DELETE").none { method ->
                                 it.contains("ProtectedMethod.$method")
@@ -165,7 +187,13 @@ tasks.register("verifyAndroidArchitecture") {
                         ) {
                             "Assignment transport must preserve append-only plan changes"
                         }
-                        it.replace("/api/v1/dispatch-assignees", "<authorized-assignee-read-route>")
+                        it.replace(
+                            driverLocationSource,
+                            driverLocationSource.replace(
+                                "/api/v1/dispatch/drivers/",
+                                "<authorized-dispatch-driver-location-route>/"
+                            )
+                        ).replace("/api/v1/dispatch-assignees", "<authorized-assignee-read-route>")
                     } else if (source.name == "NexaFulfillmentDispatchGateway.kt") {
                         check(it.contains("FULFILLMENT_DISPATCH_BASE = \"/api/v1/fulfillments\"")) {
                             "Warehouse departure must use the canonical Fulfillment transition"

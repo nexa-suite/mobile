@@ -43,4 +43,19 @@ interface DispatchAssignmentGateway {
         intent: DispatchAssignmentIntent,
         context: DispatchAuthorityContext
     ): DispatchAssignmentGatewayResult
+
+    /** Reads only the current assignment's server-authoritative, expiring Driver location. */
+    suspend fun driverLocation(
+        fulfillmentId: String,
+        responsibleMembershipId: String,
+        context: DispatchAuthorityContext
+    ): DispatchDriverLocationGatewayResult = DispatchDriverLocationGatewayResult.ServiceUnavailable
+
+    suspend fun driverLocation(
+        fulfillmentId: String,
+        deliveryId: String,
+        responsibleMembershipId: String,
+        context: DispatchAuthorityContext
+    ): DispatchDriverLocationGatewayResult =
+        driverLocation(fulfillmentId, responsibleMembershipId, context)
 }

@@ -309,6 +309,7 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
 
   static const receiptPermission = 'buyer.order.read';
   static const evidencePermission = 'buyer.receipt.evidence.attach';
+  static const _locationFreshnessLimit = Duration(seconds: 120);
 
   String? get currentBuyerMembershipId =>
       _access.snapshot.currentContext?.membershipId;
@@ -391,7 +392,9 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
     final value = location;
     if (locationStatus != BuyerLiveLocationStatus.current ||
         value == null ||
-        !value.expiresAt.isAfter(DateTime.now().toUtc())) {
+        !BuyerDeliveriesViewModel._hasPermission(_access.snapshot) ||
+        !hasActiveDeliveryLocationScope ||
+        !_isLocationFreshForDisplay(value)) {
       return null;
     }
     return value;
@@ -457,7 +460,7 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
       message = null;
       _locationGeneration++;
       if (_supportsLiveLocation(result.delivery.status)) {
-        unawaited(refreshLocation());
+        await refreshLocation();
       } else {
         _clearLocation(
           BuyerLiveLocationStatus.inactive,
@@ -485,6 +488,7 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
         status = BuyerDeliveryDetailStatus.current;
         message =
             'No se pudo actualizar; se muestra el último estado recibido.';
+        await _refreshLocationIfActive();
       } else {
         status = BuyerDeliveryDetailStatus.unavailable;
         message = failure.userMessage;
@@ -495,6 +499,7 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
         status = BuyerDeliveryDetailStatus.current;
         message =
             'No se pudo actualizar; se muestra el último estado recibido.';
+        await _refreshLocationIfActive();
       } else {
         status = BuyerDeliveryDetailStatus.unavailable;
         message = 'Esta entrega no está disponible.';
@@ -544,7 +549,7 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
         return;
       }
       if (result.deliveryId != deliveryId ||
-          !result.expiresAt.isAfter(DateTime.now().toUtc())) {
+          !_isLocationFreshForDisplay(result)) {
         _clearLocation(
           BuyerLiveLocationStatus.stale,
           'La última ubicación está antigua y ya no se muestra.',
@@ -582,19 +587,33 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _refreshLocationIfActive() async {
+    if (hasActiveDeliveryLocationScope) await refreshLocation();
+  }
+
   void _locationFetchFailed() {
     final previous = currentLocation;
-    locationStatus = previous == null
-        ? BuyerLiveLocationStatus.unavailable
-        : BuyerLiveLocationStatus.current;
-    locationMessage = previous == null
-        ? 'No se pudo actualizar la ubicación.'
-        : 'No se pudo actualizar. Se muestra la última ubicación vigente.';
+    if (previous == null) {
+      final hadStaleLocation = location != null;
+      _clearLocation(
+        hadStaleLocation
+            ? BuyerLiveLocationStatus.stale
+            : BuyerLiveLocationStatus.unavailable,
+        hadStaleLocation
+            ? 'La última ubicación está antigua y ya no se muestra.'
+            : 'No se pudo actualizar la ubicación.',
+      );
+      return;
+    }
+    locationStatus = BuyerLiveLocationStatus.current;
+    locationMessage =
+        'No se pudo actualizar. Se muestra la última ubicación vigente.';
   }
 
   void _scheduleLocationExpiry(BuyerDeliveryTrackingProjection value) {
     _locationExpiryTimer?.cancel();
-    final untilExpiry = value.expiresAt.difference(DateTime.now().toUtc());
+    final untilExpiry = _locationDisplayDeadline(value)
+        .difference(DateTime.now().toUtc());
     _locationExpiryTimer = Timer(
       untilExpiry.isNegative ? Duration.zero : untilExpiry,
       () {
@@ -605,6 +624,22 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
         );
       },
     );
+  }
+
+  DateTime _locationDisplayDeadline(BuyerDeliveryTrackingProjection value) {
+    final freshnessDeadline = value.capturedAt.toUtc().add(
+      _locationFreshnessLimit,
+    );
+    final retentionDeadline = value.expiresAt.toUtc();
+    return retentionDeadline.isBefore(freshnessDeadline)
+        ? retentionDeadline
+        : freshnessDeadline;
+  }
+
+  bool _isLocationFreshForDisplay(BuyerDeliveryTrackingProjection value) {
+    final now = DateTime.now().toUtc();
+    return !value.capturedAt.toUtc().isAfter(now) &&
+        _locationDisplayDeadline(value).isAfter(now);
   }
 
   void _clearLocation(BuyerLiveLocationStatus nextStatus, String? nextMessage) {
@@ -1242,7 +1277,17 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
 
   void _onAccessChanged(BuyerAccessSnapshot snapshot) {
     final nextLease = BuyerDeliveriesViewModel._activeLease(snapshot);
-    if (nextLease == _leaseKey) return;
+    if (nextLease == _leaseKey) {
+      if (!BuyerDeliveriesViewModel._hasPermission(snapshot) &&
+          locationStatus != BuyerLiveLocationStatus.permissionDenied) {
+        _locationGeneration++;
+        _clearLocation(
+          BuyerLiveLocationStatus.permissionDenied,
+          'No tienes permiso para consultar la ubicación de esta entrega.',
+        );
+      }
+      return;
+    }
     _leaseKey = nextLease;
     _requestGeneration++;
     _activeDetailRequest = null;

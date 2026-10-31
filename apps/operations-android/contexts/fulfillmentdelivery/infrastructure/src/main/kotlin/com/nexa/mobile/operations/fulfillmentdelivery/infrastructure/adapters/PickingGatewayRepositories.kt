@@ -274,7 +274,15 @@ class OperationsPickingGateway @Inject constructor(
         consumedQuantity = consumedQuantity,
         remainingQuantity = remainingQuantity,
         unit = unit,
-        expirationDate = expirationDate
+        expirationDate = expirationDate,
+        productName = productName,
+        skuCode = skuCode,
+        imageFileName = imageFileName,
+        presentation = presentation,
+        brandName = brandName,
+        warehouseName = warehouseName,
+        zoneName = zoneName,
+        batchNumber = batchNumber
     )
 
     private fun PickingConfirmationCommand.toNetwork() = PickingConfirmationRequest(

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../tenant_access_governance/application/buyer_change_feed_repository.dart';
 import '../../../core/presentation/buyer_visible_route_poller.dart';
 import '../../../core/presentation/nexa_buyer_components.dart';
+import '../../../core/presentation/nexa_display_format.dart';
 import '../application/buyer_orders_repository.dart';
 import 'buyer_orders_view_model.dart';
 
@@ -15,7 +16,16 @@ const _orderChangeEvents = {
 };
 
 final class BuyerOrderDetailPage extends StatefulWidget {
-  const BuyerOrderDetailPage({super.key});
+  const BuyerOrderDetailPage({
+    super.key,
+    this.history,
+    this.documents,
+    this.onOpenInstructions,
+  });
+
+  final Widget? history;
+  final Widget? documents;
+  final VoidCallback? onOpenInstructions;
 
   @override
   State<BuyerOrderDetailPage> createState() => _BuyerOrderDetailPageState();
@@ -148,18 +158,35 @@ final class _BuyerOrderDetailPageState extends State<BuyerOrderDetailPage> {
                           if (order.requestedDeliveryDate != null)
                             NexaFactTile(
                               label: 'Entrega solicitada',
-                              value: order.requestedDeliveryDate!,
+                              value: nexaDateLabel(order.requestedDeliveryDate),
                             ),
                           if (order.total != null && order.currency != null)
                             NexaFactTile(
                               label: 'Total',
-                              value: '${order.total} ${order.currency}',
+                              value: nexaMoneyLabel(
+                                order.total.toString(),
+                                order.currency,
+                              ),
                               emphasis: true,
                             ),
                         ],
                       ),
                     ),
                   ),
+                  if (widget.onOpenInstructions != null)
+                    OutlinedButton.icon(
+                      onPressed: widget.onOpenInstructions,
+                      icon: const Icon(Icons.edit_note),
+                      label: const Text('Indicaciones de entrega'),
+                    ),
+                  if (widget.history != null) ...[
+                    const SizedBox(height: 16),
+                    widget.history!,
+                  ],
+                  if (widget.documents != null) ...[
+                    const SizedBox(height: 16),
+                    widget.documents!,
+                  ],
                   const SizedBox(height: 24),
                   Text(
                     'Productos',

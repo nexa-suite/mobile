@@ -16,6 +16,8 @@ final class CatalogRepositoryImpl implements CatalogRepository {
     String categoryId = '',
     String familyId = '',
     String variantId = '',
+    String coldChain = '',
+    bool availableOnly = false,
   }) async {
     final selectedBrandId = brandId.trim();
     final selectedCategoryId = categoryId.trim();
@@ -42,6 +44,8 @@ final class CatalogRepositoryImpl implements CatalogRepository {
           'category': category.trim(),
         if (selectedFamilyId.isNotEmpty) 'familyId': selectedFamilyId,
         if (selectedVariantId.isNotEmpty) 'variantId': selectedVariantId,
+        if (coldChain.trim().isNotEmpty) 'coldChain': coldChain.trim(),
+        if (availableOnly) 'availableOnly': 'true',
         'page': '$page',
         'size': '20',
         'sort': 'itemName',
@@ -138,6 +142,7 @@ final class CatalogRepositoryImpl implements CatalogRepository {
     if (id == null || name == null) _invalidResponse();
     final sellableSkuId = _uuid(item['sellableSkuId']);
     final nearExpiry = item['nearExpiry'];
+    final image = _map(item['image']);
     return CatalogItemProjection(
       catalogItemId: id,
       sellableSkuId: sellableSkuId,
@@ -147,6 +152,8 @@ final class CatalogRepositoryImpl implements CatalogRepository {
       brandName: _string(item['brandName']),
       categoryName: _string(item['categoryName']),
       description: _string(item['description']),
+      imageUrl: _imageUrl(image?['url']),
+      imageFileName: _string(image?['fileName']),
       skuCode: _string(item['skuCode']),
       unitOfMeasure: _string(item['unitOfMeasure']),
       status: _string(item['status']),
@@ -163,6 +170,21 @@ final class CatalogRepositoryImpl implements CatalogRepository {
       availabilityAsOf: _string(item['availabilityAsOf']),
       price: _parsePrice(item['currentOfferPrice']),
     );
+  }
+
+  String? _imageUrl(Object? value) {
+    final path = _string(value);
+    if (path == null) return null;
+    final parsed = Uri.tryParse(path);
+    if (parsed == null || parsed.userInfo.isNotEmpty) return null;
+    final resolved = _api.origin.uri.resolveUri(parsed);
+    // Public catalog media never receives session credentials.
+    if (resolved.scheme == 'https' ||
+        (resolved.scheme == 'http' &&
+            resolved.origin == _api.origin.uri.origin)) {
+      return resolved.toString();
+    }
+    return null;
   }
 
   CatalogPriceProjection? _parsePrice(Object? value) {

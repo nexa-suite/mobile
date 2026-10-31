@@ -57,7 +57,10 @@ final class BuyerOrdersPageProjection {
 }
 
 abstract interface class BuyerOrdersRepository {
-  Future<BuyerOrdersPageProjection> list({required int page});
+  Future<BuyerOrdersPageProjection> list({
+    required int page,
+    List<String>? statuses,
+  });
 
   Future<BuyerOrderProjection> detail(String orderId);
 }

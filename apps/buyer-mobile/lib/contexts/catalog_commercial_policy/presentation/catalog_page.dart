@@ -4,12 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/presentation/buyer_visible_route_poller.dart';
 import '../../../core/presentation/nexa_buyer_components.dart';
+import '../../../core/presentation/nexa_buyer_palette.dart';
+import '../../tenant_access_governance/application/buyer_change_feed_repository.dart';
 import '../application/catalog_repository.dart';
+import 'catalog_commercial_format.dart';
+import 'buyer_product_image.dart';
 import 'catalog_view_model.dart';
 
 final class CatalogPage extends StatefulWidget {
-  const CatalogPage({super.key});
+  const CatalogPage({super.key, this.shoppingSummary});
+  final Widget? shoppingSummary;
 
   @override
   State<CatalogPage> createState() => _CatalogPageState();
@@ -19,6 +25,8 @@ final class _CatalogPageState extends State<CatalogPage> {
   final _search = TextEditingController();
   Timer? _searchTimer;
   late final CatalogViewModel _catalog;
+  GoRouter? _router;
+  BuyerVisibleRoutePoller? _poller;
 
   @override
   void initState() {
@@ -35,8 +43,29 @@ final class _CatalogPageState extends State<CatalogPage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return;
+    if (identical(router, _router)) return;
+    _poller?.dispose();
+    _router = router;
+    _poller = BuyerVisibleRoutePoller(
+      router: router,
+      routePath: '/catalog',
+      onRefresh: () => context.read<CatalogViewModel>().refresh(),
+      changes: () => context
+          .read<BuyerChangeFeedRepository>()
+          .watch(readPermission: CatalogViewModel.readPermission)
+          .where((event) => event.type == 'resync-required')
+          .map<void>((_) {}),
+    );
+  }
+
+  @override
   void dispose() {
     _searchTimer?.cancel();
+    _poller?.dispose();
     _catalog.removeListener(_syncInputs);
     _search.dispose();
     super.dispose();
@@ -59,11 +88,15 @@ final class _CatalogPageState extends State<CatalogPage> {
     _catalog.filter(
       query: _search.text,
       brand: '',
+      brandId: '',
       category: '',
+      categoryId: '',
       family: '',
       familyId: '',
       variant: '',
       variantId: '',
+      coldChain: '',
+      availableOnly: false,
     );
   }
 
@@ -73,87 +106,137 @@ final class _CatalogPageState extends State<CatalogPage> {
     final theme = Theme.of(context);
     final hasFilters =
         catalog.brand.isNotEmpty ||
+        catalog.brandId.isNotEmpty ||
         catalog.category.isNotEmpty ||
+        catalog.categoryId.isNotEmpty ||
         catalog.family.isNotEmpty ||
-        catalog.variant.isNotEmpty;
+        catalog.familyId.isNotEmpty ||
+        catalog.variant.isNotEmpty ||
+        catalog.variantId.isNotEmpty ||
+        catalog.coldChain.isNotEmpty ||
+        catalog.availableOnly;
     return NexaPageWidth(
+      maxWidth: 1120,
       padding: EdgeInsets.zero,
-      child: Column(
-        children: [
-          const NexaSectionHeader(
-            eyebrow: 'Compra mayorista',
-            title: 'Catálogo',
-            description: 'Consulta productos, precio y disponibilidad de tu relación activa.',
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Card(
-              margin: EdgeInsets.zero,
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      key: const Key('catalog-product-query'),
-                      controller: _search,
-                      maxLength: 120,
-                      textInputAction: TextInputAction.search,
-                      onChanged: _searchChanged,
-                      onSubmitted: _submitSearch,
-                      decoration: InputDecoration(
-                        hintText: 'Producto, marca o SKU',
-                        prefixIcon: const Icon(Icons.search),
-                        counterText: '',
-                        suffixIcon: _search.text.isEmpty
-                            ? null
-                            : IconButton(
-                                tooltip: 'Borrar búsqueda',
-                                icon: const Icon(Icons.close),
-                                onPressed: () {
-                                  _search.clear();
-                                  _searchChanged('');
-                                },
-                              ),
-                      ),
+      child: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+          SliverToBoxAdapter(
+            child: Card.outlined(
+              margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                    child: Text(
+                      'Catálogo',
+                      style: theme.textTheme.headlineSmall,
                     ),
-                    const SizedBox(height: 10),
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final filterWidth = constraints.maxWidth >= 500
-                            ? (constraints.maxWidth - 12) / 2
-                            : constraints.maxWidth;
-                        return Wrap(
-                          spacing: 12,
-                          runSpacing: 10,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: 52),
+                          child: TextField(
+                            key: const Key('catalog-product-query'),
+                            controller: _search,
+                            maxLength: 120,
+                            textInputAction: TextInputAction.search,
+                            onChanged: _searchChanged,
+                            onSubmitted: _submitSearch,
+                            decoration: InputDecoration(
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 12,
+                                horizontal: 12,
+                              ),
+                              hintText: 'Producto, marca o SKU',
+                              prefixIcon: const Icon(Icons.search),
+                              counterText: '',
+                              suffixIcon: _search.text.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      tooltip: 'Borrar búsqueda',
+                                      icon: const Icon(Icons.close),
+                                      onPressed: () {
+                                        _search.clear();
+                                        _searchChanged('');
+                                      },
+                                    ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
                           children: [
-                            SizedBox(
-                              width: filterWidth,
-                              child: _filterButton(
-                                kind: CatalogFilterKind.brand,
-                                selectedName: catalog.brand,
-                                icon: Icons.local_offer_outlined,
-                                emptyLabel: 'Todas las marcas',
+                            ActionChip(
+                              labelStyle: theme.textTheme.labelMedium,
+                              key: const Key('catalog-brand-filter'),
+                              avatar: const Icon(
+                                Icons.local_offer_outlined,
+                                size: 18,
+                              ),
+                              label: Text(
+                                catalog.brand.isEmpty
+                                    ? 'Todas las marcas'
+                                    : catalog.brand,
+                              ),
+                              onPressed: () => _openSelector(
+                                context,
+                                CatalogFilterKind.brand,
                               ),
                             ),
-                            SizedBox(
-                              width: filterWidth,
-                              key: const Key('catalog-type-filter'),
-                              child: _filterButton(
-                                kind: CatalogFilterKind.category,
-                                selectedName: catalog.category,
-                                icon: Icons.category_outlined,
-                                emptyLabel: 'Todas las categorías',
+                            Semantics(
+                              key: const Key('catalog-category-filter'),
+                              button: true,
+                              child: ActionChip(
+                                labelStyle: theme.textTheme.labelMedium,
+                                key: const Key('catalog-type-filter'),
+                                avatar: const Icon(
+                                  Icons.category_outlined,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  catalog.category.isEmpty
+                                      ? 'Todas las categorías'
+                                      : buyerCatalogCategoryLabel(
+                                          catalog.category,
+                                        ),
+                                ),
+                                onPressed: () => _openSelector(
+                                  context,
+                                  CatalogFilterKind.category,
+                                ),
                               ),
+                            ),
+                            ActionChip(
+                              labelStyle: theme.textTheme.labelMedium,
+                              avatar: const Icon(Icons.tune_rounded, size: 18),
+                              label: Text(
+                                catalog.availableOnly ||
+                                        catalog.coldChain.isNotEmpty
+                                    ? 'Filtros activos'
+                                    : 'Más filtros',
+                              ),
+                              onPressed: () =>
+                                  _openAvailabilityFilters(context),
                             ),
                           ],
-                        );
-                      },
+                        ),
+                      ],
                     ),
-                    if (catalog.status == CatalogLoadStatus.current ||
-                        catalog.items.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Row(
+                  ),
+                  if (catalog.status == CatalogLoadStatus.current ||
+                      catalog.items.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                      child: Row(
                         children: [
                           if (hasFilters)
                             TextButton.icon(
@@ -165,18 +248,14 @@ final class _CatalogPageState extends State<CatalogPage> {
                                   horizontal: 8,
                                 ),
                               ),
-                            )
-                          else
-                            Icon(
-                              Icons.shopping_bag_outlined,
-                              size: 17,
-                              color: theme.colorScheme.primary,
                             ),
                           const Spacer(),
                           Text(
                             catalog.status == CatalogLoadStatus.loading
                                 ? 'Actualizando resultados…'
-                                : '${catalog.totalItems} productos',
+                                : buyerCatalogProductCountLabel(
+                                    catalog.totalItems,
+                                  ),
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                               fontWeight: FontWeight.w600,
@@ -184,20 +263,99 @@ final class _CatalogPageState extends State<CatalogPage> {
                           ),
                         ],
                       ),
-                    ],
-                  ],
-                ),
+                    ),
+                  if (catalog.status == CatalogLoadStatus.loading &&
+                      catalog.items.isNotEmpty)
+                    const LinearProgressIndicator(),
+                ],
               ),
             ),
           ),
-          if (catalog.status == CatalogLoadStatus.loading &&
-              catalog.items.isNotEmpty)
-            const LinearProgressIndicator(),
-          Expanded(child: _catalogContent(catalog)),
         ],
+        body: _catalogContent(catalog),
       ),
     );
   }
+
+  Future<void> _openAvailabilityFilters(
+    BuildContext context,
+  ) => showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    useSafeArea: true,
+    isScrollControlled: true,
+    builder: (context) => AnimatedBuilder(
+      animation: _catalog,
+      builder: (context, _) {
+        final catalog = _catalog;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Disponibilidad y conservación',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 16),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Solo disponibles'),
+                value: catalog.availableOnly,
+                onChanged: (value) => catalog.filter(
+                  brand: catalog.brand,
+                  brandId: catalog.brandId,
+                  category: catalog.category,
+                  categoryId: catalog.categoryId,
+                  family: catalog.family,
+                  familyId: catalog.familyId,
+                  variant: catalog.variant,
+                  variantId: catalog.variantId,
+                  availableOnly: value,
+                ),
+              ),
+              DropdownButtonFormField<String>(
+                key: ValueKey(catalog.coldChain),
+                initialValue: catalog.coldChain,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Conservación'),
+                items: const [
+                  DropdownMenuItem(value: '', child: Text('Todas')),
+                  DropdownMenuItem(
+                    value: 'REFRIGERATED',
+                    child: Text('Refrigerados'),
+                  ),
+                  DropdownMenuItem(value: 'FROZEN', child: Text('Congelados')),
+                  DropdownMenuItem(
+                    value: 'NONE',
+                    child: Text('Temperatura ambiente'),
+                  ),
+                ],
+                onChanged: (value) => catalog.filter(
+                  brand: catalog.brand,
+                  brandId: catalog.brandId,
+                  category: catalog.category,
+                  categoryId: catalog.categoryId,
+                  family: catalog.family,
+                  familyId: catalog.familyId,
+                  variant: catalog.variant,
+                  variantId: catalog.variantId,
+                  coldChain: value ?? '',
+                ),
+              ),
+
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Ver productos'),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
 
   Future<void> _openSelector(
     BuildContext context,
@@ -221,32 +379,6 @@ final class _CatalogPageState extends State<CatalogPage> {
       },
     ),
   );
-
-  Widget _filterButton({
-    required CatalogFilterKind kind,
-    required String selectedName,
-    required IconData icon,
-    String? emptyLabel,
-    bool enabled = true,
-  }) => OutlinedButton.icon(
-    key: Key('catalog-${kind.name}-filter'),
-    onPressed: enabled ? () => _openSelector(context, kind) : null,
-    icon: Icon(icon),
-    label: Text(
-      selectedName.isEmpty
-          ? emptyLabel ?? _filterLabel(kind)
-          : '${_filterLabel(kind)}: $selectedName',
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-    ),
-  );
-
-  String _filterLabel(CatalogFilterKind kind) => switch (kind) {
-    CatalogFilterKind.brand => 'Marca',
-    CatalogFilterKind.category => 'Categoría',
-    CatalogFilterKind.family => 'Familia',
-    CatalogFilterKind.variant => 'Variedad',
-  };
 
   Widget _catalogContent(CatalogViewModel catalog) {
     if (catalog.status == CatalogLoadStatus.loading && catalog.items.isEmpty) {
@@ -293,12 +425,15 @@ final class _CatalogPageState extends State<CatalogPage> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final useGrid = constraints.maxWidth >= 600;
+        final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
+        final useGrid = constraints.maxWidth >= 600 && textScale < 1.3;
         return RefreshIndicator(
           onRefresh: catalog.refresh,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
+              if (widget.shoppingSummary != null)
+                SliverToBoxAdapter(child: widget.shoppingSummary!),
               if (hasStaleItems)
                 const SliverToBoxAdapter(
                   child: Padding(
@@ -313,13 +448,12 @@ final class _CatalogPageState extends State<CatalogPage> {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                 sliver: useGrid
                     ? SliverGrid(
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                              mainAxisExtent: 336,
-                            ),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: constraints.maxWidth >= 1000 ? 3 : 2,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          mainAxisExtent: 244 + (textScale - 1) * 200,
+                        ),
                         delegate: SliverChildBuilderDelegate(
                           (context, index) =>
                               _catalogCard(context, catalog.items[index]),
@@ -355,12 +489,23 @@ final class _CatalogPageState extends State<CatalogPage> {
     );
   }
 
-  Widget _catalogCard(BuildContext context, CatalogItemProjection item) =>
-      _CatalogItemCard(
-        item: item,
-        onTap: () =>
-            context.push('/catalog/${Uri.encodeComponent(item.catalogItemId)}'),
-      );
+  Widget _catalogCard(
+    BuildContext context,
+    CatalogItemProjection item,
+  ) => _CatalogItemCard(
+    item: item,
+    onTap: () =>
+        context.push('/catalog/${Uri.encodeComponent(item.catalogItemId)}'),
+    onCreateRequest:
+        _catalog.canCreateRequest &&
+            RegExp(
+              r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+            ).hasMatch(item.sellableSkuId ?? '')
+        ? () => context.push(
+            '/catalog/${Uri.encodeComponent(item.catalogItemId)}/purchase-request',
+          )
+        : null,
+  );
 }
 
 final class _CatalogFilterSelectorDialog extends StatefulWidget {
@@ -468,9 +613,13 @@ final class _CatalogFilterSelectorDialogState
                             key: Key(
                               'catalog-${widget.kind.name}-option-${option.id}',
                             ),
-                            title: Text(option.name),
+                            title: Text(
+                              widget.kind == CatalogFilterKind.category
+                                  ? buyerCatalogCategoryLabel(option.name)
+                                  : option.name,
+                            ),
                             trailing:
-                                (widget.selectedId != null
+                                (widget.selectedId?.isNotEmpty == true
                                     ? option.id == widget.selectedId
                                     : option.name == widget.selectedName)
                                 ? const Icon(Icons.check)
@@ -546,16 +695,22 @@ final class _CatalogFilterSelectorDialogState
 }
 
 final class _CatalogItemCard extends StatelessWidget {
-  const _CatalogItemCard({required this.item, required this.onTap});
+  const _CatalogItemCard({
+    required this.item,
+    required this.onTap,
+    this.onCreateRequest,
+  });
 
   final CatalogItemProjection item;
   final VoidCallback onTap;
+  final VoidCallback? onCreateRequest;
 
   @override
   Widget build(BuildContext context) {
     final details = [
       if (item.brandName != null) 'Marca: ${item.brandName}',
-      if (item.categoryName != null) 'Tipo: ${item.categoryName}',
+      if (item.categoryName != null)
+        'Tipo: ${buyerCatalogCategoryLabel(item.categoryName!)}',
       if (item.coldChainRequirement != null)
         'Conservación: ${_coldChainLabel(item.coldChainRequirement!)}',
       if (item.productFamilyName != null &&
@@ -566,130 +721,213 @@ final class _CatalogItemCard extends StatelessWidget {
       if (item.sellableAvailability case final available?)
         'Disponible: ${_quantityLabel(available)}'
             '${item.unitOfMeasure == null ? '' : ' ${item.unitOfMeasure}'}',
-      item.presentation,
+      if (item.presentation?.trim().isNotEmpty == true)
+        item.presentation!.trim(),
       if (item.skuCode != null) 'SKU ${item.skuCode}',
     ].whereType<String>().where((value) => value.isNotEmpty).join(' · ');
     final theme = Theme.of(context);
+    final quantityIsAvailable = const {
+      'AVAILABLE',
+      'LOW',
+    }.contains(item.availabilityStatus.toUpperCase());
+    final priceLabel = buyerCatalogPriceLabel(
+      item.price?.amount,
+      item.price?.currency,
+    );
+    final stockQuantity = item.sellableAvailability;
 
-    return Card(
+    final storage = item.coldChainRequirement?.toUpperCase();
+    final imageWidth = MediaQuery.textScalerOf(context).scale(16) / 16 > 1.2
+        ? 128.0
+        : 104.0;
+    final frozen = storage == 'FROZEN';
+    final chilled = storage == 'REFRIGERATED';
+    final photoSurface = frozen
+        ? NexaBuyerPalette.frozenSurface
+        : chilled
+        ? NexaBuyerPalette.coldSurface
+        : theme.colorScheme.surfaceContainer;
+    final photoInk = frozen ? NexaBuyerPalette.frozen : NexaBuyerPalette.cold;
+    return Card.outlined(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              height: 96,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  NexaProductVisual(name: item.itemName, height: 96),
-                  if (item.categoryName != null)
-                    Positioned(
-                      left: 12,
-                      right: 12,
-                      bottom: 12,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surface.withValues(
-                            alpha: .94,
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          child: Text(
-                            item.categoryName!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (item.brandName != null && item.brandName!.isNotEmpty) ...[
-                    Text(
-                      item.brandName!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.primary,
-                      ),
+                  SizedBox(
+                    width: imageWidth,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: BuyerProductImage(
+                            name: item.itemName,
+                            url: item.imageUrl,
+                            fileName: item.imageFileName,
+                            height: 112,
+                          ),
+                        ),
+                        if (frozen || chilled) ...[
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: photoSurface,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  frozen
+                                      ? Icons.ac_unit
+                                      : Icons.thermostat_outlined,
+                                  size: 12,
+                                  color: photoInk,
+                                ),
+                                const SizedBox(width: 3),
+                                Flexible(
+                                  child: Text(
+                                    frozen ? 'Congelado' : 'Refrigerado',
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: photoInk,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                    const SizedBox(height: 5),
-                  ],
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                item.brandName ?? item.categoryName ?? '',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: NexaBuyerPalette.muted,
+                                ),
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right,
+                              size: 18,
+                              color: NexaBuyerPalette.muted,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
                           item.itemName,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleMedium,
-                        ),
-                      ),
-                      Icon(
-                        Icons.chevron_right,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ],
-                  ),
-                  if (details.isNotEmpty) ...[
-                    const SizedBox(height: 7),
-                    Text(
-                      details,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      NexaStatusBadge(
-                        item.availabilityStatus,
-                        label: _availabilityLabel(item.availabilityStatus),
-                      ),
-                      if (item.price case final price?)
-                        Text(
-                          '${price.amount} ${price.currency}',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            color: theme.colorScheme.primary,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontSize: 14,
                           ),
                         ),
-                      if (item.unitOfMeasure case final unit?)
-                        if (item.sellableAvailability == null)
+                        if (details.isNotEmpty) ...[
+                          const SizedBox(height: 4),
                           Text(
-                            'Unidad: $unit',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                            details,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
+                        const SizedBox(height: 10),
+                        Text(
+                          priceLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleLarge,
+                        ),
+                        if (item.promotionLabel case final promotion?
+                            when promotion.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            promotion,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: NexaBuyerPalette.attention,
                             ),
                           ),
-                    ],
+                        ],
+                      ],
+                    ),
                   ),
                 ],
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        NexaStatusBadge(
+                          item.availabilityStatus,
+                          label: _availabilityLabel(item.availabilityStatus),
+                        ),
+                        if (quantityIsAvailable && stockQuantity != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              buyerCatalogQuantityLabel(
+                                stockQuantity,
+                                item.unitOfMeasure,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (onCreateRequest != null) ...[
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: onCreateRequest,
+                      icon: const Icon(
+                        Icons.add_shopping_cart_outlined,
+                        size: 18,
+                      ),
+                      label: const Text('Solicitar'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -745,7 +983,7 @@ final class _PageControls extends StatelessWidget {
         ),
         Flexible(
           child: Text(
-            '${page + 1} de ${totalPages == 0 ? 1 : totalPages} · $totalItems productos',
+            '${page + 1} de ${totalPages == 0 ? 1 : totalPages} · ${buyerCatalogProductCountLabel(totalItems)}',
           ),
         ),
         IconButton(

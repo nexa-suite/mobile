@@ -264,8 +264,11 @@ final class _ControlledRepository implements BusinessDocumentsRepository {
   final Completer<BusinessDocumentContentProjection> _content;
 
   @override
-  Future<BusinessDocumentsPageProjection> list({required int page}) =>
-      throw UnimplementedError();
+  Future<BusinessDocumentsPageProjection> list({
+    required int page,
+    String? subjectType,
+    String? subjectId,
+  }) => throw UnimplementedError();
 
   @override
   Future<BusinessDocumentProjection> detail(String documentId) async =>

@@ -32,7 +32,7 @@ void main() {
     expect(find.text('Todas las marcas'), findsOneWidget);
     expect(find.text('Todas las categorías'), findsOneWidget);
     expect(find.text('Valle'), findsOneWidget);
-    expect(find.text('Bebidas'), findsOneWidget);
+    expect(find.textContaining('Tipo: Bebidas'), findsOneWidget);
     expect(
       find.textContaining('Familia: Lácteos · Variedad: Descremada'),
       findsOneWidget,
@@ -46,6 +46,9 @@ void main() {
     );
     expect(find.textContaining('Conservación: Refrigerado'), findsOneWidget);
     expect(find.textContaining('Disponible: 12,5 KG'), findsOneWidget);
+    expect(find.textContaining('500 g'), findsOneWidget);
+    expect(find.text('21 productos'), findsOneWidget);
+    expect(find.text('1 de 2 · 21 productos'), findsOneWidget);
 
     await tester.enterText(
       find.byKey(const Key('catalog-product-query')),
@@ -61,6 +64,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('catalog-category-filter')));
     await tester.pumpAndSettle();
+    expect(find.text('Bebidas'), findsOneWidget);
     await tester.tap(find.text('Bebidas').last);
     await tester.pumpAndSettle();
 
@@ -91,6 +95,29 @@ void main() {
       'page': 1,
     });
 
+    viewModel.dispose();
+    await access.dispose();
+  });
+
+  testWidgets('uses the singular label for a single catalog result', (
+    tester,
+  ) async {
+    final access = _FakeAccess();
+    final repository = _RecordingCatalogRepository()..totalItems = 1;
+    final viewModel = CatalogViewModel(repository, access);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<CatalogViewModel>.value(
+        value: viewModel,
+        child: const MaterialApp(home: Scaffold(body: CatalogPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 producto'), findsOneWidget);
+    expect(find.text('1 de 2 · 1 producto'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
     viewModel.dispose();
     await access.dispose();
   });
@@ -134,6 +161,7 @@ void main() {
 final class _RecordingCatalogRepository implements CatalogRepository {
   final calls = <Map<String, Object>>[];
   final lookupCalls = <Map<String, Object?>>[];
+  int totalItems = 21;
   bool failNextList = false;
 
   @override
@@ -146,6 +174,8 @@ final class _RecordingCatalogRepository implements CatalogRepository {
     String categoryId = '',
     String familyId = '',
     String variantId = '',
+    String coldChain = '',
+    bool availableOnly = false,
   }) async {
     calls.add({
       'query': query,
@@ -167,6 +197,7 @@ final class _RecordingCatalogRepository implements CatalogRepository {
           catalogItemId: 'CAT-0001',
           itemName: 'Leche Valle',
           availabilityStatus: 'AVAILABLE',
+          presentation: '500 g',
           brandName: 'Valle',
           categoryName: 'Bebidas',
           coldChainRequirement: 'REFRIGERATED',
@@ -178,7 +209,7 @@ final class _RecordingCatalogRepository implements CatalogRepository {
       ],
       page: page,
       size: 20,
-      totalItems: 21,
+      totalItems: totalItems,
       totalPages: 2,
     );
   }

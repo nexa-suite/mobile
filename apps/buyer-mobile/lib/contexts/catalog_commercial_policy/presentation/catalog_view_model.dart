@@ -67,6 +67,8 @@ final class CatalogViewModel extends ChangeNotifier {
   String familyId = '';
   String variant = '';
   String variantId = '';
+  String coldChain = '';
+  bool availableOnly = false;
   int page = 0;
   int totalItems = 0;
   int totalPages = 0;
@@ -81,6 +83,14 @@ final class CatalogViewModel extends ChangeNotifier {
 
   static const readPermission = 'catalog.read';
 
+  bool get canCreateRequest {
+    final snapshot = _access.snapshot;
+    final permissions = snapshot.currentContext?.permissions;
+    return snapshot.hasActiveBuyerScope &&
+        permissions?.contains('buyer.sales.read') == true &&
+        permissions?.contains('buyer.sales.write') == true;
+  }
+
   Future<void> search(String value) => _load(
     query: value.trim(),
     brand: brand,
@@ -91,6 +101,8 @@ final class CatalogViewModel extends ChangeNotifier {
     familyId: familyId,
     variant: variant,
     variantId: variantId,
+    coldChain: coldChain,
+    availableOnly: availableOnly,
     page: 0,
   );
 
@@ -104,6 +116,8 @@ final class CatalogViewModel extends ChangeNotifier {
     String? familyId,
     String? variant,
     String? variantId,
+    String? coldChain,
+    bool? availableOnly,
   }) => _load(
     query: query?.trim() ?? this.query,
     brand: brand.trim(),
@@ -123,6 +137,8 @@ final class CatalogViewModel extends ChangeNotifier {
         ((variant?.trim() ?? this.variant) == this.variant
             ? this.variantId
             : ''),
+    coldChain: coldChain,
+    availableOnly: availableOnly,
     page: 0,
   );
 
@@ -360,7 +376,11 @@ final class CatalogViewModel extends ChangeNotifier {
     required String variant,
     required String variantId,
     required int page,
+    String? coldChain,
+    bool? availableOnly,
   }) async {
+    final selectedColdChain = coldChain ?? this.coldChain;
+    final selectedAvailability = availableOnly ?? this.availableOnly;
     final snapshot = _access.snapshot;
     final lease = _leaseKey;
     if (lease == null) {
@@ -383,10 +403,16 @@ final class CatalogViewModel extends ChangeNotifier {
     final generation = ++_requestGeneration;
     final sameFilters =
         this.query == query &&
+        this.brand == brand &&
         this.brandId == brandId &&
+        this.category == category &&
         this.categoryId == categoryId &&
+        this.family == family &&
         this.familyId == familyId &&
-        this.variantId == variantId;
+        this.variant == variant &&
+        this.variantId == variantId &&
+        this.coldChain == selectedColdChain &&
+        this.availableOnly == selectedAvailability;
     status = CatalogLoadStatus.loading;
     this.query = query;
     this.brand = brand;
@@ -397,6 +423,8 @@ final class CatalogViewModel extends ChangeNotifier {
     this.familyId = familyId;
     this.variant = variant;
     this.variantId = variantId;
+    this.coldChain = selectedColdChain;
+    this.availableOnly = selectedAvailability;
     message = null;
     if (!sameFilters) {
       items = const [];
@@ -415,6 +443,8 @@ final class CatalogViewModel extends ChangeNotifier {
         categoryId: categoryId,
         familyId: familyId,
         variantId: variantId,
+        coldChain: selectedColdChain,
+        availableOnly: selectedAvailability,
         page: page,
       );
       if (!_isCurrent(generation, lease)) return;
@@ -496,6 +526,8 @@ final class CatalogViewModel extends ChangeNotifier {
     familyId = '';
     variant = '';
     variantId = '';
+    coldChain = '';
+    availableOnly = false;
     page = 0;
     totalItems = 0;
     totalPages = 0;

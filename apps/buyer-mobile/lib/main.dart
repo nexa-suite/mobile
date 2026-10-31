@@ -1,3 +1,23 @@
+import 'contexts/fulfillment_delivery/application/buyer_delivery_instructions_repository.dart';
+import 'contexts/fulfillment_delivery/infrastructure/buyer_delivery_instructions_repository_impl.dart';
+import 'contexts/fulfillment_delivery/presentation/buyer_delivery_instructions_page.dart';
+import 'contexts/fulfillment_delivery/presentation/buyer_delivery_instructions_view_model.dart';
+import 'contexts/business_documents/presentation/buyer_subject_documents_card.dart';
+import 'contexts/business_documents/infrastructure/system_business_document_exporter.dart';
+import 'contexts/sales_commitment/application/buyer_order_history_repository.dart';
+import 'contexts/sales_commitment/presentation/buyer_order_history_card.dart';
+import 'app/buyer_address_location_picker.dart';
+import 'contexts/customer_buyer_relationships/application/buyer_addresses_repository.dart';
+import 'contexts/customer_buyer_relationships/infrastructure/buyer_addresses_repository_impl.dart';
+import 'contexts/customer_buyer_relationships/presentation/buyer_addresses_page.dart';
+import 'contexts/customer_buyer_relationships/presentation/buyer_address_editor.dart';
+import 'contexts/customer_buyer_relationships/presentation/buyer_addresses_view_model.dart';
+import 'contexts/tenant_access_governance/application/buyer_profile_repository.dart';
+import 'contexts/tenant_access_governance/infrastructure/buyer_profile_repository_impl.dart';
+import 'contexts/tenant_access_governance/presentation/buyer_account_page.dart';
+import 'contexts/tenant_access_governance/presentation/buyer_profile_page.dart';
+import 'contexts/tenant_access_governance/presentation/buyer_profile_view_model.dart';
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -7,6 +27,8 @@ import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
 import 'app/buyer_workspace_navigation.dart';
+import 'app/buyer_shopping_summary.dart';
+import 'app/buyer_delivery_qr_scanner.dart';
 import 'contexts/business_documents/application/business_documents_repository.dart';
 import 'contexts/business_documents/infrastructure/business_documents_repository_impl.dart';
 import 'contexts/business_documents/presentation/business_document_detail_page.dart';
@@ -14,76 +36,82 @@ import 'contexts/business_documents/presentation/business_documents_page.dart';
 import 'contexts/business_documents/presentation/business_documents_view_model.dart';
 import 'contexts/catalog_commercial_policy/application/catalog_repository.dart';
 import 'contexts/catalog_commercial_policy/infrastructure/catalog_repository_impl.dart';
-import 'contexts/catalog_commercial_policy/presentation/catalog_page.dart';
 import 'contexts/catalog_commercial_policy/presentation/catalog_item_detail_page.dart';
 import 'contexts/catalog_commercial_policy/presentation/catalog_item_detail_view_model.dart';
+import 'contexts/catalog_commercial_policy/presentation/catalog_page.dart';
 import 'contexts/catalog_commercial_policy/presentation/catalog_view_model.dart';
 import 'contexts/credit_receivables/application/credit_exposure_repository.dart';
 import 'contexts/credit_receivables/infrastructure/buyer_credit_exposure_repository_impl.dart';
 import 'contexts/credit_receivables/presentation/buyer_credit_exposure_page.dart';
 import 'contexts/credit_receivables/presentation/buyer_credit_exposure_view_model.dart';
+import 'contexts/customer_buyer_relationships/application/buyer_favorites_repository.dart';
+import 'contexts/customer_buyer_relationships/infrastructure/buyer_favorites_repository_impl.dart';
+import 'contexts/customer_buyer_relationships/presentation/buyer_favorites_page.dart';
+import 'contexts/customer_buyer_relationships/presentation/buyer_favorites_view_model.dart';
+import 'contexts/fulfillment_delivery/application/buyer_deliveries_repository.dart';
+import 'contexts/fulfillment_delivery/application/buyer_handoff_receipt_repository.dart';
+import 'contexts/fulfillment_delivery/application/buyer_receipt_evidence_idempotency_store.dart';
+import 'contexts/fulfillment_delivery/application/buyer_receipt_idempotency_store.dart';
+import 'contexts/fulfillment_delivery/infrastructure/buyer_deliveries_repository_impl.dart';
+import 'contexts/fulfillment_delivery/infrastructure/buyer_handoff_receipt_repository_impl.dart';
+import 'contexts/fulfillment_delivery/infrastructure/file_buyer_receipt_evidence_idempotency_store.dart';
+import 'contexts/fulfillment_delivery/infrastructure/file_buyer_receipt_idempotency_store.dart';
+import 'contexts/fulfillment_delivery/presentation/buyer_deliveries_page.dart';
+import 'contexts/fulfillment_delivery/presentation/buyer_deliveries_view_model.dart';
+import 'contexts/fulfillment_delivery/presentation/buyer_delivery_detail_page.dart';
+import 'contexts/fulfillment_delivery/presentation/buyer_handoff_receipt_view_model.dart';
 import 'contexts/notifications/application/buyer_notifications_repository.dart';
 import 'contexts/notifications/infrastructure/buyer_notifications_repository_impl.dart';
 import 'contexts/notifications/presentation/buyer_notification_preferences_page.dart';
 import 'contexts/notifications/presentation/buyer_notifications_page.dart';
 import 'contexts/notifications/presentation/buyer_notifications_view_model.dart';
-import 'contexts/payments/application/buyer_payments_repository.dart';
 import 'contexts/payments/application/buyer_order_payment_capability_query.dart';
-import 'contexts/payments/application/buyer_wallet_repository.dart';
+import 'contexts/payments/application/buyer_payments_repository.dart';
 import 'contexts/payments/application/buyer_wallet_checkout_port.dart';
 import 'contexts/payments/application/buyer_wallet_recharge_command_store.dart';
+import 'contexts/payments/application/buyer_wallet_repository.dart';
 import 'contexts/payments/application/payment_report_idempotency_store.dart';
 import 'contexts/payments/infrastructure/buyer_payments_repository_impl.dart';
 import 'contexts/payments/infrastructure/buyer_wallet_repository_impl.dart';
-import 'contexts/payments/infrastructure/stripe_buyer_wallet_checkout.dart';
 import 'contexts/payments/infrastructure/file_buyer_wallet_recharge_command_store.dart';
 import 'contexts/payments/infrastructure/file_payment_report_idempotency_store.dart';
+import 'contexts/payments/infrastructure/stripe_buyer_wallet_checkout.dart';
 import 'contexts/payments/presentation/buyer_payment_activity_page.dart';
 import 'contexts/payments/presentation/buyer_payment_activity_view_model.dart';
 import 'contexts/payments/presentation/buyer_wallet_page.dart';
 import 'contexts/payments/presentation/buyer_wallet_view_model.dart';
-import 'contexts/fulfillment_delivery/infrastructure/buyer_deliveries_repository_impl.dart';
-import 'contexts/fulfillment_delivery/application/buyer_deliveries_repository.dart';
-import 'contexts/fulfillment_delivery/application/buyer_receipt_idempotency_store.dart';
-import 'contexts/fulfillment_delivery/application/buyer_receipt_evidence_idempotency_store.dart';
-import 'contexts/fulfillment_delivery/infrastructure/file_buyer_receipt_idempotency_store.dart';
-import 'contexts/fulfillment_delivery/infrastructure/file_buyer_receipt_evidence_idempotency_store.dart';
-import 'contexts/fulfillment_delivery/presentation/buyer_deliveries_page.dart';
-import 'contexts/fulfillment_delivery/presentation/buyer_delivery_detail_page.dart';
-import 'contexts/fulfillment_delivery/presentation/buyer_deliveries_view_model.dart';
 import 'contexts/sales_commitment/application/buyer_orders_repository.dart';
 import 'contexts/sales_commitment/application/buyer_purchase_workspace_repository.dart';
 import 'contexts/sales_commitment/application/purchase_request_repository.dart';
 import 'contexts/sales_commitment/infrastructure/buyer_orders_repository_impl.dart';
 import 'contexts/sales_commitment/infrastructure/file_purchase_request_idempotency_store.dart';
 import 'contexts/sales_commitment/infrastructure/purchase_request_repository_impl.dart';
+import 'contexts/sales_commitment/presentation/buyer_draft_page.dart';
+import 'contexts/sales_commitment/presentation/buyer_draft_view_model.dart';
 import 'contexts/sales_commitment/presentation/buyer_order_detail_page.dart';
 import 'contexts/sales_commitment/presentation/buyer_orders_page.dart';
 import 'contexts/sales_commitment/presentation/buyer_orders_view_model.dart';
+import 'contexts/sales_commitment/presentation/buyer_request_detail_page.dart';
+import 'contexts/sales_commitment/presentation/buyer_requests_page.dart';
+import 'contexts/sales_commitment/presentation/buyer_requests_view_model.dart';
 import 'contexts/sales_commitment/presentation/purchase_request_composer_page.dart';
 import 'contexts/sales_commitment/presentation/purchase_request_composer_view_model.dart';
-import 'contexts/sales_commitment/presentation/buyer_requests_view_model.dart';
-import 'contexts/sales_commitment/presentation/buyer_requests_page.dart';
-import 'contexts/sales_commitment/presentation/buyer_request_detail_page.dart';
-import 'contexts/sales_commitment/presentation/buyer_draft_view_model.dart';
-import 'contexts/sales_commitment/presentation/buyer_draft_page.dart';
 import 'contexts/tenant_access_governance/application/buyer_access_repository.dart';
+import 'contexts/tenant_access_governance/application/buyer_change_feed_repository.dart';
 import 'contexts/tenant_access_governance/infrastructure/buyer_access_repository_impl.dart';
+import 'contexts/tenant_access_governance/infrastructure/buyer_change_feed_repository_impl.dart';
 import 'contexts/tenant_access_governance/infrastructure/local_buyer_biometric_authenticator.dart';
 import 'contexts/tenant_access_governance/presentation/buyer_access_view_model.dart';
 import 'contexts/tenant_access_governance/presentation/buyer_password_recovery_view_model.dart';
 import 'contexts/tenant_access_governance/presentation/buyer_password_reset_page.dart';
 import 'contexts/tenant_access_governance/presentation/context_selection_page.dart';
 import 'contexts/tenant_access_governance/presentation/sign_in_page.dart';
-import 'contexts/tenant_access_governance/application/buyer_change_feed_repository.dart';
 import 'contexts/tenant_access_governance/application/buyer_password_recovery_repository.dart'
     as password_recovery;
-import 'contexts/tenant_access_governance/infrastructure/buyer_change_feed_repository_impl.dart';
 import 'contexts/tenant_access_governance/infrastructure/buyer_password_recovery_repository_impl.dart'
     as password_recovery;
 import 'core/configuration/buyer_map_configuration.dart';
 import 'core/network/nexa_api_client.dart';
-import 'core/presentation/nexa_buyer_components.dart';
 import 'core/presentation/nexa_buyer_theme.dart';
 
 Future<void> main() async {
@@ -131,6 +159,10 @@ final class BuyerMobileApp extends StatefulWidget {
 
 final class _BuyerMobileAppState extends State<BuyerMobileApp> {
   http.Client? _httpClient;
+  BuyerDeliveryInstructionsRepository? _deliveryInstructionsRepository;
+  BuyerFavoritesRepository? _favoritesRepository;
+  BuyerProfileRepository? _profileRepository;
+  BuyerAddressesRepository? _addressesRepository;
   BuyerAccessRepositoryImpl? _accessRepository;
   BuyerChangeFeedRepositoryImpl? _buyerChangeFeedRepository;
   BuyerAccessViewModel? _accessViewModel;
@@ -143,6 +175,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
   BuyerWalletRepositoryImpl? _walletRepository;
   FileBuyerWalletRechargeCommandStore? _walletRechargeCommandStore;
   FilePaymentReportIdempotencyStore? _paymentIdempotencyStore;
+  BuyerHandoffReceiptRepositoryImpl? _handoffReceiptRepository;
   BuyerDeliveriesRepositoryImpl? _deliveriesRepository;
   FileBuyerReceiptIdempotencyStore? _buyerReceiptIdempotencyStore;
   FileBuyerReceiptEvidenceIdempotencyStore?
@@ -166,6 +199,12 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
       _httpClient = widget.httpClient ?? http.Client();
       final api = NexaApiClient(origin: origin, httpClient: _httpClient!);
       _accessRepository = BuyerAccessRepositoryImpl(api);
+      _deliveryInstructionsRepository = BuyerDeliveryInstructionsRepositoryImpl(
+        api,
+      );
+      _favoritesRepository = BuyerFavoritesRepositoryImpl(api);
+      _profileRepository = BuyerProfileRepositoryImpl(api);
+      _addressesRepository = BuyerAddressesRepositoryImpl(api);
       api.sessionCredentials = _accessRepository;
       _buyerChangeFeedRepository = BuyerChangeFeedRepositoryImpl(
         api,
@@ -186,6 +225,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
       _walletRepository = BuyerWalletRepositoryImpl(api);
       _walletRechargeCommandStore = FileBuyerWalletRechargeCommandStore();
       _paymentIdempotencyStore = FilePaymentReportIdempotencyStore();
+      _handoffReceiptRepository = BuyerHandoffReceiptRepositoryImpl(api);
       _deliveriesRepository = BuyerDeliveriesRepositoryImpl(api);
       _buyerReceiptIdempotencyStore = FileBuyerReceiptIdempotencyStore();
       _buyerReceiptEvidenceIdempotencyStore =
@@ -273,12 +313,28 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
 
     return MultiProvider(
       providers: [
+        Provider<BuyerDeliveryInstructionsRepository>.value(
+          value: _deliveryInstructionsRepository!,
+        ),
         Provider<BuyerAccessRepository>.value(value: access),
         Provider<BuyerChangeFeedRepository>.value(value: changeFeed),
         Provider<password_recovery.BuyerPasswordRecoveryRepository>.value(
           value: passwordRecoveryRepository,
         ),
         Provider<CatalogRepository>.value(value: catalog),
+        ChangeNotifierProvider<BuyerProfileViewModel>(
+          create: (_) => BuyerProfileViewModel(_profileRepository!, access),
+        ),
+        ChangeNotifierProvider<BuyerAddressesViewModel>(
+          create: (_) => BuyerAddressesViewModel(_addressesRepository!, access),
+        ),
+        Provider<BuyerFavoritesRepository>.value(value: _favoritesRepository!),
+        ChangeNotifierProvider<BuyerFavoritesViewModel>(
+          create: (context) => BuyerFavoritesViewModel(
+            context.read<BuyerFavoritesRepository>(),
+            access,
+          ),
+        ),
         Provider<BuyerCreditExposureRepository>.value(value: creditExposure),
         Provider<BuyerPaymentsRepository>.value(value: payments),
         Provider<BuyerWalletRepository>.value(value: wallet),
@@ -289,6 +345,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         Provider<PaymentReportIdempotencyStore>.value(
           value: paymentIdempotencyStore,
         ),
+        Provider<BuyerHandoffReceiptRepository>.value(
+          value: _handoffReceiptRepository!,
+        ),
         Provider<BuyerDeliveriesRepository>.value(value: deliveries),
         Provider<BuyerReceiptIdempotencyStore>.value(
           value: buyerReceiptIdempotencyStore,
@@ -297,6 +356,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
           value: buyerReceiptEvidenceIdempotencyStore,
         ),
         Provider<BuyerOrdersRepository>.value(value: orders),
+        Provider<BuyerOrderHistoryRepository>.value(value: orders),
         Provider<PurchaseRequestRepository>.value(value: purchaseRequests),
         Provider<BuyerPurchaseWorkspaceRepository>.value(
           value: purchaseRequests,
@@ -377,13 +437,49 @@ GoRouter _createRouter(
   String mapAttribution,
 ) => GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: '/catalog',
+  initialLocation: '/home',
   refreshListenable: access,
   redirect: (context, state) => BuyerWorkspaceNavigation.redirectLocation(
     access.snapshot,
     state.uri.path,
   ),
   routes: [
+    GoRoute(
+      path: '/account',
+      builder: (context, state) => const BuyerAccountPage(),
+    ),
+    GoRoute(
+      path: '/profile',
+      builder: (context, state) => const BuyerProfilePage(),
+    ),
+    GoRoute(
+      path: '/addresses',
+      builder: (context, state) => BuyerAddressesPage(
+        chooseLocation: mapTileUrlTemplate.isEmpty || mapAttribution.isEmpty
+            ? null
+            : (context, initial) =>
+                  Navigator.of(context).push<BuyerAddressLocation>(
+                    MaterialPageRoute(
+                      builder: (_) => BuyerAddressLocationPickerPage(
+                        tileUrlTemplate: mapTileUrlTemplate,
+                        attribution: mapAttribution,
+                        initial: initial,
+                      ),
+                    ),
+                  ),
+      ),
+    ),
+    GoRoute(
+      path: '/orders/:orderId/instructions',
+      builder: (context, state) => ChangeNotifierProvider(
+        create: (context) => BuyerDeliveryInstructionsViewModel(
+          context.read<BuyerDeliveryInstructionsRepository>(),
+          context.read<BuyerAccessRepository>(),
+          state.pathParameters['orderId']!,
+        ),
+        child: const BuyerDeliveryInstructionsPage(),
+      ),
+    ),
     GoRoute(path: '/sign-in', builder: (context, state) => const SignInPage()),
     GoRoute(
       path: '/forgot-password',
@@ -397,6 +493,10 @@ GoRouter _createRouter(
       builder: (context, state) => BuyerPasswordResetPage(
         token: state.uri.queryParameters['token'] ?? '',
       ),
+    ),
+    GoRoute(
+      path: '/favorites',
+      builder: (context, state) => const BuyerFavoritesPage(),
     ),
     GoRoute(
       path: '/choose-context',
@@ -423,6 +523,14 @@ GoRouter _createRouter(
         StatefulShellBranch(
           routes: [
             GoRoute(
+              path: '/home',
+              builder: (context, state) => const BuyerShoppingSummary(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
               path: '/catalog',
               builder: (context, state) => const CatalogPage(),
               routes: [
@@ -438,7 +546,13 @@ GoRouter _createRouter(
                         context.read<BuyerAccessRepository>(),
                         catalogItemId,
                       )..load(),
-                      child: const CatalogItemDetailPage(),
+                      child: CatalogItemDetailPage(
+                        favoriteActionBuilder: (item) =>
+                            BuyerSaveFavoriteButton(
+                              sellableSkuId: item.sellableSkuId,
+                              routePath: state.uri.path,
+                            ),
+                      ),
                     );
                   },
                   routes: [
@@ -486,7 +600,18 @@ GoRouter _createRouter(
                         context.read<BuyerAccessRepository>(),
                         orderId,
                       )..load(),
-                      child: const BuyerOrderDetailPage(),
+                      child: BuyerOrderDetailPage(
+                        history: BuyerOrderHistoryCard(orderId: orderId),
+                        onOpenInstructions: () => context.push(
+                          '/orders/${Uri.encodeComponent(orderId)}/instructions',
+                        ),
+                        documents: BuyerSubjectDocumentsCard(
+                          subjectType: 'SALES_ORDER',
+                          subjectId: orderId,
+                          visibleRoute:
+                              '/orders/${Uri.encodeComponent(orderId)}',
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -553,7 +678,9 @@ GoRouter _createRouter(
                         context.read<BuyerAccessRepository>(),
                         documentId,
                       )..load(),
-                      child: const BusinessDocumentDetailPage(),
+                      child: BusinessDocumentDetailPage(
+                        exporter: SystemBusinessDocumentExporter(),
+                      ),
                     );
                   },
                 ),
@@ -590,10 +717,25 @@ GoRouter _createRouter(
                         evidenceStore: context
                             .read<BuyerReceiptEvidenceIdempotencyStore>(),
                       )..load(),
-                      child: BuyerDeliveryDetailPage(
-                        mapTileUrlTemplate: mapTileUrlTemplate,
-                        mapAttribution: mapAttribution,
-                      ),
+                      child:
+                          ChangeNotifierProvider<BuyerHandoffReceiptViewModel>(
+                            create: (context) => BuyerHandoffReceiptViewModel(
+                              context.read<BuyerHandoffReceiptRepository>(),
+                              context.read<BuyerAccessRepository>(),
+                              deliveryId,
+                            ),
+                            child: BuyerDeliveryDetailPage(
+                              scanDeliveryToken: () => Navigator.of(context)
+                                  .push<String>(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const BuyerDeliveryQrScanner(),
+                                    ),
+                                  ),
+                              mapTileUrlTemplate: mapTileUrlTemplate,
+                              mapAttribution: mapAttribution,
+                            ),
+                          ),
                     );
                   },
                 ),
@@ -657,49 +799,59 @@ final class _BuyerNavigationShell extends StatelessWidget {
     final access = context.watch<BuyerAccessViewModel>();
     final current = access.snapshot.currentContext;
     final options = BuyerWorkspaceNavigation.destinations(access.snapshot);
-    const primaryOrder = [
-      BuyerWorkspaceDestination.catalog,
+    final orderOptions = [
       BuyerWorkspaceDestination.requests,
       BuyerWorkspaceDestination.orders,
       BuyerWorkspaceDestination.deliveries,
+    ].where(options.contains).toList();
+    final tabs = <BuyerWorkspaceDestination>[
+      if (options.contains(BuyerWorkspaceDestination.home))
+        BuyerWorkspaceDestination.home,
+      if (options.contains(BuyerWorkspaceDestination.catalog))
+        BuyerWorkspaceDestination.catalog,
+      if (orderOptions.isNotEmpty) orderOptions.first,
     ];
-    final primary = primaryOrder.where(options.contains).toList();
-    final secondary = options
-        .where((option) => !primary.contains(option))
-        .toList();
-    final selected = primary.indexWhere(
-      (option) => option.branchIndex == navigationShell.currentIndex,
+    final inOrders = orderOptions.any(
+      (item) => item.branchIndex == navigationShell.currentIndex,
     );
+    final selected = inOrders
+        ? tabs.indexOf(orderOptions.first)
+        : tabs.indexWhere(
+            (item) => item.branchIndex == navigationShell.currentIndex,
+          );
+    final selectedIndex = selected < 0 ? -1 : selected;
+    NavigationDestination destination(BuyerWorkspaceDestination item) {
+      if (orderOptions.contains(item)) {
+        return const NavigationDestination(
+          icon: Icon(Icons.shopping_bag_outlined),
+          selectedIcon: Icon(Icons.shopping_bag),
+          label: 'Pedidos',
+        );
+      }
+      return _navigationDestination(item);
+    }
+
+    void select(int index) {
+      final item = tabs[index];
+      if (!orderOptions.contains(item) || !inOrders) _open(item);
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final useNavigationRail = constraints.maxWidth >= 800;
-        final hasPrimaryNavigation = primary.isNotEmpty;
-        final hasBottomNavigation = hasPrimaryNavigation && !useNavigationRail;
+        final hasPrimaryNavigation = tabs.length > 1 && selectedIndex >= 0;
+        final useRail = constraints.maxWidth >= 800 && hasPrimaryNavigation;
         return Scaffold(
           appBar: AppBar(
-            title: Row(
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Image.asset(
-                  'assets/brand/nexa-mobile.png',
-                  width: 36,
-                  height: 36,
-                  semanticLabel: 'Nexa',
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Compras'),
-                      if (current != null)
-                        Text(
-                          current.tenantName,
-                          style: Theme.of(context).textTheme.labelSmall,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                    ],
+                const Text('Tus compras'),
+                if (current != null)
+                  Text(
+                    current.tenantName,
+                    style: Theme.of(context).textTheme.labelSmall,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
               ],
             ),
             actions: [
@@ -712,82 +864,89 @@ final class _BuyerNavigationShell extends StatelessWidget {
                   icon: const Icon(Icons.notifications_outlined),
                 ),
               IconButton(
-                tooltip: 'Perfil y sesión',
-                icon: const Icon(Icons.more_vert),
-                onPressed: () => _account(context, access),
+                tooltip: 'Cuenta',
+                icon: CircleAvatar(
+                  radius: 17,
+                  backgroundColor: Theme.of(context)
+                      .colorScheme
+                      .primaryContainer,
+                  child: Text(
+                    _accountInitial(current?.displayName, current?.email),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+                onPressed: () => context.push('/account'),
               ),
             ],
           ),
           body: SafeArea(
             top: false,
-            bottom: !hasBottomNavigation,
+            bottom: useRail,
             child: Row(
               children: [
-                if (useNavigationRail && hasPrimaryNavigation) ...[
+                if (useRail) ...[
                   NavigationRail(
-                    selectedIndex: selected >= 0 ? selected : null,
+                    selectedIndex: selectedIndex,
                     labelType: NavigationRailLabelType.all,
-                    onDestinationSelected: (index) => _open(primary[index]),
-                    destinations: primary
-                        .map(_navigationRailDestination)
-                        .toList(),
+                    onDestinationSelected: select,
+                    destinations: tabs.map((item) {
+                      final tab = destination(item);
+                      return NavigationRailDestination(
+                        icon: tab.icon,
+                        selectedIcon: tab.selectedIcon,
+                        label: Text(tab.label),
+                      );
+                    }).toList(),
                   ),
                   const VerticalDivider(width: 1),
                 ],
-                Expanded(child: navigationShell),
+                Expanded(
+                  child: Column(
+                    children: [
+                      if (inOrders && orderOptions.length > 1)
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            children: [
+                              for (final item in orderOptions)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: ChoiceChip(
+                                    selected:
+                                        item.branchIndex ==
+                                        navigationShell.currentIndex,
+                                    label: Text(switch (item) {
+                                      BuyerWorkspaceDestination.orders =>
+                                        'Órdenes',
+                                      BuyerWorkspaceDestination.deliveries =>
+                                        'Seguimiento',
+                                      _ => item.label,
+                                    }),
+                                    onSelected: (_) => _open(item),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      Expanded(child: navigationShell),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
-          floatingActionButton: secondary.isEmpty
+          bottomNavigationBar: useRail || !hasPrimaryNavigation
               ? null
-              : FloatingActionButton(
-                  tooltip: 'Más opciones',
-                  onPressed: () => _more(context, secondary),
-                  child: const Icon(Icons.add),
-                ),
-          bottomNavigationBar: !hasBottomNavigation
-              ? null
-              : primary.length == 1
-              ? SafeArea(
-                  top: false,
-                  child: BottomAppBar(
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: () => _open(primary.single),
-                        icon: _navigationDestination(primary.single).icon,
-                        label: Text(primary.single.label),
-                      ),
-                    ),
-                  ),
-                )
-              : selected < 0
-              ? SafeArea(
-                  top: false,
-                  child: BottomAppBar(
-                    child: SizedBox(
-                      height: 80,
-                      child: Row(
-                        children: [
-                          for (final destination in primary)
-                            Expanded(
-                              child: _unselectedNavigationBarDestination(
-                                context,
-                                destination,
-                                () => _open(destination),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                )
               : NavigationBar(
-                  selectedIndex: selected,
-                  onDestinationSelected: (index) {
-                    _open(primary[index]);
-                  },
-                  destinations: primary.map(_navigationDestination).toList(),
+                  selectedIndex: selectedIndex,
+                  onDestinationSelected: select,
+                  destinations: tabs.map(destination).toList(),
                 ),
         );
       },
@@ -798,362 +957,25 @@ final class _BuyerNavigationShell extends StatelessWidget {
     option.branchIndex,
     initialLocation: option.branchIndex == navigationShell.currentIndex,
   );
-
-  Future<void> _more(
-    BuildContext context,
-    List<BuyerWorkspaceDestination> options,
-  ) async {
-    final access = context.read<BuyerAccessViewModel>();
-    final openedAuthority = _authorityKey(access);
-    final selected = await showModalBottomSheet<BuyerWorkspaceDestination>(
-      context: context,
-      showDragHandle: true,
-      useSafeArea: true,
-      builder: (context) => Consumer<BuyerAccessViewModel>(
-        builder: (context, access, child) => SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Tu espacio de compra',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 16),
-                  for (final option in options.where(
-                    BuyerWorkspaceNavigation.destinations(access.snapshot)
-                        .contains,
-                  ))
-                    ListTile(
-                      leading: _navigationDestination(option).icon,
-                      title: Text(option.label),
-                      trailing: const Icon(Icons.chevron_right),
-                      selected:
-                          option.branchIndex == navigationShell.currentIndex,
-                      onTap: () => Navigator.pop(context, option),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    if (selected != null &&
-        context.mounted &&
-        BuyerWorkspaceNavigation.destinations(
-          context.read<BuyerAccessViewModel>().snapshot,
-        ).contains(selected) &&
-        openedAuthority ==
-            _authorityKey(context.read<BuyerAccessViewModel>())) {
-      _open(selected);
-    }
-  }
-
-  Future<void> _account(
-    BuildContext context,
-    BuyerAccessViewModel access,
-  ) async {
-    final openedAuthority = _authorityKey(access);
-    unawaited(access.refreshBiometricAvailability());
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      useSafeArea: true,
-      builder: (sheetContext) => Consumer<BuyerAccessViewModel>(
-        builder: (sheetContext, access, child) {
-          final current = access.snapshot.currentContext;
-          final sameAuthority = openedAuthority == _authorityKey(access);
-          return SafeArea(
-            top: false,
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Perfil y sesión',
-                      style: Theme.of(sheetContext).textTheme.titleLarge,
-                    ),
-                    if (!sameAuthority)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 12),
-                        child: Text(
-                          'El contexto de acceso cambió. Cierra este panel y vuelve a abrir Mi cuenta.',
-                        ),
-                      )
-                    else ...[
-                      Text(
-                        current?.displayName ?? 'Cuenta Buyer',
-                        style: Theme.of(sheetContext).textTheme.titleMedium,
-                      ),
-                      if (current?.email != null) Text(current!.email!),
-                      const SizedBox(height: 24),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.business_outlined),
-                        title: Text(current?.tenantName ?? ''),
-                        subtitle: Text(current?.workspaceName ?? ''),
-                      ),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.lock_outline),
-                        title: const Text('Cambiar contraseña'),
-                        onTap: sameAuthority
-                            ? () => _changePassword(sheetContext, access)
-                            : null,
-                      ),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.devices_outlined),
-                        title: const Text('Cerrar otras sesiones'),
-                        subtitle: const Text(
-                          'Mantén activa esta sesión y cierra las demás.',
-                        ),
-                        onTap: sameAuthority
-                            ? () => _revokeOtherSessions(sheetContext, access)
-                            : null,
-                      ),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        secondary: const Icon(Icons.fingerprint),
-                        title: const Text('Acceso biométrico'),
-                        subtitle: Text(
-                          access.biometricSupported
-                              ? 'Desbloquea Nexa Buyer con huella o reconocimiento facial.'
-                              : 'Configura huella o reconocimiento facial en el dispositivo para activarlo.',
-                        ),
-                        value: access.biometricEnabled,
-                        onChanged:
-                            !sameAuthority ||
-                                access.biometricBusy ||
-                                (!access.biometricSupported &&
-                                    !access.biometricEnabled)
-                            ? null
-                            : access.setBiometricUnlockEnabled,
-                      ),
-                      if (access.biometricMessage case final message?)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: NexaNotice(message, isError: true),
-                        ),
-                    ],
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: access.busy || !sameAuthority
-                            ? null
-                            : () {
-                                Navigator.pop(sheetContext);
-                                access.signOut();
-                              },
-                        icon: const Icon(Icons.logout),
-                        label: const Text('Cerrar sesión'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Future<void> _changePassword(
-    BuildContext context,
-    BuyerAccessViewModel access,
-  ) async {
-    final currentPassword = TextEditingController();
-    final newPassword = TextEditingController();
-    final confirmation = TextEditingController();
-    var busy = false;
-    String? error;
-
-    try {
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) => StatefulBuilder(
-          builder: (dialogContext, setDialogState) => AlertDialog(
-            title: const Text('Cambiar contraseña'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: currentPassword,
-                    obscureText: true,
-                    autofocus: true,
-                    onChanged: (_) => setDialogState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: 'Contraseña actual',
-                    ),
-                  ),
-                  TextField(
-                    controller: newPassword,
-                    obscureText: true,
-                    onChanged: (_) => setDialogState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: 'Nueva contraseña',
-                    ),
-                  ),
-                  TextField(
-                    controller: confirmation,
-                    obscureText: true,
-                    onChanged: (_) => setDialogState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: 'Confirmar contraseña',
-                    ),
-                  ),
-                  if (error case final message?)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Text(
-                        message,
-                        style: TextStyle(
-                          color: Theme.of(dialogContext).colorScheme.error,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: busy ? null : () => Navigator.pop(dialogContext),
-                child: const Text('Cancelar'),
-              ),
-              FilledButton(
-                onPressed:
-                    busy ||
-                        currentPassword.text.isEmpty ||
-                        newPassword.text.isEmpty ||
-                        confirmation.text.isEmpty
-                    ? null
-                    : () async {
-                        if (newPassword.text != confirmation.text) {
-                          setDialogState(() {
-                            error = 'Las contraseñas nuevas no coinciden.';
-                          });
-                          return;
-                        }
-                        setDialogState(() {
-                          busy = true;
-                          error = null;
-                        });
-                        try {
-                          await access.changePassword(
-                            currentPassword: currentPassword.text,
-                            newPassword: newPassword.text,
-                          );
-                          if (dialogContext.mounted) {
-                            Navigator.pop(dialogContext);
-                          }
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Contraseña actualizada.'),
-                              ),
-                            );
-                          }
-                        } on NexaApiFailure catch (failure) {
-                          if (dialogContext.mounted) {
-                            setDialogState(() {
-                              error = failure.userMessage;
-                            });
-                          }
-                        } catch (_) {
-                          if (dialogContext.mounted) {
-                            setDialogState(() {
-                              error = 'No se pudo cambiar la contraseña. Inténtalo de nuevo.';
-                            });
-                          }
-                        } finally {
-                          if (dialogContext.mounted) {
-                            setDialogState(() => busy = false);
-                          }
-                        }
-                      },
-                child: busy
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Guardar'),
-              ),
-            ],
-          ),
-        ),
-      );
-    } finally {
-      currentPassword.dispose();
-      newPassword.dispose();
-      confirmation.dispose();
-    }
-  }
-
-  Future<void> _revokeOtherSessions(
-    BuildContext context,
-    BuyerAccessViewModel access,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Cerrar otras sesiones'),
-        content: const Text(
-          'Se cerrarán tus sesiones en otros dispositivos. Esta sesión seguirá activa.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Cerrar sesiones'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
-    try {
-      await access.revokeOtherSessions();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Otras sesiones cerradas.')),
-        );
-      }
-    } on NexaApiFailure catch (failure) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(failure.userMessage)));
-      }
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se pudieron cerrar las otras sesiones.'),
-          ),
-        );
-      }
-    }
-  }
 }
 
-String _authorityKey(BuyerAccessViewModel access) =>
-    '${access.snapshot.authorityEpoch}:${access.snapshot.currentContext?.authorityFingerprint}';
+String _accountInitial(String? displayName, String? email) {
+  final name = displayName?.trim() ?? '';
+  final fallback = email?.trim() ?? '';
+  final value = name.isNotEmpty ? name : fallback;
+  return value.isEmpty
+      ? 'N'
+      : String.fromCharCode(value.runes.first).toUpperCase();
+}
 
 NavigationDestination _navigationDestination(
   BuyerWorkspaceDestination destination,
 ) => switch (destination) {
+  BuyerWorkspaceDestination.home => const NavigationDestination(
+    icon: Icon(Icons.home_outlined),
+    selectedIcon: Icon(Icons.home),
+    label: 'Inicio',
+  ),
   BuyerWorkspaceDestination.requests => const NavigationDestination(
     icon: Icon(Icons.shopping_bag_outlined),
     selectedIcon: Icon(Icons.shopping_bag),
@@ -1190,58 +1012,6 @@ NavigationDestination _navigationDestination(
     label: 'Mis entregas',
   ),
 };
-
-NavigationRailDestination _navigationRailDestination(
-  BuyerWorkspaceDestination destination,
-) {
-  final item = _navigationDestination(destination);
-  return NavigationRailDestination(
-    icon: item.icon,
-    selectedIcon: item.selectedIcon,
-    label: Text(item.label),
-  );
-}
-
-Widget _unselectedNavigationBarDestination(
-  BuildContext context,
-  BuyerWorkspaceDestination destination,
-  VoidCallback onTap,
-) {
-  final theme = Theme.of(context);
-  final item = _navigationDestination(destination);
-  return Semantics(
-    button: true,
-    inMutuallyExclusiveGroup: true,
-    label: destination.label,
-    onTap: onTap,
-    selected: false,
-    child: ExcludeSemantics(
-      child: InkWell(
-        onTap: onTap,
-        child: SizedBox.expand(
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                item.icon,
-                const SizedBox(height: 2),
-                Text(
-                  destination.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-}
 
 final class _WorkspaceUnavailablePage extends StatelessWidget {
   const _WorkspaceUnavailablePage();

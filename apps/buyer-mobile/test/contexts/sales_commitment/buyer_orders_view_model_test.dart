@@ -5,8 +5,17 @@ import 'package:nexa_buyer_mobile/contexts/sales_commitment/application/buyer_or
 import 'package:nexa_buyer_mobile/contexts/sales_commitment/presentation/buyer_orders_view_model.dart';
 import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/application/buyer_access_repository.dart';
 import 'package:nexa_buyer_mobile/core/network/nexa_api_client.dart';
+import 'package:nexa_buyer_mobile/core/presentation/nexa_buyer_components.dart';
 
 void main() {
+  test('known Sales Order statuses use customer-facing Spanish labels', () {
+    expect(nexaStatusLabel('IN_FULFILLMENT'), 'En preparación');
+    expect(nexaStatusLabel('PARTIALLY_FULFILLED'), 'Preparación parcial');
+    expect(nexaStatusLabel('FULFILLED'), 'Preparado');
+    expect(nexaStatusLabel('PARTIALLY_DELIVERED'), 'Entrega parcial');
+    expect(nexaStatusLabel('FUTURE_STATE'), 'FUTURE STATE');
+  });
+
   test(
     'Buyer role without buyer.order.read cannot list or open orders',
     () async {
@@ -106,6 +115,41 @@ void main() {
     detail.dispose();
     await access.dispose();
   });
+
+  test(
+    'active and history lists use separate server paginated status groups',
+    () async {
+      final access = _FakeAccess(_authorizedSnapshot());
+      final repository = _CountingOrdersRepository();
+      final orders = BuyerOrdersViewModel(repository, access);
+
+      await orders.refresh();
+      expect(repository.statusQueries.single, [
+        'PENDING',
+        'CONFIRMED',
+        'IN_FULFILLMENT',
+        'PARTIALLY_FULFILLED',
+        'FULFILLED',
+        'PARTIALLY_DELIVERED',
+      ]);
+      expect(orders.total, 60);
+
+      await orders.nextPage();
+      expect(repository.pageQueries.last, 1);
+
+      await orders.selectBucket(BuyerOrdersBucket.history);
+      expect(orders.bucket, BuyerOrdersBucket.history);
+      expect(orders.page, 0);
+      expect(repository.statusQueries.last, [
+        'COMPLETED',
+        'REJECTED',
+        'CANCELLED',
+      ]);
+
+      orders.dispose();
+      await access.dispose();
+    },
+  );
 }
 
 BuyerAccessSnapshot _authorizedSnapshot({
@@ -146,20 +190,27 @@ const _forbidden = NexaApiFailure(
 
 final class _CountingOrdersRepository implements BuyerOrdersRepository {
   int listCalls = 0;
+  final List<int> pageQueries = [];
+  final List<List<String>> statusQueries = [];
   int detailCalls = 0;
   Future<BuyerOrdersPageProjection>? listResult;
   Future<BuyerOrderProjection>? detailResult;
 
   @override
-  Future<BuyerOrdersPageProjection> list({required int page}) async {
+  Future<BuyerOrdersPageProjection> list({
+    required int page,
+    List<String>? statuses,
+  }) async {
     listCalls++;
+    pageQueries.add(page);
+    statusQueries.add(statuses ?? const []);
     final configured = listResult;
     if (configured != null) return configured;
     return BuyerOrdersPageProjection(
       items: [_order()],
       page: page,
       size: 25,
-      total: 0,
+      total: 60,
     );
   }
 

@@ -23,14 +23,12 @@ final class BuyerDeliveryAddressProjection {
 final class BuyerPurchaseContextProjection {
   const BuyerPurchaseContextProjection({
     required this.clientAccountId,
-    required this.buyerMembershipId,
     required this.businessName,
     required this.paymentCondition,
     required this.addresses,
   });
 
   final String clientAccountId;
-  final String buyerMembershipId;
   final String businessName;
   final String paymentCondition;
   final List<BuyerDeliveryAddressProjection> addresses;
@@ -38,13 +36,13 @@ final class BuyerPurchaseContextProjection {
 
 final class BuyerDeliveryLeadPolicyProjection {
   const BuyerDeliveryLeadPolicyProjection({
-    required this.minimumDeliveryLeadBusinessDays,
-    required this.minimumAllowedDeliveryDate,
+    required this.minimumDeliveryLeadDays,
+    required this.earliestAllowedDeliveryDate,
     required this.timezone,
   });
 
-  final int minimumDeliveryLeadBusinessDays;
-  final DateTime minimumAllowedDeliveryDate;
+  final int minimumDeliveryLeadDays;
+  final DateTime earliestAllowedDeliveryDate;
   final String timezone;
 }
 

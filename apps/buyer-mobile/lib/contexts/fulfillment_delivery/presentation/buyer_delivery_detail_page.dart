@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -28,10 +29,12 @@ final class BuyerDeliveryDetailPage extends StatefulWidget {
     super.key,
     this.mapTileUrlTemplate = '',
     this.mapAttribution = '',
+    this.scanDeliveryToken,
   });
 
   final String mapTileUrlTemplate;
   final String mapAttribution;
+  final Future<String?> Function()? scanDeliveryToken;
 
   @override
   State<BuyerDeliveryDetailPage> createState() =>
@@ -48,7 +51,7 @@ final class _BuyerDeliveryDetailPageState
   late final BuyerDeliveryDetailViewModel _detail;
   int _authorityRevision = 0;
   String? _lastHandoffId;
-  String _decision = 'ACCEPTED';
+  String _decision = 'DISPUTED';
 
   @override
   void initState() {
@@ -84,7 +87,7 @@ final class _BuyerDeliveryDetailPageState
       _handoffCode.clear();
       _acceptedQuantity.clear();
       _discrepancyReason.clear();
-      _decision = 'ACCEPTED';
+      _decision = 'DISPUTED';
       if (mounted) setState(() {});
     }
     final handoff = _detail.handoff;
@@ -128,10 +131,6 @@ final class _BuyerDeliveryDetailPageState
         ),
       );
     }
-    final acceptance = detail.handoffAcceptance;
-    final deliveryStatus = acceptance?.deliveryStatus ?? delivery.status;
-    final proofOfDeliveryStatus =
-        acceptance?.podStatus ?? delivery.proofOfDeliveryStatus;
 
     return Scaffold(
       appBar: AppBar(title: Text('Pedido ${delivery.salesOrderNumber}')),
@@ -145,12 +144,6 @@ final class _BuyerDeliveryDetailPageState
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
               children: [
-                NexaPageIntro(
-                  title: 'Entrega de pedido ${delivery.salesOrderNumber}',
-                  description:
-                      'Estado y eventos registrados para esta entrega.',
-                  icon: Icons.local_shipping_outlined,
-                ),
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton.icon(
@@ -169,52 +162,46 @@ final class _BuyerDeliveryDetailPageState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Estado de entrega',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
                         NexaStatusBadge(
-                          deliveryStatus,
-                          label: _statusLabel(deliveryStatus),
+                          delivery.status,
+                          label: _statusLabel(delivery.status),
                         ),
                         const SizedBox(height: 12),
                         _DetailRow(
-                          label: 'Pedido',
-                          value: delivery.salesOrderNumber,
+                          label: 'Destino',
+                          value: _destinationLabel(delivery.destination),
                         ),
-                        if (delivery.destination != null)
+                        if (delivery.scheduledAt != null)
                           _DetailRow(
-                            label: 'Destino',
-                            value: delivery.destination!,
+                            label: 'Programada',
+                            value: _dateTimeLabel(delivery.scheduledAt)!,
                           ),
-                        _DetailRow(
-                          label: 'Programada',
-                          value:
-                              _dateTimeLabel(delivery.scheduledAt) ??
-                              'Sin fecha',
-                        ),
-                        _DetailRow(
-                          label: 'Despachada',
-                          value:
-                              _dateTimeLabel(delivery.dispatchedAt) ??
-                              'No disponible',
-                        ),
-                        _DetailRow(
-                          label: 'Entregada',
-                          value:
-                              _dateTimeLabel(delivery.deliveredAt) ??
-                              'No disponible',
-                        ),
-                        _DetailRow(
-                          label: 'Comprobante de entrega',
-                          value: proofOfDeliveryStatus == null
-                              ? 'No disponible'
-                              : _statusLabel(proofOfDeliveryStatus),
-                        ),
-                        _DetailRow(
-                          label: 'Actualización',
-                          value: _dateTimeLabel(delivery.updatedAt)!,
+                        ExpansionTile(
+                          tilePadding: EdgeInsets.zero,
+                          title: const Text('Detalles de entrega'),
+                          children: [
+                            if (delivery.dispatchedAt != null)
+                              _DetailRow(
+                                label: 'Despachada',
+                                value: _dateTimeLabel(delivery.dispatchedAt)!,
+                              ),
+                            if (delivery.deliveredAt != null)
+                              _DetailRow(
+                                label: 'Entregada',
+                                value: _dateTimeLabel(delivery.deliveredAt)!,
+                              ),
+                            if (delivery.proofOfDeliveryStatus != null)
+                              _DetailRow(
+                                label: 'Comprobante de entrega',
+                                value: _statusLabel(
+                                  delivery.proofOfDeliveryStatus!,
+                                ),
+                              ),
+                            _DetailRow(
+                              label: 'Actualización',
+                              value: _dateTimeLabel(delivery.updatedAt)!,
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -248,7 +235,15 @@ final class _BuyerDeliveryDetailPageState
                     ),
                   ),
                 const SizedBox(height: 16),
-                _handoffAndReceipt(context, detail),
+                if (detail.handoffAcceptance != null)
+                  _handoffAndReceipt(context, detail)
+                else if (widget.scanDeliveryToken != null)
+                  _qrReceiptCard(detail, delivery),
+                if (detail.handoffAcceptance == null)
+                  ExpansionTile(
+                    title: const Text('Hay una diferencia con mi entrega'),
+                    children: [_handoffAndReceipt(context, detail)],
+                  ),
                 _receiptHistory(context, detail),
               ],
             ),
@@ -256,6 +251,71 @@ final class _BuyerDeliveryDetailPageState
         ),
       ),
     );
+  }
+
+  Widget _qrReceiptCard(
+    BuyerDeliveryDetailViewModel detail,
+    BuyerDeliveryProjection delivery,
+  ) {
+    final enabled =
+        detail.canAcceptHandoff && delivery.proofOfDeliveryStatus != 'SEALED';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.qr_code_scanner_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Recibe tu pedido',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Cuando tengas tu pedido, escanea el QR del repartidor para registrar la recepción.',
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              key: const Key('buyer-scan-delivery-qr'),
+              onPressed: enabled ? () => _scanAndAccept(detail) : null,
+              icon: const Icon(Icons.qr_code_scanner),
+              label: const Text('Escanear y recibir'),
+            ),
+            if (!enabled)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  'La recepción ya está registrada o todavía no está disponible.',
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _scanAndAccept(BuyerDeliveryDetailViewModel detail) async {
+    final scan = widget.scanDeliveryToken;
+    if (scan == null || !detail.canAcceptHandoff) return;
+    final revision = detail.authorityRevision;
+    final token = await scan();
+    if (!mounted ||
+        token == null ||
+        revision != detail.authorityRevision ||
+        !detail.canAcceptHandoff) {
+      return;
+    }
+    await detail.acceptHandoff(token);
   }
 
   Widget _liveLocation(
@@ -337,43 +397,6 @@ final class _BuyerDeliveryDetailPageState
     BuildContext context,
     BuyerDeliveryDetailViewModel detail,
   ) {
-    final acceptance = detail.handoffAcceptance;
-    if (acceptance != null) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Entrega confirmada',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              NexaNotice(detail.receiptMessage ?? 'Recepción confirmada.'),
-              _DetailRow(
-                label: 'Pedido',
-                value: acceptance.orderCompleted
-                    ? 'Completado'
-                    : 'Pendiente de completar',
-              ),
-              _DetailRow(
-                label: 'Cantidad aceptada',
-                value: acceptance.acceptedQuantity.toString(),
-              ),
-              _DetailRow(
-                label: 'Recepción registrada',
-                value: _dateTimeLabel(acceptance.occurredAt)!,
-              ),
-              _DetailRow(
-                label: 'Estado de entrega',
-                value: _statusLabel(acceptance.deliveryStatus),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
     final locked =
         detail.receiptAttemptLocked ||
         detail.receiptStatus == BuyerReceiptStatus.accepted ||
@@ -390,11 +413,13 @@ final class _BuyerDeliveryDetailPageState
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Recepción de entrega',
+              'Revisar una diferencia',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
-            const Text('Ingresa el código de entrega para verificarlo.'),
+            const Text(
+              'Verifica el código del repartidor para revisar cantidades y registrar lo que pasó.',
+            ),
             const SizedBox(height: 12),
             TextField(
               key: const Key('buyer-handoff-code'),
@@ -802,32 +827,124 @@ final class _DeliveryDetailMessage extends StatelessWidget {
   );
 }
 
-String _statusLabel(String value) {
-  final known = switch (value.toUpperCase()) {
-    'PLANNED' => 'Programada',
-    'ALLOCATED' => 'Preparada',
-    'DISPATCHED' => 'Despachada',
-    'IN_TRANSIT' => 'En camino',
-    'DELIVERED' => 'Entregada',
-    'PARTIAL' || 'PARTIALLY_DELIVERED' => 'Entrega parcial',
-    'COMPLETED' => 'Completada',
-    'OPEN' || 'IN_PROGRESS' => 'En curso',
-    'PENDING' => 'Pendiente',
-    'CAPTURED' => 'Registrado',
-    'SEALED' => 'Confirmado',
-    'REJECTED' => 'Rechazado',
-    'POD_SEALED' => 'Comprobante confirmado',
-    _ => null,
+String _statusLabel(String value) => switch (value.trim().toUpperCase()) {
+  'PLANNED' => 'Programada',
+  'ASSIGNED' => 'Asignada',
+  'DISPATCHED' => 'Despachada',
+  'IN_TRANSIT' => 'En camino',
+  'PARTIAL' || 'PARTIALLY_DELIVERED' => 'Entrega parcial',
+  'DELIVERED' => 'Entregada',
+  'FAILED' => 'Entrega fallida',
+  'CANCELLED' => 'Cancelada',
+  'IN_FULFILLMENT' => 'En proceso',
+  'PENDING' => 'Pendiente',
+  'COMPLETED' => 'Completado',
+  'CAPTURED' => 'Registrado',
+  'SEALED' => 'Disponible',
+  'REJECTED' => 'Rechazado',
+  'HANDED_OVER' => 'Entregada al repartidor',
+  'ATTEMPT_STARTED' => 'Intento de entrega iniciado',
+  'ATTEMPT_FAILED' => 'Intento de entrega fallido',
+  'ATTEMPT_REJECTED' => 'Entrega rechazada',
+  'ATTEMPT_REFUSED' => 'Entrega rechazada por quien recibió',
+  'ATTEMPT_ABSENT' => 'No había quien recibiera el pedido',
+  'ATTEMPT_UNDELIVERED' => 'Entrega no realizada',
+  'PROOF_OF_DELIVERY_AVAILABLE' => 'Comprobante disponible',
+  _ => 'Estado no disponible',
+};
+
+String _destinationLabel(String? rawDestination) {
+  final raw = rawDestination?.trim();
+  if (raw == null || raw.isEmpty) return 'Dirección no disponible';
+
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map) return 'Dirección no disponible';
+    final address = _findAddressDetails(decoded);
+    if (address == null) return 'Dirección no disponible';
+
+    final lines = <String>[];
+    final addressLine = _humanAddressPart(address['line']);
+    if (addressLine != null) {
+      lines.add(addressLine);
+    } else {
+      final streetName =
+          _humanAddressPart(address['streetName']) ??
+          _humanAddressPart(address['street']);
+      if (streetName != null) {
+        final number =
+            _humanAddressPart(address['streetNumber'], allowNumber: true) ??
+            _humanAddressPart(address['number'], allowNumber: true);
+        final interior = _humanAddressPart(address['interior']);
+        lines.add([streetName, number, interior].whereType<String>().join(' '));
+      }
+    }
+
+    for (final key in const ['district', 'province', 'department']) {
+      final locality = _humanAddressPart(address[key]);
+      if (locality != null && !lines.contains(locality)) lines.add(locality);
+    }
+    if (lines.isEmpty) return 'Dirección no disponible';
+    return lines.join(', ');
+  } on FormatException {
+    if (raw.startsWith('{') || raw.startsWith('[')) {
+      return 'Dirección no disponible';
+    }
+    return _humanAddressPart(raw) ?? 'Dirección no disponible';
+  }
+}
+
+Map<String, Object?>? _findAddressDetails(Object? value, {int depth = 0}) {
+  if (value is! Map || depth > 4) return null;
+  final map = <String, Object?>{
+    for (final entry in value.entries)
+      if (entry.key is String) entry.key as String: entry.value,
   };
-  if (known != null) return known;
-  return value
-      .split('_')
-      .map(
-        (part) => part.isEmpty
-            ? part
-            : '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
-      )
-      .join(' ');
+
+  for (final key in const [
+    'delivery',
+    'destination',
+    'destinationSnapshot',
+    'addressSnapshot',
+    'address',
+  ]) {
+    final nested = _findAddressDetails(map[key], depth: depth + 1);
+    if (nested != null) return nested;
+  }
+
+  const displayKeys = {
+    'line',
+    'street',
+    'streetName',
+    'streetNumber',
+    'number',
+    'interior',
+    'district',
+    'province',
+    'department',
+  };
+  return map.keys.any(displayKeys.contains) ? map : null;
+}
+
+String? _humanAddressPart(Object? value, {bool allowNumber = false}) {
+  if (value is! String) return null;
+  final text = value.replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (text.isEmpty ||
+      text.length > 180 ||
+      RegExp(r'[{}\[\]<>]').hasMatch(text) ||
+      RegExp(
+        r'^[a-f\d]{8}-[a-f\d-]{27,}$',
+        caseSensitive: false,
+      ).hasMatch(text) ||
+      RegExp(r'^[a-f\d]{24,}$', caseSensitive: false).hasMatch(text) ||
+      RegExp(r'^[a-z\d_-]{18,}$', caseSensitive: false).hasMatch(text) ||
+      RegExp(r'^https?://', caseSensitive: false).hasMatch(text)) {
+    return null;
+  }
+  if (RegExp(r'^\d+$').hasMatch(text) && (!allowNumber || text.length > 12)) {
+    return null;
+  }
+  return text;
 }
 
 String? _dateTimeLabel(DateTime? value) {

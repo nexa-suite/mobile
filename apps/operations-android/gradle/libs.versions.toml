@@ -21,6 +21,7 @@ mlkit-barcode = "17.3.0"
 androidx-webkit = "1.17.1"
 
 [libraries]
+zxing-core = { module = "com.google.zxing:core", version = "3.5.4" }
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
 compose-ui = { module = "androidx.compose.ui:ui" }
 compose-material3 = { module = "androidx.compose.material3:material3" }

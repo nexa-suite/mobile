@@ -57,7 +57,7 @@ final class BuyerDraftViewModel extends ChangeNotifier {
   BuyerDeliveryLeadPolicyProjection? deliveryLeadPolicy;
   String? deliveryLeadPolicyMessage;
   DateTime? get minimumDeliveryDate =>
-      deliveryLeadPolicy?.minimumAllowedDeliveryDate;
+      deliveryLeadPolicy?.earliestAllowedDeliveryDate;
   String? addressId;
   String? paymentPreference;
   DateTime? deliveryDate;
@@ -128,13 +128,6 @@ final class BuyerDraftViewModel extends ChangeNotifier {
       final account = await _repository.loadBuyerPurchaseContext();
       if (!_current(generation, authority)) {
         return;
-      }
-      if (account.buyerMembershipId !=
-          _access.snapshot.currentContext!.membershipId) {
-        throw const NexaApiFailure(
-          code: 'buyer_relationship_mismatch',
-          userMessage: 'La cuenta Buyer no coincide con tu acceso.',
-        );
       }
       final loaded = await _repository.getDraft(id);
       if (!_current(generation, authority)) {
@@ -319,12 +312,18 @@ final class BuyerDraftViewModel extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    final unit = item.unitOfMeasure?.trim();
+    if (unit == null || unit.isEmpty) {
+      message = 'Este producto aún no tiene una unidad de venta disponible.';
+      notifyListeners();
+      return;
+    }
     await _replace([
       ...draft!.lines,
       PurchaseRequestLineProjection(
         skuId: item.sellableSkuId!,
         quantity: '$parsed',
-        unit: item.unitOfMeasure ?? 'UNIT',
+        unit: unit,
       ),
     ]);
   }
@@ -372,7 +371,7 @@ final class BuyerDraftViewModel extends ChangeNotifier {
       return;
     }
     if (selectedDate != null &&
-        _dateOnly(selectedDate).isBefore(policy.minimumAllowedDeliveryDate)) {
+        _dateOnly(selectedDate).isBefore(policy.earliestAllowedDeliveryDate)) {
       message = 'La fecha guardada es anterior al mínimo del espacio. Elige otra fecha.';
       notifyListeners();
       return;

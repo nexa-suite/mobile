@@ -134,7 +134,7 @@ final class _PurchaseRequestComposerPageState
                 ),
                 decoration: InputDecoration(
                   labelText: 'Cantidad',
-                  suffixText: item.unitOfMeasure ?? 'UNIT',
+                  suffixText: item.unitOfMeasure,
                 ),
               ),
               const SizedBox(height: 12),
@@ -230,6 +230,15 @@ final class _PurchaseRequestComposerPageState
                   model.selectDeliveryDate(selected);
                 },
               ),
+              if (model.deliveryLeadPolicy case final policy?) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Fecha mínima: ${_dateLabel(policy.earliestAllowedDeliveryDate)} · '
+                  '${policy.minimumDeliveryLeadDays} días calendario. '
+                  'La fecha se revisa al enviar tu solicitud.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
               if (model.hasOutdatedDeliveryDate) ...[
                 const SizedBox(height: 4),
                 Text(

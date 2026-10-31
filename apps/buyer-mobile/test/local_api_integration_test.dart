@@ -322,7 +322,6 @@ void main() {
         final buyerContext = await purchaseRepository
             .loadBuyerPurchaseContext();
         expect(buyerContext.clientAccountId, matches(_uuidPattern));
-        expect(buyerContext.buyerMembershipId, context.membershipId);
         final existingDrafts = await purchaseRepository.listDrafts(page: 0);
         expect(existingDrafts.page, 0);
         expect(

@@ -143,7 +143,11 @@ sealed interface ReceivingLookupResult {
 }
 
 sealed interface ReceivingSubmitResult {
-    data class Confirmed(val facts: ReceivedLotFacts) : ReceivingSubmitResult
+    data class Confirmed(
+        val facts: ReceivedLotFacts,
+        /** Receipt amount confirmed by the API; [facts.onHand] remains current lot stock. */
+        val confirmedReceivedQuantity: BigDecimal = facts.onHand
+    ) : ReceivingSubmitResult
     data class Rejected(val code: String?) : ReceivingSubmitResult
     data object UnknownOutcome : ReceivingSubmitResult
     data object PermissionDenied : ReceivingSubmitResult

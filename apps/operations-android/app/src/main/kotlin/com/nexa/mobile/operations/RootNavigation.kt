@@ -3,24 +3,23 @@ package com.nexa.mobile.operations
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -35,13 +34,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.ui.NavDisplay
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.WarehouseCatalogFilterChoice
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.WarehouseCatalogFilterKind
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedScannedSku
 import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.CatalogOperationsContextAdapter
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ConfirmedSkuScreen
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductScannerScreen
@@ -51,12 +49,15 @@ import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseRoute
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseUiState
 import com.nexa.mobile.operations.core.auth.session.SessionState
+import com.nexa.mobile.operations.core.designsystem.LocalNexaProfileAction
 import com.nexa.mobile.operations.core.designsystem.NexaActiveContextBar
 import com.nexa.mobile.operations.core.designsystem.NexaTaskRow
 import com.nexa.mobile.operations.core.designsystem.NexaWorkSummary
+import com.nexa.mobile.operations.core.designsystem.R as DesignR
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.OtherSessionsRevocationResult
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.OwnPasswordChangeResult
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.profile.OwnProfile
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessNotice
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessScreen
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
@@ -65,6 +66,8 @@ import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.Con
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserPhase
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserScreen
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserUiState
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 
 internal enum class RootDestination {
@@ -107,6 +110,13 @@ internal fun RootNavigation(
     state: SessionState,
     accessState: AccessUiState,
     warehouseState: WarehouseUiState,
+    ownProfileContent: (@Composable (() -> Unit) -> Unit)? = null,
+    ownProfile: OwnProfile? = null,
+    onProfileOpened: () -> Unit = {},
+    dashboard: OperationsDashboardSnapshot? = null,
+    dashboardChangeSignals: Flow<Unit> = emptyFlow(),
+    onDashboardOpened: () -> Unit = {},
+    onDashboardRefresh: () -> Unit = {},
     onIdentifierChanged: (String) -> Unit = {},
     onPasswordChanged: (String) -> Unit = {},
     onPasswordVisibilityChanged: () -> Unit = {},
@@ -149,6 +159,7 @@ internal fun RootNavigation(
     onScannerRetry: () -> Unit = {},
     onScannerManualSearch: () -> Unit = {},
     onReceiveStock: () -> Unit = {},
+    onReceiveScannedProduct: ((ConfirmedScannedSku) -> Unit)? = null,
     receivingContent: @Composable () -> Unit = {},
     onViewStock: () -> Unit = {},
     onViewIdentifiedStorage: ((String) -> Unit)? = null,
@@ -180,7 +191,11 @@ internal fun RootNavigation(
         warehouseState.workEntryStatus,
         warehouseState.route,
         warehouseState.authorityEpoch,
-        connectedOperationRoute?.entryKey
+        connectedOperationRoute?.entryKey,
+        setOf(WarehouseRoute.StockCondition, WarehouseRoute.Picking, WarehouseRoute.ProductSearch)
+            .filterTo(linkedSetOf()) { route ->
+                OperationsCapabilities.permitsEntry(route, state, accessState, warehouseState)
+            }
     ) {
         val permissionLostAtCurrentEpoch =
             state == SessionState.Active &&
@@ -229,13 +244,54 @@ internal fun RootNavigation(
     val navigationSections = operationsNavigationSections(
         visibleConnectedEntries,
         activeRoles,
-        connectedOperationRoute?.entryKey
+        connectedOperationRoute?.entryKey,
+        warehouseRoutes = setOf(
+            WarehouseRoute.StockCondition,
+            WarehouseRoute.Picking,
+            WarehouseRoute.ProductSearch
+        ).filter { route ->
+            OperationsCapabilities.permitsEntry(route, state, accessState, warehouseState)
+        }.toSet()
     )
     val quickActionsDescription = stringResource(R.string.work_nav_actions)
-    val quickActionEntries = visibleConnectedEntries.filterNot { entry ->
-        navigationSections.any { section -> section.entry.key == entry.key }
+    val quickActionKeys = setOf(
+        "warehouse.batch", "warehouse.temperature", "warehouse.cycle-count",
+        "dispatch.readiness", "dispatch.assignment", "dispatch.loads", "driver.deliveries",
+        "driver.handoff-code", "commercial.direct-order", "commercial.request",
+        "operations.notifications"
+    )
+    val quickActionEntries = if (warehouseState.route == WarehouseRoute.WorkEntry &&
+        connectedOperationRoute == null
+    ) {
+        visibleConnectedEntries.filter { entry ->
+            entry.key in quickActionKeys &&
+                navigationSections.none { section -> section.entry?.key == entry.key }
+        }
+    } else {
+        emptyList()
     }
     val workspaceChromeVisible = protectedContentAllowed && accessState.chooser == null
+    val warehouseEntryVisible =
+        warehouseState.route in setOf(WarehouseRoute.WorkEntry, WarehouseRoute.StockCondition) &&
+            connectedOperationRoute == null
+    val warehouseScanQuickActionAvailable = warehouseEntryVisible &&
+        OperationsCapabilities.permitsEntry(
+            WarehouseRoute.Scanner,
+            state,
+            accessState,
+            warehouseState
+        )
+    val warehouseReceiveQuickActionAvailable = warehouseEntryVisible &&
+        OperationsCapabilities.permitsEntry(
+            WarehouseRoute.Receiving,
+            state,
+            accessState,
+            warehouseState
+        )
+    val hasWarehouseQuickActions = warehouseScanQuickActionAvailable ||
+        warehouseReceiveQuickActionAvailable
+    val quickActionsAvailable = quickActionEntries.isNotEmpty() || hasWarehouseQuickActions
+    var ownProfileVisible by remember(accessState.authorityEpoch) { mutableStateOf(false) }
     var profileSheetVisible by remember(accessState.authorityEpoch) {
         mutableStateOf(false)
     }
@@ -330,8 +386,6 @@ internal fun RootNavigation(
         bottomBar = {
             if (workspaceChromeVisible) {
                 val selectedIndex = when {
-                    profileSheetVisible -> navigationSections.size + 1
-
                     destination == ProductDestination.WorkEntry -> 0
 
                     connectedOperationRoute != null ->
@@ -341,7 +395,16 @@ internal fun RootNavigation(
 
                     warehouseState.route != WarehouseRoute.WorkEntry ->
                         navigationSections.indexOfFirst {
-                            it.entry.key.startsWith("warehouse.")
+                            it.warehouseRoute == when (warehouseState.route) {
+                                WarehouseRoute.Receiving,
+                                WarehouseRoute.StockCondition -> WarehouseRoute.StockCondition
+
+                                WarehouseRoute.Scanner,
+                                WarehouseRoute.ConfirmedSku,
+                                WarehouseRoute.ProductSearch -> WarehouseRoute.ProductSearch
+
+                                else -> warehouseState.route
+                            }
                         }.let { index -> if (index >= 0) index + 1 else 0 }
 
                     else -> 0
@@ -351,22 +414,18 @@ internal fun RootNavigation(
                     sections = navigationSections,
                     onHome = onNavigateHome,
                     onOpen = onOpenConnectedOperation,
-                    onProfile = { profileSheetVisible = true }
+                    onWarehouseRoute = { route ->
+                        when (route) {
+                            WarehouseRoute.StockCondition -> onViewStock()
+                            WarehouseRoute.Picking -> onPickStock()
+                            WarehouseRoute.ProductSearch -> onIdentifyProduct()
+                            else -> Unit
+                        }
+                    }
                 )
             }
-        },
-        floatingActionButton = {
-            if (workspaceChromeVisible && quickActionEntries.isNotEmpty()) {
-                FloatingActionButton(
-                    onClick = { quickActionsVisible = true },
-                    modifier = Modifier.semantics {
-                        contentDescription = quickActionsDescription
-                    }
-                ) {
-                    Text("+", modifier = Modifier.clearAndSetSemantics {})
-                }
-            }
         }
+
     ) { contentPadding ->
         key(
             state.rootDestination(),
@@ -462,123 +521,66 @@ internal fun RootNavigation(
 
                         ProductDestination.WorkEntry -> {
                             WarehouseContentNotice(accessState.notice) {
-                                if (activeRoles.any {
-                                        it in setOf("WAREHOUSE", "WAREHOUSE_OPERATOR")
-                                    }
-                                ) {
-                                    OperationsWorkEntryScreen(
-                                        state = warehouseState,
-                                        additionalCapabilityLabels =
-                                            operationsWorkEntryAdditionalCapabilityLabels(),
-                                        tenantLabel = stringResource(R.string.work_nav_tenant),
-                                        workspaceLabel = stringResource(
-                                            R.string.work_nav_workspace
-                                        ),
-                                        roleLabel = activeRoleLabel
-                                            ?: stringResource(R.string.work_nav_role_missing),
-                                        onOpenProfile = { profileSheetVisible = true },
-                                        hasAdditionalWork = visibleConnectedEntries.isNotEmpty(),
-                                        additionalWorkContent = additionalWorkContent,
-                                        onPickStock = {
-                                            if (OperationsCapabilities.permitsEntry(
-                                                    WarehouseRoute.Picking,
-                                                    state,
-                                                    accessState,
-                                                    warehouseState
-                                                )
-                                            ) {
-                                                onPickStock()
+                                OperationsDashboardAutoRefresh(
+                                    authorityEpoch = accessState.authorityEpoch,
+                                    scopeKey = accessState.activeContext?.key.orEmpty(),
+                                    roleKey = activeRoles.sorted().joinToString(","),
+                                    changeSignals = dashboardChangeSignals,
+                                    onOpen = onDashboardOpened,
+                                    onRefresh = onDashboardRefresh
+                                )
+                                OperationsHomeScreen(
+                                    company = accessState.activeContext?.companyName.orEmpty(),
+                                    workspace = accessState.activeContext?.workspaceName.orEmpty(),
+                                    role = activeRoleLabel.orEmpty(),
+                                    entries = visibleConnectedEntries,
+                                    dashboard = dashboard,
+                                    onRefresh = onDashboardRefresh,
+                                    onQuickActions = if (quickActionsAvailable) {
+                                        (
+                                            {
+                                                quickActionsVisible =
+                                                    true
                                             }
-                                        },
-                                        onViewStock = {
-                                            if (OperationsCapabilities.permitsEntry(
-                                                    WarehouseRoute.StockCondition,
-                                                    state,
-                                                    accessState,
-                                                    warehouseState
-                                                )
-                                            ) {
-                                                onViewStock()
-                                            }
-                                        },
-                                        onReceiveStock = {
-                                            if (OperationsCapabilities.permitsEntry(
-                                                    WarehouseRoute.Receiving,
-                                                    state,
-                                                    accessState,
-                                                    warehouseState
-                                                )
-                                            ) {
-                                                onReceiveStock()
-                                            }
-                                        },
-                                        onChangeContext = onChangeContext,
-                                        onIdentifyProduct = {
-                                            if (OperationsCapabilities.permitsEntry(
-                                                    WarehouseRoute.ProductSearch,
-                                                    state,
-                                                    accessState,
-                                                    warehouseState
-                                                )
-                                            ) {
-                                                onIdentifyProduct()
-                                            }
-                                        },
-                                        onScanProductCode = {
-                                            if (OperationsCapabilities.permitsEntry(
-                                                    WarehouseRoute.Scanner,
-                                                    state,
-                                                    accessState,
-                                                    warehouseState
-                                                )
-                                            ) {
-                                                onScanProductCode()
-                                            }
-                                        },
-                                        capabilities = OperationsCapabilities.workEntryCapabilities(
+                                            )
+                                    } else {
+                                        null
+                                    },
+                                    onOpen = onOpenConnectedOperation,
+                                    onReceive = if (OperationsCapabilities.permitsEntry(
+                                            WarehouseRoute.Receiving,
                                             state,
                                             accessState,
                                             warehouseState
-                                        ),
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                } else if (visibleConnectedEntries.isNotEmpty()) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .verticalScroll(rememberScrollState())
-                                            .padding(horizontal = 16.dp, vertical = 20.dp),
-                                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                                        )
                                     ) {
-                                        OperationsIdentityCard(
-                                            context = accessState.activeContext,
-                                            roleLabel = activeRoleLabel,
-                                            onChangeContext = onChangeContext
+                                        onReceiveStock
+                                    } else {
+                                        null
+                                    },
+                                    onPick = if (OperationsCapabilities.permitsEntry(
+                                            WarehouseRoute.Picking,
+                                            state,
+                                            accessState,
+                                            warehouseState
                                         )
-                                        NexaWorkSummary(
-                                            title = stringResource(R.string.work_hub_title),
-                                            description = stringResource(R.string.work_hub_support)
-                                        )
-                                    }
-                                } else {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .verticalScroll(rememberScrollState())
-                                            .padding(horizontal = 16.dp, vertical = 20.dp),
-                                        verticalArrangement = Arrangement.spacedBy(16.dp)
                                     ) {
-                                        OperationsIdentityCard(
-                                            context = accessState.activeContext,
-                                            roleLabel = activeRoleLabel,
-                                            onChangeContext = onChangeContext
+                                        onPickStock
+                                    } else {
+                                        null
+                                    },
+                                    onStock = if (OperationsCapabilities.permitsEntry(
+                                            WarehouseRoute.StockCondition,
+                                            state,
+                                            accessState,
+                                            warehouseState
                                         )
-                                        NexaWorkSummary(
-                                            title = stringResource(R.string.work_hub_title),
-                                            description = stringResource(R.string.work_hub_support)
-                                        )
+                                    ) {
+                                        onViewStock
+                                    } else {
+                                        null
                                     }
-                                }
+                                )
                             }
                         }
 
@@ -744,7 +746,10 @@ internal fun RootNavigation(
                                     state = warehouseState,
                                     onChangeContext = onChangeContext,
                                     onIdentifyProduct = onIdentifyProduct,
-                                    onOpenProfile = { profileSheetVisible = true }
+                                    onOpenProfile = {
+                                        onProfileOpened()
+                                        profileSheetVisible = true
+                                    }
                                 )
                             }
                         }
@@ -771,7 +776,8 @@ internal fun RootNavigation(
                                     onOpenSettings = onScannerOpenSettings,
                                     onRetryScan = onScannerRetry,
                                     onManualSearch = onScannerManualSearch,
-                                    onViewStorage = onViewIdentifiedStorage
+                                    onViewStorage = onViewIdentifiedStorage,
+                                    onReceiveProduct = onReceiveScannedProduct
                                 )
                             } else {
                                 OperationsWorkEntryScreen(
@@ -779,7 +785,10 @@ internal fun RootNavigation(
                                     onChangeContext = onChangeContext,
                                     onIdentifyProduct = onIdentifyProduct,
                                     onScanProductCode = onScanProductCode,
-                                    onOpenProfile = { profileSheetVisible = true }
+                                    onOpenProfile = {
+                                        onProfileOpened()
+                                        profileSheetVisible = true
+                                    }
                                 )
                             }
                         }
@@ -788,157 +797,101 @@ internal fun RootNavigation(
                     }
                 }
             )
-            NavDisplay(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(contentPadding),
-                backStack = backStack,
-                onBack = {
-                    when (destination) {
-                        ProductDestination.ConnectedOperation -> onConnectedOperationBack()
-
-                        ProductDestination.ProductSearch,
-                        ProductDestination.ConfirmedSku,
-                        ProductDestination.Receiving,
-                        ProductDestination.StockCondition,
-                        ProductDestination.Picking,
-                        ProductDestination.Scanner -> onWarehouseBack()
-
-                        ProductDestination.ContextChooser -> {
-                            val chooser = accessState.chooser
-                            if (
-                                chooser?.mode == ContextChooserMode.Change &&
-                                chooser.phase != ContextChooserPhase.SelectionPending
-                            ) {
-                                onContextBack()
-                            }
-                        }
-
-                        ProductDestination.Access, ProductDestination.WorkEntry -> Unit
+            CompositionLocalProvider(
+                LocalNexaProfileAction provides if (workspaceChromeVisible) {
+                    {
+                        onProfileOpened()
+                        profileSheetVisible = true
                     }
-                },
-                entryProvider = { entryKey ->
-                    when (entryKey) {
-                        ProductDestination.Access,
-                        ProductDestination.ContextChooser,
-                        ProductDestination.WorkEntry,
-                        ProductDestination.ConnectedOperation,
-                        ProductDestination.ProductSearch,
-                        ProductDestination.ConfirmedSku,
-                        ProductDestination.Receiving,
-                        ProductDestination.StockCondition,
-                        ProductDestination.Picking,
-                        ProductDestination.Scanner -> NavEntry(entryKey) {
-                            if (entryKey == destination) currentEntryRenderer.value(entryKey)
-                        }
-
-                        else -> error("Unknown Product destination")
-                    }
+                } else {
+                    null
                 }
-            )
+            ) {
+                NavDisplay(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(contentPadding)
+                        .consumeWindowInsets(contentPadding),
+                    backStack = backStack,
+                    onBack = {
+                        when (destination) {
+                            ProductDestination.ConnectedOperation -> onConnectedOperationBack()
+
+                            ProductDestination.ProductSearch,
+                            ProductDestination.ConfirmedSku,
+                            ProductDestination.Receiving,
+                            ProductDestination.StockCondition,
+                            ProductDestination.Picking,
+                            ProductDestination.Scanner -> onWarehouseBack()
+
+                            ProductDestination.ContextChooser -> {
+                                val chooser = accessState.chooser
+                                if (
+                                    chooser?.mode == ContextChooserMode.Change &&
+                                    chooser.phase != ContextChooserPhase.SelectionPending
+                                ) {
+                                    onContextBack()
+                                }
+                            }
+
+                            ProductDestination.Access, ProductDestination.WorkEntry -> Unit
+                        }
+                    },
+                    entryProvider = { entryKey ->
+                        when (entryKey) {
+                            ProductDestination.Access,
+                            ProductDestination.ContextChooser,
+                            ProductDestination.WorkEntry,
+                            ProductDestination.ConnectedOperation,
+                            ProductDestination.ProductSearch,
+                            ProductDestination.ConfirmedSku,
+                            ProductDestination.Receiving,
+                            ProductDestination.StockCondition,
+                            ProductDestination.Picking,
+                            ProductDestination.Scanner -> NavEntry(entryKey) {
+                                if (entryKey == destination) currentEntryRenderer.value(entryKey)
+                            }
+
+                            else -> error("Unknown Product destination")
+                        }
+                    }
+                )
+            }
         }
     }
     if (workspaceChromeVisible && profileSheetVisible) {
-        ModalBottomSheet(onDismissRequest = { profileSheetVisible = false }) {
-            val context = accessState.activeContext
-            val authority = context?.verifiedAuthority
-            val roles = authority?.roles.orEmpty()
-            val roleLabel = operationsRoleLabel(roles)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+        OperationsProfileSheet(
+            profile = ownProfile?.takeIf { it.userId == activeAuthority?.userId },
+            fallbackEmail = accessState.identifier,
+            company = accessState.activeContext?.companyName.orEmpty(),
+            role = activeRoleLabel.orEmpty(),
+            onDismiss = { profileSheetVisible = false },
+            onDetails = if (ownProfileContent !=
+                null
             ) {
-                Text(
-                    stringResource(R.string.work_nav_profile_title),
-                    style = MaterialTheme.typography.headlineSmall
-                )
-                Text(
-                    stringResource(R.string.work_nav_identity),
-                    style = MaterialTheme.typography.labelLarge
-                )
-                Text(
-                    accessState.identifier.ifBlank { authority?.userId.orEmpty() },
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                if (!authority?.userId.isNullOrBlank()) {
-                    Text(
-                        stringResource(R.string.work_nav_user_id),
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                    Text(authority.userId, style = MaterialTheme.typography.bodySmall)
-                }
-                Text(
-                    stringResource(R.string.work_nav_tenant),
-                    style = MaterialTheme.typography.labelLarge
-                )
-                Text(context?.companyName.orEmpty(), style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    authority?.tenantId.orEmpty(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    stringResource(R.string.work_nav_workspace),
-                    style = MaterialTheme.typography.labelLarge
-                )
-                Text(context?.workspaceName.orEmpty(), style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    authority?.workspaceId.orEmpty(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    stringResource(R.string.work_nav_role),
-                    style = MaterialTheme.typography.labelLarge
-                )
-                Text(roleLabel ?: stringResource(R.string.work_nav_role_missing))
-                if (!authority?.membershipId.isNullOrBlank()) {
-                    Text(
-                        stringResource(R.string.work_nav_membership_id),
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                    Text(
-                        authority.membershipId,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                BiometricProfileSetting()
-                OutlinedButton(
-                    onClick = { passwordChangeDialogVisible = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(R.string.work_nav_change_password))
-                }
-                OutlinedButton(
-                    onClick = { revokeSessionsDialogVisible = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(R.string.work_nav_revoke_other_sessions))
-                }
-                OutlinedButton(
-                    onClick = {
+                (
+                    {
                         profileSheetVisible = false
-                        onChangeContext()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(R.string.work_nav_change_context))
-                }
-                OutlinedButton(
-                    onClick = {
-                        profileSheetVisible = false
-                        onLogout()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(R.string.work_nav_logout))
-                }
+                        ownProfileVisible = true
+                    }
+                    )
+            } else {
+                null
+            },
+            onPassword = { passwordChangeDialogVisible = true },
+            onOtherSessions = { revokeSessionsDialogVisible = true },
+            onChangeWorkspace = {
+                profileSheetVisible = false
+                onChangeContext()
+            },
+            onLogout = {
+                profileSheetVisible = false
+                onLogout()
             }
-        }
+        )
+    }
+    if (workspaceChromeVisible && ownProfileVisible && ownProfileContent != null) {
+        ownProfileContent { ownProfileVisible = false }
     }
     if (workspaceChromeVisible && passwordChangeDialogVisible) {
         OwnPasswordChangeDialog(
@@ -952,7 +905,7 @@ internal fun RootNavigation(
             onRevoke = onRevokeOtherSessions
         )
     }
-    if (workspaceChromeVisible && quickActionsVisible && quickActionEntries.isNotEmpty()) {
+    if (workspaceChromeVisible && quickActionsVisible && quickActionsAvailable) {
         ModalBottomSheet(onDismissRequest = { quickActionsVisible = false }) {
             Column(
                 modifier = Modifier
@@ -969,10 +922,33 @@ internal fun RootNavigation(
                     stringResource(R.string.work_nav_actions_support),
                     style = MaterialTheme.typography.bodyMedium
                 )
+                if (warehouseScanQuickActionAvailable) {
+                    NexaTaskRow(
+                        title = stringResource(R.string.warehouse_quick_scan_title),
+                        description = stringResource(R.string.warehouse_quick_scan_support),
+                        iconResource = DesignR.drawable.ic_barcode,
+                        onClick = {
+                            quickActionsVisible = false
+                            onScanProductCode()
+                        }
+                    )
+                }
+                if (warehouseReceiveQuickActionAvailable) {
+                    NexaTaskRow(
+                        title = stringResource(R.string.warehouse_quick_receive_title),
+                        description = stringResource(R.string.warehouse_quick_receive_support),
+                        iconResource = DesignR.drawable.ic_truck,
+                        onClick = {
+                            quickActionsVisible = false
+                            onReceiveStock()
+                        }
+                    )
+                }
                 quickActionEntries.forEach { entry ->
                     NexaTaskRow(
                         title = entry.label,
-                        description = stringResource(R.string.connected_operation_open_support),
+                        description = stringResource(entry.descriptionResource()),
+                        iconResource = entry.workIconResource(),
                         onClick = {
                             quickActionsVisible = false
                             onOpenConnectedOperation(entry)
@@ -997,6 +973,7 @@ private fun OperationsIdentityCard(
         tenantLabel = stringResource(R.string.work_nav_tenant),
         workspaceLabel = stringResource(R.string.work_nav_workspace),
         roleLabel = roleLabel ?: stringResource(R.string.work_nav_role_missing),
+        compact = true,
         enabled = true,
         onClick = onChangeContext
     )
@@ -1030,206 +1007,9 @@ private fun operationsRoleResource(roleCode: String): Int? = when (roleCode) {
     "BOM", "BUSINESS_OPERATIONS_MANAGER" -> R.string.work_role_bom
     "SALES", "SALES_REPRESENTATIVE", "COMMERCIAL" -> R.string.work_role_sales
     "WAREHOUSE", "WAREHOUSE_OPERATOR" -> R.string.work_role_warehouse
-    "DISPATCH", "DISPATCH_COORDINATOR" -> R.string.work_role_dispatch
+    "LOGISTICS", "DISPATCH", "DISPATCH_COORDINATOR" -> R.string.work_role_dispatch
     "DRIVER" -> R.string.work_role_driver
     else -> null
-}
-
-@Composable
-private fun OtherSessionsRevocationDialog(
-    onDismiss: () -> Unit,
-    onRevoke: suspend () -> OtherSessionsRevocationResult
-) {
-    val scope = rememberCoroutineScope()
-    val revokedMessage = stringResource(R.string.work_nav_sessions_revoked)
-    val expiredMessage = stringResource(R.string.work_nav_password_session_expired)
-    val unavailableMessage = stringResource(R.string.work_nav_sessions_unavailable)
-    var submitting by remember { mutableStateOf(false) }
-    var revoked by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-
-    AlertDialog(
-        onDismissRequest = { if (!submitting) onDismiss() },
-        title = { Text(stringResource(R.string.work_nav_revoke_other_sessions)) },
-        text = {
-            Column {
-                Text(
-                    if (revoked) {
-                        revokedMessage
-                    } else {
-                        stringResource(R.string.work_nav_sessions_confirmation)
-                    }
-                )
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = !submitting,
-                onClick = {
-                    if (revoked) {
-                        onDismiss()
-                    } else {
-                        submitting = true
-                        error = null
-                        scope.launch {
-                            when (onRevoke()) {
-                                OtherSessionsRevocationResult.Revoked -> revoked = true
-
-                                OtherSessionsRevocationResult.SessionExpired ->
-                                    error =
-                                        expiredMessage
-
-                                OtherSessionsRevocationResult.Unavailable ->
-                                    error =
-                                        unavailableMessage
-                            }
-                            submitting = false
-                        }
-                    }
-                }
-            ) {
-                Text(
-                    if (revoked) {
-                        stringResource(R.string.work_nav_done)
-                    } else if (submitting) {
-                        stringResource(R.string.work_nav_saving)
-                    } else {
-                        stringResource(R.string.work_nav_revoke)
-                    }
-                )
-            }
-        },
-        dismissButton = {
-            if (!revoked) {
-                TextButton(enabled = !submitting, onClick = onDismiss) {
-                    Text(stringResource(R.string.work_nav_cancel))
-                }
-            }
-        }
-    )
-}
-
-@Composable
-private fun OwnPasswordChangeDialog(
-    onDismiss: () -> Unit,
-    onChangePassword: suspend (String, String) -> OwnPasswordChangeResult
-) {
-    val scope = rememberCoroutineScope()
-    val mismatchMessage = stringResource(R.string.work_nav_password_mismatch)
-    val rejectedMessage = stringResource(R.string.work_nav_password_rejected)
-    val expiredMessage = stringResource(R.string.work_nav_password_session_expired)
-    val unavailableMessage = stringResource(R.string.work_nav_password_unavailable)
-    var currentPassword by remember { mutableStateOf("") }
-    var newPassword by remember { mutableStateOf("") }
-    var confirmation by remember { mutableStateOf("") }
-    var submitting by remember { mutableStateOf(false) }
-    var changed by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-
-    AlertDialog(
-        onDismissRequest = { if (!submitting) onDismiss() },
-        title = { Text(stringResource(R.string.work_nav_change_password)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (changed) {
-                    Text(stringResource(R.string.work_nav_password_changed))
-                } else {
-                    OutlinedTextField(
-                        value = currentPassword,
-                        onValueChange = {
-                            currentPassword = it
-                            error = null
-                        },
-                        label = { Text(stringResource(R.string.work_nav_current_password)) },
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        singleLine = true,
-                        enabled = !submitting
-                    )
-                    OutlinedTextField(
-                        value = newPassword,
-                        onValueChange = {
-                            newPassword = it
-                            error = null
-                        },
-                        label = { Text(stringResource(R.string.work_nav_new_password)) },
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        singleLine = true,
-                        enabled = !submitting
-                    )
-                    OutlinedTextField(
-                        value = confirmation,
-                        onValueChange = {
-                            confirmation = it
-                            error = null
-                        },
-                        label = { Text(stringResource(R.string.work_nav_confirm_password)) },
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        singleLine = true,
-                        enabled = !submitting
-                    )
-                    error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = !submitting && (
-                    changed || (
-                        currentPassword.isNotEmpty() &&
-                            newPassword.isNotEmpty() && confirmation.isNotEmpty()
-                        )
-                    ),
-                onClick = {
-                    if (changed) {
-                        onDismiss()
-                    } else if (newPassword != confirmation) {
-                        error = mismatchMessage
-                    } else {
-                        submitting = true
-                        error = null
-                        scope.launch {
-                            when (onChangePassword(currentPassword, newPassword)) {
-                                OwnPasswordChangeResult.Changed -> {
-                                    currentPassword = ""
-                                    newPassword = ""
-                                    confirmation = ""
-                                    changed = true
-                                }
-
-                                OwnPasswordChangeResult.Rejected -> error = rejectedMessage
-
-                                OwnPasswordChangeResult.SessionExpired -> error = expiredMessage
-
-                                OwnPasswordChangeResult.Unavailable -> error = unavailableMessage
-                            }
-                            submitting = false
-                        }
-                    }
-                }
-            ) {
-                Text(
-                    if (changed) {
-                        stringResource(R.string.work_nav_done)
-                    } else if (submitting) {
-                        stringResource(R.string.work_nav_saving)
-                    } else {
-                        stringResource(R.string.work_nav_save)
-                    }
-                )
-            }
-        },
-        dismissButton = {
-            if (!changed) {
-                TextButton(enabled = !submitting, onClick = onDismiss) {
-                    Text(stringResource(R.string.work_nav_cancel))
-                }
-            }
-        }
-    )
 }
 
 private fun AccessUiState.forSession(

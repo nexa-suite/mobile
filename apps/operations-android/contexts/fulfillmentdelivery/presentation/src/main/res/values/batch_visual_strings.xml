@@ -1,0 +1,30 @@
+<resources>
+    <string name="batch_visual_title">Group preparation</string>
+    <string name="batch_visual_group">My work group</string>
+    <string name="batch_visual_count">%1$d of 25 jobs</string>
+    <string name="batch_visual_support">Choose jobs and arrange your preparation order.</string>
+    <string name="batch_visual_loading">Loading your preparations…</string>
+    <string name="batch_visual_denied">You do not have access to these preparations.</string>
+    <string name="batch_visual_unavailable">We could not load your preparations. Try again.</string>
+    <string name="batch_visual_refresh">Refresh preparations</string>
+    <string name="batch_visual_no_work">There are no preparations available right now.</string>
+    <string name="batch_visual_job">Preparation %1$d</string>
+    <plurals name="batch_visual_lines">
+        <item quantity="one">%1$d product line</item>
+        <item quantity="other">%1$d product lines</item>
+    </plurals>
+    <string name="batch_visual_added">Added</string>
+    <string name="batch_visual_add">Add</string>
+    <string name="batch_visual_previous">Previous</string>
+    <string name="batch_visual_next">Next</string>
+    <string name="batch_visual_empty_title">Start your work group</string>
+    <string name="batch_visual_empty_support">Add a preparation from the list to get started.</string>
+    <string name="batch_visual_result">Result recorded</string>
+    <string name="batch_visual_quantities">Picked: %1$s · Remaining: %2$s %3$s</string>
+    <string name="batch_visual_up">Move up</string>
+    <string name="batch_visual_down">Move down</string>
+    <string name="batch_visual_open">Open preparation</string>
+    <string name="batch_visual_note">Add a note</string>
+    <string name="batch_visual_note_label">What needs attention?</string>
+    <string name="batch_visual_save_note">Save note</string>
+</resources>

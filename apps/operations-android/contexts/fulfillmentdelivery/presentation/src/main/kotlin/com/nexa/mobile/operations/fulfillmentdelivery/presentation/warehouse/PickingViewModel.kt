@@ -188,8 +188,7 @@ class PickingViewModel(
                     } else {
                         PickingCommandStatus.Editing
                     },
-                    lotIdentifierText = (restored?.command as? PickingIntentCommand.Confirm)
-                        ?.request?.lotId.orEmpty(),
+                    lotIdentifierText = "",
                     quantityText = (restored?.command as? PickingIntentCommand.Confirm)
                         ?.request?.quantity?.toPlainString().orEmpty(),
                     validationError = if (metadataAvailable) {
@@ -309,14 +308,15 @@ class PickingViewModel(
             return showError(PickingValidationError.AmbiguousFulfillmentLine)
         }
         if (!offer.isPickable) return showError(PickingValidationError.AllocationNotReady)
+        val assignedBatchNumber = offer.allocationLine.batchNumber
+            ?.takeIf(String::isNotBlank)
         if (current.lotIdentifierText.isBlank()) {
             return showError(PickingValidationError.LotIdentifierRequired)
         }
-        if (!current.lotIdentifierText.trim().equals(
-                offer.allocationLine.lotId,
-                ignoreCase = true
-            )
-        ) {
+        val lotIdentifier = current.lotIdentifierText.trim()
+        val matchesAssignedLot = lotIdentifier == assignedBatchNumber ||
+            lotIdentifier.equals(offer.allocationLine.lotId, ignoreCase = true)
+        if (!matchesAssignedLot) {
             return showError(PickingValidationError.LotIdentifierMismatch)
         }
         if (current.quantityText.isBlank()) {

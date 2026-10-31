@@ -23,13 +23,13 @@ import org.junit.Test
 
 class NexaDirectOrderGatewayTest {
     @Test
-    fun readsWorkspaceDeliveryLeadPolicyWithoutCalculatingDateLocally() = runTest {
+    fun readsGlobalFiveBusinessDayDeliveryLeadPolicyWithoutCalculatingDateLocally() = runTest {
         MockWebServer().use { server ->
             server.start()
             server.enqueue(
                 response(
                     200,
-                    """{"minimumDeliveryLeadDays":3,"earliestAllowedDeliveryDate":"2026-10-26"}"""
+                    """{"minimumDeliveryLeadDays":5,"earliestAllowedDeliveryDate":"2026-10-26"}"""
                 )
             )
 
@@ -38,7 +38,7 @@ class NexaDirectOrderGatewayTest {
             assertEquals(
                 DirectOrderDeliveryLeadPolicyRead.Available(
                     DirectOrderDeliveryLeadPolicy(
-                        minimumDeliveryLeadDays = 3,
+                        minimumDeliveryLeadDays = 5,
                         earliestAllowedDeliveryDate = LocalDate.parse("2026-10-26")
                     )
                 ),
@@ -61,8 +61,8 @@ class NexaDirectOrderGatewayTest {
             listOf(
                 "not-json",
                 """{"minimumDeliveryLeadDays":-1,"earliestAllowedDeliveryDate":"2026-10-26"}""",
-                """{"minimumDeliveryLeadDays":3,"earliestAllowedDeliveryDate":"tomorrow"}""",
-                """{"minimumDeliveryLeadDays":3,"earliestAllowedDeliveryDate":"2026-02-31"}"""
+                """{"minimumDeliveryLeadDays":5,"earliestAllowedDeliveryDate":"tomorrow"}""",
+                """{"minimumDeliveryLeadDays":5,"earliestAllowedDeliveryDate":"2026-02-31"}"""
             ).forEach { body ->
                 server.enqueue(response(200, body))
                 assertEquals(

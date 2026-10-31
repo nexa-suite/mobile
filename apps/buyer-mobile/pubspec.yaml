@@ -71,6 +71,7 @@ flutter:
   assets:
     - assets/brand/nexa-mobile.png
     - assets/brand/nexa-wordmark.png
+    - assets/catalog-items/
 
   fonts:
     - family: Inter

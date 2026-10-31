@@ -68,7 +68,8 @@ class DirectOrderScreenAccessibilityTest {
         compose.onNodeWithText(spanishContext.getString(R.string.direct_order_title))
             .assertIsDisplayed()
         compose.onNodeWithText(spanishStatus).assertIsDisplayed()
-        compose.onNodeWithText("Referencia del cliente").assertIsDisplayed()
+        compose.onNodeWithText(spanishContext.getString(R.string.direct_order_customer))
+            .assertIsDisplayed()
         assertTrue(compose.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().isNotEmpty())
         assertTrue(
             compose.onAllNodes(
@@ -90,7 +91,8 @@ class DirectOrderScreenAccessibilityTest {
             "Current information is unavailable. The draft remains unconfirmed."
         )
             .assertIsDisplayed()
-        compose.onNodeWithText("Customer reference").assertIsDisplayed()
+        compose.onNodeWithText(englishContext.getString(R.string.direct_order_customer))
+            .assertIsDisplayed()
     }
 
     private class Store : DirectOrderStore {

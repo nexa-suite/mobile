@@ -29,6 +29,14 @@ class OperationsCustomerProgressGateway @Inject constructor(
         currency: String,
         page: Int
     ): CustomerProgressResult {
+        val customerId = id.trim()
+        val customerSelected = customerId.isNotEmpty()
+        val canReadCustomer = authority.permissions.any {
+            it == "client.read" || it == "sales:read"
+        }
+        val canReadOrders = authority.permissions.any {
+            it == "sales.order.read" || it == "sales:read"
+        }
         fun denied() = CustomerProgressResult(
             null,
             emptyList(),
@@ -39,32 +47,36 @@ class OperationsCustomerProgressGateway @Inject constructor(
             null
         )
         if (!current(authority) ||
-            authority.permissions.none { it == "client.read" || it == "sales:read" }
+            (customerSelected && !canReadCustomer) ||
+            (!customerSelected && !canReadOrders)
         ) {
             return denied()
         }
         val lease = sessions.currentAccess() ?: return denied()
-        val customer =
-            (customers.detail(id) as? CommercialCustomerRead.Detail)?.value ?: return denied()
-        if (customer.status != "ACTIVE") return denied()
-        val orders = if (authority.permissions.any {
-                it == "sales.order.read" || it == "sales:read"
-            }
-        ) {
-            progress.orders(id, page)
+        val customer = if (customerSelected) {
+            (customers.detail(customerId) as? CommercialCustomerRead.Detail)?.value
+                ?: return denied()
+        } else {
+            null
+        }
+        if (customer?.status?.let { it != "ACTIVE" } == true) return denied()
+        val orders = if (canReadOrders) {
+            progress.orders(customerId, page)
         } else {
             CustomerProgressNetworkResult.PermissionDenied
         }
-        val credit = credit.credit(id, currency)
-        val refreshedCustomer = (customers.detail(id) as? CommercialCustomerRead.Detail)?.value
+        val creditRead = if (customerSelected) credit.credit(customerId, currency) else null
+        val refreshedCustomer = if (customerSelected) {
+            (customers.detail(customerId) as? CommercialCustomerRead.Detail)?.value
+        } else {
+            null
+        }
         if (!sessions.isEpochCurrent(lease.epoch) || !current(authority) ||
-            refreshedCustomer?.status != "ACTIVE"
+            (customerSelected && refreshedCustomer?.status != "ACTIVE")
         ) {
             return denied()
         }
-        if (refreshedCustomer.version !=
-            customer.version
-        ) {
+        if (customerSelected && refreshedCustomer?.version != customer?.version) {
             return CustomerProgressResult(
                 null,
                 emptyList(),
@@ -82,9 +94,9 @@ class OperationsCustomerProgressGateway @Inject constructor(
             return denied()
         }
         val commitments = (orders as? CustomerProgressNetworkResult.Orders)?.page
-        val creditValue = (credit as? CustomerCreditExposureRead.Available)?.value
+        val creditValue = (creditRead as? CustomerCreditExposureRead.Available)?.value
         return CustomerProgressResult(
-            customer.businessName,
+            customer?.businessName,
             commitments?.items?.map {
                 CustomerCommitment(
                     it.id,
@@ -98,7 +110,7 @@ class OperationsCustomerProgressGateway @Inject constructor(
             } ?: emptyList(),
             creditValue,
             orders.status(),
-            credit.status(),
+            creditRead?.status() ?: ProgressStatus.Idle,
             page,
             commitments?.total
         )

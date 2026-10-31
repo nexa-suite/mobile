@@ -426,7 +426,7 @@ void main() {
       );
       final loading = model.load();
       access.emit(_snapshot(epoch: 2, membershipId: 'membership-2'));
-      pending.complete(_purchaseContext(membershipId: _membershipId));
+      pending.complete(_purchaseContext());
       await loading;
 
       expect(model.item, isNull);
@@ -438,32 +438,31 @@ void main() {
     },
   );
 
-  test(
-    'profile membership mismatch fails closed without creating a draft',
-    () async {
-      final access = _FakeAccess(_snapshot());
-      final repository = _FakePurchaseRequestRepository(
-        contextResult: Future.value(
-          _purchaseContext(membershipId: 'membership-other'),
-        ),
-      );
-      final model = PurchaseRequestComposerViewModel(
-        _FakeCatalogRepository(),
-        repository,
-        access,
-        'CAT-001',
-      );
-      await model.load();
+  test('an unavailable Buyer relationship prevents draft creation', () async {
+    final access = _FakeAccess(_snapshot());
+    final repository = _FakePurchaseRequestRepository(
+      contextError: const NexaApiFailure(
+        code: 'buyer_relationship_unavailable',
+        statusCode: 404,
+        userMessage: 'Tu cuenta de compra ya no está disponible.',
+      ),
+    );
+    final model = PurchaseRequestComposerViewModel(
+      _FakeCatalogRepository(),
+      repository,
+      access,
+      'CAT-001',
+    );
+    await model.load();
 
-      expect(model.status, PurchaseRequestComposerStatus.unavailable);
-      expect(model.message, contains('no coincide'));
-      expect(repository.createCount, 0);
-      expect(access.snapshot.isSignedIn, isTrue);
+    expect(model.status, PurchaseRequestComposerStatus.unavailable);
+    expect(model.message, contains('no está disponible'));
+    expect(repository.createCount, 0);
+    expect(access.snapshot.isSignedIn, isTrue);
 
-      model.dispose();
-      await access.dispose();
-    },
-  );
+    model.dispose();
+    await access.dispose();
+  });
 
   test('403 does not invalidate a valid Buyer session', () async {
     final access = _FakeAccess(_snapshot());
@@ -787,6 +786,12 @@ void main() {
 
     expect(find.text('Producto Buyer'), findsOneWidget);
     expect(find.text('Cuenta Buyer'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Preparar revisión'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     expect(find.text('Preparar revisión'), findsOneWidget);
     expect(find.text('Transferencia bancaria'), findsOneWidget);
     expect(find.text('Billetera'), findsNothing);
@@ -827,11 +832,18 @@ void main() {
       ),
     );
 
-    expect(find.text('Billetera'), findsOneWidget);
-    expect(
-      find.textContaining('no reserva saldo ni confirma el pago'),
-      findsOneWidget,
+    final walletPreferenceCopy = find.textContaining(
+      'no reserva saldo ni confirma el pago',
     );
+    await tester.scrollUntilVisible(
+      walletPreferenceCopy,
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Billetera'), findsOneWidget);
+    expect(walletPreferenceCopy, findsOneWidget);
     expect(find.textContaining('Pago exitoso'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -899,25 +911,23 @@ BuyerAccessSnapshot _snapshot({
   ),
 );
 
-BuyerPurchaseContextProjection _purchaseContext({
-  String membershipId = _membershipId,
-}) => BuyerPurchaseContextProjection(
-  clientAccountId: _accountId,
-  buyerMembershipId: membershipId,
-  businessName: 'Cuenta Buyer',
-  paymentCondition: 'BANK_TRANSFER',
-  addresses: const [
-    BuyerDeliveryAddressProjection(
-      id: _addressId,
-      label: 'Principal',
-      line: 'Av. Central 100',
-      active: true,
-      defaultAddress: true,
-      latitude: -12.1,
-      longitude: -77.1,
-    ),
-  ],
-);
+BuyerPurchaseContextProjection _purchaseContext() =>
+    BuyerPurchaseContextProjection(
+      clientAccountId: _accountId,
+      businessName: 'Cuenta Buyer',
+      paymentCondition: 'BANK_TRANSFER',
+      addresses: const [
+        BuyerDeliveryAddressProjection(
+          id: _addressId,
+          label: 'Principal',
+          line: 'Av. Central 100',
+          active: true,
+          defaultAddress: true,
+          latitude: -12.1,
+          longitude: -77.1,
+        ),
+      ],
+    );
 
 PurchaseRequestDraftProjection _draft({
   int version = 0,
@@ -953,6 +963,8 @@ final class _FakeCatalogRepository implements CatalogRepository {
     String categoryId = '',
     String familyId = '',
     String variantId = '',
+    String coldChain = '',
+    bool availableOnly = false,
   }) => throw UnimplementedError();
 
   @override
@@ -1071,8 +1083,8 @@ final class _FakePurchaseRequestRepository
     }
     return Future.value(
       BuyerDeliveryLeadPolicyProjection(
-        minimumDeliveryLeadBusinessDays: 3,
-        minimumAllowedDeliveryDate: DateTime(2026, 10, 23),
+        minimumDeliveryLeadDays: 3,
+        earliestAllowedDeliveryDate: DateTime(2026, 10, 23),
         timezone: 'America/Lima',
       ),
     );

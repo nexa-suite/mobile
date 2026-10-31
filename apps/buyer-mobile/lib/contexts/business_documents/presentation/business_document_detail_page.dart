@@ -1,3 +1,5 @@
+import '../application/business_document_export_port.dart';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,7 +8,9 @@ import '../application/business_documents_repository.dart';
 import 'business_documents_view_model.dart';
 
 final class BusinessDocumentDetailPage extends StatelessWidget {
-  const BusinessDocumentDetailPage({super.key});
+  const BusinessDocumentDetailPage({super.key, this.exporter});
+
+  final BusinessDocumentExportPort? exporter;
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +51,7 @@ final class BusinessDocumentDetailPage extends StatelessWidget {
             children: [
               NexaPageIntro(
                 title: document.documentNumber ?? 'Documento',
-                description: 'Contenido y metadatos del documento.',
+                description: 'Consulta y guarda el documento de tu compra.',
                 icon: Icons.description_outlined,
               ),
               Card(
@@ -57,21 +61,15 @@ final class BusinessDocumentDetailPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        document.documentType,
+                        _documentType(document.documentType),
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 8),
                       NexaStatusBadge(document.status),
                       _Metadata(label: 'Formato', value: document.format),
-                      _Metadata(label: 'Versión', value: '${document.version}'),
                       _Metadata(
                         label: 'Tamaño',
                         value: _byteSize(document.byteSize),
-                      ),
-                      _Metadata(
-                        label: 'Asunto',
-                        value:
-                            '${document.subjectType} · ${document.subjectId}',
                       ),
                       _Metadata(
                         label: 'Creado',
@@ -82,18 +80,6 @@ final class BusinessDocumentDetailPage extends StatelessWidget {
                           label: 'Generado',
                           value: _dateLabel(document.generatedAt!),
                         ),
-                      if (document.checksumSha256 != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          'SHA-256',
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                        const SizedBox(height: 4),
-                        SelectableText(
-                          document.checksumSha256!,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -117,8 +103,8 @@ final class BusinessDocumentDetailPage extends StatelessWidget {
                   label: Text(
                     viewModel.downloadStatus ==
                             BusinessDocumentDownloadStatus.loading
-                        ? 'Verificando contenido…'
-                        : 'Cargar contenido protegido',
+                        ? 'Cargando documento…'
+                        : 'Cargar documento',
                   ),
                 )
               else
@@ -143,28 +129,40 @@ final class BusinessDocumentDetailPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.verified_outlined),
-                            SizedBox(width: 8),
-                            Expanded(child: Text('Contenido verificado')),
-                          ],
-                        ),
+                        const Text('Documento listo'),
                         const SizedBox(height: 8),
                         Text(
-                          '${content.bytes.length} bytes · SHA-256 ${content.sha256}',
+                          '${document.format} · ${_byteSize(content.bytes.length)}',
                         ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'El contenido permanece solo en la memoria de esta vista. '
-                          'No se guardó en el dispositivo.',
-                        ),
+                        if (exporter != null) ...[
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed:
+                                  viewModel.exporting || !viewModel.canDownload
+                                  ? null
+                                  : () => viewModel.saveDocument(exporter!),
+                              icon: const Icon(Icons.save_alt),
+                              label: Text(
+                                viewModel.exporting
+                                    ? 'Guardando…'
+                                    : 'Guardar documento',
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (viewModel.exportMessage case final message?)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Text(message),
+                          ),
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton.icon(
                             onPressed: viewModel.discardContent,
                             icon: const Icon(Icons.delete_outline),
-                            label: const Text('Descartar contenido'),
+                            label: const Text('Cerrar documento'),
                           ),
                         ),
                       ],
@@ -268,3 +266,11 @@ String _byteSize(int bytes) => bytes < 1024
     : bytes < 1024 * 1024
     ? '${(bytes / 1024).toStringAsFixed(1)} KB'
     : '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
+
+String _documentType(String value) => switch (value.toUpperCase()) {
+  'INVOICE' => 'Factura',
+  'DISPATCH_GUIDE' || 'DELIVERY_GUIDE' => 'Guía de entrega',
+  'PAYMENT_RECEIPT' => 'Comprobante de pago',
+  'SALES_ORDER_SUMMARY' => 'Resumen del pedido',
+  _ => 'Documento de compra',
+};

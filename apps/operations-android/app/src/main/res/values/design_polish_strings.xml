@@ -1,0 +1,22 @@
+<resources>
+    <string name="home_more_actions">More actions</string>
+    <string name="home_action_picking">Picking</string>
+    <string name="home_action_discrepancy">Report discrepancy</string>
+    <string name="home_action_transfer">Stock transfer</string>
+    <string name="home_action_transfer_receipt">Receive transfer</string>
+    <string name="home_action_temperature">Record temperature</string>
+    <string name="home_action_disposition">Stock disposition</string>
+    <string name="home_action_dispatch_prep">Dispatch preparation</string>
+    <string name="home_action_loads">Loads and stops</string>
+    <string name="home_action_deliveries">My deliveries</string>
+    <string name="home_action_accept_load">Accept full load</string>
+    <string name="home_action_instructions">Delivery instructions</string>
+    <string name="home_action_customers">Customers</string>
+    <string name="home_action_catalog">Catalog</string>
+    <string name="home_action_new_order">New order</string>
+    <string name="home_action_request">Prepare request</string>
+    <string name="home_action_operations">Operations overview</string>
+    <string name="home_action_blocked_work">Blocked work</string>
+    <string name="home_action_exceptions">Exceptions</string>
+    <string name="home_action_updates">Updates</string>
+</resources>

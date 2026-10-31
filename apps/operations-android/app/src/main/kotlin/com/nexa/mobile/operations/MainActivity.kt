@@ -31,6 +31,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.nexa.mobile.operations.businessdocuments.presentation.commercial.BusinessDocumentsScreen
 import com.nexa.mobile.operations.businessdocuments.presentation.commercial.BusinessDocumentsViewModel
+import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedScannedSku
 import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.CatalogOperationsContextAdapter
 import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.OperationsCatalogIdentificationGateway
 import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.ScannerOperationsGateway
@@ -48,6 +49,7 @@ import com.nexa.mobile.operations.core.designsystem.OperationsTheme
 import com.nexa.mobile.operations.core.device.scanner.CameraXProductCodeScanner
 import com.nexa.mobile.operations.core.local.files.AndroidPrivateImageFileSelection
 import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.CustomerSearchScreen
+import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.CustomerSearchStatus
 import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.CustomerSearchViewModel
 import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.FieldVisitScreen
 import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.FieldVisitViewModel
@@ -103,6 +105,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.Disp
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchPlanChangeViewModel as PlanChangeViewModel
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchReadinessDetailStatus as ReadinessDetailStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchReadinessScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchReadinessStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchReadinessViewModel
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchTemperatureScreen
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch.DispatchTemperatureViewModel
@@ -110,6 +113,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse.Pic
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse.PickingScreen
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse.PickingViewModel
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse.PickingWorkListScreen
+import com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse.PickingWorkListStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse.PickingWorkListViewModel
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse.WarehouseBatchScreen
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse.WarehouseBatchViewModel
@@ -138,7 +142,9 @@ import com.nexa.mobile.operations.inventoryavailability.application.warehouse.St
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferReceiptMetadataStore
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.StockTransferReceiptObservationMetadataStore
 import com.nexa.mobile.operations.inventoryavailability.application.warehouse.WarehouseEvidenceSelectionCoordinator
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ConfirmedReceivingProduct
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.LotSubstitutionWork
+import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivingProductReference
 import com.nexa.mobile.operations.inventoryavailability.infrastructure.adapters.AppTemperatureEvidencePhotoArtifactStore
 import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.CycleCountScreen
 import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.CycleCountViewModel
@@ -152,6 +158,7 @@ import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.L
 import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.ReceivingScreen
 import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.ReceivingViewModel
 import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.StockConditionScreen
+import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.StockConditionStatus
 import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.StockConditionViewModel
 import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.StockTransferReceiptScreen
 import com.nexa.mobile.operations.inventoryavailability.presentation.warehouse.StockTransferReceiptViewModel
@@ -179,16 +186,19 @@ import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.C
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.PermissionHint
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.VerifiedOperationsIdentity
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.permissionHintProjection
+import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.VerifiedContextAuthority
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
 import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.adapters.OperationsAccessGateway
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessNotice
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessViewModel
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.profile.OwnProfileViewModel
 import com.nexa.mobile.operations.visibility.OperationsOverviewScreen
 import dagger.hilt.android.AndroidEntryPoint
 import java.math.BigDecimal
 import java.net.URI
+import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.launch
 
@@ -413,6 +423,11 @@ class MainActivity : ComponentActivity() {
         businessDocumentsFactory
     }
 
+    @Inject internal lateinit var ownProfileFactory: OwnProfileViewModelFactory
+    private val ownProfileViewModel: OwnProfileViewModel by viewModels {
+        ownProfileFactory
+    }
+
     @Inject internal lateinit var notificationsFactory: NotificationsViewModelFactory
     private val notificationsViewModel: NotificationsViewModel by viewModels {
         notificationsFactory
@@ -514,6 +529,10 @@ class MainActivity : ComponentActivity() {
     private var pickingReference by mutableStateOf("")
     private var pickingOpened by mutableStateOf(false)
     private var pickingWorkListEpoch by mutableLongStateOf(0L)
+    private var dashboardOpenedEpoch by mutableLongStateOf(0L)
+    private var dashboardOpenedRole by mutableStateOf(OperationsDashboardRole.Unknown)
+    private var dashboardOpenedScopeKey by mutableStateOf<String?>(null)
+    private var customerSearchDashboardEpoch by mutableLongStateOf(0L)
 
     @Inject internal lateinit var operationsGateway: OperationsAccessGateway
 
@@ -568,10 +587,13 @@ class MainActivity : ComponentActivity() {
     private var pendingScannerPermissionReturn by mutableStateOf<PendingScannerPermissionReturn?>(
         null
     )
+    private var pendingDriverLocationConsent by
+        mutableStateOf<PendingDriverLocationConsent?>(null)
 
     private var identifiedStorageSkuId: String? by mutableStateOf(null)
 
     override fun onDestroy() {
+        pendingDriverLocationConsent = null
         pendingDriverProofFile = null
         pendingDriverProofPicker = null
         pendingDriverIncidentPicker = null
@@ -587,7 +609,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (connectedRoute?.entryKey == "driver.deliveries") {
+        if (pendingDriverLocationConsent == null &&
+            connectedRoute?.entryKey == "driver.deliveries"
+        ) {
             driverWorkdayViewModel.onLocationPermissionChanged(fineLocationPermissionGranted())
             driverWorkdayViewModel.onNotificationsPermissionChanged(
                 driverLocationNotificationsVisible()
@@ -597,6 +621,7 @@ class MainActivity : ComponentActivity() {
         if (viewModel.state.value == SessionState.Active) {
             invalidateProtectedContentForForegroundReturn()
         }
+        pendingDriverLocationConsent = pendingDriverLocationConsent?.beginRevalidation()
         pendingScannerPermissionReturn?.let { pending ->
             pendingScannerPermissionReturn = pending.beginRevalidation().copy(
                 permissionGranted = if (pending.source ==
@@ -631,11 +656,16 @@ class MainActivity : ComponentActivity() {
                     rememberLauncherForActivityResult(
                         ActivityResultContracts.RequestPermission()
                     ) { granted ->
-                        if (granted && driverLocationNotificationsVisible()) {
-                            driverWorkdayViewModel.onLocationPermissionChanged(true)
-                            driverWorkdayViewModel.onNotificationsPermissionChanged(true)
-                            driverWorkdayViewModel.enableLocation()
+                        val pending = pendingDriverLocationConsent
+                        if (granted && driverLocationNotificationsVisible() && pending != null) {
+                            pendingDriverLocationConsent = pending.copy(
+                                permissionsAccepted = true
+                            )
+                            if (!pending.foregroundReturnObserved) {
+                                beginDriverLocationForegroundRevalidation()
+                            }
                         } else {
+                            pendingDriverLocationConsent = null
                             driverWorkdayViewModel.onNotificationsPermissionChanged(false)
                             showDriverLocationPermissionHelp = true
                         }
@@ -645,23 +675,34 @@ class MainActivity : ComponentActivity() {
                         ActivityResultContracts.RequestMultiplePermissions()
                     ) { permissions ->
                         val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
-                        driverWorkdayViewModel.onLocationPermissionChanged(granted)
+                        val pending = pendingDriverLocationConsent
                         if (granted) {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            if (pending == null) {
+                                showDriverLocationPermissionHelp = true
+                            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                                 checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
                                 PackageManager.PERMISSION_GRANTED
                             ) {
+                                pendingDriverLocationConsent = pending.beginPermissionPrompt()
                                 driverNotificationPermissionLauncher.launch(
                                     Manifest.permission.POST_NOTIFICATIONS
                                 )
                             } else if (driverLocationNotificationsVisible()) {
-                                driverWorkdayViewModel.onNotificationsPermissionChanged(true)
-                                driverWorkdayViewModel.enableLocation()
+                                pendingDriverLocationConsent = pending.copy(
+                                    permissionsAccepted = true
+                                )
+                                if (!pending.foregroundReturnObserved) {
+                                    beginDriverLocationForegroundRevalidation()
+                                }
                             } else {
+                                pendingDriverLocationConsent = null
+                                driverWorkdayViewModel.onLocationPermissionChanged(false)
                                 driverWorkdayViewModel.onNotificationsPermissionChanged(false)
                                 showDriverLocationPermissionHelp = true
                             }
                         } else {
+                            pendingDriverLocationConsent = null
+                            driverWorkdayViewModel.onLocationPermissionChanged(false)
                             showDriverLocationPermissionHelp = true
                         }
                     }
@@ -677,26 +718,36 @@ class MainActivity : ComponentActivity() {
                         confirmButton = {
                             TextButton(onClick = {
                                 showDriverLocationDisclosure = false
+                                val continuation = currentDriverLocationConsentTarget()
+                                if (continuation == null) {
+                                    return@TextButton
+                                }
                                 if (fineLocationPermissionGranted()) {
-                                    driverWorkdayViewModel.onLocationPermissionChanged(true)
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                                         checkSelfPermission(
                                             Manifest.permission.POST_NOTIFICATIONS
                                         ) != PackageManager.PERMISSION_GRANTED
                                     ) {
+                                        pendingDriverLocationConsent =
+                                            continuation.beginPermissionPrompt()
                                         driverNotificationPermissionLauncher.launch(
                                             Manifest.permission.POST_NOTIFICATIONS
                                         )
                                     } else if (driverLocationNotificationsVisible()) {
+                                        pendingDriverLocationConsent = null
+                                        driverWorkdayViewModel.onLocationPermissionChanged(true)
                                         driverWorkdayViewModel
                                             .onNotificationsPermissionChanged(true)
                                         driverWorkdayViewModel.enableLocation()
                                     } else {
+                                        pendingDriverLocationConsent = null
                                         driverWorkdayViewModel
                                             .onNotificationsPermissionChanged(false)
                                         showDriverLocationPermissionHelp = true
                                     }
                                 } else {
+                                    pendingDriverLocationConsent =
+                                        continuation.beginPermissionPrompt()
                                     driverLocationPermissionLauncher.launch(
                                         arrayOf(
                                             Manifest.permission.ACCESS_COARSE_LOCATION,
@@ -921,6 +972,15 @@ class MainActivity : ComponentActivity() {
                 val state = viewModel.state.collectAsStateWithLifecycle().value
                 val accessState = accessViewModel.state.collectAsStateWithLifecycle().value
                 val warehouseState = warehouseViewModel.state.collectAsStateWithLifecycle().value
+                val ownProfileState = ownProfileViewModel.state.collectAsStateWithLifecycle().value
+                val chooseCustomer: (() -> Unit)? = if (
+                    accessState.activeContext?.verifiedAuthority?.permissions
+                        ?.any { it == "client.read" || it == "sales:read" } == true
+                ) {
+                    ::openCustomerSelection
+                } else {
+                    null
+                }
                 val scannerState = scannerViewModel.state.collectAsStateWithLifecycle().value
                 val commercialCatalogState by
                     commercialCatalogViewModel.state.collectAsStateWithLifecycle()
@@ -1089,6 +1149,166 @@ class MainActivity : ComponentActivity() {
                         }
                         pendingLoadDelivery = null
                     }
+                }
+                LaunchedEffect(
+                    pendingDriverLocationConsent,
+                    pendingLoadDelivery,
+                    connectedRoute,
+                    state,
+                    accessState.stage,
+                    accessState.authorityEpoch,
+                    accessState.activeContext,
+                    warehouseState.authorityEpoch,
+                    warehouseState.activeContext,
+                    driverDeliveryState.authorityEpoch,
+                    driverDeliveryState.listStatus,
+                    driverDeliveryState.detailStatus,
+                    driverDeliveryState.selectedDelivery,
+                    driverDeliveryState.deliveries,
+                    driverWorkdayState.eligibleDeliveryId,
+                    driverWorkdayState.loading,
+                    driverWorkdayState.commandPending,
+                    driverWorkdayState.pendingCommand
+                ) {
+                    val pending = pendingDriverLocationConsent ?: return@LaunchedEffect
+                    if (state in setOf(
+                            SessionState.SignedOut,
+                            SessionState.ContextRequired,
+                            SessionState.ReauthenticationRequired,
+                            SessionState.LocalProtectionError
+                        )
+                    ) {
+                        pendingDriverLocationConsent = null
+                        return@LaunchedEffect
+                    }
+                    if (!pending.canContinueAfterRevalidation) return@LaunchedEffect
+                    if (!fineLocationPermissionGranted() ||
+                        !driverLocationNotificationsVisible()
+                    ) {
+                        pendingDriverLocationConsent = null
+                        return@LaunchedEffect
+                    }
+                    if (state != SessionState.Active ||
+                        accessState.stage != AccessStage.WorkAuthorized
+                    ) {
+                        return@LaunchedEffect
+                    }
+                    val authority = ConnectedOperationsNavigation.currentAuthority(
+                        state,
+                        accessState,
+                        warehouseState
+                    ) ?: return@LaunchedEffect
+                    if (authority != pending.authority) {
+                        pendingDriverLocationConsent = null
+                        return@LaunchedEffect
+                    }
+
+                    val route = connectedRoute
+                    if (route == null || route.entryKey != "driver.deliveries" ||
+                        !ConnectedOperationsNavigation.permits(
+                            route,
+                            CONNECTED_OPERATIONS,
+                            state,
+                            accessState,
+                            warehouseState
+                        )
+                    ) {
+                        val entry = CONNECTED_OPERATIONS.single {
+                            it.key == "driver.deliveries"
+                        }
+                        val reopened = ConnectedOperationsNavigation.open(
+                            entry,
+                            state,
+                            accessState,
+                            warehouseState
+                        )
+                        if (reopened == null || reopened.authority != pending.authority) {
+                            pendingDriverLocationConsent = null
+                            return@LaunchedEffect
+                        }
+                        closeConnectedOperation()
+                        connectedRoute = reopened
+                        driverViewModel.activate(
+                            DriverDeliveryAuthority(
+                                reopened.authority.userId,
+                                reopened.authority.tenantId,
+                                reopened.authority.workspaceId,
+                                reopened.authority.membershipId,
+                                reopened.authority.permissions,
+                                reopened.authorityEpoch
+                            )
+                        )
+                        pendingLoadDelivery = reopened to pending.deliveryId
+                        return@LaunchedEffect
+                    }
+                    if (route.authority != pending.authority) {
+                        pendingDriverLocationConsent = null
+                        return@LaunchedEffect
+                    }
+                    if (driverDeliveryState.authorityEpoch != route.authorityEpoch) {
+                        return@LaunchedEffect
+                    }
+                    when (driverDeliveryState.listStatus) {
+                        DriverDeliveryLoadStatus.NotRequested,
+                        DriverDeliveryLoadStatus.Loading -> return@LaunchedEffect
+
+                        DriverDeliveryLoadStatus.Ready -> Unit
+
+                        else -> {
+                            pendingDriverLocationConsent = null
+                            return@LaunchedEffect
+                        }
+                    }
+                    if (driverDeliveryState.deliveries.none { it.id == pending.deliveryId }) {
+                        pendingDriverLocationConsent = null
+                        return@LaunchedEffect
+                    }
+                    if (driverDeliveryState.selectedDelivery?.id != pending.deliveryId) {
+                        if (pendingLoadDelivery?.first == route &&
+                            pendingLoadDelivery?.second == pending.deliveryId
+                        ) {
+                            return@LaunchedEffect
+                        }
+                        driverViewModel.selectDelivery(pending.deliveryId)
+                        return@LaunchedEffect
+                    }
+                    when (driverDeliveryState.detailStatus) {
+                        DriverDeliveryLoadStatus.NotRequested,
+                        DriverDeliveryLoadStatus.Loading -> return@LaunchedEffect
+
+                        DriverDeliveryLoadStatus.Ready -> Unit
+
+                        else -> {
+                            pendingDriverLocationConsent = null
+                            return@LaunchedEffect
+                        }
+                    }
+                    val delivery = driverDeliveryState.selectedDelivery
+                        ?.takeIf { it.id == pending.deliveryId }
+                        ?: run {
+                            pendingDriverLocationConsent = null
+                            return@LaunchedEffect
+                        }
+                    if (!pending.freshDetailObserved) {
+                        driverWorkdayViewModel.updateDelivery(delivery, detailReady = true)
+                        pendingDriverLocationConsent = pending.copy(freshDetailObserved = true)
+                        return@LaunchedEffect
+                    }
+                    if (driverWorkdayState.eligibleDeliveryId != pending.deliveryId) {
+                        pendingDriverLocationConsent = null
+                        return@LaunchedEffect
+                    }
+                    if (driverWorkdayState.pendingCommand != null) {
+                        pendingDriverLocationConsent = null
+                        return@LaunchedEffect
+                    }
+                    if (driverWorkdayState.loading || driverWorkdayState.commandPending) {
+                        return@LaunchedEffect
+                    }
+                    pendingDriverLocationConsent = null
+                    driverWorkdayViewModel.onLocationPermissionChanged(true)
+                    driverWorkdayViewModel.onNotificationsPermissionChanged(true)
+                    driverWorkdayViewModel.enableLocation()
                 }
                 BackHandler(
                     enabled = showDriverInstructions,
@@ -1726,6 +1946,230 @@ class MainActivity : ComponentActivity() {
                         authority.membershipId
                     )
                 }
+                val dashboardAuthority = accessState.activeContext?.verifiedAuthority
+                val dashboardScopeKey = accessState.activeContext?.key
+                val dashboardEpoch = if (
+                    state == SessionState.Active &&
+                    accessState.stage == AccessStage.WorkAuthorized &&
+                    accessState.authorityEpoch > 0 &&
+                    !dashboardScopeKey.isNullOrBlank() &&
+                    dashboardAuthority != null &&
+                    listOf(
+                        dashboardAuthority.userId,
+                        dashboardAuthority.tenantId,
+                        dashboardAuthority.workspaceId,
+                        dashboardAuthority.membershipId
+                    ).none(String::isBlank)
+                ) {
+                    accessState.authorityEpoch
+                } else {
+                    0L
+                }
+                val dashboardRole = if (dashboardEpoch > 0) {
+                    operationsDashboardRole(dashboardAuthority?.roles.orEmpty())
+                } else {
+                    OperationsDashboardRole.Unknown
+                }
+                val dashboardPermissions = dashboardAuthority?.permissions.orEmpty()
+                val dashboardStockReadAllowed =
+                    dashboardRole == OperationsDashboardRole.Warehouse &&
+                        dashboardPermissions.any {
+                            it in setOf("warehouse.read", "inventory.read", "warehouse:read")
+                        }
+                val dashboardPickingReadAllowed =
+                    dashboardRole == OperationsDashboardRole.Warehouse &&
+                        dashboardPermissions.any {
+                            it == "fulfillment.read" || it == "fulfillment:read"
+                        }
+                val dashboardDispatchReadAllowed =
+                    dashboardRole in setOf(
+                        OperationsDashboardRole.Dispatch,
+                        OperationsDashboardRole.Management
+                    ) && "dispatch.read" in dashboardPermissions
+                val dashboardCustomerReadAllowed =
+                    dashboardRole == OperationsDashboardRole.Sales &&
+                        dashboardPermissions.any {
+                            it == "client.read" || it == "sales:read"
+                        }
+                val dashboardSnapshot = buildOperationsDashboardSnapshot(
+                    authorityEpoch = dashboardEpoch,
+                    role = dashboardRole,
+                    openedEpoch = dashboardOpenedEpoch,
+                    openedRole = dashboardOpenedRole,
+                    scopeKey = dashboardScopeKey,
+                    openedScopeKey = dashboardOpenedScopeKey,
+                    stockState = stockConditionState,
+                    stockReadAllowed = dashboardStockReadAllowed,
+                    pickingState = pickingWorkListState,
+                    pickingEpoch = pickingWorkListEpoch,
+                    pickingReadAllowed = dashboardPickingReadAllowed,
+                    readinessState = dispatchReadinessState,
+                    dispatchReadAllowed = dashboardDispatchReadAllowed,
+                    customerState = customerSearchState,
+                    customerEpoch = customerSearchDashboardEpoch,
+                    customerReadAllowed = dashboardCustomerReadAllowed
+                )
+                val dashboardHomeCurrent = dashboardEpoch > 0 &&
+                    state == SessionState.Active &&
+                    accessState.stage == AccessStage.WorkAuthorized &&
+                    dashboardScopeKey == accessState.activeContext?.key &&
+                    connectedRoute == null &&
+                    warehouseState.route == WarehouseRoute.WorkEntry
+                val onDashboardOpened: () -> Unit = {
+                    if (!dashboardHomeCurrent || dashboardAuthority == null) {
+                        dashboardOpenedEpoch = 0L
+                        dashboardOpenedRole = OperationsDashboardRole.Unknown
+                        dashboardOpenedScopeKey = null
+                        customerSearchDashboardEpoch = 0L
+                    } else {
+                        dashboardOpenedEpoch = dashboardEpoch
+                        dashboardOpenedRole = dashboardRole
+                        dashboardOpenedScopeKey = dashboardScopeKey
+                        when (dashboardRole) {
+                            OperationsDashboardRole.Warehouse -> {
+                                customerSearchDashboardEpoch = 0L
+                                val currentWarehouseContext =
+                                    accessState.activeContext?.toActiveOperationsContext(
+                                        dashboardEpoch
+                                    )
+                                if (dashboardStockReadAllowed && currentWarehouseContext != null) {
+                                    stockConditionViewModel.activate(currentWarehouseContext)
+                                    if (
+                                        stockConditionState.status !=
+                                        StockConditionStatus.Loading &&
+                                        stockConditionState.selectedLotId == null
+                                    ) {
+                                        stockConditionViewModel.refresh()
+                                    }
+                                } else {
+                                    stockConditionViewModel.deactivate()
+                                }
+
+                                if (dashboardPickingReadAllowed) {
+                                    val proof = PickingAuthority(
+                                        dashboardAuthority.userId,
+                                        dashboardAuthority.tenantId,
+                                        dashboardAuthority.workspaceId,
+                                        dashboardAuthority.membershipId,
+                                        dashboardAuthority.permissions,
+                                        dashboardEpoch
+                                    )
+                                    pickingWorkListEpoch = dashboardEpoch
+                                    pickingWorkListViewModel.activate(proof)
+                                } else {
+                                    pickingWorkListEpoch = 0L
+                                    pickingWorkListViewModel.invalidate()
+                                }
+                            }
+
+                            OperationsDashboardRole.Dispatch,
+                            OperationsDashboardRole.Management -> {
+                                if (dashboardDispatchReadAllowed) {
+                                    readinessViewModel.activate(
+                                        DispatchAuthorityContext(
+                                            dashboardEpoch,
+                                            DispatchAuthorityIdentity(
+                                                dashboardAuthority.userId,
+                                                dashboardAuthority.tenantId,
+                                                dashboardAuthority.workspaceId,
+                                                dashboardAuthority.membershipId,
+                                                dashboardAuthority.permissions
+                                            )
+                                        )
+                                    )
+                                    if (
+                                        dispatchReadinessState.selectedFulfillmentId == null &&
+                                        dispatchReadinessState.status !=
+                                        DispatchReadinessStatus.Loading
+                                    ) {
+                                        readinessViewModel.refresh()
+                                    }
+                                } else {
+                                    readinessViewModel.deactivate()
+                                }
+                                customerSearchDashboardEpoch = 0L
+                            }
+
+                            OperationsDashboardRole.Sales -> {
+                                if (dashboardCustomerReadAllowed) {
+                                    customerSearchDashboardEpoch = dashboardEpoch
+                                    customerSearchViewModel.activate(
+                                        CommercialAuthority(
+                                            dashboardAuthority.userId,
+                                            dashboardAuthority.tenantId,
+                                            dashboardAuthority.workspaceId,
+                                            dashboardAuthority.membershipId,
+                                            dashboardAuthority.permissions,
+                                            dashboardEpoch
+                                        )
+                                    )
+                                } else {
+                                    customerSearchDashboardEpoch = 0L
+                                    customerSearchViewModel.deactivate()
+                                }
+                            }
+
+                            OperationsDashboardRole.Driver,
+                            OperationsDashboardRole.Unknown -> {
+                                customerSearchDashboardEpoch = 0L
+                            }
+                        }
+                    }
+                }
+                val onDashboardRefresh: () -> Unit = {
+                    val currentDashboard = dashboardHomeCurrent &&
+                        dashboardOpenedEpoch == dashboardEpoch &&
+                        dashboardOpenedRole == dashboardRole &&
+                        dashboardOpenedScopeKey == dashboardScopeKey
+                    if (currentDashboard) {
+                        when (dashboardRole) {
+                            OperationsDashboardRole.Warehouse -> {
+                                if (
+                                    dashboardStockReadAllowed &&
+                                    stockConditionState.authorityEpoch == dashboardEpoch &&
+                                    stockConditionState.status != StockConditionStatus.Loading &&
+                                    stockConditionState.selectedLotId == null
+                                ) {
+                                    stockConditionViewModel.refresh()
+                                }
+                                if (
+                                    dashboardPickingReadAllowed &&
+                                    pickingWorkListEpoch == dashboardEpoch &&
+                                    pickingWorkListState.status != PickingWorkListStatus.Loading
+                                ) {
+                                    pickingWorkListViewModel.reload()
+                                }
+                            }
+
+                            OperationsDashboardRole.Dispatch,
+                            OperationsDashboardRole.Management -> {
+                                if (
+                                    dashboardDispatchReadAllowed &&
+                                    dispatchReadinessState.authorityEpoch == dashboardEpoch &&
+                                    dispatchReadinessState.status !=
+                                    DispatchReadinessStatus.Loading &&
+                                    dispatchReadinessState.selectedFulfillmentId == null
+                                ) {
+                                    readinessViewModel.refresh()
+                                }
+                            }
+
+                            OperationsDashboardRole.Sales -> {
+                                if (
+                                    dashboardCustomerReadAllowed &&
+                                    customerSearchDashboardEpoch == dashboardEpoch &&
+                                    customerSearchState.status != CustomerSearchStatus.Loading &&
+                                    customerSearchState.detail == null
+                                ) {
+                                    customerSearchViewModel.search()
+                                }
+                            }
+
+                            OperationsDashboardRole.Driver,
+                            OperationsDashboardRole.Unknown -> Unit
+                        }
+                    }
+                }
                 BiometricSessionGate(
                     activity = this@MainActivity,
                     sessionActive = state == SessionState.Active &&
@@ -1737,14 +2181,40 @@ class MainActivity : ComponentActivity() {
                     }
                 ) {
                     RootNavigation(
+                        ownProfile = ownProfileState.profile,
+                        onProfileOpened = {
+                            accessState.activeContext?.verifiedAuthority?.let(
+                                ownProfileViewModel::activate
+                            )
+                        },
+                        ownProfileContent = { onClose ->
+                            accessState.activeContext?.verifiedAuthority?.let { authority ->
+                                OperationsOwnProfileRoute(ownProfileViewModel, authority, onClose)
+                            }
+                        },
                         state = state,
                         accessState = accessState,
                         warehouseState = warehouseState,
+                        dashboard = dashboardSnapshot,
+                        dashboardChangeSignals = if (
+                            dashboardStockReadAllowed && dashboardEpoch > 0 &&
+                            stockConditionState.authorityEpoch == dashboardEpoch
+                        ) {
+                            stockConditionState.stockConditionChangeSignals
+                        } else {
+                            kotlinx.coroutines.flow.emptyFlow()
+                        },
+                        onDashboardOpened = onDashboardOpened,
+                        onDashboardRefresh = onDashboardRefresh,
                         scannerState = scannerState,
                         connectedOperationRoute = connectedRoute,
                         connectedOperationEntries = CONNECTED_OPERATIONS,
-                        onConnectedOperationBack = ::closeConnectedOperation,
+                        onConnectedOperationBack = {
+                            pendingDriverLocationConsent = null
+                            closeConnectedOperation()
+                        },
                         onNavigateHome = {
+                            pendingDriverLocationConsent = null
                             while (warehouseViewModel.state.value.route !=
                                 WarehouseRoute.WorkEntry
                             ) {
@@ -1753,6 +2223,7 @@ class MainActivity : ComponentActivity() {
                             closeConnectedOperation()
                         },
                         onOpenConnectedOperation = { entry ->
+                            pendingDriverLocationConsent = null
                             ConnectedOperationsNavigation.open(
                                 entry,
                                 state,
@@ -2240,6 +2711,19 @@ class MainActivity : ComponentActivity() {
                                     onAssign = dispatchAssignmentViewModel::assign,
                                     onReplay = dispatchAssignmentViewModel::retryUnknownOutcome,
                                     onRouteClosed = dispatchAssignmentViewModel::deactivate,
+                                    onRefreshDriverLocation =
+                                        dispatchAssignmentViewModel::refreshDriverLocation,
+                                    onDriverLocationVisibilityChanged = { isVisible ->
+                                        if (!isVisible) {
+                                            dispatchAssignmentViewModel.suspendDriverLocationReads()
+                                        }
+                                    },
+                                    onShowDriverLocationMap = { location ->
+                                        DriverLiveLocationMap(
+                                            location = location,
+                                            tileUrlTemplate = BuildConfig.MAP_TILE_URL_TEMPLATE
+                                        )
+                                    },
                                     onIdentifyHandoff =
                                         if (connectedRoute?.authority?.permissions?.contains(
                                                 "logistics:read"
@@ -2746,6 +3230,7 @@ class MainActivity : ComponentActivity() {
                                         directOrderState,
                                         ::closeConnectedOperation,
                                         directOrderViewModel,
+                                        onChooseCustomer = chooseCustomer,
                                         onOpenCatalog = {
                                             val route = connectedRoute ?: return@DirectOrderScreen
                                             val authority = route.authority
@@ -3087,7 +3572,8 @@ class MainActivity : ComponentActivity() {
                                         driverHandoffTokenState,
                                         driverHandoffTokenViewModel::issueOrRetrySame,
                                         driverHandoffTokenViewModel::refresh,
-                                        driverHandoffTokenViewModel::clearToken
+                                        driverHandoffTokenViewModel::clearToken,
+                                        driverHandoffTokenViewModel::renewConfirmedToken
                                     )
                                 }
 
@@ -3297,6 +3783,7 @@ class MainActivity : ComponentActivity() {
                                 "commercial.catalog" -> CommercialCatalogScreen(
                                     state = commercialCatalogState,
                                     onBack = ::closeConnectedOperation,
+                                    onChooseCustomer = chooseCustomer,
                                     onCustomerIdChanged =
                                         commercialCatalogViewModel::customerIdChanged,
                                     onQueryChanged = commercialCatalogViewModel::queryChanged,
@@ -3391,6 +3878,7 @@ class MainActivity : ComponentActivity() {
                                 "commercial.progress" -> CustomerProgressScreen(
                                     state = customerProgressState,
                                     onBack = ::closeConnectedOperation,
+                                    onChooseCustomer = chooseCustomer,
                                     onCustomerIdChanged =
                                         customerProgressViewModel::customerIdChanged,
                                     onCurrencyChanged = customerProgressViewModel::currencyChanged,
@@ -3500,6 +3988,7 @@ class MainActivity : ComponentActivity() {
                                                         )
                                                         commercialCatalogViewModel
                                                             .customerIdChanged(customerId)
+                                                        commercialCatalogViewModel.search()
                                                     }
                                             }
                                         } else {
@@ -4068,6 +4557,51 @@ class MainActivity : ComponentActivity() {
                             } else {
                                 null
                             },
+                        onReceiveScannedProduct =
+                            if (OperationsCapabilities.permitsEntry(
+                                    WarehouseRoute.Receiving,
+                                    state,
+                                    accessState,
+                                    warehouseState
+                                )
+                            ) {
+                                { sku: ConfirmedScannedSku ->
+                                    val authority = accessState.activeContext
+                                        ?.verifiedAuthority
+                                    val epoch = accessState.authorityEpoch
+                                    val unit = sku.unitOfMeasure?.takeIf(String::isNotBlank)
+                                    if (authority != null &&
+                                        accessState.stage == AccessStage.WorkAuthorized &&
+                                        sku.authorityEpoch == epoch &&
+                                        sku.status.equals("ACTIVE", ignoreCase = true) &&
+                                        unit != null
+                                    ) {
+                                        receivingViewModel.activate(
+                                            ReceivingAuthority(
+                                                authority.userId,
+                                                authority.tenantId,
+                                                authority.workspaceId,
+                                                authority.membershipId,
+                                                authority.permissions,
+                                                epoch
+                                            ),
+                                            ConfirmedReceivingProduct(
+                                                reference = ReceivingProductReference(
+                                                    catalogItemId = null,
+                                                    skuId = sku.skuId.toString(),
+                                                    displayName = sku.presentation,
+                                                    skuCode = sku.skuCode,
+                                                    unit = unit
+                                                ),
+                                                verifiedAuthorityEpoch = epoch
+                                            )
+                                        )
+                                        warehouseViewModel.openReceiving()
+                                    }
+                                }
+                            } else {
+                                null
+                            },
                         onViewStock = {
                             identifiedStorageSkuId = null
                             warehouseState.activeContext?.let { context ->
@@ -4079,6 +4613,14 @@ class MainActivity : ComponentActivity() {
                             StockConditionScreen(
                                 stockConditionState,
                                 identifiedSkuId = identifiedStorageSkuId,
+                                onReceiveStock = if (
+                                    accessState.activeContext?.verifiedAuthority?.permissions
+                                        ?.contains("inventory.receive") == true
+                                ) {
+                                    ::openStockReceiving
+                                } else {
+                                    null
+                                },
                                 onBack = {
                                     identifiedStorageSkuId = null
                                     warehouseViewModel.back()
@@ -4266,6 +4808,7 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         onLogout = {
+                            pendingDriverLocationConsent = null
                             closeConnectedOperation()
                             pendingScannerPermissionReturn = null
                             receivingViewModel.invalidate()
@@ -4282,8 +4825,12 @@ class MainActivity : ComponentActivity() {
                             viewModel.logout()
                         },
                         onSelectContext = accessViewModel::selectContext,
-                        onContextBack = accessViewModel::backFromContextChooser,
+                        onContextBack = {
+                            pendingDriverLocationConsent = null
+                            accessViewModel.backFromContextChooser()
+                        },
                         onChangeContext = {
+                            pendingDriverLocationConsent = null
                             closeConnectedOperation()
                             pendingScannerPermissionReturn = null
                             receivingViewModel.invalidate()
@@ -4380,6 +4927,29 @@ class MainActivity : ComponentActivity() {
         checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
 
+    private fun currentDriverLocationConsentTarget(): PendingDriverLocationConsent? {
+        val route = connectedRoute?.takeIf { it.entryKey == "driver.deliveries" } ?: return null
+        if (!ConnectedOperationsNavigation.permits(
+                route,
+                CONNECTED_OPERATIONS,
+                viewModel.state.value,
+                accessViewModel.state.value,
+                warehouseViewModel.state.value
+            )
+        ) {
+            return null
+        }
+        val detail = driverViewModel.state.value
+        val delivery = detail.selectedDelivery ?: return null
+        if (detail.authorityEpoch != route.authorityEpoch || !detail.canRead ||
+            detail.detailStatus != DriverDeliveryLoadStatus.Ready || delivery.id.isBlank() ||
+            driverWorkdayViewModel.state.value.eligibleDeliveryId != delivery.id
+        ) {
+            return null
+        }
+        return PendingDriverLocationConsent(route.authority, delivery.id)
+    }
+
     private fun driverLocationNotificationsVisible(): Boolean {
         val permissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
@@ -4405,6 +4975,51 @@ class MainActivity : ComponentActivity() {
         if (deliveryId != null && connectedRoute?.entryKey == "driver.deliveries") {
             driverViewModel.selectDelivery(deliveryId)
         }
+    }
+
+    private fun openStockReceiving() {
+        val access = accessViewModel.state.value
+        if (viewModel.state.value != SessionState.Active ||
+            access.stage != AccessStage.WorkAuthorized
+        ) {
+            return
+        }
+        val authority = access.activeContext?.verifiedAuthority ?: return
+        if ("inventory.receive" !in authority.permissions) return
+        receivingViewModel.activate(
+            ReceivingAuthority(
+                authority.userId,
+                authority.tenantId,
+                authority.workspaceId,
+                authority.membershipId,
+                authority.permissions,
+                access.authorityEpoch
+            )
+        )
+        warehouseViewModel.openReceiving()
+    }
+
+    private fun openCustomerSelection() {
+        val entry = CONNECTED_OPERATIONS.single { it.key == "commercial.customers" }
+        val route = ConnectedOperationsNavigation.open(
+            entry,
+            viewModel.state.value,
+            accessViewModel.state.value,
+            warehouseViewModel.state.value
+        ) ?: return
+        closeConnectedOperation()
+        connectedRoute = route
+        val authority = route.authority
+        customerSearchViewModel.activate(
+            CommercialAuthority(
+                authority.userId,
+                authority.tenantId,
+                authority.workspaceId,
+                authority.membershipId,
+                authority.permissions,
+                route.authorityEpoch
+            )
+        )
     }
 
     private fun closeConnectedOperation() {
@@ -4479,10 +5094,25 @@ class MainActivity : ComponentActivity() {
 
     private fun verifyScannerForegroundReturn() {
         val revalidationId = pendingScannerPermissionReturn?.revalidationId
-        viewModel.verifyForegroundReturn { _ ->
+        val driverRevalidationId = pendingDriverLocationConsent?.revalidationId
+        viewModel.verifyForegroundReturn { verified ->
             pendingScannerPermissionReturn =
                 pendingScannerPermissionReturn.completeRevalidation(revalidationId)
+            val pendingDriver = pendingDriverLocationConsent
+                ?.completeRevalidation(driverRevalidationId, verified)
+            pendingDriverLocationConsent = pendingDriver?.takeUnless {
+                it.sessionRevalidationSucceeded == false
+            }
         }
+    }
+
+    private fun beginDriverLocationForegroundRevalidation() {
+        if (pendingDriverLocationConsent == null) return
+        if (viewModel.state.value == SessionState.Active) {
+            invalidateProtectedContentForForegroundReturn()
+        }
+        pendingDriverLocationConsent = pendingDriverLocationConsent?.beginRevalidation()
+        verifyScannerForegroundReturn()
     }
 
     private fun beginScannerForegroundRevalidation() {
@@ -4492,6 +5122,66 @@ class MainActivity : ComponentActivity() {
         }
         verifyScannerForegroundReturn()
     }
+}
+
+private data class PendingDriverLocationConsent(
+    val authority: VerifiedContextAuthority,
+    val deliveryId: String,
+    val permissionPromptGeneration: Int = 0,
+    val permissionsAccepted: Boolean = false,
+    val foregroundReturnObserved: Boolean = false,
+    val sessionRevalidationObserved: Boolean = false,
+    val sessionRevalidationSucceeded: Boolean? = null,
+    val revalidationId: String? = null,
+    val revalidationPromptGeneration: Int? = null,
+    val verifiedPromptGeneration: Int? = null,
+    val freshDetailObserved: Boolean = false
+) {
+    val canContinueAfterRevalidation: Boolean
+        get() = permissionsAccepted && foregroundReturnObserved &&
+            sessionRevalidationObserved && sessionRevalidationSucceeded == true &&
+            revalidationPromptGeneration == permissionPromptGeneration &&
+            verifiedPromptGeneration == permissionPromptGeneration
+
+    fun beginPermissionPrompt(): PendingDriverLocationConsent = copy(
+        permissionPromptGeneration = permissionPromptGeneration + 1,
+        permissionsAccepted = false,
+        foregroundReturnObserved = false,
+        sessionRevalidationObserved = false,
+        sessionRevalidationSucceeded = null,
+        revalidationId = null,
+        revalidationPromptGeneration = null,
+        verifiedPromptGeneration = null,
+        freshDetailObserved = false
+    )
+
+    fun beginRevalidation(): PendingDriverLocationConsent = copy(
+        foregroundReturnObserved = true,
+        sessionRevalidationObserved = false,
+        sessionRevalidationSucceeded = null,
+        revalidationId = UUID.randomUUID().toString(),
+        revalidationPromptGeneration = permissionPromptGeneration,
+        verifiedPromptGeneration = null,
+        freshDetailObserved = false
+    )
+
+    fun completeRevalidation(
+        completedId: String?,
+        verified: Boolean
+    ): PendingDriverLocationConsent = if (completedId != null &&
+        revalidationId == completedId
+    ) {
+        copy(
+            sessionRevalidationObserved = true,
+            sessionRevalidationSucceeded = verified,
+            verifiedPromptGeneration = if (verified) revalidationPromptGeneration else null
+        )
+    } else {
+        this
+    }
+
+    override fun toString(): String =
+        "PendingDriverLocationConsent(permissionReturnPending=${!canContinueAfterRevalidation})"
 }
 
 private fun WorkforceContextSummary.toActiveOperationsContext(

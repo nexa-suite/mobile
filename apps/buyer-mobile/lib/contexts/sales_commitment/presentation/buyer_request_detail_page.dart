@@ -1,12 +1,55 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/presentation/buyer_visible_route_poller.dart';
 import '../../../core/presentation/nexa_buyer_components.dart';
+import '../../../core/presentation/nexa_display_format.dart';
+import '../../tenant_access_governance/application/buyer_change_feed_repository.dart';
 import '../application/buyer_purchase_workspace_repository.dart';
 import 'buyer_requests_view_model.dart';
 
-final class BuyerRequestDetailPage extends StatelessWidget {
+final class BuyerRequestDetailPage extends StatefulWidget {
   const BuyerRequestDetailPage({super.key});
+
+  @override
+  State<BuyerRequestDetailPage> createState() => _BuyerRequestDetailPageState();
+}
+
+final class _BuyerRequestDetailPageState extends State<BuyerRequestDetailPage> {
+  GoRouter? _router;
+  String? _routePath;
+  BuyerVisibleRoutePoller? _poller;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return;
+    final model = context.read<BuyerRequestDetailViewModel>();
+    final routePath = '/requests/${Uri.encodeComponent(model.id)}';
+    if (identical(router, _router) && routePath == _routePath) return;
+    _poller?.dispose();
+    _router = router;
+    _routePath = routePath;
+    _poller = BuyerVisibleRoutePoller(
+      router: router,
+      routePath: routePath,
+      onRefresh: () => context.read<BuyerRequestDetailViewModel>().load(),
+      changes: () => context
+          .read<BuyerChangeFeedRepository>()
+          .watch(readPermission: 'buyer.sales.read')
+          .where((event) => _requestChangeEvents.contains(event.type))
+          .map<void>((_) {}),
+    );
+  }
+
+  @override
+  void dispose() {
+    _poller?.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final model = context.watch<BuyerRequestDetailViewModel>();
@@ -195,6 +238,21 @@ final class BuyerRequestDetailPage extends StatelessWidget {
   }
 }
 
+const _requestChangeEvents = {
+  'sales.purchase-request.created',
+  'sales.purchase-request.updated',
+  'sales.purchase-request.submitted',
+  'sales.purchase-request.material-change-proposed',
+  'sales.purchase-request.material-change-accepted',
+  'sales.purchase-request.material-change-rejected',
+  'sales.purchase-request.approved',
+  'sales.purchase-request.rejected',
+  'sales.purchase-request.cancelled',
+  'sales.purchase-request.withdrawn',
+  'sales.purchase-request.converted',
+  'resync-required',
+};
+
 final class _TermsCard extends StatelessWidget {
   const _TermsCard({required this.title, required this.terms});
   final String title;
@@ -208,7 +266,7 @@ final class _TermsCard extends StatelessWidget {
         children: [
           Text(title, style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
-          Text('Entrega: ${terms.deliveryDate ?? 'Por confirmar'}'),
+          Text('Entrega: ${nexaDateLabel(terms.deliveryDate)}'),
           if (terms.deliveryProfile != null) ...[
             const SizedBox(height: 8),
             Text('Condiciones de entrega: ${terms.deliveryProfile}'),

@@ -7,6 +7,9 @@ data class ProductCandidate(
     val presentation: String,
     val sku: String,
     val imageFileName: String? = null,
+    val categoryName: String? = null,
+    val unitOfMeasure: String? = null,
+    val coldChainRequirement: String? = null,
     /** Opaque server detail key used by an authorized catalog projection. */
     val detailKey: String? = null
 ) {

@@ -26,8 +26,9 @@ void main() {
         captured = request;
         return http.Response(
           jsonEncode({
-            'minimumDeliveryLeadBusinessDays': 3,
-            'minimumAllowedDeliveryDate': '2026-10-23',
+            'minimumDeliveryLeadDays': 3,
+            'dayUnit': 'CALENDAR',
+            'earliestAllowedDeliveryDate': '2026-10-23',
             'timezone': 'America/Lima',
           }),
           200,
@@ -40,8 +41,8 @@ void main() {
 
     expect(captured.method, 'GET');
     expect(captured.url.path, '/api/v1/buyer/delivery-lead-policy');
-    expect(policy.minimumDeliveryLeadBusinessDays, 3);
-    expect(policy.minimumAllowedDeliveryDate, DateTime(2026, 10, 23));
+    expect(policy.minimumDeliveryLeadDays, 3);
+    expect(policy.earliestAllowedDeliveryDate, DateTime(2026, 10, 23));
     expect(policy.timezone, 'America/Lima');
     api.close();
   });
@@ -55,8 +56,9 @@ void main() {
       httpClient: MockClient(
         (_) async => http.Response(
           jsonEncode({
-            'minimumDeliveryLeadBusinessDays': 3,
-            'minimumAllowedDeliveryDate': '2026-02-31',
+            'minimumDeliveryLeadDays': 3,
+            'dayUnit': 'CALENDAR',
+            'earliestAllowedDeliveryDate': '2026-02-31',
             'timezone': 'America/Lima',
           }),
           200,
@@ -148,7 +150,6 @@ void main() {
           return http.Response(
             jsonEncode({
               'id': _accountId,
-              'buyerMembershipId': _membershipId,
               'businessName': 'Cuenta Buyer',
               'paymentCondition': 'BANK_TRANSFER',
             }),
@@ -278,7 +279,6 @@ void main() {
 
     final context = await repository.loadBuyerPurchaseContext();
     expect(context.clientAccountId, _accountId);
-    expect(context.buyerMembershipId, _membershipId);
     expect(context.addresses.single.defaultAddress, isTrue);
     expect(requests[0].url.path, '/api/v1/client-accounts/me');
     expect(

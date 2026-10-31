@@ -17,38 +17,45 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Frozen Design Lab v1.1.1 semantic colors; brand-only roles stay separate. */
+/** Shared Design Lab semantic colors, resolved to sRGB for native rendering. */
 object NexaColors {
     val Primary = Color(0xFF2563EB)
-    val PrimaryStrong = Color(0xFF1D4ED8)
-    val PrimaryDeep = Color(0xFF172554)
+    val PrimaryStrong = Color(0xFF1D52C6)
+    val PrimaryDeep = Color(0xFF0D1F45)
     val OnPrimary = Color.White
-    val PrimaryContainer = Color(0xFFDBEAFE)
-    val OnPrimaryContainer = Color(0xFF1E40AF)
+    val PrimaryContainer = Color(0xFFDCE8FF)
+    val OnPrimaryContainer = Color(0xFF1A439A)
     val Focus = Primary
 
-    // The frozen Mobile Style uses these only on Nexa identity surfaces.
+    // Identity colors remain separate from semantic status colors.
     val BrandNavy = Color(0xFF082846)
     val BrandCeleste = Color(0xFF38C8FF)
 
-    val Canvas = Color(0xFFF6FAFF)
+    val Canvas = Color.White
     val Surface = Color(0xFFFFFFFF)
+    val CardSurface = Color(0xFFF8FAFC)
     val SurfaceInset = Color(0xFFF1F5F9)
     val TextPrimary = Color(0xFF0F172A)
-    val TextSecondary = Color(0xFF64748B)
-    val TextMuted = Color(0xFF94A3B8)
+    val TextSecondary = Color(0xFF475569)
+    val TextMuted = Color(0xFF475569)
     val Border = Color(0xFFE2E8F0)
     val BorderStrong = Color(0xFFCBD5E1)
-    val InfoSurface = Color(0xFFEFF6FF)
-    val InfoBorder = Color(0xFF93C5FD)
-    val Info = Color(0xFF1D4ED8)
-    val SuccessSurface = Color(0xFFE0F2FE)
-    val SuccessBorder = Color(0xFFBAE6FD)
-    val Success = Color(0xFF0284C7)
+    val InfoSurface = Color(0xFFF0F5FF)
+    val InfoBorder = Color(0xFF8CB4FF)
+    val Info = Color(0xFF1D52C6)
+    val SuccessSurface = Color(0xFFF0FDF4)
+    val SuccessBorder = Color(0xFFBBF7D0)
+    val Success = Color(0xFF15803D)
     val WarningSurface = Color(0xFFFFFBEB)
     val WarningBorder = Color(0xFFFCD34D)
     val Warning = Color(0xFF92400E)
+    val AttentionSurface = Color(0xFFFFF7ED)
+    val AttentionBorder = Color(0xFFFED7AA)
+    val AttentionText = Color(0xFF9A3412)
+    val SalesSurface = Color(0xFFF0FDF4)
+    val SalesText = Color(0xFF15803D)
     val DangerSurface = Color(0xFFFEF2F2)
+    val DangerSoftBorder = Color(0xFFFECACA)
     val DangerBorder = Color(0xFFDC2626)
     val Danger = Color(0xFF991B1B)
 
@@ -65,7 +72,7 @@ object NexaColors {
 /** Semantic shapes used by the Operations component set. */
 object NexaShapes {
     val control = RoundedCornerShape(10.dp)
-    val button = RoundedCornerShape(12.dp)
+    val button = RoundedCornerShape(10.dp)
     val row = RoundedCornerShape(12.dp)
     val card = RoundedCornerShape(16.dp)
     val surface = card
@@ -133,7 +140,7 @@ private val NexaLightColors = lightColorScheme(
     surfaceDim = NexaColors.SurfaceInset,
     surfaceBright = NexaColors.Surface,
     surfaceContainerLowest = NexaColors.Surface,
-    surfaceContainerLow = NexaColors.Surface,
+    surfaceContainerLow = NexaColors.CardSurface,
     surfaceContainer = NexaColors.SurfaceInset,
     surfaceContainerHigh = NexaColors.SurfaceInset,
     surfaceContainerHighest = NexaColors.SurfaceInset,
@@ -164,10 +171,22 @@ object NexaTypography {
         Font(R.font.inter_semibold, weight = FontWeight.SemiBold)
     )
 
+    val displayLarge = TextStyle(
+        fontFamily = display,
+        fontSize = 30.sp,
+        fontWeight = FontWeight.Bold,
+        lineHeight = 36.sp,
+        letterSpacing = (-0.3).sp
+    )
+    val displayMedium = displayLarge.copy(fontSize = 24.sp, lineHeight = 32.sp)
+    val displaySmall = displayLarge.copy(fontSize = 20.sp, lineHeight = 28.sp)
+    val headlineMedium = displayMedium
+
     val headlineLarge = defaults.headlineLarge.copy(
         fontFamily = display,
         fontSize = 30.sp,
         fontWeight = FontWeight.Bold,
+        letterSpacing = 0.sp,
         lineHeight = 36.sp
     )
 
@@ -175,70 +194,85 @@ object NexaTypography {
         fontFamily = display,
         fontSize = 24.sp,
         fontWeight = FontWeight.Bold,
+        letterSpacing = 0.sp,
         lineHeight = 32.sp
     )
     val titleLarge = defaults.titleLarge.copy(
         fontFamily = display,
         fontSize = 22.sp,
         fontWeight = FontWeight.Bold,
+        letterSpacing = 0.sp,
         lineHeight = 28.sp
     )
     val titleMedium = defaults.titleMedium.copy(
         fontFamily = display,
         fontSize = 16.sp,
         fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.sp,
         lineHeight = 24.sp
     )
     val titleSmall = defaults.titleSmall.copy(
         fontFamily = display,
         fontSize = 14.sp,
         fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.sp,
         lineHeight = 20.sp
     )
     val bodyLarge = defaults.bodyLarge.copy(
         fontFamily = body,
         fontSize = 16.sp,
         fontWeight = FontWeight.Normal,
+        letterSpacing = 0.sp,
         lineHeight = 24.sp
     )
     val bodyMedium = defaults.bodyMedium.copy(
         fontFamily = body,
         fontSize = 14.sp,
         fontWeight = FontWeight.Normal,
+        letterSpacing = 0.sp,
         lineHeight = 20.sp
     )
     val bodySmall = defaults.bodySmall.copy(
         fontFamily = body,
         fontSize = 13.sp,
         fontWeight = FontWeight.Normal,
+        letterSpacing = 0.sp,
         lineHeight = 18.sp
     )
     val labelLarge = defaults.labelLarge.copy(
         fontFamily = body,
         fontSize = 14.sp,
         fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.sp,
         lineHeight = 20.sp
     )
     val labelMedium = defaults.labelMedium.copy(
         fontFamily = body,
         fontSize = 13.sp,
         fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.sp,
         lineHeight = 18.sp
     )
     val labelSmall = defaults.labelSmall.copy(
         fontFamily = body,
         fontSize = 11.sp,
         fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.sp,
         lineHeight = 16.sp
     )
     val identifier = TextStyle(
         fontFamily = FontFamily.Monospace,
         fontSize = 13.sp,
         fontWeight = FontWeight.Medium,
+        letterSpacing = 0.sp,
         lineHeight = 18.sp
     )
 
     val material = Typography(
+        displayLarge = displayLarge,
+        displayMedium = displayMedium,
+        displaySmall = displaySmall,
+        headlineMedium = headlineMedium,
         headlineLarge = headlineLarge,
         headlineSmall = headlineSmall,
         titleLarge = titleLarge,
