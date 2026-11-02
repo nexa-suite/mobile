@@ -9,7 +9,8 @@ data class PickingWorkItem(
     val version: Long,
     val physicalAllocationId: String,
     val allocationVersion: Long,
-    val lineCount: Int
+    val lineCount: Int,
+    val orderNumber: String? = null
 )
 
 data class PickingWorkPage(

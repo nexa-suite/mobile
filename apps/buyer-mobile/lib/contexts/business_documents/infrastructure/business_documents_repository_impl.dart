@@ -22,11 +22,24 @@ final class BusinessDocumentsRepositoryImpl
   };
 
   @override
-  Future<BusinessDocumentsPageProjection> list({required int page}) async {
-    if (page < 0) _invalidResponse();
+  Future<BusinessDocumentsPageProjection> list({
+    required int page,
+    String? subjectType,
+    String? subjectId,
+  }) async {
+    if (page < 0 ||
+        (subjectType == null) != (subjectId == null) ||
+        (subjectId != null && !_isUuid(subjectId))) {
+      _invalidResponse();
+    }
     final response = await _api.get(
       '/business-documents',
-      query: {'page': '$page', 'size': '25'},
+      query: {
+        'page': '$page',
+        'size': '25',
+        'subjectType': ?subjectType,
+        'subjectId': ?subjectId,
+      },
       refreshAfterUnauthorized: true,
     );
     final rawItems = response.body['items'];
@@ -44,6 +57,13 @@ final class BusinessDocumentsRepositoryImpl
     }
     final items = rawItems.map(_parseDocument).toList(growable: false);
     if (items.length > size || total < items.length) _invalidResponse();
+    if (subjectId != null &&
+        items.any(
+          (item) =>
+              item.subjectType != subjectType || item.subjectId != subjectId,
+        )) {
+      _invalidResponse();
+    }
     final identifiers = items.map((item) => item.id).toSet();
     if (identifiers.length != items.length) _invalidResponse();
     return BusinessDocumentsPageProjection(

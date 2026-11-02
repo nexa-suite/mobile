@@ -26,6 +26,7 @@ internal class DriverWorkdayLocationService : Service() {
     private var locationManager: LocationManager? = null
     private var locationListener: LocationListener? = null
     private var workdayId: String? = null
+    private var startGeneration: Long? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -33,6 +34,7 @@ internal class DriverWorkdayLocationService : Service() {
         val request = intent ?: return START_NOT_STICKY
         when (request.action) {
             ACTION_STOP -> {
+                AndroidDriverLocationServiceStartup.deferStopUntilForeground()
                 workdayId?.let {
                     AndroidDriverWorkdayLocationEventBus.userStopped(it)
                 }
@@ -48,8 +50,10 @@ internal class DriverWorkdayLocationService : Service() {
                     stopSelf(startId)
                     return START_NOT_STICKY
                 }
+                val generation = request.getLongExtra(EXTRA_START_GENERATION, -1L)
                 workdayId = requestedWorkdayId
-                if (!startForegroundSafely()) return START_NOT_STICKY
+                startGeneration = generation
+                if (!startForegroundSafely(generation, startId)) return START_NOT_STICKY
                 if (request.action == ACTION_START) {
                     startLocationUpdates(requestedWorkdayId)
                 }
@@ -65,10 +69,11 @@ internal class DriverWorkdayLocationService : Service() {
 
     override fun onDestroy() {
         stopLocationUpdates()
+        startGeneration?.let(AndroidDriverLocationServiceStartup::failed)
         super.onDestroy()
     }
 
-    private fun startForegroundSafely(): Boolean = try {
+    private fun startForegroundSafely(generation: Long, startId: Int): Boolean = try {
         createNotificationChannel()
         val notification = buildNotification()
         startForeground(
@@ -76,8 +81,16 @@ internal class DriverWorkdayLocationService : Service() {
             notification,
             ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
         )
-        true
+        if (AndroidDriverLocationServiceStartup.promoted(generation)) {
+            stopLocationUpdates()
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf(startId)
+            false
+        } else {
+            true
+        }
     } catch (_: SecurityException) {
+        AndroidDriverLocationServiceStartup.failed(generation)
         workdayId?.let {
             AndroidDriverWorkdayLocationEventBus.stream.publish(
                 DriverWorkdayLocationEvent.PermissionUnavailable(it)
@@ -86,6 +99,7 @@ internal class DriverWorkdayLocationService : Service() {
         stopSelf()
         false
     } catch (_: IllegalArgumentException) {
+        AndroidDriverLocationServiceStartup.failed(generation)
         workdayId?.let {
             AndroidDriverWorkdayLocationEventBus.stream.publish(
                 DriverWorkdayLocationEvent.ProviderUnavailable(it)
@@ -219,6 +233,7 @@ internal class DriverWorkdayLocationService : Service() {
     }
 
     private fun publishAndStop(event: DriverWorkdayLocationEvent) {
+        startGeneration?.let(AndroidDriverLocationServiceStartup::failed)
         AndroidDriverWorkdayLocationEventBus.stream.publish(event)
         stopLocationUpdates()
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -254,6 +269,7 @@ internal class DriverWorkdayLocationService : Service() {
         const val ACTION_START = "com.nexa.operations.location.START"
         const val ACTION_STOP = "com.nexa.operations.location.STOP"
         const val EXTRA_WORKDAY_ID = "workdayId"
+        const val EXTRA_START_GENERATION = "startGeneration"
         private const val CHANNEL_ID = "driver_location_sharing"
         private const val NOTIFICATION_ID = 4201
         private const val STOP_REQUEST_CODE = 4202

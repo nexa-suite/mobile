@@ -1,16 +1,26 @@
+import '../application/buyer_order_history_repository.dart';
 import '../../../core/network/nexa_api_client.dart';
 import '../application/buyer_orders_repository.dart';
 
-final class BuyerOrdersRepositoryImpl implements BuyerOrdersRepository {
+final class BuyerOrdersRepositoryImpl
+    implements BuyerOrdersRepository, BuyerOrderHistoryRepository {
   BuyerOrdersRepositoryImpl(this._api);
 
   final NexaApiClient _api;
 
   @override
-  Future<BuyerOrdersPageProjection> list({required int page}) async {
+  Future<BuyerOrdersPageProjection> list({
+    required int page,
+    List<String>? statuses,
+  }) async {
     final response = await _api.get(
       '/sales-orders',
-      query: {'page': '$page', 'size': '25', 'sort': 'createdAt,desc'},
+      query: {
+        'page': '$page',
+        'size': '25',
+        'sort': 'createdAt,desc',
+        if (statuses != null) 'statuses': statuses.join(','),
+      },
       refreshAfterUnauthorized: true,
     );
     final values = response.body['items'];
@@ -33,6 +43,37 @@ final class BuyerOrdersRepositoryImpl implements BuyerOrdersRepository {
       refreshAfterUnauthorized: true,
     );
     return _parseOrder(response.body);
+  }
+
+  @override
+  Future<List<BuyerOrderEvent>> history(String orderId) async {
+    if (!RegExp(r'^[A-Za-z0-9-]{1,80}$').hasMatch(orderId)) _invalidResponse();
+    final data = (await _api.get(
+      '/sales-orders/$orderId/events',
+      refreshAfterUnauthorized: true,
+    )).data;
+    if (data is! List) _invalidResponse();
+    final events = data
+        .map((value) {
+          final event = _map(value);
+          if (event == null) _invalidResponse();
+          final id = _string(event['eventId']),
+              type = _string(event['eventType']);
+          final time = DateTime.tryParse(_string(event['occurredAt']) ?? '');
+          if (id == null || type == null || time == null) _invalidResponse();
+          return BuyerOrderEvent(
+            id: id,
+            type: type,
+            occurredAt: time,
+            fromStatus: _string(event['fromStatus']),
+            toStatus: _string(event['toStatus']),
+          );
+        })
+        .toList(growable: false);
+    if (events.map((event) => event.id).toSet().length != events.length) {
+      _invalidResponse();
+    }
+    return List.unmodifiable(events);
   }
 
   BuyerOrderProjection _parseOrder(Object? value) {

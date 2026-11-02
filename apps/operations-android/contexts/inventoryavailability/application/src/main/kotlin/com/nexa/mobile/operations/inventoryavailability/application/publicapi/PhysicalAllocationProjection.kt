@@ -28,7 +28,15 @@ data class PhysicalAllocationLineProjection(
     val consumedQuantity: BigDecimal,
     val remainingQuantity: BigDecimal,
     val unit: String,
-    val expirationDate: LocalDate?
+    val expirationDate: LocalDate?,
+    val productName: String? = null,
+    val skuCode: String? = null,
+    val imageFileName: String? = null,
+    val presentation: String? = null,
+    val brandName: String? = null,
+    val warehouseName: String? = null,
+    val zoneName: String? = null,
+    val batchNumber: String? = null
 ) {
     override fun toString(): String =
         "PhysicalAllocationLineProjection(lotId=REDACTED, remaining=$remainingQuantity, unit=$unit)"

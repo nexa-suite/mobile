@@ -75,7 +75,11 @@ final class BusinessDocumentContentProjection {
 }
 
 abstract interface class BusinessDocumentsRepository {
-  Future<BusinessDocumentsPageProjection> list({required int page});
+  Future<BusinessDocumentsPageProjection> list({
+    required int page,
+    String? subjectType,
+    String? subjectId,
+  });
 
   Future<BusinessDocumentProjection> detail(String documentId);
 

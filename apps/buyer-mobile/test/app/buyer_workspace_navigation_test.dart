@@ -39,7 +39,7 @@ void main() {
         _snapshot(permissions: const {}),
         '/orders',
       ),
-      '/workspace-unavailable',
+      '/home',
     );
   });
 
@@ -82,30 +82,44 @@ void main() {
     );
   });
 
-  test('server permissions project once into matching destinations', () {
-    final snapshot = _snapshot(
-      permissions: const {
-        'catalog.read',
-        'buyer.order.read',
-        'payment.read',
-        'payment.create',
-        'document.read',
-        'buyer.tracking.read',
-      },
-    );
+  test(
+    'Home is the scoped Buyer landing and feature tabs use server grants',
+    () {
+      final noFeatureGrants = _snapshot(permissions: const {});
+      expect(BuyerWorkspaceNavigation.destinations(noFeatureGrants), const [
+        BuyerWorkspaceDestination.home,
+      ]);
+      expect(BuyerWorkspaceNavigation.landingPath(noFeatureGrants), '/home');
+      expect(
+        BuyerWorkspaceNavigation.canOpenLocation(noFeatureGrants, '/home'),
+        isTrue,
+      );
 
-    final options = BuyerWorkspaceNavigation.destinations(snapshot);
+      final snapshot = _snapshot(
+        permissions: const {
+          'catalog.read',
+          'buyer.order.read',
+          'payment.read',
+          'payment.create',
+          'document.read',
+          'buyer.tracking.read',
+        },
+      );
 
-    expect(options, const [
-      BuyerWorkspaceDestination.catalog,
-      BuyerWorkspaceDestination.orders,
-      BuyerWorkspaceDestination.credit,
-      BuyerWorkspaceDestination.documents,
-      BuyerWorkspaceDestination.wallet,
-      BuyerWorkspaceDestination.deliveries,
-    ]);
-    expect(options.toSet(), hasLength(options.length));
-  });
+      final options = BuyerWorkspaceNavigation.destinations(snapshot);
+
+      expect(options, const [
+        BuyerWorkspaceDestination.home,
+        BuyerWorkspaceDestination.catalog,
+        BuyerWorkspaceDestination.orders,
+        BuyerWorkspaceDestination.credit,
+        BuyerWorkspaceDestination.documents,
+        BuyerWorkspaceDestination.wallet,
+        BuyerWorkspaceDestination.deliveries,
+      ]);
+      expect(options.toSet(), hasLength(options.length));
+    },
+  );
 
   test('bottom navigation hides 0 or 1 tab and selects visible branch', () {
     expect(
@@ -122,7 +136,7 @@ void main() {
       BuyerWorkspaceNavigation.selectedBottomNavigationIndex(const [
         BuyerWorkspaceDestination.wallet,
         BuyerWorkspaceDestination.deliveries,
-      ], 5),
+      ], 6),
       1,
     );
     expect(
@@ -134,16 +148,19 @@ void main() {
     );
   });
 
-  test('role alone grants no destination; wallet needs its endpoint grant', () {
+  test('role grants only Home; wallet still needs its endpoint grant', () {
     expect(
       BuyerWorkspaceNavigation.destinations(_snapshot(permissions: const {})),
-      isEmpty,
+      const [BuyerWorkspaceDestination.home],
     );
 
     final walletOnly = BuyerWorkspaceNavigation.destinations(
       _snapshot(permissions: const {'payment.create'}),
     );
-    expect(walletOnly, const [BuyerWorkspaceDestination.wallet]);
+    expect(walletOnly, const [
+      BuyerWorkspaceDestination.home,
+      BuyerWorkspaceDestination.wallet,
+    ]);
     expect(
       BuyerWorkspaceNavigation.canOpenLocation(
         _snapshot(permissions: const {'payment.create'}),
@@ -216,15 +233,16 @@ void main() {
       );
       expect(
         BuyerWorkspaceNavigation.redirectLocation(ordersAuthority, '/catalog'),
-        '/orders',
+        '/home',
       );
-      expect(BuyerWorkspaceNavigation.landingPath(ordersAuthority), '/orders');
+      expect(BuyerWorkspaceNavigation.landingPath(ordersAuthority), '/home');
     },
   );
 
   test('credit and notification affordances use endpoint permissions', () {
     final paymentCreateOnly = _snapshot(permissions: const {'payment.create'});
     expect(BuyerWorkspaceNavigation.destinations(paymentCreateOnly), const [
+      BuyerWorkspaceDestination.home,
       BuyerWorkspaceDestination.wallet,
     ]);
     expect(
@@ -256,6 +274,36 @@ void main() {
         '/notifications',
       ),
       isTrue,
+    );
+  });
+
+  test('addresses and favorites require their read permissions', () {
+    final salesReader = _snapshot(permissions: const {'buyer.sales.read'});
+    expect(
+      BuyerWorkspaceNavigation.canOpenLocation(salesReader, '/addresses'),
+      isTrue,
+    );
+    expect(
+      BuyerWorkspaceNavigation.canOpenLocation(salesReader, '/favorites'),
+      isFalse,
+    );
+
+    final catalogAndSalesReader = _snapshot(
+      permissions: const {'catalog.read', 'buyer.sales.read'},
+    );
+    expect(
+      BuyerWorkspaceNavigation.canOpenLocation(
+        catalogAndSalesReader,
+        '/favorites',
+      ),
+      isTrue,
+    );
+    expect(
+      BuyerWorkspaceNavigation.canOpenLocation(
+        _snapshot(permissions: const {'catalog.read'}),
+        '/addresses',
+      ),
+      isFalse,
     );
   });
 }

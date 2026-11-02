@@ -1,0 +1,22 @@
+<resources>
+    <string name="home_more_actions">Más acciones</string>
+    <string name="home_action_picking">Preparación</string>
+    <string name="home_action_discrepancy">Registrar discrepancia</string>
+    <string name="home_action_transfer">Traslado de stock</string>
+    <string name="home_action_transfer_receipt">Recibir traslado</string>
+    <string name="home_action_temperature">Registrar temperatura</string>
+    <string name="home_action_disposition">Disposición de stock</string>
+    <string name="home_action_dispatch_prep">Preparación de despacho</string>
+    <string name="home_action_loads">Cargas y paradas</string>
+    <string name="home_action_deliveries">Mis entregas</string>
+    <string name="home_action_accept_load">Aceptar carga</string>
+    <string name="home_action_instructions">Instrucciones de entrega</string>
+    <string name="home_action_customers">Clientes</string>
+    <string name="home_action_catalog">Catálogo</string>
+    <string name="home_action_new_order">Nuevo pedido</string>
+    <string name="home_action_request">Preparar solicitud</string>
+    <string name="home_action_operations">Resumen operativo</string>
+    <string name="home_action_blocked_work">Trabajo bloqueado</string>
+    <string name="home_action_exceptions">Excepciones</string>
+    <string name="home_action_updates">Avisos</string>
+</resources>

@@ -9,6 +9,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R as CatalogR
+import com.nexa.mobile.operations.core.designsystem.R as CoreR
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,7 +28,12 @@ class DebugReviewActivityTest {
             .performScrollToNode(hasText("SKU · confirmación recibida"))
         composeRule.onNodeWithText("SKU · confirmación recibida").performClick()
 
-        composeRule.onNodeWithText("Identificación confirmada").assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(CatalogR.string.warehouse_visual_product_detail_title)
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(CoreR.string.nexa_product_details)
+        ).performScrollTo().performClick()
         composeRule.onNodeWithText("SKU-DEMO-001").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("No se realizó ninguna operación de inventario.")
             .performScrollTo()
@@ -37,7 +44,12 @@ class DebugReviewActivityTest {
     fun optionalCatalogAttributesCanBeReviewedWithoutInventedValues() {
         selectScenario("SKU · atributos opcionales ausentes")
 
-        composeRule.onNodeWithText("Identificación confirmada").assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(CatalogR.string.warehouse_visual_product_detail_title)
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(CoreR.string.nexa_product_details)
+        ).performScrollTo().performClick()
         composeRule.onNodeWithText("SKU-DEMO-001").performScrollTo().assertIsDisplayed()
         for (label in listOf("Variante", "Marca", "Unidad", "Empaque", "Cadena de frío")) {
             composeRule.onNodeWithText(label).assertDoesNotExist()
@@ -54,6 +66,9 @@ class DebugReviewActivityTest {
         composeRule.onNodeWithText(
             "Queso Gouda Demo de maduración prolongada para presentación institucional"
         ).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(CoreR.string.nexa_product_details)
+        ).performScrollTo().performClick()
         composeRule.onNodeWithText("SKU-DEMO-001").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("No se realizó ninguna operación de inventario.")
             .performScrollTo()

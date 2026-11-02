@@ -2,11 +2,15 @@ package com.nexa.mobile.operations.catalogcommercialpolicy.presentation.commerci
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -14,9 +18,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -32,17 +38,23 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.commercial.CommercialCatalogFilterChoice
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.commercial.CommercialCatalogFilterKind
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.commercial.CommercialCatalogStatus
 import com.nexa.mobile.operations.core.designsystem.NexaCatalogImage
+import com.nexa.mobile.operations.core.designsystem.NexaColors
 import com.nexa.mobile.operations.core.designsystem.NexaProductCandidateRow
+import com.nexa.mobile.operations.core.designsystem.NexaShapes
 import com.nexa.mobile.operations.core.designsystem.NexaSizes
+import com.nexa.mobile.operations.core.designsystem.NexaTopAppBar
 import com.nexa.mobile.operations.core.designsystem.R as SharedR
+import java.util.Locale
 
 @Composable
+@Suppress("UNUSED_PARAMETER")
 fun CommercialCatalogScreen(
     state: CommercialCatalogState,
     onBack: () -> Unit,
@@ -57,7 +69,8 @@ fun CommercialCatalogScreen(
     onSelectProduct: (String) -> Unit,
     onRouteClosed: () -> Unit,
     onPrepareRequest: ((String, String) -> Unit)? = null,
-    onCreateDirectOrder: ((String, String) -> Unit)? = null
+    onCreateDirectOrder: ((String, String) -> Unit)? = null,
+    onChooseCustomer: (() -> Unit)? = null
 ) {
     val close = rememberUpdatedState(onRouteClosed)
     var openFilter by remember { mutableStateOf<CommercialCatalogFilterKind?>(null) }
@@ -151,210 +164,299 @@ fun CommercialCatalogScreen(
             }
         )
     }
-    LazyColumn(
-        Modifier.fillMaxSize().semantics { isTraversalGroup = true }.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            TextButton(onClick = onBack) { Text(stringResource(SharedR.string.commercial_back)) }
-            Text(
-                stringResource(SharedR.string.commercial_catalog_title),
-                style = MaterialTheme.typography.headlineSmall
+    Surface(modifier = Modifier.fillMaxSize(), color = NexaColors.Canvas) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+        ) {
+            NexaTopAppBar(
+                title = stringResource(SharedR.string.commercial_catalog_title),
+                onBack = onBack
             )
-            OutlinedTextField(state.customerId, onCustomerIdChanged, label = {
-                Text(stringResource(SharedR.string.progress_customer_reference))
-            }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(state.query, onQueryChanged, label = {
-                Text(stringResource(R.string.commercial_catalog_query))
-            }, modifier = Modifier.fillMaxWidth())
-            OutlinedButton(
-                onClick = {
-                    openFilter = CommercialCatalogFilterKind.BRAND
-                    onOpenFilterOptions(CommercialCatalogFilterKind.BRAND)
-                },
-                modifier = Modifier.fillMaxWidth()
+            LazyColumn(
+                Modifier
+                    .fillMaxSize()
+                    .semantics { isTraversalGroup = true }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    state.brandName.ifBlank {
-                        stringResource(R.string.commercial_catalog_brand_filter)
-                    }
-                )
-            }
-            OutlinedButton(
-                onClick = {
-                    openFilter = CommercialCatalogFilterKind.CATEGORY
-                    onOpenFilterOptions(CommercialCatalogFilterKind.CATEGORY)
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    state.categoryName.ifBlank {
-                        stringResource(R.string.commercial_catalog_type_filter)
-                    }
-                )
-            }
-            Button(onClick = onSearch, enabled = state.status != CommercialCatalogStatus.Pending) {
-                Text(stringResource(SharedR.string.customer_search))
-            }
-            Text(
-                stringResource(
-                    when (state.status) {
-                        CommercialCatalogStatus.Idle -> R.string.commercial_catalog_idle
-                        CommercialCatalogStatus.Pending -> SharedR.string.progress_pending
-                        CommercialCatalogStatus.Current -> SharedR.string.progress_current
-                        CommercialCatalogStatus.Unavailable -> SharedR.string.progress_unavailable
-                        CommercialCatalogStatus.PermissionDenied -> SharedR.string.progress_denied
-                    }
-                ),
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
-            )
-        }
-        if (state.status == CommercialCatalogStatus.Current) {
-            state.product?.let { product ->
                 item {
-                    val price = product.price
-                    val currency = product.currency
-                    val sellableAvailability = product.sellableAvailability
-                    Card(Modifier.fillMaxWidth()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = NexaShapes.card,
+                        colors = CardDefaults.cardColors(containerColor = NexaColors.CardSurface),
+                        border = null
+                    ) {
                         Column(
-                            Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            NexaCatalogImage(
-                                fileName = product.imageFileName,
-                                modifier = Modifier.size(NexaSizes.catalogDetailImage),
-                                targetSize = NexaSizes.catalogDetailImage
-                            )
-                            Text(product.name, style = MaterialTheme.typography.titleMedium)
-                            product.brandName?.let {
-                                Text(stringResource(R.string.commercial_catalog_brand_value, it))
-                            }
-                            product.categoryName?.let {
-                                Text(stringResource(R.string.commercial_catalog_type_value, it))
-                            }
-                            product.variantName?.let {
-                                Text(stringResource(R.string.commercial_catalog_variety_value, it))
-                            }
-                            product.familyName?.let {
-                                Text(stringResource(R.string.commercial_catalog_group_value, it))
-                            }
-                            Text(
-                                stringResource(
-                                    R.string.commercial_catalog_product,
-                                    product.productId
+                            if (state.customerId.isBlank()) {
+                                Text(
+                                    stringResource(R.string.commercial_catalog_customer_required),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = NexaColors.TextSecondary
                                 )
-                            )
-                            Text(
-                                stringResource(
-                                    R.string.commercial_catalog_sku,
-                                    product.skuCode
-                                        ?: stringResource(SharedR.string.commercial_catalog_missing)
-                                )
-                            )
-                            product.unit?.let {
-                                Text(stringResource(R.string.commercial_catalog_unit, it))
-                            }
-                            Text(
-                                if (price != null && currency != null) {
-                                    stringResource(
-                                        R.string.commercial_catalog_price,
-                                        price,
-                                        currency
-                                    )
-                                } else {
-                                    stringResource(R.string.commercial_catalog_price_missing)
+                                onChooseCustomer?.let { chooseCustomer ->
+                                    Button(
+                                        onClick = chooseCustomer,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            stringResource(
+                                                R.string.commercial_catalog_choose_customer
+                                            )
+                                        )
+                                    }
                                 }
-                            )
-                            product.pricingAsOf?.let {
-                                Text(stringResource(SharedR.string.progress_source_time, it))
                             }
-                            Text(
-                                if (sellableAvailability != null) {
-                                    stringResource(
-                                        R.string.commercial_catalog_sellable,
-                                        sellableAvailability
-                                    )
-                                } else {
-                                    stringResource(R.string.commercial_catalog_availability_missing)
-                                }
+                            OutlinedTextField(
+                                value = state.query,
+                                onValueChange = onQueryChanged,
+                                label = { Text(stringResource(R.string.commercial_catalog_query)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
                             )
-                            product.availabilityStatus?.let {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        openFilter = CommercialCatalogFilterKind.BRAND
+                                        onOpenFilterOptions(CommercialCatalogFilterKind.BRAND)
+                                    },
+                                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                                ) {
+                                    Text(
+                                        state.brandName.ifBlank {
+                                            stringResource(R.string.commercial_catalog_brand_filter)
+                                        }
+                                    )
+                                }
+                                OutlinedButton(
+                                    onClick = {
+                                        openFilter = CommercialCatalogFilterKind.CATEGORY
+                                        onOpenFilterOptions(CommercialCatalogFilterKind.CATEGORY)
+                                    },
+                                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                                ) {
+                                    Text(
+                                        state.categoryName.ifBlank {
+                                            stringResource(R.string.commercial_catalog_type_filter)
+                                        }
+                                    )
+                                }
+                            }
+                            Button(
+                                onClick = onSearch,
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = state.customerId.isNotBlank() &&
+                                    state.status != CommercialCatalogStatus.Pending
+                            ) {
+                                Text(stringResource(SharedR.string.customer_search))
+                            }
+                            if (state.status != CommercialCatalogStatus.Idle &&
+                                state.status != CommercialCatalogStatus.Current
+                            ) {
                                 Text(
                                     stringResource(
-                                        R.string.commercial_catalog_availability_status,
-                                        it
-                                    )
+                                        when (state.status) {
+                                            CommercialCatalogStatus.Idle ->
+                                                R.string.commercial_catalog_idle
+
+                                            CommercialCatalogStatus.Pending ->
+                                                SharedR.string.progress_pending
+
+                                            CommercialCatalogStatus.Current ->
+                                                SharedR.string.progress_current
+
+                                            CommercialCatalogStatus.Unavailable ->
+                                                SharedR.string.progress_unavailable
+
+                                            CommercialCatalogStatus.PermissionDenied ->
+                                                SharedR.string.progress_denied
+                                        }
+                                    ),
+                                    modifier = Modifier.semantics {
+                                        liveRegion = LiveRegionMode.Polite
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = NexaColors.TextSecondary
                                 )
                             }
-                            product.availabilityAsOf?.let {
-                                Text(stringResource(SharedR.string.progress_source_time, it))
+                        }
+                    }
+                }
+                if (state.status == CommercialCatalogStatus.Current) {
+                    state.product?.let { product ->
+                        item {
+                            val price = product.price
+                            val currency = product.currency
+                            val sellableAvailability = product.sellableAvailability
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = NexaShapes.card,
+                                colors = CardDefaults.cardColors(
+                                    containerColor = NexaColors.CardSurface
+                                ),
+                                border = null
+                            ) {
+                                Column(
+                                    Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    NexaCatalogImage(
+                                        fileName = product.imageFileName,
+                                        modifier = Modifier.size(NexaSizes.catalogDetailImage),
+                                        targetSize = NexaSizes.catalogDetailImage,
+                                        contentDescription = product.name
+                                    )
+                                    Text(
+                                        product.name,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = NexaColors.TextPrimary
+                                    )
+                                    product.brandName?.let {
+                                        Text(
+                                            stringResource(
+                                                R.string.commercial_catalog_brand_value,
+                                                it
+                                            )
+                                        )
+                                    }
+                                    product.categoryName?.let {
+                                        Text(
+                                            stringResource(
+                                                R.string.commercial_catalog_type_value,
+                                                it
+                                            )
+                                        )
+                                    }
+                                    product.variantName?.let {
+                                        Text(
+                                            stringResource(
+                                                R.string.commercial_catalog_variety_value,
+                                                it
+                                            )
+                                        )
+                                    }
+                                    product.familyName?.let {
+                                        Text(
+                                            stringResource(
+                                                R.string.commercial_catalog_group_value,
+                                                it
+                                            )
+                                        )
+                                    }
+                                    product.skuCode?.let {
+                                        Text(stringResource(R.string.commercial_catalog_sku, it))
+                                    }
+                                    product.unit?.let {
+                                        Text(stringResource(R.string.commercial_catalog_unit, it))
+                                    }
+                                    Text(
+                                        if (price != null && currency != null) {
+                                            stringResource(
+                                                R.string.commercial_catalog_price,
+                                                price,
+                                                currency
+                                            )
+                                        } else {
+                                            stringResource(
+                                                R.string.commercial_catalog_price_unavailable
+                                            )
+                                        }
+                                    )
+                                    Text(
+                                        if (sellableAvailability != null) {
+                                            stringResource(
+                                                R.string.commercial_catalog_sellable,
+                                                sellableAvailability
+                                            )
+                                        } else {
+                                            stringResource(
+                                                R.string.commercial_catalog_availability_unavailable
+                                            )
+                                        }
+                                    )
+                                    product.availabilityStatus?.let {
+                                        Text(
+                                            stringResource(
+                                                R.string.commercial_catalog_availability_status,
+                                                it.humanLabel()
+                                            )
+                                        )
+                                    }
+                                }
                             }
-                            Text(stringResource(R.string.commercial_catalog_no_commitment))
+                        }
+                    }
+                    if (state.choices.isEmpty() &&
+                        state.product == null
+                    ) {
+                        item { Text(stringResource(R.string.commercial_catalog_empty)) }
+                    }
+                    items(state.choices, key = { it.id }) { choice ->
+                        NexaProductCandidateRow(
+                            name = choice.name,
+                            variant = listOfNotNull(choice.brandName, choice.categoryName)
+                                .distinct().joinToString(" · ").ifBlank { null },
+                            presentation = listOfNotNull(choice.variantName, choice.presentation)
+                                .distinct().joinToString(" · ").ifBlank { null },
+                            sku = choice.skuCode,
+                            imageFileName = choice.imageFileName,
+                            onClick = { onSelectProduct(choice.id) }
+                        )
+                    }
+                    if (state.nextPage !=
+                        null
+                    ) {
+                        item {
+                            TextButton(onClick = onNextPage) {
+                                Text(stringResource(SharedR.string.customer_next))
+                            }
                         }
                     }
                 }
-            }
-            if (state.choices.isEmpty() &&
-                state.product == null
-            ) {
-                item { Text(stringResource(R.string.commercial_catalog_empty)) }
-            }
-            items(state.choices, key = { it.id }) { choice ->
-                NexaProductCandidateRow(
-                    name = choice.name,
-                    variant = listOfNotNull(
-                        choice.brandName?.let {
-                            stringResource(R.string.commercial_catalog_brand_value, it)
-                        },
-                        choice.variantName?.let {
-                            stringResource(R.string.commercial_catalog_variety_value, it)
+                if (state.status == CommercialCatalogStatus.Current && state.product != null &&
+                    onPrepareRequest != null
+                ) {
+                    item {
+                        TextButton(onClick = {
+                            onPrepareRequest(state.customerId, state.product.catalogItemId)
+                        }) {
+                            Text(stringResource(SharedR.string.customer_prepare_request))
                         }
-                    ).joinToString(" · ").ifBlank { null },
-                    presentation = listOfNotNull(
-                        choice.categoryName?.let {
-                            stringResource(R.string.commercial_catalog_type_value, it)
-                        },
-                        choice.familyName?.let {
-                            stringResource(R.string.commercial_catalog_group_value, it)
-                        },
-                        choice.presentation
-                    ).joinToString(" · ").ifBlank { null },
-                    sku = choice.skuCode,
-                    imageFileName = choice.imageFileName,
-                    onClick = { onSelectProduct(choice.id) }
-                )
-            }
-            if (state.nextPage !=
-                null
-            ) {
-                item {
-                    TextButton(onClick = onNextPage) {
-                        Text(stringResource(SharedR.string.customer_next))
                     }
                 }
-            }
-        }
-        if (state.status == CommercialCatalogStatus.Current && state.product != null &&
-            onPrepareRequest != null
-        ) {
-            item {
-                TextButton(onClick = {
-                    onPrepareRequest(state.customerId, state.product.catalogItemId)
-                }) {
-                    Text(stringResource(SharedR.string.customer_prepare_request))
-                }
-            }
-        }
-        if (state.status == CommercialCatalogStatus.Current && state.product != null &&
-            onCreateDirectOrder != null
-        ) {
-            item {
-                TextButton(onClick = {
-                    onCreateDirectOrder(state.customerId, state.product.catalogItemId)
-                }) {
-                    Text(stringResource(R.string.commercial_catalog_direct_order))
+                if (state.status == CommercialCatalogStatus.Current && state.product != null &&
+                    onCreateDirectOrder != null
+                ) {
+                    item {
+                        TextButton(onClick = {
+                            onCreateDirectOrder(state.customerId, state.product.catalogItemId)
+                        }) {
+                            Text(stringResource(R.string.commercial_catalog_direct_order))
+                        }
+                    }
                 }
             }
         }
     }
 }
+
+private fun String.humanLabel(): String = trim()
+    .replace('_', ' ')
+    .lowercase(Locale.getDefault())
+    .replaceFirstChar { character ->
+        if (character.isLowerCase()) {
+            character.titlecase(
+                Locale.getDefault()
+            )
+        } else {
+            character.toString()
+        }
+    }

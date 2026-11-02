@@ -1,3 +1,5 @@
+import '../application/business_document_export_port.dart';
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -15,10 +17,17 @@ enum BusinessDocumentsStatus {
 }
 
 final class BusinessDocumentsViewModel extends ChangeNotifier {
-  BusinessDocumentsViewModel(this._repository, this._access)
-    : _leaseKey = _activeLease(_access.snapshot) {
+  BusinessDocumentsViewModel(
+    this._repository,
+    this._access, {
+    this.subjectType,
+    this.subjectId,
+  }) : _leaseKey = _activeLease(_access.snapshot) {
     _subscription = _access.changes.listen(_onAccessChanged);
   }
+
+  final String? subjectType;
+  final String? subjectId;
 
   static const pageSize = 25;
   static const readPermission = 'document.read';
@@ -67,7 +76,11 @@ final class BusinessDocumentsViewModel extends ChangeNotifier {
     message = null;
     notifyListeners();
     try {
-      final result = await _repository.list(page: requestedPage);
+      final result = await _repository.list(
+        page: requestedPage,
+        subjectType: subjectType,
+        subjectId: subjectId,
+      );
       if (!_isCurrent(generation, lease)) return;
       items = result.items;
       page = result.page;
@@ -313,6 +326,32 @@ final class BusinessDocumentDetailViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool exporting = false;
+  String? exportMessage;
+
+  Future<void> saveDocument(BusinessDocumentExportPort exporter) async {
+    final value = content;
+    final lease = _leaseKey;
+    if (exporting || value == null || lease == null || !canDownload) return;
+    final generation = _requestGeneration;
+    exporting = true;
+    exportMessage = null;
+    notifyListeners();
+    try {
+      final saved = await exporter.save(value);
+      if (!_isCurrent(generation, lease)) return;
+      exportMessage = saved
+          ? 'Documento guardado en la ubicación elegida.'
+          : 'No se guardó el documento.';
+    } catch (_) {
+      if (!_isCurrent(generation, lease)) return;
+      exportMessage = 'No pudimos guardar el documento. Vuelve a intentarlo.';
+    } finally {
+      exporting = false;
+      if (_isCurrent(generation, lease)) notifyListeners();
+    }
+  }
+
   void discardContent() {
     _clearContent();
     downloadStatus = BusinessDocumentDownloadStatus.idle;
@@ -385,6 +424,7 @@ final class BusinessDocumentDetailViewModel extends ChangeNotifier {
       failure.statusCode == 401 || failure.code == 'ACCESS_CONTEXT_INVALID';
 
   void _clearContent() {
+    exportMessage = null;
     content?.clear();
     content = null;
   }

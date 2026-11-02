@@ -3,6 +3,7 @@ package com.nexa.mobile.operations
 import android.annotation.SuppressLint
 import android.graphics.Color
 import android.net.Uri
+import android.view.ViewGroup
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
@@ -75,6 +76,10 @@ internal fun DriverLiveLocationMap(
                 .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context))
                 .build()
             WebView(context).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
                 setBackgroundColor(Color.rgb(237, 241, 244))
                 isVerticalScrollBarEnabled = false
                 isHorizontalScrollBarEnabled = false

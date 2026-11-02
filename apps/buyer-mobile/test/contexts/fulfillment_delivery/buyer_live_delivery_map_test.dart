@@ -5,7 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:nexa_buyer_mobile/contexts/fulfillment_delivery/presentation/buyer_live_delivery_map.dart';
 
 void main() {
-  testWidgets('renders the fake delivery point and bounded attributed map', (
+  testWidgets('renders the vehicle point, street map and accessible controls', (
     tester,
   ) async {
     final tileProvider = _RecordingTileProvider();
@@ -34,15 +34,21 @@ void main() {
     final map = tester.widget<FlutterMap>(find.byType(FlutterMap));
     expect(map.options.initialCenter, const LatLng(latitude, longitude));
     expect(map.options.initialZoom, 15);
-    expect(map.options.minZoom, 15);
-    expect(map.options.maxZoom, 15);
-    expect(map.options.interactionOptions.flags, InteractiveFlag.none);
+    expect(map.options.minZoom, 3);
+    expect(map.options.maxZoom, 18);
+    expect(
+      map.options.interactionOptions.flags,
+      InteractiveFlag.drag |
+          InteractiveFlag.pinchZoom |
+          InteractiveFlag.doubleTapZoom,
+    );
 
     final layer = tester.widget<TileLayer>(find.byType(TileLayer));
     expect(layer.urlTemplate, 'https://tiles.example.test/{z}/{x}/{y}.png');
     expect(layer.panBuffer, 0);
     expect(layer.keepBuffer, 0);
-    expect(layer.maxZoom, 15);
+    expect(layer.maxZoom, 18);
+    expect(layer.maxNativeZoom, 18);
     expect(tileProvider.requestedTiles, isNotEmpty);
     expect(tileProvider.requestedTiles.length, lessThanOrEqualTo(8));
 
@@ -51,6 +57,19 @@ void main() {
     expect(marker.markers.single.point, const LatLng(latitude, longitude));
     expect(find.bySemanticsLabel('Ubicación del vehículo'), findsOneWidget);
     expect(find.text('Mapa de prueba'), findsOneWidget);
+    expect(find.byTooltip('Volver al vehículo'), findsOneWidget);
+    expect(find.byTooltip('Seguir vehículo'), findsOneWidget);
+    expect(find.byTooltip('Acercar mapa'), findsOneWidget);
+    expect(find.byTooltip('Alejar mapa'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Seguir vehículo'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Dejar de seguir vehículo'), findsOneWidget);
+    await tester.tap(find.byTooltip('Dejar de seguir vehículo'));
+    await tester.tap(find.byTooltip('Acercar mapa'));
+    await tester.tap(find.byTooltip('Alejar mapa'));
+    await tester.tap(find.byTooltip('Volver al vehículo'));
+    await tester.pumpAndSettle();
   });
 }
 

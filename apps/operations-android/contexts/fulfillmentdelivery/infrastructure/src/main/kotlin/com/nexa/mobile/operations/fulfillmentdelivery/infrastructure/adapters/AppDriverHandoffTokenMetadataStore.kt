@@ -80,7 +80,7 @@ class AppDriverHandoffTokenMetadataStore(private val local: AndroidScopedMetadat
         }
     }
 
-    override suspend fun clearKnownRejection(
+    override suspend fun clearConfirmedResult(
         scope: DriverAttemptScopeIdentity,
         deliveryId: String,
         attemptId: String,

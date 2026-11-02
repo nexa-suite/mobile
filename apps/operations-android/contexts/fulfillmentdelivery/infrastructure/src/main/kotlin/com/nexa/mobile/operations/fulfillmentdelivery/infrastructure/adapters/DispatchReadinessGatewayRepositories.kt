@@ -13,6 +13,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.Dispa
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryPodGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryPodSnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDriverLocationGatewayResult as DriverLocationGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPodEvidence
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGatewayResult as ReadinessGatewayResult
@@ -27,6 +28,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.D
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchDeliveryPodProjection as DeliveryPodProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchDriverAssignmentProjection as DriverAssignmentProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchDriverAssignmentRequest as DriverAssignmentRequest
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchDriverLocationNetworkOutcome as DriverLocationOutcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchPodEvidenceProjection as PodEvidenceProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchReadinessNetworkOutcome as ReadinessOutcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchReadinessProjection as ReadinessProjection
@@ -230,6 +232,76 @@ class OperationsDispatchAssignmentGateway @Inject constructor(
         }
     }
 
+    override suspend fun driverLocation(
+        fulfillmentId: String,
+        deliveryId: String,
+        responsibleMembershipId: String,
+        context: DispatchAuthorityContext
+    ): DriverLocationGatewayResult {
+        val authorization = authorize(context, requireAssignmentPermission = true)
+        if (authorization !is Authorization.Current) return authorization.toLocationResult()
+        val assignment = when (val result = assignments.current(fulfillmentId)) {
+            is AssignmentOutcome.Current ->
+                result.item
+                    ?: return DriverLocationGatewayResult.AssignmentChanged
+
+            else -> return result.toLocationFailure()
+        }
+        if (!assignment.current || assignment.fulfillmentId != fulfillmentId ||
+            assignment.responsibleMembershipId != responsibleMembershipId ||
+            assignment.deliveryId != deliveryId
+        ) {
+            return DriverLocationGatewayResult.AssignmentChanged
+        }
+        val currentReadiness = when (val result = readiness.detail(fulfillmentId)) {
+            is ReadinessOutcome.Detail -> toFeature(result.item)
+
+            ReadinessOutcome.NetworkUnavailable ->
+                return DriverLocationGatewayResult.NetworkUnavailable
+
+            ReadinessOutcome.PermissionDenied ->
+                return DriverLocationGatewayResult.PermissionDenied
+
+            ReadinessOutcome.ContextInvalidated ->
+                return DriverLocationGatewayResult.ContextInvalidated
+
+            ReadinessOutcome.SessionInvalidated ->
+                return DriverLocationGatewayResult.SessionInvalidated
+
+            ReadinessOutcome.ServiceUnavailable ->
+                return DriverLocationGatewayResult.ServiceUnavailable
+
+            else -> return DriverLocationGatewayResult.ServiceUnavailable
+        }
+        if (currentReadiness.fulfillmentId != fulfillmentId ||
+            currentReadiness.deliveryId != deliveryId ||
+            currentReadiness.deliveryStatus !in setOf("DISPATCHED", "IN_TRANSIT")
+        ) {
+            return DriverLocationGatewayResult.DeliveryInactive
+        }
+        if (!isCurrent(context, authorization.lease)) return authorityDriftLocation(context)
+
+        val result = assignments.driverLocation(responsibleMembershipId, deliveryId)
+        if (!isCurrent(context, authorization.lease)) return authorityDriftLocation(context)
+        return when (result) {
+            is DriverLocationOutcome.Current -> DriverLocationGatewayResult.Current(result.location)
+
+            DriverLocationOutcome.NetworkUnavailable ->
+                DriverLocationGatewayResult.NetworkUnavailable
+
+            DriverLocationOutcome.ServiceUnavailable ->
+                DriverLocationGatewayResult.ServiceUnavailable
+
+            DriverLocationOutcome.PermissionDenied -> DriverLocationGatewayResult.PermissionDenied
+
+            DriverLocationOutcome.ContextInvalidated ->
+                DriverLocationGatewayResult.ContextInvalidated
+
+            DriverLocationOutcome.SessionInvalidated ->
+                DriverLocationGatewayResult.SessionInvalidated
+        }
+    }
+
     private suspend fun authorize(
         context: DispatchAuthorityContext,
         requireAssignmentPermission: Boolean
@@ -290,6 +362,42 @@ class OperationsDispatchAssignmentGateway @Inject constructor(
         } == true -> AssignmentGatewayResult.SessionInvalidated
 
         else -> AssignmentGatewayResult.ContextInvalidated
+    }
+
+    private suspend fun authorityDriftLocation(context: DispatchAuthorityContext) = when {
+        sessions.sessionState.value != SessionState.Active ->
+            DriverLocationGatewayResult.SessionInvalidated
+
+        sessions.verifiedSession.value?.let { verified ->
+            context.identity?.let { expected -> verified.matches(expected) } == true
+        } == true -> DriverLocationGatewayResult.SessionInvalidated
+
+        else -> DriverLocationGatewayResult.ContextInvalidated
+    }
+
+    private fun Authorization.toLocationResult(): DriverLocationGatewayResult = when (this) {
+        Authorization.PermissionDenied -> DriverLocationGatewayResult.PermissionDenied
+        Authorization.ContextInvalidated -> DriverLocationGatewayResult.ContextInvalidated
+        Authorization.SessionInvalidated -> DriverLocationGatewayResult.SessionInvalidated
+        is Authorization.Current -> DriverLocationGatewayResult.ServiceUnavailable
+    }
+
+    private fun AssignmentOutcome.toLocationFailure(): DriverLocationGatewayResult = when (this) {
+        AssignmentOutcome.NetworkUnavailable -> DriverLocationGatewayResult.NetworkUnavailable
+
+        AssignmentOutcome.PermissionDenied -> DriverLocationGatewayResult.PermissionDenied
+
+        AssignmentOutcome.ContextInvalidated -> DriverLocationGatewayResult.ContextInvalidated
+
+        AssignmentOutcome.SessionInvalidated -> DriverLocationGatewayResult.SessionInvalidated
+
+        AssignmentOutcome.Stale,
+        AssignmentOutcome.Conflict,
+        AssignmentOutcome.UnknownOutcome,
+        AssignmentOutcome.ServiceUnavailable,
+        is AssignmentOutcome.Candidates,
+        is AssignmentOutcome.Assigned,
+        is AssignmentOutcome.Current -> DriverLocationGatewayResult.ServiceUnavailable
     }
 
     private fun VerifiedSession.matches(expected: DispatchAuthorityIdentity): Boolean =
@@ -655,6 +763,9 @@ object DispatchReadinessProjectionAdapter {
         windowStart = item.windowStart,
         windowEnd = item.windowEnd,
         windowSource = item.windowSource,
+        orderNumber = item.orderNumber,
+        customerName = item.customerName,
+        priority = item.priority,
         allocationComplete = item.allocationComplete,
         pickingComplete = item.pickingComplete,
         pickingEvidenceComplete = item.pickingEvidenceComplete,

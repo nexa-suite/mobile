@@ -9,7 +9,7 @@
     <string name="biometric_unlock_prompt_enable_title">Activar desbloqueo biométrico</string>
     <string name="biometric_unlock_prompt_unlock_title">Desbloquear Nexa Operations</string>
     <string name="biometric_unlock_prompt_subtitle">Confirma con la biometría fuerte registrada en este dispositivo.</string>
-    <string name="biometric_unlock_unavailable">La biometría fuerte no está disponible o no está registrada en este dispositivo. Usa tu contraseña para continuar.</string>
+    <string name="biometric_unlock_unavailable">Este dispositivo no tiene listo el acceso biométrico. Revisa sus ajustes de seguridad o continúa con tu contraseña.</string>
     <string name="biometric_unlock_not_recognized">No se reconoció la biometría. La sesión sigue bloqueada.</string>
     <string name="biometric_unlock_lockout">La biometría está bloqueada temporalmente. Usa tu contraseña para continuar.</string>
     <string name="biometric_unlock_cancelled">Se canceló la autenticación. La sesión sigue bloqueada.</string>
@@ -17,4 +17,5 @@
     <string name="biometric_unlock_error">No se pudo completar la autenticación biométrica. La sesión sigue bloqueada.</string>
     <string name="biometric_unlock_storage_error">No se pudo actualizar la protección biométrica. Inténtalo otra vez o usa tu contraseña.</string>
     <string name="biometric_unlock_dismiss">Aceptar</string>
+    <string name="biometric_unlock_profile_description">Usa la huella o el rostro configurados en este dispositivo.</string>
 </resources>

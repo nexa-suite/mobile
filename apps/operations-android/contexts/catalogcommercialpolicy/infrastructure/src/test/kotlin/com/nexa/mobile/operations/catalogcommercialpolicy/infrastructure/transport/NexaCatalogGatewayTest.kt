@@ -110,6 +110,26 @@ class NexaCatalogGatewayTest {
     }
 
     @Test
+    fun blankQueriesLoadTheInitialServerCatalogWithoutAQueryFilter() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val gateway = gateway(server)
+            listOf("", "   ").forEach { query ->
+                server.enqueue(jsonResponse(200, pageJson(page = 0, totalPages = 1, items = "")))
+
+                assertTrue(gateway.search(query, null) is CatalogSearchOutcome.Page)
+
+                val request = server.takeRequest()
+                assertEquals("GET", request.method)
+                assertEquals("/api/v1/catalog-items", request.requestUrl?.encodedPath)
+                assertNull(request.requestUrl?.queryParameter("q"))
+                assertEquals("0", request.requestUrl?.queryParameter("page"))
+                assertEquals("20", request.requestUrl?.queryParameter("size"))
+            }
+        }
+    }
+
+    @Test
     fun pageMappingHandlesZeroOneAndManyCandidatesAndStableNumericTokens() = runTest {
         MockWebServer().use { server ->
             server.start()
@@ -166,8 +186,8 @@ class NexaCatalogGatewayTest {
             server.start()
             val gateway = gateway(server)
             val invalidInputs = listOf(
-                "" to null,
-                "   " to null,
+                "" to "-1",
+                "   " to "01",
                 "a".repeat(121) to null,
                 "cheese" to "-1",
                 "cheese" to "01",

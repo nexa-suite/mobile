@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dispatch_visual_title">Despachos</string>
+    <string name="dispatch_visual_updated">Actualizado %1$s</string>
+    <string name="dispatch_visual_refresh">Actualizar</string>
+    <string name="dispatch_visual_show_checks">Ver detalles de preparación</string>
+    <string name="dispatch_visual_hide_checks">Ocultar detalles de preparación</string>
+    <string name="dispatch_visual_handed_over">Entregado a transporte</string>
+    <string name="dispatch_visual_consumed">Stock despachado</string>
+    <string name="dispatch_visual_released">Reserva liberada</string>
+    <string name="dispatch_visual_packed">Empacado</string>
+    <string name="dispatch_visual_staged">En zona de salida</string>
+    <string name="dispatch_visual_other_status">Otro estado</string>
+    <string name="dispatch_visual_time_unknown">Hora no disponible</string>
+</resources>

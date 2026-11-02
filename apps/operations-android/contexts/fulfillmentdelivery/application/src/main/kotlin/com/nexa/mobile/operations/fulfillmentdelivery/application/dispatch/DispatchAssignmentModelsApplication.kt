@@ -1,5 +1,6 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch
 
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverLiveLocation
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchAssignmentSnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.PreparedFulfillmentDriverAssignment
 
@@ -50,4 +51,15 @@ sealed interface DispatchAssignmentGatewayResult {
     data object PermissionDenied : DispatchAssignmentGatewayResult
     data object ContextInvalidated : DispatchAssignmentGatewayResult
     data object SessionInvalidated : DispatchAssignmentGatewayResult
+}
+
+sealed interface DispatchDriverLocationGatewayResult {
+    data class Current(val location: DriverLiveLocation?) : DispatchDriverLocationGatewayResult
+    data object AssignmentChanged : DispatchDriverLocationGatewayResult
+    data object DeliveryInactive : DispatchDriverLocationGatewayResult
+    data object NetworkUnavailable : DispatchDriverLocationGatewayResult
+    data object ServiceUnavailable : DispatchDriverLocationGatewayResult
+    data object PermissionDenied : DispatchDriverLocationGatewayResult
+    data object ContextInvalidated : DispatchDriverLocationGatewayResult
+    data object SessionInvalidated : DispatchDriverLocationGatewayResult
 }

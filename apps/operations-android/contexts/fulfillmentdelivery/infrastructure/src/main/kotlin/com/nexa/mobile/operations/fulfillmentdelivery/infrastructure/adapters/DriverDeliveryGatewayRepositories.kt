@@ -710,11 +710,13 @@ class OperationsDriverDeliveryGateway @Inject constructor(
         arrival = arrival?.let { fact ->
             DriverDeliveryArrivalFact(fact.id, fact.attemptId, fact.arrivedAt)
         },
-        destinationCoordinates = destinationCoordinates
+        destinationCoordinates = destinationCoordinates,
+        lastAttempt = lastAttempt?.toFeature(),
+        handoffRenewalEligible = handoffRenewalEligible
     )
 
     private fun AttemptProjection.toFeature() =
-        DriverDeliveryAttempt(id, attemptNumber, status, startedByMembershipId, startedAt)
+        DriverDeliveryAttempt(id, attemptNumber, status, startedByMembershipId, startedAt, outcome)
 
     private sealed interface Authorization {
         data class Current(val lease: AccessTokenLease) : Authorization

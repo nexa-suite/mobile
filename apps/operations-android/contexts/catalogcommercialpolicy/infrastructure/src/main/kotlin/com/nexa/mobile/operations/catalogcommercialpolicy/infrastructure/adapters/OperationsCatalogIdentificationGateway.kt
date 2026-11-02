@@ -61,6 +61,9 @@ class OperationsCatalogIdentificationGateway @Inject constructor(
                         presentation = it.presentation,
                         sku = it.skuCode,
                         imageFileName = it.imageFileName,
+                        categoryName = it.categoryName,
+                        unitOfMeasure = it.unitOfMeasure,
+                        coldChainRequirement = it.coldChainRequirement,
                         detailKey = it.catalogItemId
                     )
                 },

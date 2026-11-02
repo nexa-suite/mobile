@@ -2,6 +2,7 @@ package com.nexa.mobile.operations.inventoryavailability.presentation.warehouse
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -44,6 +44,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.nexa.mobile.operations.core.designsystem.NexaColors
+import com.nexa.mobile.operations.core.designsystem.NexaShapes
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingCatalogFilterChoice
 import com.nexa.mobile.operations.inventoryavailability.application.model.warehouse.ReceivingCatalogFilterKind
 import com.nexa.mobile.operations.inventoryavailability.domain.model.warehouse.ReceivedLotFacts
@@ -214,7 +216,8 @@ fun ReceivingScreen(
                     } else {
                         R.string.receiving_product_draft_title
                     }
-                )
+                ),
+                glyph = InventoryGlyphKind.Product
             ) {
                 val product = state.product
                 if (product == null) {
@@ -246,7 +249,10 @@ fun ReceivingScreen(
                 }
             }
 
-            SectionCard(title = stringResource(R.string.receiving_warehouse_title)) {
+            SectionCard(
+                title = stringResource(R.string.receiving_warehouse_title),
+                glyph = InventoryGlyphKind.Warehouse
+            ) {
                 if (state.warehouses.isEmpty()) {
                     Text(stringResource(R.string.receiving_warehouse_empty))
                 }
@@ -285,7 +291,10 @@ fun ReceivingScreen(
                 }
             }
 
-            SectionCard(title = stringResource(R.string.receiving_lot_title)) {
+            SectionCard(
+                title = stringResource(R.string.receiving_lot_title),
+                glyph = InventoryGlyphKind.Receipt
+            ) {
                 OutlinedTextField(
                     value = state.batchNumber,
                     onValueChange = onBatchNumberChanged,
@@ -575,23 +584,33 @@ private fun LookupNotice(
 }
 
 @Composable
-private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+private fun SectionCard(
+    title: String,
+    glyph: InventoryGlyphKind = InventoryGlyphKind.Receipt,
+    content: @Composable ColumnScope.() -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
+        shape = NexaShapes.card,
+        colors = CardDefaults.cardColors(containerColor = NexaColors.Surface),
+        border = BorderStroke(1.dp, NexaColors.Border)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
             content = {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    InventoryGlyph(glyph)
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = NexaColors.TextPrimary
+                    )
+                }
                 content()
             }
         )
@@ -646,8 +665,10 @@ private fun CommandStatus(state: ReceivingUiState) {
 
 @Composable
 private fun ConfirmedLotCard(lot: ReceivedLotFacts) {
-    SectionCard(title = stringResource(R.string.receiving_confirmed_lot_title)) {
-        Fact(stringResource(R.string.receiving_lot_id), lot.id)
+    SectionCard(
+        title = stringResource(R.string.receiving_confirmed_lot_title),
+        glyph = InventoryGlyphKind.Receipt
+    ) {
         Fact(stringResource(R.string.receiving_batch_label), lot.batchNumber)
         Fact(stringResource(R.string.receiving_expiry_label), lot.expirationDate.toString())
         lot.productionDate?.let {

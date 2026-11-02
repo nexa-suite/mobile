@@ -59,6 +59,21 @@ class NexaPickingWorkListGatewayTest {
         }
     }
 
+    @Test
+    fun includesWorkReadyForDispatch() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(jsonResponse(200, listJson(status = "READY_FOR_DISPATCH")))
+
+            val outcome = gateway(server).workList(page = 1, size = 25)
+
+            assertTrue(outcome is PickingWorkListNetworkOutcome.Loaded)
+            val value = (outcome as PickingWorkListNetworkOutcome.Loaded).value
+            assertEquals("READY_FOR_DISPATCH", value.items.single().status)
+            assertEquals(FULFILLMENT_ID, value.items.single().fulfillmentId)
+        }
+    }
+
     private fun gateway(server: MockWebServer): NexaPickingGateway {
         val endpoint = ApiEndpoint(server.url("/").toString())
         return NexaPickingGateway(
@@ -66,8 +81,12 @@ class NexaPickingWorkListGatewayTest {
         )
     }
 
-    private fun listJson(page: Int = 1, fulfillmentId: String = FULFILLMENT_ID) =
-        """{"items":[{"fulfillmentId":"$fulfillmentId","salesOrderId":"$SALES_ORDER_ID","status":"PICKING","version":12,"physicalAllocationId":"$ALLOCATION_ID","allocationVersion":8,"lineCount":2}],"page":$page,"size":25,"totalItems":26,"asOf":"2026-09-30T12:00:00Z"}"""
+    private fun listJson(
+        page: Int = 1,
+        fulfillmentId: String = FULFILLMENT_ID,
+        status: String = "PICKING"
+    ) =
+        """{"items":[{"fulfillmentId":"$fulfillmentId","salesOrderId":"$SALES_ORDER_ID","status":"$status","version":12,"physicalAllocationId":"$ALLOCATION_ID","allocationVersion":8,"lineCount":2}],"page":$page,"size":25,"totalItems":26,"asOf":"2026-09-30T12:00:00Z"}"""
 
     private fun jsonResponse(status: Int, body: String) = MockResponse()
         .setResponseCode(status)

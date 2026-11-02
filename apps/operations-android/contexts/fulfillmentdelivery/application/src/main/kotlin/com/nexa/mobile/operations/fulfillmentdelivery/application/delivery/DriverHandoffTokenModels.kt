@@ -20,7 +20,8 @@ interface DriverHandoffTokenMetadataStore {
         command: DriverHandoffIssueCommand
     ): DriverHandoffMetadataWrite
 
-    suspend fun clearKnownRejection(
+    /** Clear only after definitive rejection or explicit renewal of a confirmed issuance. */
+    suspend fun clearConfirmedResult(
         scope: DriverAttemptScopeIdentity,
         deliveryId: String,
         attemptId: String,

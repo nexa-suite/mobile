@@ -1,0 +1,31 @@
+<resources>
+    <string name="batch_visual_title">Preparación por grupos</string>
+    <string name="batch_visual_group">Mi grupo de trabajo</string>
+    <string name="batch_visual_count">%1$d de 25 preparaciones</string>
+    <string name="batch_visual_support">Elige las preparaciones y organiza tu recorrido.</string>
+    <string name="batch_visual_loading">Consultando tus preparaciones…</string>
+    <string name="batch_visual_denied">No tienes acceso a estas preparaciones.</string>
+    <string name="batch_visual_unavailable">No pudimos cargar las preparaciones. Inténtalo de nuevo.</string>
+    <string name="batch_visual_refresh">Actualizar preparaciones</string>
+    <string name="batch_visual_no_work">Por ahora no hay preparaciones disponibles.</string>
+    <string name="batch_visual_job">Preparación %1$d</string>
+    <plurals name="batch_visual_lines">
+        <item quantity="one">%1$d línea de productos</item>
+        <item quantity="many">%1$d líneas de productos</item>
+        <item quantity="other">%1$d líneas de productos</item>
+    </plurals>
+    <string name="batch_visual_added">Agregada</string>
+    <string name="batch_visual_add">Agregar</string>
+    <string name="batch_visual_previous">Anterior</string>
+    <string name="batch_visual_next">Siguiente</string>
+    <string name="batch_visual_empty_title">Arma tu grupo</string>
+    <string name="batch_visual_empty_support">Agrega una preparación de la lista para comenzar.</string>
+    <string name="batch_visual_result">Resultado registrado</string>
+    <string name="batch_visual_quantities">Recogido: %1$s · Pendiente: %2$s %3$s</string>
+    <string name="batch_visual_up">Subir</string>
+    <string name="batch_visual_down">Bajar</string>
+    <string name="batch_visual_open">Abrir preparación</string>
+    <string name="batch_visual_note">Añadir observación</string>
+    <string name="batch_visual_note_label">¿Qué necesita revisión?</string>
+    <string name="batch_visual_save_note">Guardar observación</string>
+</resources>

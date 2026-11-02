@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.CandidateConfirmationResult
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductFilterOptionsResult
 import com.nexa.mobile.operations.catalogcommercialpolicy.application.model.warehouse.ProductSearchResult
@@ -17,6 +18,7 @@ import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ConfirmedSkuProjection
 import com.nexa.mobile.operations.catalogcommercialpolicy.domain.model.warehouse.ProductCandidate
 import com.nexa.mobile.operations.catalogcommercialpolicy.infrastructure.adapters.CatalogOperationsContextAdapter
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R as CatalogR
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.TaskVisibilityHint
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseRoute
@@ -116,14 +118,18 @@ class RootCapabilityInvalidationTest {
                 )
             }
         }
-        composeRule.onNodeWithText("Identificación confirmada").assertIsDisplayed()
+        composeRule.onNodeWithText(
+            targetString(CatalogR.string.warehouse_visual_product_detail_title)
+        ).assertIsDisplayed()
         composeRule.runOnIdle {
             access.value = access.value.copy(
                 activeContext = authority.copy(permissionHint = PermissionHint.Unavailable)
             )
         }
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("Identificación confirmada").assertDoesNotExist()
+        composeRule.onNodeWithText(
+            targetString(CatalogR.string.warehouse_visual_product_detail_title)
+        ).assertDoesNotExist()
         composeRule.runOnIdle {
             assertEquals(WarehouseRoute.WorkEntry, warehouse.state.value.route)
             assertNull(warehouse.state.value.confirmedSku)
@@ -131,8 +137,11 @@ class RootCapabilityInvalidationTest {
             assertEquals(4L, warehouse.state.value.authorityEpoch)
             access.value = access.value.copy(activeContext = authority)
         }
-        composeRule.onNodeWithText("Identificar producto")
-            .performScrollTo().assertIsDisplayed().performClick()
+        composeRule.onNodeWithText(
+            targetString(R.string.nav_catalog)
+        )
+            .assertIsDisplayed()
+            .performClick()
         composeRule.runOnIdle {
             assertEquals(WarehouseRoute.ProductSearch, warehouse.state.value.route)
             assertEquals("", warehouse.state.value.search?.query)
@@ -162,4 +171,7 @@ class RootCapabilityInvalidationTest {
             context: CatalogOperationsContext
         ): CandidateConfirmationResult = error("Navigation must not confirm a candidate")
     }
+
+    private fun targetString(resourceId: Int): String =
+        InstrumentationRegistry.getInstrumentation().targetContext.getString(resourceId)
 }

@@ -6,8 +6,10 @@ import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.core.network.ProtectedMethod
 import com.nexa.mobile.operations.core.network.ProtectedRequest
 import com.nexa.mobile.operations.core.network.ProtectedResult
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverLiveLocation
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.time.Duration
 import java.time.Instant
 import java.util.Locale
 import kotlinx.serialization.SerializationException
@@ -104,6 +106,15 @@ sealed interface DispatchPlanChangeNetworkOutcome {
     data object Conflict : DispatchPlanChangeNetworkOutcome
 }
 
+sealed interface DispatchDriverLocationNetworkOutcome {
+    data class Current(val location: DriverLiveLocation?) : DispatchDriverLocationNetworkOutcome
+    data object NetworkUnavailable : DispatchDriverLocationNetworkOutcome
+    data object ServiceUnavailable : DispatchDriverLocationNetworkOutcome
+    data object PermissionDenied : DispatchDriverLocationNetworkOutcome
+    data object ContextInvalidated : DispatchDriverLocationNetworkOutcome
+    data object SessionInvalidated : DispatchDriverLocationNetworkOutcome
+}
+
 /** Protected current driver and assignment reads plus the prepared-Fulfillment assignment command. */
 class NexaDispatchAssignmentGateway(private val protectedCalls: ProtectedCallExecutor) {
     suspend fun candidates(): DispatchAssignmentNetworkOutcome {
@@ -158,6 +169,68 @@ class NexaDispatchAssignmentGateway(private val protectedCalls: ProtectedCallExe
                 }
 
                 else -> DispatchAssignmentNetworkOutcome.ServiceUnavailable
+            }
+        }
+    }
+
+    suspend fun driverLocation(
+        membershipId: String,
+        deliveryId: String
+    ): DispatchDriverLocationNetworkOutcome {
+        if (!membershipId.isUuid() ||
+            !deliveryId.isUuid()
+        ) {
+            return DispatchDriverLocationNetworkOutcome.ServiceUnavailable
+        }
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(
+                    ProtectedMethod.GET,
+                    "/api/v1/dispatch/drivers/${URLEncoder.encode(
+                        membershipId,
+                        StandardCharsets.UTF_8.name()
+                    )}/location?deliveryId=${URLEncoder.encode(
+                        deliveryId,
+                        StandardCharsets.UTF_8.name()
+                    )}"
+                )
+            )
+        ) {
+            is ProtectedResult.Failure -> when (
+                result.error.toDispatchAssignmentOutcome(
+                    mutation = false
+                )
+            ) {
+                DispatchAssignmentNetworkOutcome.NetworkUnavailable ->
+                    DispatchDriverLocationNetworkOutcome.NetworkUnavailable
+
+                DispatchAssignmentNetworkOutcome.ContextInvalidated ->
+                    DispatchDriverLocationNetworkOutcome.ContextInvalidated
+
+                DispatchAssignmentNetworkOutcome.SessionInvalidated ->
+                    DispatchDriverLocationNetworkOutcome.SessionInvalidated
+
+                DispatchAssignmentNetworkOutcome.PermissionDenied ->
+                    DispatchDriverLocationNetworkOutcome.PermissionDenied
+
+                else -> DispatchDriverLocationNetworkOutcome.ServiceUnavailable
+            }
+
+            is ProtectedResult.Success -> when {
+                result.status == 204 && result.body.isNullOrBlank() ->
+                    DispatchDriverLocationNetworkOutcome.Current(null)
+
+                result.status == 200 &&
+                    (result.body.isNullOrBlank() || result.body?.trim() == "null") ->
+                    DispatchDriverLocationNetworkOutcome.Current(null)
+
+                result.status == 200 -> {
+                    val location = result.body?.toDriverLocation()
+                        ?: return DispatchDriverLocationNetworkOutcome.ServiceUnavailable
+                    DispatchDriverLocationNetworkOutcome.Current(location)
+                }
+
+                else -> DispatchDriverLocationNetworkOutcome.ServiceUnavailable
             }
         }
     }
@@ -315,6 +388,37 @@ class NexaDispatchAssignmentGateway(private val protectedCalls: ProtectedCallExe
         )
     }
 
+    private fun String.toDriverLocation(): DriverLiveLocation? {
+        val wire = decode<DispatchDriverLocationWire>() ?: return null
+        val sampleId = wire.sampleId?.takeIf { it.isUuid() } ?: return null
+        val latitude = wire.latitude?.takeIf { it.isFinite() && it in -90.0..90.0 } ?: return null
+        val longitude =
+            wire.longitude?.takeIf { it.isFinite() && it in -180.0..180.0 } ?: return null
+        val accuracy = wire.accuracyMeters?.takeIf { it.isFinite() && it in 0.0..100_000.0 }
+            ?: return null
+        val capturedAt = wire.capturedAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
+            ?: return null
+        val expiresAt = wire.expiresAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
+            ?: return null
+        val now = Instant.now()
+        if (capturedAt.isAfter(now.plusSeconds(60)) || !expiresAt.isAfter(now) ||
+            Duration.between(capturedAt, expiresAt).let {
+                it.isNegative || it.isZero ||
+                    it > Duration.ofHours(24)
+            }
+        ) {
+            return null
+        }
+        return DriverLiveLocation(
+            sampleId,
+            latitude,
+            longitude,
+            accuracy,
+            capturedAt.toString(),
+            expiresAt.toString()
+        )
+    }
+
     private fun DispatchDriverAssignmentRequest.isValid(): Boolean =
         fulfillmentId.isUuid() && expectedFulfillmentVersion >= 0 &&
             physicalAllocationId.isUuid() && physicalAllocationVersion >= 0 &&
@@ -432,4 +536,14 @@ private data class DispatchDriverAssignmentWire(
     val plannedDispatchAt: String? = null,
     val deliveryId: String? = null,
     val current: Boolean = true
+)
+
+@kotlinx.serialization.Serializable
+private data class DispatchDriverLocationWire(
+    val sampleId: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val accuracyMeters: Double? = null,
+    val capturedAt: String? = null,
+    val expiresAt: String? = null
 )

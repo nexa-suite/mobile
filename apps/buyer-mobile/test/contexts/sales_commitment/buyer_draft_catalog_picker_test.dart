@@ -260,6 +260,8 @@ final class _RecordingCatalogRepository implements CatalogRepository {
     String categoryId = '',
     String familyId = '',
     String variantId = '',
+    String coldChain = '',
+    bool availableOnly = false,
   }) async {
     listCalls.add({
       'query': query,
@@ -373,7 +375,6 @@ final class _FakePurchaseRequestRepository
   Future<BuyerPurchaseContextProjection> loadBuyerPurchaseContext() async =>
       const BuyerPurchaseContextProjection(
         clientAccountId: 'account-buyer',
-        buyerMembershipId: _membershipId,
         businessName: 'Buyer company',
         paymentCondition: 'CREDIT',
         addresses: [],

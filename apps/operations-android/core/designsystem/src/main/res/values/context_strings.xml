@@ -2,7 +2,7 @@
 <resources>
     <string name="commercial_back">Back</string>
     <string name="commercial_catalog_missing">Not provided</string>
-    <string name="commercial_catalog_title">Products, prices, and availability</string>
+    <string name="commercial_catalog_title">Catalog</string>
     <string name="customer_next">Next</string>
     <string name="customer_prepare_request">Prepare a request for this customer</string>
     <string name="customer_previous">Previous</string>

@@ -31,8 +31,8 @@ void main() {
     final theme = Theme.of(
       tester.element(find.text('Configura el origen de Nexa API')),
     );
-    expect(theme.colorScheme.primary, const Color(0xFF2A67D9));
-    expect(theme.extension<NexaThemeExtension>()?.radiusControl, 12);
+    expect(theme.colorScheme.primary, const Color(0xFF2563EB));
+    expect(theme.extension<NexaThemeExtension>()?.radiusControl, 10);
   });
 
   testWidgets('hides delivery navigation without the exact tracking grant', (
@@ -105,11 +105,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.bySemanticsLabel('Nexa mark'), findsOneWidget);
+    expect(find.bySemanticsLabel('Nexa'), findsOneWidget);
     final signInTheme = Theme.of(
-      tester.element(find.text('Tu espacio de compra')),
+      tester.element(find.text('Todo para tu próxima compra.')),
     );
-    expect(signInTheme.colorScheme.primary, const Color(0xFF2A67D9));
+    expect(signInTheme.colorScheme.primary, const Color(0xFF2563EB));
     expect(signInTheme.textTheme.bodyMedium?.fontFamily, 'Inter');
     await tester.tap(find.text('Continuar'));
     await tester.pumpAndSettle();
@@ -126,7 +126,9 @@ void main() {
     expect(_navigationTab('Catálogo'), findsOneWidget);
     expect(_navigationTab('Mis entregas'), findsNothing);
     expect(_navigationTab('Billetera'), findsNothing);
-    await tester.tap(find.byTooltip('Más opciones'));
+    await tester.tap(find.byTooltip('Cuenta'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Otros servicios'));
     await tester.pumpAndSettle();
     expect(find.text('Documentos'), findsOneWidget);
     expect(find.text('Mis entregas'), findsNothing);
@@ -484,6 +486,8 @@ void main() {
 
       await tester.tap(find.text('Empresa Norte'));
       await tester.pumpAndSettle();
+      await tester.tap(_navigationTab('Catálogo'));
+      await tester.pumpAndSettle();
       expect(find.byType(CatalogPage), findsOneWidget);
       expect(
         find.descendant(
@@ -494,22 +498,59 @@ void main() {
       );
       expect(_navigationTab('Catálogo'), findsOneWidget);
       expect(find.text('Café de altura'), findsOneWidget);
-      expect(find.text('12.50 PEN'), findsOneWidget);
+      expect(find.text('S/ 12,5'), findsOneWidget);
 
       await tester.tap(find.text('Café de altura'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Más información'));
+      await tester.tap(find.text('Más información'));
       await tester.pumpAndSettle();
       expect(find.text('Café tostado en pequeños lotes.'), findsOneWidget);
       expect(find.textContaining('18 UN'), findsOneWidget);
       await tester.pageBack();
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Mis pedidos'));
+      await tester.tap(_navigationTab('Pedidos'));
       await tester.pumpAndSettle();
-      expect(find.text('Pedido SO-0001'), findsOneWidget);
-      await tester.tap(find.text('Pedido SO-0001'));
+      expect(find.text('SO-0001'), findsOneWidget);
+      await tester.tap(find.text('SO-0001'));
       await tester.pumpAndSettle();
       expect(find.text('Productos'), findsOneWidget);
       expect(find.text('Café de altura'), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Seguimiento'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pedido SO-0001'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(BuyerDeliveriesPage),
+          matching: find.text('Despachado'),
+        ),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(find.text('Pedido SO-0001'));
+      await tester.tap(find.text('Pedido SO-0001'));
+      await tester.pumpAndSettle();
+      expect(find.byType(BuyerDeliveryDetailPage), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Historial de entrega'),
+        300,
+        scrollable: find
+            .descendant(
+              of: find.byType(BuyerDeliveryDetailPage),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(find.text('Historial de entrega'), findsOneWidget);
+      expect(find.text('Entregada al repartidor'), findsOneWidget);
+      expect(find.textContaining('PRIVATE ASSIGNMENT'), findsNothing);
+      expect(find.textContaining('PRIVATE STATUS DETAIL'), findsNothing);
+      expect(find.textContaining('PRIVATE ACTOR'), findsNothing);
+      expect(find.textContaining('PRIVATE INTERNAL REASON'), findsNothing);
+
       await tester.pageBack();
       await tester.pumpAndSettle();
 
@@ -536,14 +577,14 @@ void main() {
       expect(documentDownloads, 0);
       await tester.tap(find.text('INV-2026-01'));
       await tester.pumpAndSettle();
-      expect(find.text('INVOICE'), findsOneWidget);
+      expect(find.text('Factura'), findsOneWidget);
       expect(find.text('GENERATED'), findsOneWidget);
       expect(documentDownloads, 0);
-      await tester.ensureVisible(find.text('Cargar contenido protegido'));
+      await tester.ensureVisible(find.text('Cargar documento'));
       final detailViewModel = tester
           .element(find.byType(BusinessDocumentDetailPage))
           .read<BusinessDocumentDetailViewModel>();
-      await tester.tap(find.text('Cargar contenido protegido'));
+      await tester.tap(find.text('Cargar documento'));
       await tester.pump();
       await tester.runAsync(() async {
         for (
@@ -565,7 +606,7 @@ void main() {
       );
       expect(detailViewModel.content, isNotNull);
       await tester.scrollUntilVisible(
-        find.text('Contenido verificado'),
+        find.text('Documento listo'),
         400,
         scrollable: find
             .descendant(
@@ -574,45 +615,10 @@ void main() {
             )
             .first,
       );
-      expect(find.text('Contenido verificado'), findsOneWidget);
-      expect(
-        find.textContaining('No se guardó en el dispositivo.'),
-        findsOneWidget,
-      );
+      expect(find.text('Documento listo'), findsOneWidget);
+      expect(find.text('Guardar documento'), findsOneWidget);
+      expect(find.text('Cerrar documento'), findsOneWidget);
       expect(documentDownloads, 1);
-
-      await tester.pageBack();
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Mis entregas'));
-      await tester.pumpAndSettle();
-      expect(find.text('Pedido SO-0001'), findsOneWidget);
-      expect(
-        find.descendant(
-          of: find.byType(BuyerDeliveriesPage),
-          matching: find.text('Despachado'),
-        ),
-        findsOneWidget,
-      );
-      await tester.ensureVisible(find.text('Pedido SO-0001'));
-      await tester.tap(find.text('Pedido SO-0001'));
-      await tester.pumpAndSettle();
-      expect(find.byType(BuyerDeliveryDetailPage), findsOneWidget);
-      await tester.scrollUntilVisible(
-        find.text('Historial de entrega'),
-        300,
-        scrollable: find
-            .descendant(
-              of: find.byType(BuyerDeliveryDetailPage),
-              matching: find.byType(Scrollable),
-            )
-            .first,
-      );
-      expect(find.text('Historial de entrega'), findsOneWidget);
-      expect(find.text('Handed Over'), findsOneWidget);
-      expect(find.textContaining('PRIVATE ASSIGNMENT'), findsNothing);
-      expect(find.textContaining('PRIVATE STATUS DETAIL'), findsNothing);
-      expect(find.textContaining('PRIVATE ACTOR'), findsNothing);
-      expect(find.textContaining('PRIVATE INTERNAL REASON'), findsNothing);
 
       await tester.pageBack();
       await tester.pumpAndSettle();
@@ -660,7 +666,9 @@ Future<void> _openMoreDestination(
   WidgetTester tester,
   String destination,
 ) async {
-  await tester.tap(find.byTooltip('Más opciones'));
+  await tester.tap(find.byTooltip('Cuenta'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Otros servicios'));
   await tester.pumpAndSettle();
   await tester.tap(find.text(destination));
   await tester.pumpAndSettle();
