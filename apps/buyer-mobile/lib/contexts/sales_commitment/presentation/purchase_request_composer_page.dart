@@ -233,8 +233,8 @@ final class _PurchaseRequestComposerPageState
               if (model.deliveryLeadPolicy case final policy?) ...[
                 const SizedBox(height: 4),
                 Text(
-                  'Fecha mínima: ${_dateLabel(policy.earliestAllowedDeliveryDate)} · '
-                  '${policy.minimumDeliveryLeadDays} días calendario. '
+                  'Fecha mínima: ${_dateLabel(policy.minimumAllowedDeliveryDate)} · '
+                  '${policy.minimumDeliveryLeadBusinessDays} días hábiles. '
                   'La fecha se revisa al enviar tu solicitud.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),

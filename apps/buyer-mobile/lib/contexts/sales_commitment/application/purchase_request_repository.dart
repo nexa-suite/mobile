@@ -36,13 +36,13 @@ final class BuyerPurchaseContextProjection {
 
 final class BuyerDeliveryLeadPolicyProjection {
   const BuyerDeliveryLeadPolicyProjection({
-    required this.minimumDeliveryLeadDays,
-    required this.earliestAllowedDeliveryDate,
+    required this.minimumDeliveryLeadBusinessDays,
+    required this.minimumAllowedDeliveryDate,
     required this.timezone,
   });
 
-  final int minimumDeliveryLeadDays;
-  final DateTime earliestAllowedDeliveryDate;
+  final int minimumDeliveryLeadBusinessDays;
+  final DateTime minimumAllowedDeliveryDate;
   final String timezone;
 }
 

@@ -1083,8 +1083,8 @@ final class _FakePurchaseRequestRepository
     }
     return Future.value(
       BuyerDeliveryLeadPolicyProjection(
-        minimumDeliveryLeadDays: 3,
-        earliestAllowedDeliveryDate: DateTime(2026, 10, 23),
+        minimumDeliveryLeadBusinessDays: 3,
+        minimumAllowedDeliveryDate: DateTime(2026, 10, 23),
         timezone: 'America/Lima',
       ),
     );

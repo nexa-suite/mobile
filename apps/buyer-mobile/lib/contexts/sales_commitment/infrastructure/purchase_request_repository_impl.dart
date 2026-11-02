@@ -77,21 +77,20 @@ final class PurchaseRequestRepositoryImpl
       '/buyer/delivery-lead-policy',
       refreshAfterUnauthorized: true,
     );
-    final calendarDays = _int(response.body['minimumDeliveryLeadDays']);
+    final businessDays = _int(response.body['minimumDeliveryLeadBusinessDays']);
     final minimumDate = _canonicalDateValue(
-      response.body['earliestAllowedDeliveryDate'],
+      response.body['minimumAllowedDeliveryDate'],
     );
     final timezone = _string(response.body['timezone']);
-    if (response.body['dayUnit'] != 'CALENDAR' ||
-        calendarDays == null ||
-        calendarDays < 0 ||
+    if (businessDays == null ||
+        businessDays < 0 ||
         minimumDate == null ||
         timezone == null) {
       _invalidResponse();
     }
     return BuyerDeliveryLeadPolicyProjection(
-      minimumDeliveryLeadDays: calendarDays,
-      earliestAllowedDeliveryDate: minimumDate,
+      minimumDeliveryLeadBusinessDays: businessDays,
+      minimumAllowedDeliveryDate: minimumDate,
       timezone: timezone,
     );
   }

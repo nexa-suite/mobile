@@ -386,8 +386,8 @@ final class _FakePurchaseRequestRepository
       throw StateError('Delivery lead policy unavailable');
     }
     return BuyerDeliveryLeadPolicyProjection(
-      minimumDeliveryLeadDays: 3,
-      earliestAllowedDeliveryDate: DateTime(2026, 10, 23),
+      minimumDeliveryLeadBusinessDays: 3,
+      minimumAllowedDeliveryDate: DateTime(2026, 10, 23),
       timezone: 'America/Lima',
     );
   }

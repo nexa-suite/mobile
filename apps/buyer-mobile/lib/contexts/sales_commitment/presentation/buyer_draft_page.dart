@@ -250,7 +250,7 @@ final class BuyerDraftPage extends StatelessWidget {
                       if (model.deliveryLeadPolicy case final policy?) ...[
                         const SizedBox(height: 4),
                         Text(
-                          'Fecha mínima: ${_date(policy.earliestAllowedDeliveryDate)} · ${policy.minimumDeliveryLeadDays} días calendario. La fecha se revisa al enviar tu solicitud.',
+                          'Fecha mínima: ${_date(policy.minimumAllowedDeliveryDate)} · ${policy.minimumDeliveryLeadBusinessDays} días hábiles. La fecha se revisa al enviar tu solicitud.',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ] else if (model.deliveryLeadPolicyMessage

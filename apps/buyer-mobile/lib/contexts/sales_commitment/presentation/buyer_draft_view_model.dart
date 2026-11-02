@@ -57,7 +57,7 @@ final class BuyerDraftViewModel extends ChangeNotifier {
   BuyerDeliveryLeadPolicyProjection? deliveryLeadPolicy;
   String? deliveryLeadPolicyMessage;
   DateTime? get minimumDeliveryDate =>
-      deliveryLeadPolicy?.earliestAllowedDeliveryDate;
+      deliveryLeadPolicy?.minimumAllowedDeliveryDate;
   String? addressId;
   String? paymentPreference;
   DateTime? deliveryDate;
@@ -371,7 +371,7 @@ final class BuyerDraftViewModel extends ChangeNotifier {
       return;
     }
     if (selectedDate != null &&
-        _dateOnly(selectedDate).isBefore(policy.earliestAllowedDeliveryDate)) {
+        _dateOnly(selectedDate).isBefore(policy.minimumAllowedDeliveryDate)) {
       message = 'La fecha guardada es anterior al mínimo del espacio. Elige otra fecha.';
       notifyListeners();
       return;

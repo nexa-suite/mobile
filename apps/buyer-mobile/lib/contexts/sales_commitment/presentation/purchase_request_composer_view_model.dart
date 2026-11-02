@@ -62,7 +62,7 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
   bool _orderPaymentSupported = false;
   BuyerDeliveryLeadPolicyProjection? deliveryLeadPolicy;
   DateTime? get minimumDeliveryDate =>
-      deliveryLeadPolicy?.earliestAllowedDeliveryDate;
+      deliveryLeadPolicy?.minimumAllowedDeliveryDate;
   DateTime? requestedDeliveryDate;
   String? message;
 
@@ -144,7 +144,7 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
       item = loadedItem;
       purchaseContext = context;
       deliveryLeadPolicy = leadPolicy;
-      requestedDeliveryDate = leadPolicy.earliestAllowedDeliveryDate;
+      requestedDeliveryDate = leadPolicy.minimumAllowedDeliveryDate;
       final defaultAddresses = context.addresses.where(
         (address) => address.active && address.defaultAddress,
       );

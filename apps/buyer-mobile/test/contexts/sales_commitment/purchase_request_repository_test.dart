@@ -15,37 +15,42 @@ const _draftId = '00000000-0000-4000-8000-000000000005';
 const _skuId = '00000000-0000-4000-8000-000000000006';
 
 void main() {
-  test('loads the server-computed Buyer delivery lead policy', () async {
-    late http.Request captured;
-    final api = NexaApiClient(
-      origin: NexaApiOrigin.parse(
-        'https://api.nexa.example',
-        allowLocalHttp: false,
-      ),
-      httpClient: MockClient((request) async {
-        captured = request;
-        return http.Response(
-          jsonEncode({
-            'minimumDeliveryLeadDays': 3,
-            'dayUnit': 'CALENDAR',
-            'earliestAllowedDeliveryDate': '2026-10-23',
-            'timezone': 'America/Lima',
-          }),
-          200,
-        );
-      }),
-    )..sessionCredentials = _FakeCredentials();
-    final repository = PurchaseRequestRepositoryImpl(api, _RecordingKeyStore());
+  test(
+    'reads the API business-day policy without a separate unit field',
+    () async {
+      late http.Request captured;
+      final api = NexaApiClient(
+        origin: NexaApiOrigin.parse(
+          'https://api.nexa.example',
+          allowLocalHttp: false,
+        ),
+        httpClient: MockClient((request) async {
+          captured = request;
+          return http.Response(
+            jsonEncode({
+              'minimumDeliveryLeadBusinessDays': 7,
+              'minimumAllowedDeliveryDate': '2026-10-26',
+              'timezone': 'America/Lima',
+            }),
+            200,
+          );
+        }),
+      )..sessionCredentials = _FakeCredentials();
+      final repository = PurchaseRequestRepositoryImpl(
+        api,
+        _RecordingKeyStore(),
+      );
 
-    final policy = await repository.loadDeliveryLeadPolicy();
+      final policy = await repository.loadDeliveryLeadPolicy();
 
-    expect(captured.method, 'GET');
-    expect(captured.url.path, '/api/v1/buyer/delivery-lead-policy');
-    expect(policy.minimumDeliveryLeadDays, 3);
-    expect(policy.earliestAllowedDeliveryDate, DateTime(2026, 10, 23));
-    expect(policy.timezone, 'America/Lima');
-    api.close();
-  });
+      expect(captured.method, 'GET');
+      expect(captured.url.path, '/api/v1/buyer/delivery-lead-policy');
+      expect(policy.minimumDeliveryLeadBusinessDays, 7);
+      expect(policy.minimumAllowedDeliveryDate, DateTime(2026, 10, 26));
+      expect(policy.timezone, 'America/Lima');
+      api.close();
+    },
+  );
 
   test('rejects an invalid server delivery lead policy date', () async {
     final api = NexaApiClient(
@@ -56,9 +61,8 @@ void main() {
       httpClient: MockClient(
         (_) async => http.Response(
           jsonEncode({
-            'minimumDeliveryLeadDays': 3,
-            'dayUnit': 'CALENDAR',
-            'earliestAllowedDeliveryDate': '2026-02-31',
+            'minimumDeliveryLeadBusinessDays': 9,
+            'minimumAllowedDeliveryDate': '2026-02-31',
             'timezone': 'America/Lima',
           }),
           200,
