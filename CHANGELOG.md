@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.0.0] - source release candidate, unpublished
+
+Mobile PR [#72](https://github.com/nexa-suite/mobile/pull/72) integrates Buyer
+Flutter and Operations Android work. The application source at
+`d1bf0fef2ed76e89cd26c16bf3e07905b5e9b18f` passed Buyer and Operations CI;
+this release preparation changes documentation only. Application versions remain
+Buyer `1.2.1+4` and Operations `1.3.0` (`versionCode` 12).
+
+- Buyer delivery policy consumes the API's five-business-day rule in
+  America/Lima. The API remains authoritative for business decisions.
+- Debug APKs were built for both clients and installed on an API 37 ARM64
+  emulator. Their artifact provenance and limits are recorded in the
+  [candidate notes](RELEASE_NOTES_v2.0.0.md).
+- Compatible API work is tracked in [API #133](https://github.com/nexa-suite/api/pull/133).
+  Cloud migration and authenticated end-to-end validation remain pending.
+
+The repository candidate is unpublished; no Product/UX Acceptance, System
+Acceptance or Production Readiness is claimed.
+
 ## [1.3.1] - local source release candidate, unpublished
 
 Prepared on 2026-10-29 from `main` at `22748321730b1992092064537fd4c24497b6f935`. Repository source tag candidate is `v1.3.1`; app versions remain independent. Operations Android stays at `1.3.0` (`versionCode` 12); Buyer Mobile advances from `1.2.0+3` to patch version `1.2.1+4`.
