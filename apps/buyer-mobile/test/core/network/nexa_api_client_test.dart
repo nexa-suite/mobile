@@ -326,6 +326,34 @@ void main() {
   );
 
   test(
+    'keeps generic session copy for authenticated route 401 responses',
+    () async {
+      final client = NexaApiClient(
+        origin: NexaApiOrigin.parse(
+          'https://api.nexa.example',
+          allowLocalHttp: false,
+        ),
+        httpClient: MockClient(
+          (_) async =>
+              http.Response(jsonEncode({'code': 'AUTHENTICATION_FAILED'}), 401),
+        ),
+      );
+
+      await expectLater(
+        client.get('/catalog-items', bearerToken: 'expired-access'),
+        throwsA(
+          isA<NexaApiFailure>().having(
+            (failure) => failure.userMessage,
+            'user message',
+            'Your session expired. Sign in again.',
+          ),
+        ),
+      );
+      client.close();
+    },
+  );
+
+  test(
     'aborts a binary stream that exceeds its cap when length lies',
     () async {
       final streamingClient = _LyingLengthClient();
