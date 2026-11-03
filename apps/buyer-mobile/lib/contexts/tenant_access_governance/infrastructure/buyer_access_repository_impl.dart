@@ -167,15 +167,33 @@ final class BuyerAccessRepositoryImpl
     _clear();
     final attemptEpoch = _authorityEpoch;
     try {
-      final response = await _api.post(
-        '/authentication/identity-sign-in',
-        body: {
-          'identifier': identifier.trim(),
-          'password': password,
-          'surface': 'PORTAL',
-        },
-        authenticated: false,
-      );
+      late final NexaApiResponse response;
+      try {
+        response = await _api.post(
+          '/authentication/identity-sign-in',
+          body: {
+            'identifier': identifier.trim(),
+            'password': password,
+            'surface': 'PORTAL',
+          },
+          authenticated: false,
+        );
+      } on NexaApiFailure catch (failure, stackTrace) {
+        if (failure.statusCode == 401 &&
+            failure.code == 'AUTHENTICATION_FAILED') {
+          Error.throwWithStackTrace(
+            NexaApiFailure(
+              code: failure.code,
+              statusCode: failure.statusCode,
+              correlationId: failure.correlationId,
+              retryable: failure.retryable,
+              userMessage: 'El usuario o la contraseña no son correctos.',
+            ),
+            stackTrace,
+          );
+        }
+        rethrow;
+      }
       if (!_isCurrentEpoch(attemptEpoch)) return;
       switch (response.body['outcome']) {
         case 'SESSION_ESTABLISHED':
