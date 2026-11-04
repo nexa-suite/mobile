@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1] - Candidate
+
+### Fixed
+- Preserve a completed Operations biometric proof through server session revalidation and exact context restoration; invalidate it on background, session loss or context change. Server authorization and strong biometric cryptography remain mandatory.
+- Operations Android version is 1.3.1 (code 13). Buyer remains 1.2.1+4.
+
+
 ## [2.0.0] - source release candidate, unpublished
 
 Mobile PR [#72](https://github.com/nexa-suite/mobile/pull/72) integrates Buyer
