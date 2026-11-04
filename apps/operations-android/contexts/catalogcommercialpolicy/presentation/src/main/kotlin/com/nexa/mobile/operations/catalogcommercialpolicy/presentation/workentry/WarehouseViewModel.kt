@@ -13,6 +13,7 @@ import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchStatus
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.warehouse.ProductSearchUiState
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
+import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.VerifiedOperationsIdentity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,9 +29,17 @@ class WarehouseViewModel(
     val state = mutableState.asStateFlow()
 
     private var requestGeneration = 0L
+    private var automaticCatalogListingAuthority: Pair<Long, VerifiedOperationsIdentity?>? = null
 
     fun enterOperations(context: ActiveOperationsContext, permissionHint: TaskVisibilityHint) {
-        requestGeneration++
+        val current = mutableState.value
+        val authority = context.authorityKey()
+        val sameAuthority = current.activeContext?.authorityKey() == authority &&
+            current.authorityEpoch == context.authorityEpoch
+        if (!sameAuthority) requestGeneration++
+        if (automaticCatalogListingAuthority != authority) {
+            automaticCatalogListingAuthority = null
+        }
         mutableState.value = WarehouseUiState(
             route = WarehouseRoute.WorkEntry,
             workEntryStatus = when (permissionHint) {
@@ -40,6 +49,9 @@ class WarehouseViewModel(
             },
             permissionHint = permissionHint,
             activeContext = context,
+            search = current.search?.takeIf {
+                sameAuthority && it.authorityEpoch == context.authorityEpoch
+            },
             authorityEpoch = context.authorityEpoch
         )
     }
@@ -67,7 +79,6 @@ class WarehouseViewModel(
         requestGeneration++
         mutableState.value = current.copy(
             route = WarehouseRoute.Picking,
-            search = null,
             confirmedSku = null
         )
     }
@@ -81,7 +92,7 @@ class WarehouseViewModel(
         }
         requestGeneration++
         mutableState.value =
-            current.copy(route = WarehouseRoute.StockCondition, search = null, confirmedSku = null)
+            current.copy(route = WarehouseRoute.StockCondition, confirmedSku = null)
     }
 
     fun openReceiving() {
@@ -93,7 +104,7 @@ class WarehouseViewModel(
         }
         requestGeneration++
         mutableState.value =
-            current.copy(route = WarehouseRoute.Receiving, search = null, confirmedSku = null)
+            current.copy(route = WarehouseRoute.Receiving, confirmedSku = null)
     }
 
     fun openProductSearch() {
@@ -103,12 +114,39 @@ class WarehouseViewModel(
         ) {
             return
         }
-        requestGeneration++
+        if (current.route != WarehouseRoute.ProductSearch) requestGeneration++
+        val previousSearch = current.search?.takeIf { it.authorityEpoch == current.authorityEpoch }
+        val search = if (current.route != WarehouseRoute.ProductSearch && previousSearch != null &&
+            previousSearch.status in setOf(
+                ProductSearchStatus.Loading,
+                ProductSearchStatus.LoadingMore,
+                ProductSearchStatus.ConfirmationPending
+            )
+        ) {
+            previousSearch.copy(
+                status = when (previousSearch.candidates.size) {
+                    0 -> ProductSearchStatus.Initial
+                    1 -> ProductSearchStatus.OneCandidate
+                    else -> ProductSearchStatus.MultipleCandidates
+                },
+                pendingCandidateKey = null
+            )
+        } else {
+            previousSearch ?: ProductSearchUiState(authorityEpoch = current.authorityEpoch)
+        }
         mutableState.value = current.copy(
             route = WarehouseRoute.ProductSearch,
-            search = ProductSearchUiState(authorityEpoch = current.authorityEpoch),
+            search = search,
             confirmedSku = null
         )
+        val authority = current.activeContext.authorityKey()
+        val needsInitialListing = search.query.isBlank() && search.brand == null &&
+            search.category == null && search.candidates.isEmpty() &&
+            search.status in setOf(ProductSearchStatus.Initial, ProductSearchStatus.Loading)
+        if (automaticCatalogListingAuthority != authority || needsInitialListing) {
+            automaticCatalogListingAuthority = authority
+            submitSearch()
+        }
     }
 
     fun openScanner() {
@@ -121,7 +159,6 @@ class WarehouseViewModel(
         requestGeneration++
         mutableState.value = current.copy(
             route = WarehouseRoute.Scanner,
-            search = null,
             confirmedSku = null
         )
     }
@@ -299,9 +336,7 @@ class WarehouseViewModel(
             return
         }
         val query = search.query.trim()
-        if ((query.isEmpty() && search.brand == null && search.category == null) ||
-            query.length > 120
-        ) {
+        if (query.length > 120) {
             mutableState.value = current.copy(
                 search = search.copy(
                     status = ProductSearchStatus.InvalidQuery,
@@ -338,7 +373,6 @@ class WarehouseViewModel(
         val current = mutableState.value
         if (current.route != WarehouseRoute.ProductSearch) return
         val search = current.search ?: return
-        if (search.query.isBlank() && search.brand == null && search.category == null) return
         when {
             search.status == ProductSearchStatus.LoadMoreFailed -> loadMore()
             else -> submitSearch()
@@ -555,6 +589,7 @@ class WarehouseViewModel(
             )
         )
         viewModelScope.launch {
+            if (!isCurrent(generation, epoch) || context.authorityEpoch != epoch) return@launch
             val result = runCatching {
                 gateway.search(query, brandName, categoryName, pageKey, epoch)
             }
@@ -778,9 +813,12 @@ class WarehouseViewModel(
     private fun clearToWorkEntry() {
         requestGeneration++
         mutableState.update {
-            it.copy(route = WarehouseRoute.WorkEntry, search = null, confirmedSku = null)
+            it.copy(route = WarehouseRoute.WorkEntry, confirmedSku = null)
         }
     }
+
+    private fun ActiveOperationsContext.authorityKey(): Pair<Long, VerifiedOperationsIdentity?> =
+        authorityEpoch to verifiedIdentity
 
     private fun invalidateContext() {
         contextInvalidated()

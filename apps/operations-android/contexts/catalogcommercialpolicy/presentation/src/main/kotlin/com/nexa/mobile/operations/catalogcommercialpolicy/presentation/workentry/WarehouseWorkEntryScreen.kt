@@ -25,11 +25,14 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.R as CatalogR
+import com.nexa.mobile.operations.core.designsystem.LocalNexaProfileAction
 import com.nexa.mobile.operations.core.designsystem.NexaActiveContextBar
 import com.nexa.mobile.operations.core.designsystem.NexaColors
+import com.nexa.mobile.operations.core.designsystem.NexaProfileAvatar
 import com.nexa.mobile.operations.core.designsystem.NexaStatePanel
 import com.nexa.mobile.operations.core.designsystem.NexaTaskRow
 import com.nexa.mobile.operations.core.designsystem.NexaTopAppBar
+import com.nexa.mobile.operations.core.designsystem.R as DesignSystemR
 
 @Composable
 fun OperationsWorkEntryScreen(
@@ -66,16 +69,11 @@ fun OperationsWorkEntryScreen(
         NexaTopAppBar(
             title = stringResource(CatalogR.string.warehouse_operations_title),
             actions = {
-                IconButton(
-                    onClick = {
+                if (LocalNexaProfileAction.current == null && onOpenProfile != null) {
+                    NexaProfileAvatar(onClick = {
                         val openProfile = onOpenProfile
                         if (openProfile != null) openProfile() else onLogout?.invoke()
-                    },
-                    modifier = Modifier.semantics {
-                        contentDescription = profileActionLabel
-                    }
-                ) {
-                    Text("⋮", style = MaterialTheme.typography.titleLarge)
+                    })
                 }
             }
         )
@@ -90,6 +88,7 @@ fun OperationsWorkEntryScreen(
                     tenantLabel = tenantLabel,
                     workspaceLabel = workspaceLabel,
                     roleLabel = roleLabel,
+                    compact = true,
                     enabled = true,
                     onClick = onChangeContext
                 )
@@ -134,6 +133,21 @@ fun OperationsWorkEntryScreen(
                             NexaTaskRow(
                                 title = label.title,
                                 description = label.description,
+                                iconResource = when (capability) {
+                                    WorkEntryCapability.Picking ->
+                                        DesignSystemR.drawable.ic_check_square
+
+                                    WorkEntryCapability.Receiving -> DesignSystemR.drawable.ic_truck
+
+                                    WorkEntryCapability.StockCondition ->
+                                        DesignSystemR.drawable.ic_box
+
+                                    WorkEntryCapability.BarcodeIdentification ->
+                                        DesignSystemR.drawable.ic_barcode
+
+                                    WorkEntryCapability.CatalogIdentification ->
+                                        DesignSystemR.drawable.ic_search
+                                },
                                 onClick = when (capability) {
                                     WorkEntryCapability.CatalogIdentification -> onIdentifyProduct
                                     WorkEntryCapability.BarcodeIdentification -> onScanProductCode

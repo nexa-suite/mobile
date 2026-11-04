@@ -23,14 +23,12 @@ final class BuyerDeliveryAddressProjection {
 final class BuyerPurchaseContextProjection {
   const BuyerPurchaseContextProjection({
     required this.clientAccountId,
-    required this.buyerMembershipId,
     required this.businessName,
     required this.paymentCondition,
     required this.addresses,
   });
 
   final String clientAccountId;
-  final String buyerMembershipId;
   final String businessName;
   final String paymentCondition;
   final List<BuyerDeliveryAddressProjection> addresses;

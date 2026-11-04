@@ -343,7 +343,7 @@ private fun ConnectedOperationEntry.workGroup(): WorkGroup = when {
     else -> WorkGroup.Other
 }
 
-private fun ConnectedOperationEntry.descriptionResource(): Int = when (key) {
+internal fun ConnectedOperationEntry.descriptionResource(): Int = when (key) {
     "warehouse.batch" -> R.string.work_hub_picking_support
     "dispatch.readiness" -> R.string.work_hub_readiness_support
     "dispatch.loads" -> R.string.work_hub_loads_support

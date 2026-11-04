@@ -44,6 +44,76 @@ class NexaDriverDeliveryGatewayTest {
     }
 
     @Test
+    fun terminalRenewalEligibilityComesFromScopedDriverProjection() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val terminal = deliveryJson(version = 11)
+                .replace("\"status\":\"DISPATCHED\"", "\"status\":\"DELIVERED\"")
+                .replace(
+                    "\"activeAttempt\":null",
+                    "\"activeAttempt\":null,\"lastAttempt\":$terminalAttemptJson,\"handoffRenewalEligible\":true"
+                )
+            server.enqueue(jsonResponse(200, "[$terminal]"))
+
+            val assigned = gateway(server).assignedDeliveries()
+                as DriverDeliveryNetworkOutcome.Assigned
+            val projection = assigned.items.single()
+
+            assertEquals("DELIVERED", projection.status)
+            assertEquals(ATTEMPT_ID, projection.lastAttempt?.id)
+            assertEquals("FINAL", projection.lastAttempt?.status)
+            assertEquals("DELIVERED", projection.lastAttempt?.outcome)
+            assertEquals(MEMBERSHIP_ID, projection.lastAttempt?.startedByMembershipId)
+            assertTrue(projection.handoffRenewalEligible)
+        }
+    }
+
+    @Test
+    fun deliveredProjectionCanExposeLatestPartialAttemptWithoutStartedAt() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val terminal = deliveryJson(version = 12)
+                .replace("\"status\":\"DISPATCHED\"", "\"status\":\"DELIVERED\"")
+                .replace(
+                    "\"activeAttempt\":null",
+                    "\"activeAttempt\":null," +
+                        "\"lastAttempt\":$partialTerminalAttemptJson," +
+                        "\"handoffRenewalEligible\":true"
+                )
+            server.enqueue(jsonResponse(200, "[$terminal]"))
+
+            val assigned = gateway(server).assignedDeliveries()
+                as DriverDeliveryNetworkOutcome.Assigned
+            val projection = assigned.items.single()
+
+            assertEquals("DELIVERED", projection.status)
+            assertEquals("PARTIAL", projection.lastAttempt?.status)
+            assertEquals("PARTIAL", projection.lastAttempt?.outcome)
+            assertEquals(null, projection.lastAttempt?.startedAt)
+            assertTrue(projection.handoffRenewalEligible)
+        }
+    }
+
+    @Test
+    fun terminalRenewalProjectionWithoutRealAttemptFailsClosed() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val terminal = deliveryJson(version = 11)
+                .replace("\"status\":\"DISPATCHED\"", "\"status\":\"DELIVERED\"")
+                .replace(
+                    "\"activeAttempt\":null",
+                    "\"activeAttempt\":null,\"lastAttempt\":null,\"handoffRenewalEligible\":true"
+                )
+            server.enqueue(jsonResponse(200, "[$terminal]"))
+
+            assertEquals(
+                DriverDeliveryNetworkOutcome.ServiceUnavailable,
+                gateway(server).assignedDeliveries()
+            )
+        }
+    }
+
+    @Test
     fun structuredDestinationSnapshotShowsAddressOnlyAndOmitsContactAndInstructions() = runTest {
         MockWebServer().use { server ->
             server.start()
@@ -407,5 +477,9 @@ class NexaDriverDeliveryGatewayTest {
         const val SKU_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413107"
         val activeAttemptJson =
             """{"id":"$ATTEMPT_ID","attemptNumber":1,"status":"ACTIVE","startedByMembershipId":"$MEMBERSHIP_ID","startedAt":"2026-09-30T15:01:00Z"}"""
+        val terminalAttemptJson =
+            """{"id":"$ATTEMPT_ID","attemptNumber":2,"status":"FINAL","outcome":"DELIVERED","startedByMembershipId":"$MEMBERSHIP_ID"}"""
+        val partialTerminalAttemptJson =
+            """{"id":"$ATTEMPT_ID","attemptNumber":2,"status":"PARTIAL","outcome":"PARTIAL","startedByMembershipId":"$MEMBERSHIP_ID"}"""
     }
 }

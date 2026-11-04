@@ -7,6 +7,7 @@ import com.nexa.mobile.operations.core.network.ProtectedRequest
 import com.nexa.mobile.operations.core.network.ProtectedResult
 import java.math.BigDecimal
 import java.time.Instant
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -14,16 +15,27 @@ import kotlinx.serialization.json.JsonPrimitive
 /** Reads commitment and credit independently; never computes a credit decision. */
 class NexaCustomerProgressGateway(private val calls: ProtectedCallExecutor) {
     suspend fun orders(customerId: String, page: Int): CustomerProgressNetworkResult {
-        if (!progressId.matches(customerId) ||
+        val selectedCustomerId = customerId.trim()
+        if ((selectedCustomerId.isNotEmpty() && !progressId.matches(selectedCustomerId)) ||
             page < 0
         ) {
             return CustomerProgressNetworkResult.Unavailable
         }
-        return read("/api/v1/sales-orders?clientAccountId=$customerId&page=$page&size=25") { body ->
+        val clientFilter = if (selectedCustomerId.isEmpty()) {
+            ""
+        } else {
+            "clientAccountId=$selectedCustomerId&"
+        }
+        return read("/api/v1/sales-orders?${clientFilter}page=$page&size=25") { body ->
             val value = progressJson.decodeFromString<CommitmentPageWire>(body)
             if (value.page != page || value.size != 25 || value.total < value.items.size ||
                 value.items.size > 25 ||
-                value.items.any { it.clientAccountId != customerId || !it.valid() }
+                value.items.any {
+                    !it.valid() || (
+                        selectedCustomerId.isNotEmpty() &&
+                            it.clientAccountId != selectedCustomerId
+                        )
+                }
             ) {
                 CustomerProgressNetworkResult.Unavailable
             } else {
@@ -34,27 +46,29 @@ class NexaCustomerProgressGateway(private val calls: ProtectedCallExecutor) {
     private suspend fun read(
         path: String,
         decode: (String) -> CustomerProgressNetworkResult
-    ): CustomerProgressNetworkResult =
-        when (val result = calls.execute(ProtectedRequest(ProtectedMethod.GET, path))) {
-            is ProtectedResult.Success -> try {
-                result.body?.let(decode)
-                    ?: CustomerProgressNetworkResult.Unavailable
-            } catch (
-                _: Exception
+    ): CustomerProgressNetworkResult = when (
+        val result = calls.execute(ProtectedRequest(ProtectedMethod.GET, path))
+    ) {
+        is ProtectedResult.Success -> try {
+            result.body?.let(decode)
+                ?: CustomerProgressNetworkResult.Unavailable
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            CustomerProgressNetworkResult.Unavailable
+        }
+
+        is ProtectedResult.Failure -> {
+            if (result.error.kind == FailureKind.AuthorizationFailure ||
+                result.error.kind == FailureKind.AuthenticationRequired ||
+                result.error.httpStatus == 404
             ) {
+                CustomerProgressNetworkResult.PermissionDenied
+            } else {
                 CustomerProgressNetworkResult.Unavailable
             }
-
-            is ProtectedResult.Failure ->
-                if (result.error.kind == FailureKind.AuthorizationFailure ||
-                    result.error.kind == FailureKind.AuthenticationRequired ||
-                    result.error.httpStatus == 404
-                ) {
-                    CustomerProgressNetworkResult.PermissionDenied
-                } else {
-                    CustomerProgressNetworkResult.Unavailable
-                }
         }
+    }
 }
 private val progressJson = Json { ignoreUnknownKeys = true }
 private val progressId = Regex("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
@@ -72,7 +86,9 @@ data class CommitmentWire(
     val version: Long,
     val updatedAt: String
 ) {
-    fun valid(): Boolean = progressId.matches(id) && number.isNotBlank() && version >= 0 &&
+    fun valid(): Boolean = progressId.matches(id) && progressId.matches(clientAccountId) &&
+        progressId.matches(tenantId) && progressId.matches(workspaceId) &&
+        number.isNotBlank() && version >= 0 &&
         status in
         setOf(
             "PENDING", "CONFIRMED", "IN_FULFILLMENT", "PARTIALLY_FULFILLED", "FULFILLED",

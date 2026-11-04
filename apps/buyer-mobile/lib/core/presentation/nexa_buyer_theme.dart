@@ -1,50 +1,53 @@
 import 'package:flutter/material.dart';
 
+import 'nexa_buyer_palette.dart';
+
 double _lerpDouble(double a, double b, double t) => a + (b - a) * t;
 
-const _focusRingColor = Color(0x2E2A67D9);
+const _focusRingColor = Color(0x2E2563EB);
 const _dangerColor = Color(0xFFDC2626);
 const _radiusSheet = 24.0;
 
 abstract final class NexaBuyerTheme {
   static const NexaThemeExtension tokens = NexaThemeExtension(
-    success: Color(0xFF0284C7),
-    successContainer: Color(0xFFE0F2FE),
-    successBorder: Color(0xFFBAE6FD),
+    success: Color(0xFF15803D),
+    successContainer: Color(0xFFF0FDF4),
+    successBorder: Color(0xFFBBF7D0),
     warning: Color(0xFFD97706),
     warningContainer: Color(0xFFFFFBEB),
-    warningBorder: Color(0xFFFDE68A),
+    warningBorder: Color(0xFFFCD34D),
     warningText: Color(0xFF92400E),
     danger: Color(0xFFDC2626),
     dangerContainer: Color(0xFFFEF2F2),
     dangerBorder: Color(0xFFFECACA),
     dangerText: Color(0xFF991B1B),
     focusRing: _focusRingColor,
-    radiusField: 12,
-    radiusControl: 12,
+    radiusField: 10,
+    radiusControl: 10,
     radiusCard: 16,
     radiusSheet: _radiusSheet,
     radiusChip: 8,
-    radiusNavigationIndicator: 10,
+    radiusNavigationIndicator: 8,
   );
 
-  static const Color _primary = Color(0xFF2A67D9);
-  static const Color _primary50 = Color(0xFFEFF6FF);
-  static const Color _primary100 = Color(0xFFDBEAFE);
-  static const Color _primary200 = Color(0xFFBFDBFE);
-  static const Color _primary300 = Color(0xFF93C5FD);
-  static const Color _primary800 = Color(0xFF1E40AF);
-  static const Color _primary900 = Color(0xFF1E3A8A);
-  static const Color _page = Color(0xFFF6FAFF);
+  static const Color _primary = Color(0xFF2563EB);
+  static const Color _primary50 = Color(0xFFF0F5FF);
+  static const Color _primary100 = Color(0xFFDCE8FF);
+  static const Color _primary200 = Color(0xFFB9D2FF);
+  static const Color _primary300 = Color(0xFF8CB4FF);
+  static const Color _primary800 = Color(0xFF1A439A);
+  static const Color _primary900 = Color(0xFF173470);
+  static const Color _page = NexaBuyerPalette.canvas;
   static const Color _card = Color(0xFFFFFFFF);
+  static const Color _panel = NexaBuyerPalette.cardSurface;
   static const Color _tint = Color(0xFFF1F5F9);
   static const Color _text = Color(0xFF0F172A);
-  static const Color _secondaryText = Color(0xFF64748B);
-  static const Color _mutedText = Color(0xFF94A3B8);
+  static const Color _secondaryText = NexaBuyerPalette.muted;
+  static const Color _mutedText = NexaBuyerPalette.muted;
   static const Color _border = Color(0xFFE2E8F0);
   static const Color _strongBorder = Color(0xFFCBD5E1);
   static const Color _navy = Color(0xFF082846);
-  static const Color _celeste = Color(0xFF38C8FF);
+  static const Color _positive = Color(0xFF15803D);
 
   static final ThemeData light = ThemeData(
     useMaterial3: true,
@@ -62,19 +65,19 @@ abstract final class NexaBuyerTheme {
       secondary: _navy,
       onSecondary: _card,
       secondaryContainer: _primary50,
-      onSecondaryContainer: _navy,
+      onSecondaryContainer: _primary,
       secondaryFixed: _primary50,
       secondaryFixedDim: _primary100,
       onSecondaryFixed: _navy,
       onSecondaryFixedVariant: _navy,
-      tertiary: _celeste,
-      onTertiary: _text,
-      tertiaryContainer: Color(0xFFEEF6FF),
-      onTertiaryContainer: _navy,
-      tertiaryFixed: _celeste,
-      tertiaryFixedDim: Color(0xFFBAE6FD),
+      tertiary: _positive,
+      onTertiary: _card,
+      tertiaryContainer: Color(0xFFF0FDF4),
+      onTertiaryContainer: _positive,
+      tertiaryFixed: Color(0xFFBBF7D0),
+      tertiaryFixedDim: Color(0xFFBBF7D0),
       onTertiaryFixed: _text,
-      onTertiaryFixedVariant: _navy,
+      onTertiaryFixedVariant: _positive,
       error: _dangerColor,
       onError: _card,
       errorContainer: Color(0xFFFEF2F2),
@@ -84,7 +87,7 @@ abstract final class NexaBuyerTheme {
       surfaceDim: _tint,
       surfaceBright: _card,
       surfaceContainerLowest: _card,
-      surfaceContainerLow: _page,
+      surfaceContainerLow: _panel,
       surfaceContainer: _tint,
       surfaceContainerHigh: _tint,
       surfaceContainerHighest: Color(0xFFE2E8F0),
@@ -104,88 +107,118 @@ abstract final class NexaBuyerTheme {
       displayLarge: TextStyle(
         fontFamily: 'Plus Jakarta Sans',
         fontSize: 30,
+        height: 1.25,
+        letterSpacing: -0.3,
         fontWeight: FontWeight.w700,
         color: _text,
       ),
       displayMedium: TextStyle(
         fontFamily: 'Plus Jakarta Sans',
         fontSize: 24,
+        height: 1.25,
+        letterSpacing: -0.3,
         fontWeight: FontWeight.w700,
         color: _text,
       ),
       displaySmall: TextStyle(
         fontFamily: 'Plus Jakarta Sans',
         fontSize: 20,
+        height: 1.25,
+        letterSpacing: -0.3,
         fontWeight: FontWeight.w700,
         color: _text,
       ),
       headlineLarge: TextStyle(
         fontFamily: 'Plus Jakarta Sans',
         fontSize: 24,
+        height: 1.25,
+        letterSpacing: -0.3,
         fontWeight: FontWeight.w700,
         color: _text,
       ),
       headlineMedium: TextStyle(
         fontFamily: 'Plus Jakarta Sans',
         fontSize: 20,
+        height: 1.25,
+        letterSpacing: -0.3,
         fontWeight: FontWeight.w700,
         color: _text,
       ),
       headlineSmall: TextStyle(
         fontFamily: 'Plus Jakarta Sans',
         fontSize: 18,
+        height: 1.25,
+        letterSpacing: -0.3,
         fontWeight: FontWeight.w600,
         color: _text,
       ),
       titleLarge: TextStyle(
         fontFamily: 'Plus Jakarta Sans',
         fontSize: 18,
+        height: 1.25,
+        letterSpacing: -0.3,
         fontWeight: FontWeight.w700,
         color: _text,
       ),
       titleMedium: TextStyle(
         fontFamily: 'Inter',
         fontSize: 15,
+        height: 1.4,
+        letterSpacing: 0,
         fontWeight: FontWeight.w600,
         color: _text,
       ),
       titleSmall: TextStyle(
         fontFamily: 'Inter',
         fontSize: 12.5,
+        height: 1.4,
+        letterSpacing: 0,
         fontWeight: FontWeight.w600,
         color: _text,
       ),
       bodyLarge: TextStyle(
         fontFamily: 'Inter',
         fontSize: 15,
+        height: 1.4,
+        letterSpacing: 0,
         fontWeight: FontWeight.w400,
         color: _text,
       ),
       bodyMedium: TextStyle(
         fontFamily: 'Inter',
         fontSize: 14,
+        height: 1.4,
+        letterSpacing: 0,
         fontWeight: FontWeight.w400,
         color: _text,
       ),
       bodySmall: TextStyle(
         fontFamily: 'Inter',
         fontSize: 12.5,
+        height: 1.4,
+        letterSpacing: 0,
         fontWeight: FontWeight.w400,
         color: _secondaryText,
       ),
       labelLarge: TextStyle(
         fontFamily: 'Inter',
         fontSize: 14,
+        height: 1.4,
+        letterSpacing: 0,
         fontWeight: FontWeight.w600,
       ),
       labelMedium: TextStyle(
         fontFamily: 'Inter',
         fontSize: 12.5,
+        height: 1.4,
+        letterSpacing: 0,
         fontWeight: FontWeight.w600,
       ),
       labelSmall: TextStyle(
         fontFamily: 'Inter',
         fontSize: 11,
+        height: 1.4,
+        letterSpacing: 0,
         fontWeight: FontWeight.w600,
         color: _mutedText,
       ),
@@ -203,13 +236,15 @@ abstract final class NexaBuyerTheme {
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: _tint,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(tokens.radiusField),
-        borderSide: const BorderSide(color: _border),
+        borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(tokens.radiusField),
-        borderSide: const BorderSide(color: _border),
+        borderSide: BorderSide.none,
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(tokens.radiusField),
@@ -240,13 +275,14 @@ abstract final class NexaBuyerTheme {
           fontWeight: FontWeight.w600,
         ),
         overlayColor: tokens.focusRing,
-      ),
+      ).copyWith(side: _focusSide(_card)),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
+        backgroundColor: _card,
         foregroundColor: _primary,
         minimumSize: const Size(64, 48),
-        side: const BorderSide(color: _strongBorder),
+        side: BorderSide.none,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(tokens.radiusControl),
         ),
@@ -256,7 +292,7 @@ abstract final class NexaBuyerTheme {
           fontWeight: FontWeight.w600,
         ),
         overlayColor: tokens.focusRing,
-      ),
+      ).copyWith(side: _focusSide(_primary)),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
@@ -271,19 +307,24 @@ abstract final class NexaBuyerTheme {
           fontWeight: FontWeight.w600,
         ),
         overlayColor: tokens.focusRing,
-      ),
+      ).copyWith(side: _focusSide(_primary)),
+    ),
+    iconButtonTheme: IconButtonThemeData(
+      style: IconButton.styleFrom(minimumSize: const Size(48, 48))
+          .copyWith(side: _focusSide(_primary)),
     ),
     cardTheme: CardThemeData(
-      color: _card,
+      elevation: 0,
+      color: _panel,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(tokens.radiusCard),
-        side: const BorderSide(color: _border),
+        side: BorderSide.none,
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: _card,
-      indicatorColor: _primary100,
+      indicatorColor: _primary50,
       indicatorShape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(tokens.radiusNavigationIndicator),
       ),
@@ -323,6 +364,15 @@ abstract final class NexaBuyerTheme {
     ),
     dividerTheme: const DividerThemeData(color: _border, thickness: 1),
   );
+
+  static WidgetStateProperty<BorderSide?> _focusSide(Color color) =>
+      WidgetStateProperty.resolveWith(
+        (states) =>
+            states.contains(WidgetState.focused) &&
+                !states.contains(WidgetState.disabled)
+            ? BorderSide(color: color, width: 2)
+            : BorderSide.none,
+      );
 }
 
 @immutable

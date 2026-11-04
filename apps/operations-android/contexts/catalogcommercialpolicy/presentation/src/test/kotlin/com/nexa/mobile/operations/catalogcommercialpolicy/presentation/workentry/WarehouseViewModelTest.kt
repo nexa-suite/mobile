@@ -57,6 +57,7 @@ class WarehouseViewModelTest {
         viewModel.enterOperations(context(1), TaskVisibilityHint.Available)
         viewModel.openProductSearch()
         viewModel.queryChanged("  gouda  ")
+        runCurrent()
 
         assertEquals(0, gateway.searchCalls)
         viewModel.submitSearch()
@@ -66,6 +67,61 @@ class WarehouseViewModelTest {
         assertEquals("gouda", gateway.lastQuery)
         assertEquals(ProductSearchStatus.OneCandidate, viewModel.state.value.search?.status)
         assertEquals(WarehouseRoute.ProductSearch, viewModel.state.value.route)
+        assertNull(viewModel.state.value.confirmedSku)
+    }
+
+    @Test
+    fun openingProductSearchAutomaticallyBrowsesCatalog() = runTest {
+        val gateway = FakeWarehouseGateway().apply {
+            searchResult = ProductSearchResult.Page(listOf(candidate), null)
+        }
+        val viewModel = warehouseViewModel(gateway)
+        viewModel.enterOperations(context(1), TaskVisibilityHint.Available)
+
+        viewModel.openProductSearch()
+
+        assertEquals(ProductSearchStatus.Loading, viewModel.state.value.search?.status)
+        assertTrue(viewModel.state.value.search?.candidates.orEmpty().isEmpty())
+        assertEquals(0, gateway.searchCalls)
+        advanceUntilIdle()
+
+        assertEquals(1, gateway.searchCalls)
+        assertEquals("", gateway.lastQuery)
+        assertEquals(listOf<String?>(null), gateway.pageKeys)
+        assertEquals(ProductSearchStatus.OneCandidate, viewModel.state.value.search?.status)
+        assertEquals(listOf(candidate), viewModel.state.value.search?.candidates)
+        assertNull(viewModel.state.value.confirmedSku)
+    }
+
+    @Test
+    fun queuedCatalogBrowseIsCancelledWhenQueryChangesBeforeDispatch() = runTest {
+        val gateway = FakeWarehouseGateway()
+        val viewModel = warehouseViewModel(gateway)
+        viewModel.enterOperations(context(1), TaskVisibilityHint.Available)
+        viewModel.openProductSearch()
+
+        viewModel.queryChanged("gouda")
+        runCurrent()
+
+        assertEquals(0, gateway.searchCalls)
+        assertEquals(ProductSearchStatus.Typing, viewModel.state.value.search?.status)
+        assertTrue(viewModel.state.value.search?.candidates.orEmpty().isEmpty())
+    }
+
+    @Test
+    fun queuedCatalogBrowseIsNotSentAfterPermissionLoss() = runTest {
+        val gateway = FakeWarehouseGateway()
+        val viewModel = warehouseViewModel(gateway)
+        viewModel.enterOperations(context(1), TaskVisibilityHint.Available)
+        viewModel.openProductSearch()
+
+        viewModel.permissionHintChanged(TaskVisibilityHint.Unavailable)
+        runCurrent()
+
+        assertEquals(0, gateway.searchCalls)
+        assertEquals(WarehouseRoute.WorkEntry, viewModel.state.value.route)
+        assertEquals(WorkEntryStatus.PermissionUnavailable, viewModel.state.value.workEntryStatus)
+        assertNull(viewModel.state.value.search)
         assertNull(viewModel.state.value.confirmedSku)
     }
 
@@ -152,16 +208,28 @@ class WarehouseViewModelTest {
     }
 
     @Test
-    fun blankAndOversizedQueriesNeverReachGateway() = runTest {
-        val gateway = FakeWarehouseGateway()
-        val viewModel = readySearch(gateway)
-        for (query in listOf("   ", "ñ".repeat(121))) {
-            viewModel.queryChanged(query)
-            viewModel.submitSearch()
-            advanceUntilIdle()
-            assertEquals(ProductSearchStatus.InvalidQuery, viewModel.state.value.search?.status)
+    fun blankQueryListsCatalogAndOversizedQueryNeverReachesGateway() = runTest {
+        val gateway = FakeWarehouseGateway().apply {
+            searchResult = ProductSearchResult.Page(listOf(candidate), null)
         }
-        assertEquals(0, gateway.searchCalls)
+        val viewModel = readySearch(gateway)
+
+        viewModel.queryChanged("   ")
+        viewModel.submitSearch()
+        advanceUntilIdle()
+
+        assertEquals(1, gateway.searchCalls)
+        assertEquals("", gateway.lastQuery)
+        assertEquals(ProductSearchStatus.OneCandidate, viewModel.state.value.search?.status)
+        assertEquals(listOf(candidate), viewModel.state.value.search?.candidates)
+        assertNull(viewModel.state.value.confirmedSku)
+
+        viewModel.queryChanged("ñ".repeat(121))
+        viewModel.submitSearch()
+        advanceUntilIdle()
+
+        assertEquals(ProductSearchStatus.InvalidQuery, viewModel.state.value.search?.status)
+        assertEquals(1, gateway.searchCalls)
     }
 
     @Test
@@ -499,8 +567,12 @@ class WarehouseViewModelTest {
             assertNull(viewModel.state.value.search)
             assertNull(viewModel.state.value.confirmedSku)
             viewModel.openProductSearch()
-            assertEquals(ProductSearchStatus.Initial, viewModel.state.value.search?.status)
+            assertEquals(ProductSearchStatus.Loading, viewModel.state.value.search?.status)
             assertTrue(viewModel.state.value.search?.candidates.orEmpty().isEmpty())
+            advanceUntilIdle()
+            assertEquals(ProductSearchStatus.OneCandidate, viewModel.state.value.search?.status)
+            assertEquals(listOf(candidate), viewModel.state.value.search?.candidates)
+            assertNull(viewModel.state.value.confirmedSku)
         }
     }
 

@@ -139,14 +139,6 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
       }
       final context = await _repository.loadBuyerPurchaseContext();
       if (!_isCurrent(generation, lease)) return;
-      final currentMembershipId = _access.snapshot.currentContext?.membershipId;
-      if (context.buyerMembershipId != currentMembershipId) {
-        throw const NexaApiFailure(
-          code: 'buyer_relationship_mismatch',
-          userMessage:
-              'La cuenta Buyer no coincide con el contexto de acceso actual.',
-        );
-      }
       final leadPolicy = await _repository.loadDeliveryLeadPolicy();
       if (!_isCurrent(generation, lease)) return;
       item = loadedItem;
@@ -336,6 +328,12 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    final unit = product.unitOfMeasure?.trim();
+    if (unit == null || unit.isEmpty) {
+      message = 'Este producto aún no tiene una unidad de venta disponible.';
+      notifyListeners();
+      return;
+    }
     final requestedPaymentPreference = paymentPreference;
     if (requestedPaymentPreference == null) {
       message = 'Selecciona una preferencia de pago.';
@@ -454,9 +452,7 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
           draft: current,
           sellableSkuId: sellableSkuId,
           quantity: quantity,
-          unit: product.unitOfMeasure?.trim().isNotEmpty == true
-              ? product.unitOfMeasure!.trim()
-              : 'UNIT',
+          unit: unit,
         );
         if (!_isCurrent(generation, lease)) return;
         draft = current;
@@ -964,8 +960,9 @@ final class PurchaseRequestComposerViewModel extends ChangeNotifier {
       value.lines.length == 1 &&
       value.lines.single.skuId == skuId &&
       num.tryParse(value.lines.single.quantity) == quantity &&
-      value.lines.single.unit ==
-          (unit?.trim().isNotEmpty == true ? unit!.trim() : 'UNIT');
+      unit != null &&
+      unit.trim().isNotEmpty &&
+      value.lines.single.unit == unit.trim();
 
   bool _isCurrent(int generation, String lease) =>
       generation == _requestGeneration && lease == _leaseKey;

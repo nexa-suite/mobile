@@ -78,7 +78,7 @@ internal fun BiometricProfileSetting(modifier: Modifier = Modifier) {
     if (!actions.sessionActive || actions.scope == null) return
 
     val title = stringResource(R.string.biometric_unlock_enable)
-    val details = stringResource(R.string.biometric_unlock_prompt_subtitle)
+    val details = stringResource(R.string.biometric_unlock_profile_description)
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -107,15 +107,22 @@ internal fun BiometricProfileSetting(modifier: Modifier = Modifier) {
             )
         }
         if (actions.statusResource != 0) {
+            val unavailable = actions.statusResource == R.string.biometric_unlock_unavailable
             Text(
                 text = stringResource(actions.statusResource),
-                color = MaterialTheme.colorScheme.error,
+                color = if (unavailable) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.error
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .semantics { liveRegion = LiveRegionMode.Polite }
             )
-            TextButton(onClick = actions.dismissStatus) {
-                Text(stringResource(R.string.biometric_unlock_dismiss))
+            if (!unavailable) {
+                TextButton(onClick = actions.dismissStatus) {
+                    Text(stringResource(R.string.biometric_unlock_dismiss))
+                }
             }
         }
     }
@@ -125,6 +132,7 @@ internal fun BiometricProfileSetting(modifier: Modifier = Modifier) {
 internal fun BiometricSessionGate(
     activity: ComponentActivity,
     sessionActive: Boolean,
+    sessionCanRestoreScope: Boolean,
     scope: BiometricSessionScope?,
     onPasswordFallback: () -> Unit,
     onVerifySession: (onVerified: (Boolean) -> Unit) -> Unit,
@@ -135,6 +143,7 @@ internal fun BiometricSessionGate(
     }
     var enabled by remember(scope) { mutableStateOf(scope?.let(store::isEnabled) == true) }
     var unlocked by remember(scope) { mutableStateOf(false) }
+    var reentry by remember { mutableStateOf(BiometricReentryProof()) }
     var passwordFallbackScope by remember { mutableStateOf<BiometricSessionScope?>(null) }
     var statusResource by remember(scope) { mutableIntStateOf(0) }
     var biometricAvailable by remember(scope) {
@@ -143,6 +152,10 @@ internal fun BiometricSessionGate(
     var promptCancellation by remember { mutableStateOf<CancellationSignal?>(null) }
     val currentScope by rememberUpdatedState(scope)
     val currentSessionActive by rememberUpdatedState(sessionActive)
+
+    LaunchedEffect(sessionCanRestoreScope, scope) {
+        reentry = reentry.observe(scope, sessionCanRestoreScope)
+    }
 
     LaunchedEffect(sessionActive, scope) {
         enabled = sessionActive && scope?.let(store::isEnabled) == true
@@ -164,9 +177,12 @@ internal fun BiometricSessionGate(
 
     DisposableEffect(activity.lifecycle, scope, sessionActive, enabled) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP && enabled && sessionActive) {
-                unlocked = false
-                passwordFallbackScope = null
+            if (event == Lifecycle.Event.ON_STOP) {
+                reentry = reentry.invalidate()
+                if (enabled && sessionActive) {
+                    unlocked = false
+                    passwordFallbackScope = null
+                }
             }
         }
         activity.lifecycle.addObserver(observer)
@@ -189,6 +205,7 @@ internal fun BiometricSessionGate(
             }
             enabled = false
         }
+        reentry = reentry.invalidate()
         passwordFallbackScope = requestedScope
         unlocked = false
         statusResource = 0
@@ -197,6 +214,9 @@ internal fun BiometricSessionGate(
 
     fun launchPrompt(requestedScope: BiometricSessionScope, use: BiometricKeyUse) {
         if (promptCancellation != null) return
+        reentry = reentry.invalidate()
+        if (use == BiometricKeyUse.Unlock) reentry = reentry.begin(requestedScope)
+        val attempt = reentry.attempt
         statusResource = 0
         biometricAvailable = canAuthenticateStrongBiometric(activity)
         if (!biometricAvailable) {
@@ -261,6 +281,7 @@ internal fun BiometricSessionGate(
                     }
                     return
                 }
+                if (use == BiometricKeyUse.Unlock && reentry.attempt != attempt) return
                 val authenticatedCipher = result.cryptoObject?.cipher
                 val completed = try {
                     authenticatedCipher != null &&
@@ -282,13 +303,8 @@ internal fun BiometricSessionGate(
 
                     BiometricKeyUse.Unlock -> {
                         onVerifySession { verified ->
-                            if (currentScope != requestedScope || !currentSessionActive) {
-                                return@onVerifySession
-                            }
-                            if (verified) {
-                                unlocked = true
-                                statusResource = 0
-                            } else {
+                            reentry = reentry.complete(attempt, verified)
+                            if (reentry.attempt == attempt && !verified) {
                                 statusResource = R.string.biometric_unlock_session_unverified
                             }
                         }
@@ -352,6 +368,7 @@ internal fun BiometricSessionGate(
         if (cleared) {
             enabled = false
             unlocked = false
+            reentry = reentry.invalidate()
         } else {
             statusResource = R.string.biometric_unlock_storage_error
         }
@@ -367,7 +384,8 @@ internal fun BiometricSessionGate(
         dismissStatus = { statusResource = 0 }
     )
 
-    val lockRequired = sessionActive && scope != null && enabled && !unlocked
+    val reentryUnlocked = reentry.permits(scope, sessionActive, sessionCanRestoreScope)
+    val lockRequired = sessionActive && scope != null && enabled && !unlocked && !reentryUnlocked
     if (lockRequired) {
         NexaSystemBars(lightSurfaceVisible = true)
         Surface(

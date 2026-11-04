@@ -16,91 +16,114 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nexa.mobile.operations.catalogcommercialpolicy.presentation.workentry.WarehouseRoute
 import com.nexa.mobile.operations.core.designsystem.NexaColors
 import com.nexa.mobile.operations.core.designsystem.NexaSizes
 import com.nexa.mobile.operations.core.designsystem.R as DesignSystemR
 
-// Home + two work areas + Profile keeps the bottom bar usable on compact phones.
-// Remaining authorized actions stay available from the actions menu.
-private const val MAX_PRIMARY_SECTIONS = 2
-
+// Destinations keep a stable position within the current role and verified capabilities.
 internal data class OperationsNavigationSection(
     val labelResource: Int,
     val iconResource: Int,
-    val entry: ConnectedOperationEntry,
-    val destinationKeys: Set<String>
+    val entry: ConnectedOperationEntry?,
+    val destinationKeys: Set<String>,
+    val warehouseRoute: WarehouseRoute? = null
 )
-
-private enum class OperationsWorkGroup(
-    val labelResource: Int,
-    val iconResource: Int,
-    val preferredEntryKeys: List<String>
-) {
-    Warehouse(
-        R.string.work_hub_warehouse,
-        DesignSystemR.drawable.ic_box,
-        listOf("warehouse.batch", "warehouse.cycle-count", "warehouse.temperature")
-    ),
-    Dispatch(
-        R.string.work_hub_dispatch,
-        DesignSystemR.drawable.ic_truck,
-        listOf("dispatch.readiness", "dispatch.loads")
-    ),
-    Management(
-        R.string.work_hub_management,
-        DesignSystemR.drawable.ic_identity,
-        listOf("operations.overview", "operations.exceptions", "bom.exceptions")
-    ),
-    Commercial(
-        R.string.work_hub_commercial,
-        DesignSystemR.drawable.ic_shopping_bag,
-        listOf("commercial.customers", "commercial.catalog", "commercial.direct-order")
-    ),
-    Other(
-        R.string.work_hub_other,
-        DesignSystemR.drawable.ic_identity,
-        emptyList()
-    )
-}
 
 internal fun operationsNavigationSections(
     entries: List<ConnectedOperationEntry>,
     roles: Set<String>,
-    activeEntryKey: String? = null
+    activeEntryKey: String? = null,
+    warehouseRoutes: Set<WarehouseRoute> = emptySet()
 ): List<OperationsNavigationSection> {
-    val entriesByGroup = entries.groupBy { it.workGroup() }
-    val available = OperationsWorkGroup.entries.filter { entriesByGroup[it].orEmpty().isNotEmpty() }
-    val activeGroup = entries.firstOrNull { it.key == activeEntryKey }
-        ?.workGroup()
-        ?.takeIf { it in available }
-    val preferred = when {
-        roles.any { it in setOf("WAREHOUSE", "WAREHOUSE_OPERATOR") } ->
-            OperationsWorkGroup.Warehouse
+    fun entry(key: String, label: Int, icon: Int, related: Set<String> = setOf(key)) =
+        entries.firstOrNull { it.key == key }?.let {
+            OperationsNavigationSection(label, icon, it, related)
+        }
+    fun warehouse(route: WarehouseRoute, label: Int, icon: Int) =
+        route.takeIf { it in warehouseRoutes }?.let {
+            val related = when (route) {
+                WarehouseRoute.Picking -> setOf("warehouse.batch", "warehouse.lot-substitution")
 
-        roles.any { it in setOf("LOGISTICS", "DISPATCH", "DISPATCH_COORDINATOR") } ->
-            OperationsWorkGroup.Dispatch
+                WarehouseRoute.StockCondition -> entries.filter {
+                    it.key.startsWith("warehouse.") &&
+                        it.key !in setOf("warehouse.batch", "warehouse.lot-substitution")
+                }.map { it.key }.toSet()
 
-        roles.any { it in setOf("BOM", "BUSINESS_OPERATIONS_MANAGER") } ->
-            OperationsWorkGroup.Management
+                else -> emptySet()
+            }
+            OperationsNavigationSection(label, icon, null, related, it)
+        }
+    return when {
+        roles.any { it in setOf("WAREHOUSE", "WAREHOUSE_OPERATOR") } -> listOfNotNull(
+            warehouse(
+                WarehouseRoute.StockCondition,
+                R.string.nav_inventory,
+                DesignSystemR.drawable.ic_box
+            ),
+            warehouse(
+                WarehouseRoute.Picking,
+                R.string.nav_picking,
+                DesignSystemR.drawable.ic_check_square
+            ),
+            warehouse(
+                WarehouseRoute.ProductSearch,
+                R.string.nav_catalog,
+                DesignSystemR.drawable.ic_shopping_bag
+            )
+        )
 
-        roles.any { it in setOf("SALES", "SALES_REPRESENTATIVE", "COMMERCIAL") } ->
-            OperationsWorkGroup.Commercial
+        roles.any { it in setOf("LOGISTICS", "DISPATCH", "DISPATCH_COORDINATOR") } -> listOfNotNull(
+            entry(
+                "dispatch.readiness",
+                R.string.work_hub_dispatch,
+                DesignSystemR.drawable.ic_send,
+                entries.filter {
+                    it.key.startsWith("dispatch.") && it.key != "dispatch.loads"
+                }.map { it.key }.toSet()
+            ),
+            entry(
+                "driver.deliveries",
+                R.string.nav_deliveries,
+                DesignSystemR.drawable.ic_truck,
+                entries.filter { it.key.startsWith("driver.") }.map { it.key }.toSet()
+            ),
+            entry("dispatch.loads", R.string.nav_loads, DesignSystemR.drawable.ic_box)
+        )
 
-        else -> null
-    }
-    val currentPreference = preferred?.takeIf { it in available }
-    val prioritized = listOfNotNull(activeGroup, currentPreference).distinct()
-    val ordered = prioritized + available.filterNot { it in prioritized }
-    return ordered.take(MAX_PRIMARY_SECTIONS).map { group ->
-        val groupEntries = entriesByGroup.getValue(group)
-        val entry = group.preferredEntryKeys.firstNotNullOfOrNull { key ->
-            groupEntries.firstOrNull { it.key == key }
-        } ?: groupEntries.first()
-        OperationsNavigationSection(
-            labelResource = group.labelResource,
-            iconResource = group.iconResource,
-            entry = entry,
-            destinationKeys = groupEntries.mapTo(linkedSetOf(), ConnectedOperationEntry::key)
+        roles.any { it in setOf("SALES", "SALES_REPRESENTATIVE", "COMMERCIAL") } -> listOfNotNull(
+            entry(
+                "commercial.customers",
+                R.string.nav_customers,
+                DesignSystemR.drawable.ic_identity
+            ),
+            entry("commercial.catalog", R.string.nav_catalog, DesignSystemR.drawable.ic_box),
+            entry(
+                "commercial.progress",
+                R.string.nav_orders,
+                DesignSystemR.drawable.ic_shopping_bag,
+                setOf(
+                    "commercial.progress",
+                    "commercial.direct-order",
+                    "commercial.request",
+                    "commercial.instructions"
+                )
+            )
+        )
+
+        else -> listOfNotNull(
+            entry("operations.overview", R.string.nav_overview, DesignSystemR.drawable.ic_box),
+            entry(
+                "bom.exceptions",
+                R.string.nav_attention,
+                DesignSystemR.drawable.ic_warning,
+                setOf("bom.exceptions", "operations.exceptions")
+            ),
+            entry(
+                "operations.notifications",
+                R.string.nav_updates,
+                DesignSystemR.drawable.ic_check_square
+            )
         )
     }
 }
@@ -111,7 +134,7 @@ internal fun OperationsWorkspaceNavigationBar(
     sections: List<OperationsNavigationSection>,
     onHome: () -> Unit,
     onOpen: (ConnectedOperationEntry) -> Unit,
-    onProfile: () -> Unit
+    onWarehouseRoute: (WarehouseRoute) -> Unit = {}
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -160,7 +183,10 @@ internal fun OperationsWorkspaceNavigationBar(
                 val selected = selectedIndex == index + 1
                 NavigationBarItem(
                     selected = selected,
-                    onClick = { onOpen(section.entry) },
+                    onClick = {
+                        section.entry?.let(onOpen)
+                        section.warehouseRoute?.let(onWarehouseRoute)
+                    },
                     icon = {
                         Icon(
                             painter = painterResource(section.iconResource),
@@ -179,44 +205,6 @@ internal fun OperationsWorkspaceNavigationBar(
                     colors = itemColors
                 )
             }
-            val profileSelected = selectedIndex == sections.size + 1
-            NavigationBarItem(
-                selected = profileSelected,
-                onClick = onProfile,
-                icon = {
-                    Icon(
-                        painter = painterResource(DesignSystemR.drawable.ic_identity),
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                },
-                label = {
-                    Text(
-                        text = stringResource(R.string.work_nav_profile),
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = if (profileSelected) {
-                                FontWeight.Bold
-                            } else {
-                                FontWeight.Medium
-                            }
-                        )
-                    )
-                },
-                colors = itemColors
-            )
         }
     }
-}
-
-private fun ConnectedOperationEntry.workGroup(): OperationsWorkGroup = when {
-    key.startsWith("warehouse.") -> OperationsWorkGroup.Warehouse
-
-    key.startsWith("dispatch.") || key.startsWith("driver.") -> OperationsWorkGroup.Dispatch
-
-    key.startsWith("operations.") || key == "bom.exceptions" -> OperationsWorkGroup.Management
-
-    key.startsWith("commercial.") || key.startsWith("payments.") ->
-        OperationsWorkGroup.Commercial
-
-    else -> OperationsWorkGroup.Other
 }

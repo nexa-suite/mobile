@@ -15,6 +15,8 @@ final class CatalogItemProjection {
     this.brandName,
     this.categoryName,
     this.description,
+    this.imageUrl,
+    this.imageFileName,
     this.skuCode,
     this.unitOfMeasure,
     this.status,
@@ -40,6 +42,8 @@ final class CatalogItemProjection {
   final String? brandName;
   final String? categoryName;
   final String? description;
+  final String? imageUrl;
+  final String? imageFileName;
   final String? skuCode;
   final String? unitOfMeasure;
   final String? status;
@@ -108,6 +112,8 @@ abstract interface class CatalogRepository {
     String categoryId = '',
     String familyId = '',
     String variantId = '',
+    String coldChain = '',
+    bool availableOnly = false,
   });
 
   Future<CatalogFilterOptionPageProjection> filterOptions({

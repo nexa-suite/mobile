@@ -2,7 +2,7 @@
 <resources>
     <string name="commercial_back">Volver</string>
     <string name="commercial_catalog_missing">No informado</string>
-    <string name="commercial_catalog_title">Productos, precios y disponibilidad</string>
+    <string name="commercial_catalog_title">Catálogo</string>
     <string name="customer_next">Siguiente</string>
     <string name="customer_prepare_request">Preparar solicitud para este cliente</string>
     <string name="customer_previous">Anterior</string>
@@ -17,4 +17,5 @@
     <string name="progress_title">Compromisos y crédito del cliente</string>
     <string name="progress_unavailable">Datos incompletos o no disponibles. Actualiza; no hay decisión local.</string>
     <string name="stock_condition_back">Volver</string>
+    <string name="nexa_open_profile">Abrir mi perfil</string>
 </resources>

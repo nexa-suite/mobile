@@ -18,6 +18,8 @@ import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 
+private val ALLOWED_RESPONSE_HEADER_NAMES = setOf("X-Nexa-Received-Quantity")
+
 enum class ProtectedMethod { GET, POST, PUT, PATCH, DELETE }
 
 /** Caller-owned logical command identity remains stable through an eligible 401 replay. */
@@ -28,8 +30,11 @@ class ProtectedRequest(
     val idempotencyKey: String? = null,
     val ifMatch: String? = null,
     val binaryResponse: Boolean = false,
-    val requestBody: RequestBody? = null
+    val requestBody: RequestBody? = null,
+    responseHeaderNames: Set<String> = emptySet()
 ) {
+    val responseHeaderNames: Set<String> = responseHeaderNames.toSet()
+
     init {
         require(path.startsWith("/api/v1/") && "//" !in path && "://" !in path)
         require(
@@ -40,6 +45,7 @@ class ProtectedRequest(
         require(!binaryResponse || method == ProtectedMethod.GET)
         require(payload == null || requestBody == null)
         require(requestBody == null || method != ProtectedMethod.GET)
+        require(this.responseHeaderNames.all { it in ALLOWED_RESPONSE_HEADER_NAMES })
     }
 
     val isMutation: Boolean get() = method != ProtectedMethod.GET
@@ -61,8 +67,13 @@ sealed interface ProtectedResult {
         val serverCorrelationId: String?,
         val bytes: ByteArray? = null,
         val contentType: String? = null,
-        val checksumSha256: String? = null
+        val checksumSha256: String? = null,
+        responseHeaders: Map<String, String> = emptyMap()
     ) : ProtectedResult {
+        val responseHeaders: Map<String, String> = responseHeaders
+            .filterKeys { it in ALLOWED_RESPONSE_HEADER_NAMES }
+            .toMap()
+
         override fun toString(): String = "Success(status=$status, body=REDACTED, etag=REDACTED)"
     }
 
@@ -85,7 +96,12 @@ class ProtectedCallExecutor(
             return ProtectedResult.Failure(ProblemMapping.local(FailureKind.ProtocolFailure))
         }
 
-        val first = exchange(command, access, url.toString())
+        var first = exchange(command, access, url.toString())
+        if (first is Exchange.NetworkFailure && command.method == ProtectedMethod.GET &&
+            first.cause !is SocketTimeoutException && tokens.isEpochCurrent(access.epoch)
+        ) {
+            first = exchange(command, access, url.toString())
+        }
         if (!tokens.isEpochCurrent(access.epoch)) {
             return ProtectedResult.Failure(ProblemMapping.local(FailureKind.AuthenticationRequired))
         }
@@ -119,7 +135,8 @@ class ProtectedCallExecutor(
                 response.correlationId,
                 response.bytes,
                 response.contentType,
-                response.checksumSha256
+                response.checksumSha256,
+                responseHeaderValues(command, response)
             )
         } else {
             ProtectedResult.Failure(
@@ -132,6 +149,17 @@ class ProtectedCallExecutor(
                 )
             )
         }
+
+    private fun responseHeaderValues(
+        command: ProtectedRequest,
+        response: Exchange.Http
+    ): Map<String, String> = command.responseHeaderNames
+        .filter { it in ALLOWED_RESPONSE_HEADER_NAMES }
+        .mapNotNull { name ->
+            val values = response.headers.values(name)
+            if (values.isEmpty()) null else name to values.joinToString(",")
+        }
+        .toMap()
 
     private fun networkFailure(
         command: ProtectedRequest,

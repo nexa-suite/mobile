@@ -2,13 +2,57 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/presentation/buyer_visible_route_poller.dart';
 import '../../../core/presentation/nexa_buyer_components.dart';
 import '../../tenant_access_governance/application/buyer_access_repository.dart';
+import '../../tenant_access_governance/application/buyer_change_feed_repository.dart';
 import '../application/catalog_repository.dart';
+import 'catalog_commercial_format.dart';
+import 'buyer_product_image.dart';
 import 'catalog_item_detail_view_model.dart';
 
-final class CatalogItemDetailPage extends StatelessWidget {
-  const CatalogItemDetailPage({super.key});
+final class CatalogItemDetailPage extends StatefulWidget {
+  const CatalogItemDetailPage({super.key, this.favoriteActionBuilder});
+
+  final Widget Function(CatalogItemProjection)? favoriteActionBuilder;
+
+  @override
+  State<CatalogItemDetailPage> createState() => _CatalogItemDetailPageState();
+}
+
+final class _CatalogItemDetailPageState extends State<CatalogItemDetailPage> {
+  GoRouter? _router;
+  String? _routePath;
+  BuyerVisibleRoutePoller? _poller;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return;
+    final model = context.read<CatalogItemDetailViewModel>();
+    final routePath = '/catalog/${Uri.encodeComponent(model.catalogItemId)}';
+    if (identical(router, _router) && routePath == _routePath) return;
+    _poller?.dispose();
+    _router = router;
+    _routePath = routePath;
+    _poller = BuyerVisibleRoutePoller(
+      router: router,
+      routePath: routePath,
+      onRefresh: model.refresh,
+      changes: () => context
+          .read<BuyerChangeFeedRepository>()
+          .watch(readPermission: CatalogItemDetailViewModel.readPermission)
+          .where((event) => event.type == 'resync-required')
+          .map<void>((_) {}),
+    );
+  }
+
+  @override
+  void dispose() {
+    _poller?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +113,7 @@ final class CatalogItemDetailPage extends StatelessWidget {
         ).hasMatch(sellableSkuId);
 
     return RefreshIndicator(
-      onRefresh: detail.load,
+      onRefresh: detail.refresh,
       child: NexaPageWidth(
         padding: EdgeInsets.zero,
         child: LayoutBuilder(
@@ -96,12 +140,6 @@ final class CatalogItemDetailPage extends StatelessWidget {
                   const SizedBox(height: 12),
                   commercialFacts,
                 ],
-                const SizedBox(height: 12),
-                _ProductDetailsCard(item: item),
-                const SizedBox(height: 12),
-                const NexaNotice(
-                  'El precio y la disponibilidad pueden cambiar antes de confirmar un pedido.',
-                ),
                 if (canCreateRequest && hasSellableSku) ...[
                   const SizedBox(height: 12),
                   SizedBox(
@@ -124,6 +162,16 @@ final class CatalogItemDetailPage extends StatelessWidget {
                     ),
                   ),
                 ],
+                const SizedBox(height: 12),
+                _ProductDetailsCard(item: item),
+                if (widget.favoriteActionBuilder != null) ...[
+                  const SizedBox(height: 12),
+                  widget.favoriteActionBuilder!(item),
+                ],
+                const SizedBox(height: 12),
+                const NexaNotice(
+                  'El precio y la disponibilidad pueden cambiar antes de confirmar un pedido.',
+                ),
               ],
             );
           },
@@ -141,11 +189,12 @@ final class _ProductIdentityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final descriptors = [
-      ?item.productFamilyName,
-      ?item.productVariantName,
-      ?item.presentation,
-    ];
+    final productName = item.itemName.trim().toLowerCase();
+    final descriptors = {
+      ?item.productFamilyName?.trim(),
+      ?item.productVariantName?.trim(),
+      ?item.presentation?.trim(),
+    }.where((value) => value.isNotEmpty && value.toLowerCase() != productName);
 
     return Card(
       margin: EdgeInsets.zero,
@@ -153,10 +202,11 @@ final class _ProductIdentityCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          NexaProductVisual(
+          BuyerProductImage(
             name: item.itemName,
-            coldChain: item.coldChainRequirement,
-            height: 144,
+            url: item.imageUrl,
+            fileName: item.imageFileName,
+            height: 196,
           ),
           Padding(
             padding: const EdgeInsets.all(16),
@@ -194,10 +244,6 @@ final class _ProductIdentityCard extends StatelessWidget {
                     ],
                   ),
                 ],
-                if (item.description case final description?) ...[
-                  const SizedBox(height: 12),
-                  Text(description, style: theme.textTheme.bodyMedium),
-                ],
                 if (item.promotionLabel case final promotion?) ...[
                   const SizedBox(height: 12),
                   Chip(
@@ -224,77 +270,13 @@ final class _CommercialFacts extends StatelessWidget {
   final CatalogItemProjection item;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      _PriceCard(item: item),
-      const SizedBox(height: 12),
-      _AvailabilityCard(item: item),
-    ],
-  );
-}
-
-final class _PriceCard extends StatelessWidget {
-  const _PriceCard({required this.item});
-
-  final CatalogItemProjection item;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Precio actual',
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              item.price == null
-                  ? 'Sin precio disponible'
-                  : '${item.price!.amount} ${item.price!.currency}',
-              style: theme.textTheme.titleLarge,
-            ),
-            if (_asOfLabel(item.pricingAsOf) case final updated
-                when updated.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                updated,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-final class _AvailabilityCard extends StatelessWidget {
-  const _AvailabilityCard({required this.item});
-
-  final CatalogItemProjection item;
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final quantity = item.sellableAvailability;
-    final unit = item.unitOfMeasure;
-    final quantityLabel = quantity == null
-        ? null
-        : '${quantity.toString()}${unit == null ? '' : ' $unit'}';
-    final updated = _asOfLabel(item.availabilityAsOf);
+    final updatedPrice = _asOfLabel(item.pricingAsOf);
+    final updatedAvailability = _asOfLabel(item.availabilityAsOf);
 
-    return Card(
+    return Card.outlined(
       margin: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -305,11 +287,33 @@ final class _AvailabilityCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Text(
-                    'Disponibilidad',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Precio actual',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        buyerCatalogPriceLabel(
+                          item.price?.amount,
+                          item.price?.currency,
+                        ),
+                        style: theme.textTheme.titleLarge,
+                      ),
+                      if (updatedPrice.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          updatedPrice,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -319,14 +323,18 @@ final class _AvailabilityCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (quantityLabel != null) ...[
-              const SizedBox(height: 8),
-              Text(quantityLabel, style: theme.textTheme.titleMedium),
-            ],
-            if (updated.isNotEmpty) ...[
-              const SizedBox(height: 8),
+            if (quantity != null) ...[
+              const SizedBox(height: 10),
               Text(
-                updated,
+                buyerCatalogQuantityLabel(quantity, item.unitOfMeasure),
+                style: theme.textTheme.titleMedium,
+              ),
+            ],
+            if (updatedAvailability.isNotEmpty &&
+                updatedAvailability != updatedPrice) ...[
+              const SizedBox(height: 4),
+              Text(
+                updatedAvailability,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -346,10 +354,17 @@ final class _ProductDetailsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final description = item.description?.trim();
     final facts = <(String, String, IconData)>[
+      if (description != null && description.isNotEmpty)
+        ('Descripción', description, Icons.notes_outlined),
       if (item.skuCode case final sku?) ('SKU', sku, Icons.qr_code_2_outlined),
       if (item.unitOfMeasure case final unit?)
-        ('Unidad de venta', unit, Icons.straighten_outlined),
+        (
+          'Unidad de venta',
+          buyerCatalogUnitLabel(unit),
+          Icons.straighten_outlined,
+        ),
       if (item.packagingType case final packaging?)
         ('Empaque', packaging, Icons.inventory_2_outlined),
       if (item.coldChainRequirement case final requirement?)
@@ -368,22 +383,13 @@ final class _ProductDetailsCard extends StatelessWidget {
 
     return Card(
       margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 8, bottom: 4),
-              child: Text(
-                'Detalles del producto',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-            ),
-            for (final (label, value, icon) in facts)
-              NexaFactTile(label: label, value: value, icon: icon),
-          ],
-        ),
+      child: ExpansionTile(
+        title: const Text('Más información'),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        children: [
+          for (final (label, value, icon) in facts)
+            NexaFactTile(label: label, value: value, icon: icon),
+        ],
       ),
     );
   }

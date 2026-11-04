@@ -9,6 +9,79 @@ import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/infrastructu
 import 'package:nexa_buyer_mobile/core/network/nexa_api_client.dart';
 
 void main() {
+  test('identity sign-in reports invalid credentials in Spanish', () async {
+    final client = NexaApiClient(
+      origin: NexaApiOrigin.parse(
+        'https://api.nexa.example',
+        allowLocalHttp: false,
+      ),
+      httpClient: MockClient(
+        (_) async => http.Response(
+          jsonEncode({'code': 'AUTHENTICATION_FAILED'}),
+          401,
+          headers: {'content-type': 'application/problem+json'},
+        ),
+      ),
+    );
+    final repository = BuyerAccessRepositoryImpl(client);
+
+    await expectLater(
+      repository.signIn(identifier: 'buyer@example.test', password: 'wrong'),
+      throwsA(
+        isA<NexaApiFailure>()
+            .having((failure) => failure.statusCode, 'status', 401)
+            .having((failure) => failure.code, 'code', 'AUTHENTICATION_FAILED')
+            .having(
+              (failure) => failure.userMessage,
+              'user message',
+              'El usuario o la contraseña no son correctos.',
+            ),
+      ),
+    );
+    expect(repository.snapshot.status, BuyerAccessStatus.signedOut);
+    expect(repository.accessToken, isNull);
+
+    await repository.dispose();
+    client.close();
+  });
+
+  test('context lookup 401 is not reported as invalid credentials', () async {
+    final client = NexaApiClient(
+      origin: NexaApiOrigin.parse(
+        'https://api.nexa.example',
+        allowLocalHttp: false,
+      ),
+      httpClient: MockClient((request) async {
+        if (request.url.path.endsWith('/authentication/identity-sign-in')) {
+          return http.Response(
+            jsonEncode({'outcome': 'CONTEXT_SELECTION_REQUIRED'}),
+            200,
+            headers: {'x-nexa-context-ticket': 'context-ticket'},
+          );
+        }
+        return http.Response(
+          jsonEncode({'code': 'AUTHENTICATION_FAILED'}),
+          401,
+        );
+      }),
+    );
+    final repository = BuyerAccessRepositoryImpl(client);
+
+    await expectLater(
+      repository.signIn(identifier: 'buyer@example.test', password: 'secret'),
+      throwsA(
+        isA<NexaApiFailure>().having(
+          (failure) => failure.userMessage,
+          'user message',
+          'Your session expired. Sign in again.',
+        ),
+      ),
+    );
+
+    await repository.dispose();
+    client.close();
+  });
+
   test('identity sign-in selects a server-provided Buyer membership', () async {
     final requests = <http.Request>[];
     final client = NexaApiClient(

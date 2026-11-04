@@ -1,13 +1,14 @@
 import '../contexts/tenant_access_governance/application/buyer_access_repository.dart';
 
 enum BuyerWorkspaceDestination {
-  catalog('/catalog', 'Catálogo', 0),
-  orders('/orders', 'Mis pedidos', 1),
-  credit('/credit', 'Crédito y pagos', 2),
-  documents('/documents', 'Documentos', 3),
-  wallet('/wallet', 'Billetera', 4),
-  deliveries('/deliveries', 'Mis entregas', 5),
-  requests('/requests', 'Solicitudes', 6);
+  home('/home', 'Inicio', 0),
+  catalog('/catalog', 'Catálogo', 1),
+  orders('/orders', 'Pedidos', 2),
+  credit('/credit', 'Crédito y pagos', 3),
+  documents('/documents', 'Documentos', 4),
+  wallet('/wallet', 'Billetera', 5),
+  deliveries('/deliveries', 'Mis entregas', 6),
+  requests('/requests', 'Solicitudes', 7);
 
   const BuyerWorkspaceDestination(this.path, this.label, this.branchIndex);
 
@@ -41,6 +42,7 @@ abstract final class BuyerWorkspaceNavigation {
 
     final permissions = context.permissions;
     final options = <BuyerWorkspaceDestination>[
+      BuyerWorkspaceDestination.home,
       if (permissions.contains(_catalogRead)) BuyerWorkspaceDestination.catalog,
       if (permissions.contains(_buyerOrderRead))
         BuyerWorkspaceDestination.orders,
@@ -121,6 +123,16 @@ abstract final class BuyerWorkspaceNavigation {
     }
     if (_isWithin(path, '/notifications')) {
       return permissions.contains(_notificationRead);
+    }
+    if (path == '/home' || path == '/account' || path == '/profile') {
+      return true;
+    }
+    if (_isWithin(path, '/addresses')) {
+      return permissions.contains(_buyerSalesRead);
+    }
+    if (_isWithin(path, '/favorites')) {
+      return permissions.contains(_catalogRead) &&
+          permissions.contains(_buyerSalesRead);
     }
     if (_isWithin(path, '/catalog')) {
       if (path.startsWith('/catalog/') && path.endsWith('/purchase-request')) {

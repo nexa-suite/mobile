@@ -232,7 +232,7 @@ class ProductScreensAccessibilityTest {
     }
 
     @Test
-    fun productSearchKeepsQuerySubmitContextAndCandidateReachableAtLargeFont() {
+    fun productSearchKeepsQuerySubmitAndCandidateReachableAtLargeFont() {
         val activeContext = ActiveOperationsContext(
             companyName = "Nexa Demo Distribución",
             workspaceName = "Almacén Principal",
@@ -253,7 +253,6 @@ class ProductScreensAccessibilityTest {
                 authorityEpoch = 0
             )
         )
-        var contextChanges = 0
         var searches = 0
         composeRule.setContent {
             OperationsTheme {
@@ -261,7 +260,7 @@ class ProductScreensAccessibilityTest {
                     ProductSearchScreen(
                         state = searchState.value,
                         activeContext = CatalogOperationsContextAdapter.from(activeContext),
-                        onChangeContext = { contextChanges += 1 },
+                        onChangeContext = {},
                         onBack = {},
                         onQueryChanged = { query ->
                             searchState.value = searchState.value.copy(query = query)
@@ -281,13 +280,6 @@ class ProductScreensAccessibilityTest {
             }
         }
 
-        composeRule.onNodeWithContentDescription(
-            localizedString(
-                CoreR.string.nexa_current_context_description,
-                activeContext.companyName,
-                activeContext.workspaceName
-            )
-        ).performScrollTo().assertIsDisplayed().assert(hasClickAction()).performClick()
         val searchTitle = localizedString(CatalogR.string.warehouse_search_title)
         val searchFieldLabel = localizedString(CoreR.string.nexa_search_label)
         if (searchTitle == searchFieldLabel) {
@@ -305,9 +297,8 @@ class ProductScreensAccessibilityTest {
         }
         composeRule.onNode(hasSetTextAction()).performScrollTo().assertIsDisplayed()
         composeRule.onNode(hasSetTextAction()).assert(hasText("queso"))
-        composeRule.onNodeWithText(
-            localizedString(CoreR.string.nexa_search_button),
-            useUnmergedTree = true
+        composeRule.onNodeWithContentDescription(
+            localizedString(CoreR.string.nexa_search_button)
         )
             .performScrollTo()
             .assertIsDisplayed()
@@ -322,7 +313,6 @@ class ProductScreensAccessibilityTest {
             .performScrollTo()
             .assertIsDisplayed()
         composeRule.runOnIdle {
-            assertEquals(1, contextChanges)
             assertEquals(1, searches)
             assertEquals("queso", searchState.value.query)
         }
@@ -335,7 +325,6 @@ class ProductScreensAccessibilityTest {
             workspaceName = "Almacén Principal",
             authorityEpoch = 0
         )
-        var contextChanges = 0
         composeRule.setContent {
             OperationsTheme {
                 CompactViewport {
@@ -353,7 +342,7 @@ class ProductScreensAccessibilityTest {
                             context = CatalogOperationsContextAdapter.from(context),
                             authorityEpoch = 0
                         ),
-                        onChangeContext = { contextChanges += 1 },
+                        onChangeContext = {},
                         onBack = {}
                     )
                 }
@@ -361,17 +350,13 @@ class ProductScreensAccessibilityTest {
         }
 
         composeRule.onNodeWithText(
-            localizedString(CatalogR.string.warehouse_confirmation_title)
+            localizedString(CatalogR.string.warehouse_visual_product_detail_title)
         )
             .performScrollTo()
             .assertIsDisplayed()
-        composeRule.onNodeWithContentDescription(
-            localizedString(
-                CoreR.string.nexa_current_context_description,
-                context.companyName,
-                context.workspaceName
-            )
-        ).performScrollTo().assertIsDisplayed().assert(hasClickAction()).performClick()
+        composeRule.onNodeWithText(localizedString(CoreR.string.nexa_product_details))
+            .performScrollTo()
+            .performClick()
         composeRule.onNodeWithText("SKU-DEMO-001").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText(
             localizedString(CatalogR.string.warehouse_inventory_disclaimer)
@@ -380,7 +365,6 @@ class ProductScreensAccessibilityTest {
             .assertIsDisplayed()
         composeRule.onNodeWithText("Recibir", substring = true).assertDoesNotExist()
         composeRule.onNodeWithText("Ajustar existencias", substring = true).assertDoesNotExist()
-        composeRule.runOnIdle { assertEquals(1, contextChanges) }
     }
 
     @Test
@@ -473,6 +457,9 @@ class ProductScreensAccessibilityTest {
         }
 
         composeRule.onNodeWithText(productName).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(localizedString(CoreR.string.nexa_product_details))
+            .performScrollTo()
+            .performClick()
         composeRule.onNodeWithText("SKU-DEMO-LONG-001")
             .performScrollTo()
             .assertIsDisplayed()

@@ -9,6 +9,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.Drive
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffTokenGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverHandoffTokenMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverDeliveryAttempt
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverHandoffCurrentDelivery
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.delivery.DriverHandoffTokenReceipt
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDeliveryRequestBodyCodec
@@ -19,6 +20,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -27,6 +29,223 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class DriverHandoffTokenViewModelTest {
     @get:Rule val mainDispatcher = MainDispatcherRule()
+
+    @Test
+    fun pendingIssueCanRetrySameAfterCurrentDeliveryReadRecovers() = runTest {
+        val store = FakeMetadataStore()
+        val frozen = command()
+        store.commands += frozen
+        val gateway = FakeGateway()
+        val viewModel = DriverHandoffTokenViewModel(
+            gateway,
+            store,
+            keyFactory = { error("A recovered command must retain its key") },
+            requestBodyCodec = TestDeliveryRequestBodyCodec()
+        )
+        viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
+        advanceUntilIdle()
+
+        gateway.currentAvailable = false
+        viewModel.issueOrRetrySame()
+        advanceUntilIdle()
+        assertEquals(DriverHandoffUiStatus.Unavailable, viewModel.state.value.status)
+        assertTrue(gateway.issued.isEmpty())
+        assertEquals(frozen, store.commands.single())
+        assertTrue(viewModel.state.value.canRetrySame)
+
+        gateway.currentAvailable = true
+        viewModel.issueOrRetrySame()
+        advanceUntilIdle()
+        assertEquals(listOf(frozen), gateway.issued)
+        assertEquals(frozen, store.commands.single())
+    }
+
+    @Test
+    fun assignedDeliveredAndPartialAttemptsCanIssueAfterProcessRestart() = runTest {
+        for ((deliveryStatus, attemptStatus, outcome) in listOf(
+            Triple("DELIVERED", "FINAL", "DELIVERED"),
+            Triple("PARTIAL", "PARTIAL", "PARTIAL"),
+            Triple("DELIVERED", "PARTIAL", "PARTIAL")
+        )) {
+            val gateway = FakeGateway().apply {
+                currentDeliveryValue = terminalDelivery(
+                    deliveryStatus,
+                    attemptStatus,
+                    outcome
+                )
+                issueResult = DriverHandoffIssueResult.Issued(receipt(), "terminal-code")
+            }
+            val viewModel = DriverHandoffTokenViewModel(
+                gateway,
+                FakeMetadataStore(),
+                keyFactory = { "terminal-$outcome-key" },
+                requestBodyCodec = TestDeliveryRequestBodyCodec()
+            )
+            viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
+            advanceUntilIdle()
+
+            assertTrue(viewModel.state.value.canIssue)
+            viewModel.issueOrRetrySame()
+            runCurrent()
+
+            assertEquals(DriverHandoffUiStatus.TokenVisible, viewModel.state.value.status)
+            assertEquals(ATTEMPT_ID, gateway.issued.single().attemptId)
+            assertEquals(8L, gateway.issued.single().expectedVersion)
+        }
+    }
+
+    @Test
+    fun terminalFailedStaleAndUnknownAttemptsCannotIssue() = runTest {
+        val invalidTerminalCases = listOf(
+            terminalDelivery("DELIVERED", "FAILED", "FAILED", eligible = false),
+            terminalDelivery(
+                "DELIVERED",
+                "FINAL",
+                "DELIVERED",
+                attemptId = OTHER_ATTEMPT_ID
+            ),
+            terminalDelivery("DELIVERED", "FINAL", "UNKNOWN"),
+            terminalDelivery("DELIVERED", "FINAL", "PARTIAL"),
+            terminalDelivery("PARTIAL", "FINAL", "PARTIAL"),
+            terminalDelivery("DELIVERED", "PARTIAL", "DELIVERED"),
+            terminalDelivery(
+                "DELIVERED",
+                "FINAL",
+                "DELIVERED",
+                startedByMembershipId = OTHER_MEMBERSHIP_ID
+            )
+        )
+        for (current in invalidTerminalCases) {
+            val gateway = FakeGateway().apply { currentDeliveryValue = current }
+            val viewModel = DriverHandoffTokenViewModel(
+                gateway,
+                FakeMetadataStore(),
+                requestBodyCodec = TestDeliveryRequestBodyCodec()
+            )
+            viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
+            advanceUntilIdle()
+
+            assertFalse(viewModel.state.value.canIssue)
+            viewModel.issueOrRetrySame()
+            advanceUntilIdle()
+            assertTrue(gateway.issued.isEmpty())
+        }
+    }
+
+    @Test
+    fun scopeDriftBlocksTerminalIssueBeforePosting() = runTest {
+        val gateway = FakeGateway().apply {
+            currentFailure = DriverHandoffCurrentDeliveryResult.ContextInvalidated
+        }
+        val viewModel = DriverHandoffTokenViewModel(
+            gateway,
+            FakeMetadataStore(),
+            requestBodyCodec = TestDeliveryRequestBodyCodec()
+        )
+        viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
+        advanceUntilIdle()
+
+        assertEquals(DriverHandoffUiStatus.Unavailable, viewModel.state.value.status)
+        viewModel.issueOrRetrySame()
+        advanceUntilIdle()
+        assertTrue(gateway.issued.isEmpty())
+    }
+
+    @Test
+    fun confirmedTerminalIssuanceCanRenewAfterFreshEligibleRead() = runTest {
+        val frozen = command()
+        val store = FakeMetadataStore().apply { commands += frozen }
+        val gateway = FakeGateway().apply {
+            currentDeliveryValue = terminalDelivery("DELIVERED", "FINAL", "DELIVERED")
+            issueResult = DriverHandoffIssueResult.TokenUnavailable(receipt())
+        }
+        val viewModel = DriverHandoffTokenViewModel(
+            gateway,
+            store,
+            keyFactory = { "terminal-renewal-key" },
+            requestBodyCodec = TestDeliveryRequestBodyCodec()
+        )
+        viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
+        advanceUntilIdle()
+        viewModel.issueOrRetrySame()
+        advanceUntilIdle()
+        assertTrue(viewModel.state.value.canRenew)
+
+        viewModel.renewConfirmedToken()
+        advanceUntilIdle()
+
+        assertEquals(2, gateway.issued.size)
+        assertEquals("terminal-renewal-key", gateway.issued.last().idempotencyKey)
+        assertEquals(gateway.issued.last(), store.commands.single())
+    }
+
+    @Test
+    fun renewalNeedsConfirmedIssuanceAndPreservesUnknownCommand() = runTest {
+        val store = FakeMetadataStore().apply { commands += command() }
+        val gateway = FakeGateway()
+        val viewModel = DriverHandoffTokenViewModel(
+            gateway,
+            store,
+            requestBodyCodec = TestDeliveryRequestBodyCodec()
+        )
+        viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
+        advanceUntilIdle()
+        viewModel.renewConfirmedToken()
+        advanceUntilIdle()
+        assertTrue(gateway.issued.isEmpty())
+        assertEquals(command(), store.commands.single())
+    }
+
+    @Test
+    fun explicitRenewalUsesNewKeyOnlyAfterConfirmedIssueAndFreshAttempt() = runTest {
+        val frozen = command()
+        val store = FakeMetadataStore().apply { commands += frozen }
+        val gateway = FakeGateway().apply {
+            issueResult = DriverHandoffIssueResult.TokenUnavailable(receipt())
+        }
+        val viewModel = DriverHandoffTokenViewModel(
+            gateway,
+            store,
+            keyFactory = { "new-explicit-key" },
+            requestBodyCodec = TestDeliveryRequestBodyCodec()
+        )
+        viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
+        advanceUntilIdle()
+        viewModel.issueOrRetrySame()
+        advanceUntilIdle()
+        assertTrue(viewModel.state.value.canRenew)
+
+        viewModel.renewConfirmedToken()
+        advanceUntilIdle()
+        assertEquals(2, gateway.issued.size)
+        assertEquals(frozen, gateway.issued.first())
+        assertEquals("new-explicit-key", gateway.issued.last().idempotencyKey)
+        assertEquals(gateway.issued.last(), store.commands.single())
+    }
+
+    @Test
+    fun changedAttemptBlocksRenewalAndRetainsConfirmedCommand() = runTest {
+        val frozen = command()
+        val store = FakeMetadataStore().apply { commands += frozen }
+        val gateway = FakeGateway().apply {
+            issueResult = DriverHandoffIssueResult.TokenUnavailable(receipt())
+        }
+        val viewModel = DriverHandoffTokenViewModel(
+            gateway,
+            store,
+            requestBodyCodec = TestDeliveryRequestBodyCodec()
+        )
+        viewModel.activate(AUTHORITY, DELIVERY_ID, ATTEMPT_ID, 7)
+        advanceUntilIdle()
+        viewModel.issueOrRetrySame()
+        advanceUntilIdle()
+        gateway.activeAttemptId = OTHER_ATTEMPT_ID
+        viewModel.renewConfirmedToken()
+        advanceUntilIdle()
+        assertEquals(listOf(frozen), gateway.issued)
+        assertEquals(frozen, store.commands.single())
+        assertEquals(DriverHandoffUiStatus.Stale, viewModel.state.value.status)
+    }
 
     @Test
     fun recoveredCommandRequiresExplicitExactReplayAndNullTokenStaysUnavailable() = runTest {
@@ -135,6 +354,9 @@ class DriverHandoffTokenViewModelTest {
     private class FakeGateway(private val events: MutableList<String> = mutableListOf()) :
         DriverHandoffTokenGateway {
         var activeAttemptId: String? = ATTEMPT_ID
+        var currentAvailable = true
+        var currentFailure: DriverHandoffCurrentDeliveryResult? = null
+        var currentDeliveryValue: DriverHandoffCurrentDelivery? = null
         var issueResult: DriverHandoffIssueResult = DriverHandoffIssueResult.UnknownOutcome
         var pendingIssue: CompletableDeferred<DriverHandoffIssueResult>? = null
         val issued = mutableListOf<DriverHandoffIssueCommand>()
@@ -142,9 +364,18 @@ class DriverHandoffTokenViewModelTest {
         override suspend fun currentDelivery(
             deliveryId: String,
             authority: DriverDeliveryAuthority
-        ): DriverHandoffCurrentDeliveryResult = DriverHandoffCurrentDeliveryResult.Loaded(
-            DriverHandoffCurrentDelivery(deliveryId, "IN_TRANSIT", 7, activeAttemptId)
-        )
+        ): DriverHandoffCurrentDeliveryResult = currentFailure ?: if (currentAvailable) {
+            DriverHandoffCurrentDeliveryResult.Loaded(
+                currentDeliveryValue ?: DriverHandoffCurrentDelivery(
+                    deliveryId,
+                    "IN_TRANSIT",
+                    7,
+                    activeAttemptId
+                )
+            )
+        } else {
+            DriverHandoffCurrentDeliveryResult.Unavailable
+        }
 
         override suspend fun issue(
             command: DriverHandoffIssueCommand,
@@ -181,7 +412,7 @@ class DriverHandoffTokenViewModelTest {
             return DriverHandoffMetadataWrite.Saved
         }
 
-        override suspend fun clearKnownRejection(
+        override suspend fun clearConfirmedResult(
             scope: DriverAttemptScopeIdentity,
             deliveryId: String,
             attemptId: String,
@@ -204,6 +435,7 @@ class DriverHandoffTokenViewModelTest {
         const val DELIVERY_ID = "55555555-5555-4555-8555-555555555555"
         const val ATTEMPT_ID = "66666666-6666-4666-8666-666666666666"
         const val OTHER_ATTEMPT_ID = "77777777-7777-4777-8777-777777777777"
+        const val OTHER_MEMBERSHIP_ID = "99999999-9999-4999-8999-999999999999"
         const val HANDOFF_ID = "88888888-8888-4888-8888-888888888888"
         val AUTHORITY = DriverDeliveryAuthority(
             USER_ID,
@@ -228,6 +460,29 @@ class DriverHandoffTokenViewModelTest {
             ATTEMPT_ID,
             Instant.now().plusSeconds(120).toString(),
             "ACTIVE"
+        )
+
+        fun terminalDelivery(
+            deliveryStatus: String,
+            attemptStatus: String,
+            outcome: String?,
+            attemptId: String = ATTEMPT_ID,
+            eligible: Boolean = true,
+            startedByMembershipId: String = AUTHORITY.membershipId
+        ) = DriverHandoffCurrentDelivery(
+            DELIVERY_ID,
+            deliveryStatus,
+            8,
+            activeAttemptId = null,
+            lastAttempt = DriverDeliveryAttempt(
+                attemptId,
+                2,
+                attemptStatus,
+                startedByMembershipId,
+                null,
+                outcome
+            ),
+            handoffRenewalEligible = eligible
         )
     }
 }

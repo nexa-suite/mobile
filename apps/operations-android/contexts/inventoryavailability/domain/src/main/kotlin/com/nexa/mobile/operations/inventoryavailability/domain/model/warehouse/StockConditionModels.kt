@@ -19,7 +19,13 @@ data class StockConditionLot(
     val physicalRemaining: BigDecimal,
     val unit: String,
     val status: String,
-    val version: Long
+    val version: Long,
+    val productName: String? = null,
+    val skuCode: String? = null,
+    val imageUrl: String? = null,
+    val warehouseName: String? = null,
+    val zoneName: String? = null,
+    val imageFileName: String? = null
 ) {
     override fun toString(): String =
         "StockConditionLot(id=REDACTED, warehouseId=REDACTED, quantities=REDACTED)"

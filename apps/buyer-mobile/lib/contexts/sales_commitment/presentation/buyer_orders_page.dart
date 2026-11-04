@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../tenant_access_governance/application/buyer_change_feed_repository.dart';
 import '../../../core/presentation/nexa_buyer_components.dart';
+import '../../../core/presentation/nexa_display_format.dart';
+import '../../../core/presentation/nexa_buyer_palette.dart';
 import '../../../core/presentation/buyer_visible_route_poller.dart';
 import '../application/buyer_orders_repository.dart';
 import 'buyer_orders_view_model.dart';
@@ -78,19 +82,60 @@ final class _BuyerOrdersPageState extends State<BuyerOrdersPage> {
             : orders.refresh,
       );
     }
-    if (orders.status == BuyerOrdersLoadStatus.current &&
-        orders.items.isEmpty) {
-      return const _OrdersEmptyState(message: 'Todavía no tienes pedidos.');
-    }
-
     return NexaPageWidth(
       padding: EdgeInsets.zero,
       child: Column(
         children: [
-          const NexaSectionHeader(
-            eyebrow: 'Compras',
-            title: 'Pedidos',
-            description: 'Estado y detalle de tus pedidos confirmados.',
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Card.outlined(
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.shopping_bag_outlined,
+                            color: NexaBuyerPalette.primary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Pedidos',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${orders.total}',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                    SegmentedButton<BuyerOrdersBucket>(
+                      segments: const [
+                        ButtonSegment(
+                          value: BuyerOrdersBucket.active,
+                          label: Text('Activos'),
+                        ),
+                        ButtonSegment(
+                          value: BuyerOrdersBucket.history,
+                          label: Text('Historial'),
+                        ),
+                      ],
+                      selected: {orders.bucket},
+                      onSelectionChanged: (selected) =>
+                          unawaited(orders.selectBucket(selected.first)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
           if (orders.status == BuyerOrdersLoadStatus.loading &&
               orders.items.isNotEmpty)
@@ -113,15 +158,29 @@ final class _BuyerOrdersPageState extends State<BuyerOrdersPage> {
               child: ListView.builder(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                itemCount: orders.items.length + 1,
+                itemCount: (orders.items.isEmpty ? 1 : orders.items.length) + 1,
                 itemBuilder: (context, index) {
-                  if (index == orders.items.length) {
+                  final contentCount = orders.items.isEmpty
+                      ? 1
+                      : orders.items.length;
+                  if (index == contentCount) {
                     return _OrdersPageControls(
                       page: orders.page,
                       size: orders.size,
                       total: orders.total,
                       onPrevious: orders.previousPage,
                       onNext: orders.nextPage,
+                    );
+                  }
+                  if (orders.items.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Text(
+                        orders.bucket == BuyerOrdersBucket.active
+                            ? 'No tienes pedidos activos.'
+                            : 'Todavía no tienes historial de pedidos.',
+                        textAlign: TextAlign.center,
+                      ),
                     );
                   }
                   final order = orders.items[index];
@@ -151,20 +210,101 @@ final class _OrderCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => NexaRecordCard(
-    title: 'Pedido ${order.number}',
-    status: order.status,
-    icon: Icons.receipt_long_outlined,
-    subtitle: order.createdAt == null ? null : _dateLabel(order.createdAt!),
-    footer: order.total == null || order.currency == null
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final total = order.total == null || order.currency == null
         ? null
-        : NexaFactTile(
-            label: 'Total',
-            value: '${order.total} ${order.currency}',
-            emphasis: true,
+        : nexaMoneyLabel(order.total.toString(), order.currency);
+    return Card.outlined(
+      margin: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: NexaBuyerPalette.attentionSurface,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.inventory_2_outlined,
+                      color: NexaBuyerPalette.attention,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainer,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          order.number,
+                          style: theme.textTheme.labelMedium,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(
+                    Icons.chevron_right,
+                    color: NexaBuyerPalette.muted,
+                    size: 20,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  NexaStatusBadge(order.status),
+                  if (order.createdAt != null)
+                    Text(
+                      _dateLabel(order.createdAt!),
+                      style: theme.textTheme.bodySmall,
+                    ),
+                ],
+              ),
+              if (total != null) ...[
+                const SizedBox(height: 14),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text('Total', style: theme.textTheme.bodySmall),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        total,
+                        textAlign: TextAlign.end,
+                        style: theme.textTheme.titleLarge,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
           ),
-    onTap: onTap,
-  );
+        ),
+      ),
+    );
+  }
 }
 
 final class _OrdersPageControls extends StatelessWidget {
@@ -237,5 +377,5 @@ String _dateLabel(String value) {
   if (date == null) return 'Fecha registrada';
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
-  return 'Creado el $day/$month/${date.year}';
+  return '$day/$month/${date.year}';
 }

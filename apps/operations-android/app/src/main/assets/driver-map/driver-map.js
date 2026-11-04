@@ -20,12 +20,11 @@
   };
 
   window.setTileUrlTemplate = (template) => {
-    if (typeof template === "string" && template.startsWith("https://") &&
-        ["{z}", "{x}", "{y}"].every((part) => template.includes(part))) {
-      tileTemplate = template;
-    } else {
-      tileTemplate = "";
-    }
+    const nextTemplate = typeof template === "string" && template.startsWith("https://") &&
+        ["{z}", "{x}", "{y}"].every((part) => template.includes(part))
+      ? template : "";
+    if (nextTemplate === tileTemplate) return;
+    tileTemplate = nextTemplate;
     if (map) {
       if (tileLayer) {
         map.removeLayer(tileLayer);

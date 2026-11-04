@@ -43,9 +43,15 @@ data class DriverHandoffTokenUiState(
             setOf(
                 DriverHandoffUiStatus.UnknownOutcome,
                 DriverHandoffUiStatus.TokenUnavailable,
+                DriverHandoffUiStatus.Unavailable,
                 DriverHandoffUiStatus.Cleared,
                 DriverHandoffUiStatus.TokenExpired
             )
+
+    val canRenew: Boolean
+        get() = !busy && token == null && command != null && receipt != null &&
+            status in
+            setOf(DriverHandoffUiStatus.TokenUnavailable, DriverHandoffUiStatus.TokenExpired)
 
     override fun toString(): String =
         "DriverHandoffTokenUiState(status=$status, delivery=" + (deliveryId != null) +

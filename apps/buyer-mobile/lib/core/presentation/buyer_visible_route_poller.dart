@@ -12,7 +12,7 @@ final class BuyerVisibleRoutePoller with WidgetsBindingObserver {
     this.changes,
     this.interval = const Duration(seconds: 15),
   }) {
-    router.routeInformationProvider.addListener(_syncVisibility);
+    router.routerDelegate.addListener(_syncVisibility);
     WidgetsBinding.instance.addObserver(this);
     _syncVisibility();
   }
@@ -34,7 +34,8 @@ final class BuyerVisibleRoutePoller with WidgetsBindingObserver {
   bool get _isVisible =>
       !_disposed &&
       WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed &&
-      router.routeInformationProvider.value.uri.path == routePath;
+      router.routerDelegate.currentConfiguration.isNotEmpty &&
+      router.state.uri.path == routePath;
 
   void _syncVisibility() {
     if (_disposed) return;
@@ -96,7 +97,7 @@ final class BuyerVisibleRoutePoller with WidgetsBindingObserver {
     _timer?.cancel();
     _timer = null;
     _stopListeningForChanges();
-    router.routeInformationProvider.removeListener(_syncVisibility);
+    router.routerDelegate.removeListener(_syncVisibility);
     WidgetsBinding.instance.removeObserver(this);
   }
 }

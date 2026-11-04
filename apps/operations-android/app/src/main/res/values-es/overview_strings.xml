@@ -1,0 +1,31 @@
+<resources>
+    <string name="overview_back">Volver</string>
+    <string name="overview_title">Preparación de despachos</string>
+    <string name="overview_attention">Por revisar</string>
+    <string name="overview_description">Revisa la asignación de stock, el picking y sus evidencias en el trabajo que tienes autorizado.</string>
+    <string name="overview_refresh">Actualizar</string>
+    <string name="overview_loading">Cargando preparación…</string>
+    <string name="overview_denied">Tu acceso actual no permite consultar esta vista.</string>
+    <string name="overview_session">Tu sesión o espacio cambió. Vuelve a tu espacio para continuar.</string>
+    <string name="overview_offline">Sin conexión. Reconecta y actualiza.</string>
+    <string name="overview_unavailable">No pudimos cargar la preparación. Vuelve a intentarlo.</string>
+    <string name="overview_empty">No hay preparaciones disponibles para tu acceso actual.</string>
+    <string name="overview_no_pending">No aparecen preparaciones pendientes en esta vista.</string>
+    <string name="overview_ready">Listo para despacho</string>
+    <string name="overview_pending">Preparación pendiente</string>
+    <string name="overview_stock">Asignación de stock</string>
+    <string name="overview_picking">Picking</string>
+    <string name="overview_evidence">Evidencias del picking</string>
+    <string name="overview_step_complete">%1$s · Completo</string>
+    <string name="overview_step_pending">%1$s · Pendiente</string>
+    <string name="overview_review">Por revisar</string>
+    <string name="overview_updated">Actualizado: %1$s</string>
+    <string name="overview_open">Abrir preparación</string>
+    <string name="overview_reference">Ver referencia</string>
+    <string name="overview_short_reference">Preparación · %1$s</string>
+    <string name="overview_reason_preparation">La preparación aún no está habilitada para despacho.</string>
+    <string name="overview_reason_stock">La asignación de stock necesita revisión.</string>
+    <string name="overview_reason_picking">Faltan productos por recoger.</string>
+    <string name="overview_reason_evidence">Faltan evidencias del picking.</string>
+    <string name="overview_reason_other">Abre la preparación para revisar un requisito adicional.</string>
+</resources>

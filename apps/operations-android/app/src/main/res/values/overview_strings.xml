@@ -1,0 +1,31 @@
+<resources>
+    <string name="overview_back">Back</string>
+    <string name="overview_title">Dispatch preparation</string>
+    <string name="overview_attention">Needs attention</string>
+    <string name="overview_description">Check stock allocation, picking and evidence for the work assigned to your access.</string>
+    <string name="overview_refresh">Refresh</string>
+    <string name="overview_loading">Loading preparation…</string>
+    <string name="overview_denied">Your current access does not allow this view.</string>
+    <string name="overview_session">Your session or workspace changed. Return to your workspace to continue.</string>
+    <string name="overview_offline">No connection. Reconnect and refresh.</string>
+    <string name="overview_unavailable">Preparation could not be loaded. Try again.</string>
+    <string name="overview_empty">No preparation is available for your current access.</string>
+    <string name="overview_no_pending">No pending preparation appears in this view.</string>
+    <string name="overview_ready">Ready for dispatch</string>
+    <string name="overview_pending">Preparation pending</string>
+    <string name="overview_stock">Stock allocation</string>
+    <string name="overview_picking">Picking</string>
+    <string name="overview_evidence">Picking evidence</string>
+    <string name="overview_step_complete">%1$s · Complete</string>
+    <string name="overview_step_pending">%1$s · Pending</string>
+    <string name="overview_review">To review</string>
+    <string name="overview_updated">Updated: %1$s</string>
+    <string name="overview_open">Open preparation</string>
+    <string name="overview_reference">View reference</string>
+    <string name="overview_short_reference">Preparation · %1$s</string>
+    <string name="overview_reason_preparation">The preparation has not been cleared for dispatch.</string>
+    <string name="overview_reason_stock">The stock allocation needs review.</string>
+    <string name="overview_reason_picking">Some products still need to be picked.</string>
+    <string name="overview_reason_evidence">Picking evidence is still required.</string>
+    <string name="overview_reason_other">Open preparation to review an additional requirement.</string>
+</resources>

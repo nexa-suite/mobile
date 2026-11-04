@@ -129,13 +129,6 @@ final class BuyerDraftViewModel extends ChangeNotifier {
       if (!_current(generation, authority)) {
         return;
       }
-      if (account.buyerMembershipId !=
-          _access.snapshot.currentContext!.membershipId) {
-        throw const NexaApiFailure(
-          code: 'buyer_relationship_mismatch',
-          userMessage: 'La cuenta Buyer no coincide con tu acceso.',
-        );
-      }
       final loaded = await _repository.getDraft(id);
       if (!_current(generation, authority)) {
         return;
@@ -319,12 +312,18 @@ final class BuyerDraftViewModel extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    final unit = item.unitOfMeasure?.trim();
+    if (unit == null || unit.isEmpty) {
+      message = 'Este producto aún no tiene una unidad de venta disponible.';
+      notifyListeners();
+      return;
+    }
     await _replace([
       ...draft!.lines,
       PurchaseRequestLineProjection(
         skuId: item.sellableSkuId!,
         quantity: '$parsed',
-        unit: item.unitOfMeasure ?? 'UNIT',
+        unit: unit,
       ),
     ]);
   }

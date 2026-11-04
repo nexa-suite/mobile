@@ -1,0 +1,16 @@
+<resources>
+    <string name="dashboard_preparations">To prepare</string>
+    <string name="dashboard_total_lots">Stock lots</string>
+    <string name="dashboard_held_lots">On hold</string>
+    <string name="dashboard_expired_lots">Expired</string>
+    <string name="dashboard_ready">Ready for dispatch</string>
+    <string name="dashboard_in_route">In route</string>
+    <string name="dashboard_attention">Needs attention</string>
+    <string name="dashboard_customers">Customers</string>
+    <string name="dashboard_refresh">Refresh</string>
+    <string name="dashboard_loading_short">Updating</string>
+    <string name="dashboard_unavailable_short">Unavailable</string>
+    <string name="dashboard_open_stock">View stock</string>
+    <string name="dashboard_open_dispatch">Review dispatch</string>
+    <string name="dashboard_open_customers">View customers</string>
+</resources>

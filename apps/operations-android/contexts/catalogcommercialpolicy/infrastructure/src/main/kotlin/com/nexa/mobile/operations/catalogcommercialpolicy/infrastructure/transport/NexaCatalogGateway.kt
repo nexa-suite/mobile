@@ -33,7 +33,9 @@ data class CatalogCandidateProjection(
     val productFamilyName: String?,
     val imageFileName: String? = null,
     val categoryName: String? = null,
-    val productFamilyId: String? = null
+    val productFamilyId: String? = null,
+    val unitOfMeasure: String? = null,
+    val coldChainRequirement: String? = null
 ) {
     override fun toString(): String =
         "CatalogCandidateProjection(itemName=$itemName, catalogItemId=REDACTED, skuCode=REDACTED)"
@@ -140,11 +142,7 @@ class NexaCatalogGateway(private val protectedCalls: ProtectedCallExecutor) {
         val normalizedBrand = brandName.normalizedFilter()
         val normalizedCategory = categoryName.normalizedFilter()
         if (normalizedQuery.length > MAX_QUERY_LENGTH ||
-            normalizedBrand.invalidFilter() || normalizedCategory.invalidFilter() ||
-            (
-                normalizedQuery.isEmpty() && normalizedBrand.isNullOrEmpty() &&
-                    normalizedCategory.isNullOrEmpty()
-                )
+            normalizedBrand.invalidFilter() || normalizedCategory.invalidFilter()
         ) {
             return CatalogSearchOutcome.InvalidQuery
         }
@@ -261,7 +259,9 @@ class NexaCatalogGateway(private val protectedCalls: ProtectedCallExecutor) {
             productVariantName = variantName.optionalText() ?: productVariantName.optionalText(),
             productFamilyName = familyName.optionalText() ?: productFamilyName.optionalText(),
             productFamilyId = familyId.optionalText(),
-            imageFileName = image?.fileName.optionalText()
+            imageFileName = image?.fileName.optionalText(),
+            unitOfMeasure = unitOfMeasure.optionalText(),
+            coldChainRequirement = coldChainRequirement.optionalText()
         )
     }
 
@@ -384,6 +384,8 @@ private data class CatalogCandidateWire(
     val variantName: String? = null,
     val productVariantName: String? = null,
     val productFamilyName: String? = null,
+    val unitOfMeasure: String? = null,
+    val coldChainRequirement: String? = null,
     val image: CatalogMediaWire? = null
 )
 

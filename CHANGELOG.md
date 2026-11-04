@@ -1,5 +1,42 @@
 # Changelog
 
+## [2.0.1] - Candidate
+
+### Fixed
+- Preserve a completed Operations biometric proof through server session revalidation and exact context restoration; invalidate it on background, session loss or context change. Server authorization and strong biometric cryptography remain mandatory.
+- Operations Android version is 1.3.1 (code 13). Buyer remains 1.2.1+4.
+
+
+## [2.0.0] - source release candidate, unpublished
+
+Mobile PR [#72](https://github.com/nexa-suite/mobile/pull/72) integrates Buyer
+Flutter and Operations Android work. The application source at
+`d1bf0fef2ed76e89cd26c16bf3e07905b5e9b18f` passed Buyer and Operations CI;
+this release preparation changes documentation only. Application versions remain
+Buyer `1.2.1+4` and Operations `1.3.0` (`versionCode` 12).
+
+- Buyer delivery policy consumes the API's five-business-day rule in
+  America/Lima. The API remains authoritative for business decisions.
+- Debug APKs were built for both clients and installed on an API 37 ARM64
+  emulator. Their artifact provenance and limits are recorded in the
+  [candidate notes](RELEASE_NOTES_v2.0.0.md).
+- Compatible API work is tracked in [API #133](https://github.com/nexa-suite/api/pull/133).
+  Cloud migration and authenticated end-to-end validation remain pending.
+
+The repository candidate is unpublished; no Product/UX Acceptance, System
+Acceptance or Production Readiness is claimed.
+
+## [1.3.1] - local source release candidate, unpublished
+
+Prepared on 2026-10-29 from `main` at `22748321730b1992092064537fd4c24497b6f935`. Repository source tag candidate is `v1.3.1`; app versions remain independent. Operations Android stays at `1.3.0` (`versionCode` 12); Buyer Mobile advances from `1.2.0+3` to patch version `1.2.1+4`.
+
+- Fix Buyer catalog recovery after `403`: clear stale results and update time, reset pagination, and restore Spanish fallback text for unexpected failures.
+- Cover later-page permission recovery and unexpected catalog failures in Buyer unit tests.
+- Stabilize the Operations profile/logout instrumentation test by scrolling the profile sheet before selecting logout.
+- Make the manually triggered Operations academic APK artifact name use built version metadata and attach a generated SHA-256 sidecar.
+
+See [v1.3.1 release notes](RELEASE_NOTES_v1.3.1.md). This is a source-only candidate; it does not claim Product/System Acceptance, physical-device acceptance, signed distribution, or Production Readiness.
+
 ## Academic checkpoint changes
 
 - Filter Buyer catalog by brand and category; show API-provided cold-chain
@@ -11,6 +48,34 @@
 The checkpoint was validated against the API academic candidate using the
 Buyer catalog and manual handoff flows. It does not include device acceptance
 or signed distribution packages.
+
+- Refine Buyer and Operations access layouts across phones, tablets, keyboard
+  and enlarged text while retaining secure session and recovery adapters.
+- Group Buyer navigation into Catalog, Orders and Account; connect personal
+  favorites and current credit/order summaries to existing server contracts.
+- Show real catalog images and server-side availability/cold-chain filters.
+- Read each product's saved Favorite state from the API, refresh visible
+  favorites and recover pagination after the last item on a page is removed.
+- Encode Driver-issued delivery tokens as QR and submit Buyer scans to the
+  receipt endpoint, displaying the authoritative POD and order result.
+- Align Buyer delivery dates with the accepted five-business-day policy in
+  America/Lima, without holiday exclusions, and use the current Buyer account
+  response while preserving scoped reads and retries.
+- Add editable personal profiles to Buyer and Operations; add Buyer personal
+  addresses with controlled geography and an optional map pin.
+- Show actual order history, order-specific documents and native PDF/XML/CSV
+  export. Add versioned delivery instructions using the existing API.
+- Present dispatch preparation as actionable cards with server-backed stock,
+  picking and evidence status, accessible labels and English/Spanish text.
+- Keep scanning and dispatch handoff controls accessible on short screens and
+  with larger text; consume shared system insets once. Prevent blank Sales
+  customer-progress queries and reject incomplete delivery addresses.
+- Distinguish API-confirmed receipt quantity from current lot stock so a safe
+  retry can confirm an earlier stock receipt after subsequent movements. Keep
+  conservative behavior when the API cannot provide verified receipt metadata.
+- Separate Favorite read/write grants and reject product requests when the
+  server supplies no sales unit. End-to-end and Product acceptance remain
+  pending; this section describes unreleased source changes.
 
 ## [1.3.0] - 2026-10-22
 

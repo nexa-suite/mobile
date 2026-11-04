@@ -1,0 +1,24 @@
+<resources>
+    <string name="workday_visual_title">Your location</string>
+    <string name="workday_visual_updating">Updating location…</string>
+    <string name="workday_visual_no_workday">No active workday</string>
+    <string name="workday_visual_ended">Workday ended</string>
+    <string name="workday_visual_sharing">Location confirmed</string>
+    <string name="workday_visual_waiting">Waiting for location</string>
+    <string name="workday_visual_unavailable">Location unavailable</string>
+    <string name="workday_visual_stopped">Location sharing is off</string>
+    <string name="workday_visual_last_accepted">Last accepted location · %1$s</string>
+    <string name="workday_visual_waiting_detail">Waiting for a current location to be accepted.</string>
+    <string name="workday_visual_ended_at">Ended %1$s</string>
+    <string name="workday_visual_select_delivery">Open a dispatched delivery to share your location.</string>
+    <string name="workday_visual_delivery_ready">Assigned delivery ready</string>
+    <string name="workday_visual_start_hint">Start your workday to manage location sharing.</string>
+    <string name="workday_visual_start">Start workday</string>
+    <string name="workday_visual_share">Share location</string>
+    <string name="workday_visual_stop">Stop sharing</string>
+    <string name="workday_visual_end">End workday</string>
+    <string name="workday_visual_refresh">Refresh</string>
+    <string name="workday_visual_map_title">Your current location</string>
+    <string name="workday_visual_privacy_show">Privacy and location details</string>
+    <string name="workday_visual_privacy_hide">Hide privacy details</string>
+</resources>

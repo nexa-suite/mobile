@@ -27,7 +27,11 @@ final class CatalogItemDetailViewModel extends ChangeNotifier {
 
   static const readPermission = 'catalog.read';
 
-  Future<void> load() async {
+  Future<void> load() => _load(retainItemWhileLoading: false);
+
+  Future<void> refresh() => _load(retainItemWhileLoading: true);
+
+  Future<void> _load({required bool retainItemWhileLoading}) async {
     final lease = _leaseKey;
     if (lease == null) {
       status = CatalogItemDetailStatus.unavailable;
@@ -46,7 +50,9 @@ final class CatalogItemDetailViewModel extends ChangeNotifier {
     }
 
     final generation = ++_requestGeneration;
-    status = CatalogItemDetailStatus.loading;
+    if (!retainItemWhileLoading || item == null) {
+      status = CatalogItemDetailStatus.loading;
+    }
     message = null;
     notifyListeners();
     try {
