@@ -2174,6 +2174,8 @@ class MainActivity : ComponentActivity() {
                     activity = this@MainActivity,
                     sessionActive = state == SessionState.Active &&
                         accessState.stage == AccessStage.WorkAuthorized,
+                    sessionCanRestoreScope = accessState.chooser == null &&
+                        (state == SessionState.Active || state is SessionState.Restoring),
                     scope = biometricScope,
                     onPasswordFallback = viewModel::logout,
                     onVerifySession = { onVerified ->
