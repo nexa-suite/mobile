@@ -1,4 +1,16 @@
-# Nexa Mobile v2.0.1 — candidate
+# Nexa Mobile v2.0.1 — published source release
+
+## Release record
+
+The signed tag [`v2.0.1`](https://github.com/nexa-suite/mobile/releases/tag/v2.0.1),
+tagged 2026-11-04, points to `main` commit
+`ea9b4369ba3a5cc9c86c3d6c8b7c280a1f631056`. This release follows v2.0.0 and
+contains the Operations biometric reentry correction below; Buyer source and
+APK bytes remain unchanged.
+
+The candidate wording retained in the immutable tagged source records the
+pre-publication state. This documentation update does not modify the tag,
+GitHub Release or its APK assets.
 
 ## Scope
 
@@ -6,11 +18,16 @@ Correct Operations biometric reentry that remained locked after a valid fingerpr
 
 ## Versions and artifacts
 
-- Repository: v2.0.1 candidate until a signed verified tag and GitHub Release exist.
+- Repository: v2.0.1 source release published with the signed tag and GitHub Release.
 - Operations Android: 1.3.1, versionCode 13.
 - Buyer Flutter: unchanged 1.2.1+4; reuse the immutable v2.0.0 APK bytes.
 - Academic artifacts are debug APKs targeting the approved Render HTTPS origin. They are not production distribution builds.
 
 ## Verification and limits
 
-Focused regression, architecture and formatting checks apply to the biometric transition. Applicable CI, builds and physical-device reentry must be recorded before stable publication. Source publication does not prove complete cloud business workflows, Product Acceptance, System Acceptance or Production Readiness. QR product identification requires the compatible API deployment; order, payment, inventory-mutation and delivery journeys retain their existing cloud limits.
+The focused change scope covered biometric regression, architecture and
+formatting checks. This note does not record complete cloud business workflows,
+physical-device acceptance, Product Acceptance, System Acceptance or Production
+Readiness; publication does not imply those gates. QR product identification
+requires the compatible API deployment. Order, payment, inventory mutation and
+delivery journeys retain their existing cloud limits.

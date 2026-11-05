@@ -1,13 +1,29 @@
-# Nexa Operations Android
+# Nexa Mobile
 
-This repository contains the Nexa Operations Android client. The Android
-project is in [`apps/operations-android`](apps/operations-android). The client
-projects accepted Nexa API capabilities into native workflows; the API remains
-authoritative for authentication, Tenant and Workspace authorization, and
-business outcomes. The client does not implement server aggregates or business
-authority.
+This repository contains two independently versioned Nexa clients. Operations
+Android lives in [`apps/operations-android`](apps/operations-android); Buyer
+Mobile lives in [`apps/buyer-mobile`](apps/buyer-mobile). Each client projects
+API capabilities into its own workflows. The API remains authoritative for
+authentication, Tenant and Workspace authorization, and business outcomes.
+Neither client implements server aggregates or business authority.
 
-## Toolchain
+## Applications
+
+| Client | Source | Platforms | Guide |
+| --- | --- | --- | --- |
+| Operations Android | [`apps/operations-android`](apps/operations-android) | Android, Kotlin and Compose | [Toolchain](#operations-android-toolchain) and [verification](#build-and-verify-operations-android) |
+| Buyer Mobile | [`apps/buyer-mobile`](apps/buyer-mobile) | Android and iOS, Flutter | [Buyer flows, setup and verification](apps/buyer-mobile/README.md) |
+
+Operations source includes client screens and adapters for workforce access,
+commercial and warehouse workflows, dispatch and delivery. Buyer source includes
+catalog, purchase requests, credit and payments, documents, notifications,
+delivery tracking, handoff and receipt. Availability in a connected app depends
+on the deployed API capabilities, permissions and configured providers; source
+presence does not establish a complete cloud journey.
+The clients have separate source trees, release versions and local verification
+commands; a release may update one without changing the other.
+
+## Operations Android toolchain
 
 - JDK 17, Gradle 9.7.1, Android Gradle Plugin 9.4.1, Kotlin 2.4.20, KSP 2.3.12
 - Android SDK 37 for compilation and target behavior; minSdk 29
@@ -19,7 +35,7 @@ Install JDK 17, Android SDK package `platforms;android-37.0`, and
 Use an API 37 emulator for feature verification and an API 29 emulator for
 promotion verification.
 
-## Module layout
+## Operations Android module layout
 
 | Area | Responsibility |
 | --- | --- |
@@ -27,14 +43,33 @@ promotion verification.
 | `:core:*` | Shared auth, generic scoped local storage, network, device and design-system foundations |
 | `:contexts:<root>:<layer>` | Code aligned to a canonical Bounded Context and one of its implemented client layers |
 
-The Android source has 11 canonical context roots and 34 runtime layer modules.
-The four layer names are `domain`, `application`, `infrastructure` and
-`presentation`; a module exists only where this client has code. BC-10
-Notifications has application, infrastructure and presentation modules. BC-08
-Payments and BC-11 Business Traceability have ownership documentation but no
-runtime module. The source tree and Gradle settings list implemented roots and
-layers. Context roots, Gradle modules and screens
-do not create business Bounded Contexts or transfer server authority.
+Operations Gradle settings declare **44 projects**: **38 context-layer
+modules** across **10 runtime roots** out of **11 canonical context roots**,
+plus **6 app/core projects**. `businesstraceability` is the sole root without
+runtime modules.
+
+| Canonical root | Runtime Gradle layers |
+| --- | --- |
+| `tenantaccessgovernance` | `domain`, `application`, `infrastructure`, `presentation` |
+| `customerbuyerrelationships` | `domain`, `application`, `infrastructure`, `presentation` |
+| `catalogcommercialpolicy` | `domain`, `application`, `infrastructure`, `presentation` |
+| `salescommitment` | `domain`, `application`, `infrastructure`, `presentation` |
+| `inventoryavailability` | `domain`, `application`, `infrastructure`, `presentation` |
+| `fulfillmentdelivery` | `domain`, `application`, `infrastructure`, `presentation` |
+| `creditreceivables` | `domain`, `application`, `infrastructure` |
+| `payments` | `domain`, `application`, `infrastructure`, `presentation` |
+| `businessdocuments` | `domain`, `application`, `infrastructure`, `presentation` |
+| `notifications` | `application`, `infrastructure`, `presentation` |
+| `businesstraceability` | documentation only; no runtime module |
+
+[`settings.gradle.kts`](apps/operations-android/settings.gradle.kts) is the source
+for runtime module membership. This inventory reflects the published v2.0.1
+source; the architecture validator lists the canonical roots separately.
+
+The four context-layer names are `domain`, `application`, `infrastructure`
+and `presentation`; a module exists only where this client has code. Context
+roots, Gradle modules and screens describe client structure; they do not create
+business Bounded Contexts or transfer server authority.
 
 In these client modules, `domain` contains non-authoritative projections and
 local value constraints; `application` contains ports and selective workflow
@@ -62,7 +97,7 @@ approved provider and its attribution explicitly before enabling production
 maps. Use synthetic delivery coordinates during local map work because external
 tile requests reveal the approximate viewed map area.
 
-## Build and verify
+## Build and verify Operations Android
 
 From `apps/operations-android` with `JAVA_HOME` pointing to JDK 17:
 
@@ -97,7 +132,43 @@ includes API 29 instrumentation and release shrinking. The manually triggered
 debug artifact against the approved Render HTTPS origin and retains it for
 seven days.
 
-## v1.1.0 release status — 2026-10-08
+## Buyer Flutter verification
+
+From `apps/buyer-mobile`, run the repository-provided source checks:
+
+```sh
+python3 scripts/test-context-architecture.py
+python3 scripts/verify-context-architecture.py
+flutter analyze
+flutter test
+```
+
+The Buyer guide documents API-origin setup, opt-in local API fixtures, assets
+and platform-specific limits. Source checks do not establish Product
+Acceptance, System Acceptance or Production Readiness.
+
+## Latest published source release — v2.0.1
+
+Signed tag [`v2.0.1`](https://github.com/nexa-suite/mobile/releases/tag/v2.0.1),
+tagged 2026-11-04, points to `main` commit
+`ea9b4369ba3a5cc9c86c3d6c8b7c280a1f631056`. This Operations biometric
+reentry patch sets Operations Android to `1.3.1` (`versionCode 13`); Buyer
+Mobile remains `1.2.1+4` and reuses its v2.0.0 APK bytes. See
+[v2.0.1 release notes](RELEASE_NOTES_v2.0.1.md) for scope and artifact limits.
+
+Publication records source/tag state. It does not establish complete cloud
+workflow coverage, Product Acceptance, System Acceptance, physical-device
+acceptance or Production Readiness.
+
+For the academic delivery, use the APKs attached to that release. The compatible
+[API v2.0.1](https://github.com/nexa-suite/api/releases/tag/v2.0.1) documents the
+bounded cloud composition: catalog/SKU reads, Buyer own-account reads, authorized
+Sales customer reads and independently enabled personal notifications. Complete
+Purchase Request, order, inventory mutation, payment and delivery journeys are
+outside that cloud checkpoint. Installation and login do not imply those
+workflows are available.
+
+## Historical v1.1.0 release status — 2026-10-08
 
 Operations Mobile v1.1.0 was published as the [GitHub
 Release](https://github.com/nexa-suite/mobile/releases/tag/v1.1.0) from tag
@@ -114,7 +185,7 @@ contains the published artifact.
 Technical verification does not establish Product/UX Acceptance, System
 Acceptance or production readiness.
 
-## Current limits
+## Operations Android limits
 
 Automatic IoT and advanced routing remain outside approved V1 scope. The app
 uses existing API contracts and does not contain live account credentials, a
