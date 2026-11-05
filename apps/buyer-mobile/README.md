@@ -4,7 +4,18 @@ Flutter client for Buyer sign-in, server-selected access context, catalog,
 orders, purchase requests, credit exposure, receivables, wallet checkout and
 payment history, notification inbox and preferences, bank-transfer reporting,
 business documents, and delivery tracking, handoff and receipt.
-Access credentials remain in process memory. The API remains authoritative for
+These are client implementation areas, not a claim that every journey is
+enabled in the deployed API. [Mobile v2.0.1](../../RELEASE_NOTES_v2.0.1.md)
+publishes Buyer `1.2.1+4`; the bounded cloud delivery supports catalog,
+own-account and personal-notification reads. Orders, purchase requests,
+favorites, credit, payments and full delivery journeys retain their cloud
+availability limits. Android APK publication does not establish iOS device
+verification or Product Acceptance.
+
+Access tokens remain in process memory. Opt-in biometric reentry stores a
+rotating native refresh token and its scope through `FlutterSecureStorage`;
+it never stores the account password. Reentry still requires successful API
+session verification. The API remains authoritative for
 Buyer scope, catalog and commercial decisions, credit, payment status, order
 outcomes, and delivery status. A bank-transfer report is not a payment
 confirmation or wallet balance. Delivery tracking shows Buyer-visible status
