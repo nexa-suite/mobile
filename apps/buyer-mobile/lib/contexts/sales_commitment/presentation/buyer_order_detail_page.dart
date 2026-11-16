@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+
+import '../../tenant_access_governance/application/buyer_access_repository.dart';
+
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -35,6 +39,56 @@ final class _BuyerOrderDetailPageState extends State<BuyerOrderDetailPage> {
   GoRouter? _router;
   BuyerVisibleRoutePoller? _poller;
   late final BuyerOrderDetailViewModel _detail;
+  bool _exporting = false;
+
+  Future<void> _exportSummary(String format) async {
+    if (_exporting) return;
+    final access = context.read<BuyerAccessRepository>();
+    final snapshot = access.snapshot;
+    final scope = snapshot.currentContext;
+    if (!snapshot.hasActiveBuyerScope ||
+        !scope!.permissions.contains('buyer.order.read')) {
+      return;
+    }
+    final epoch = snapshot.authorityEpoch;
+    final fingerprint = scope.authorityFingerprint;
+    setState(() => _exporting = true);
+    try {
+      final response = await context
+          .read<BuyerOrderSummaryExportRepository>()
+          .downloadSummary(_detail.orderId, format);
+      try {
+        final current = access.snapshot;
+        if (!mounted ||
+            !current.hasActiveBuyerScope ||
+            current.authorityEpoch != epoch ||
+            current.currentContext!.authorityFingerprint != fingerprint ||
+            !current.currentContext!.permissions.contains('buyer.order.read')) {
+          return;
+        }
+        await FilePicker.saveFile(
+          fileName: 'pedido-${_detail.orderId}.$format',
+          bytes: response.bytes,
+          mimeType: format == 'pdf' ? 'application/pdf' : 'text/csv',
+          dialogTitle: 'Guardar resumen del pedido',
+        );
+      } finally {
+        response.clear();
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No se pudo guardar el resumen. Vuelve a intentarlo.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
 
   @override
   void initState() {
@@ -179,6 +233,25 @@ final class _BuyerOrderDetailPageState extends State<BuyerOrderDetailPage> {
                       icon: const Icon(Icons.edit_note),
                       label: const Text('Indicaciones de entrega'),
                     ),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _exporting
+                            ? null
+                            : () => _exportSummary('pdf'),
+                        icon: const Icon(Icons.download_outlined),
+                        label: const Text('Resumen PDF'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _exporting
+                            ? null
+                            : () => _exportSummary('csv'),
+                        icon: const Icon(Icons.download_outlined),
+                        label: const Text('Resumen CSV'),
+                      ),
+                    ],
+                  ),
                   if (widget.history != null) ...[
                     const SizedBox(height: 16),
                     widget.history!,
