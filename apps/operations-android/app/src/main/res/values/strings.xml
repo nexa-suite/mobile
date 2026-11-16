@@ -1,4 +1,12 @@
 <resources>
+    <string name="nexa_notification_channel_id" translatable="false">nexa_notifications</string>
+    <string name="nexa_notification_channel_name">Nexa notifications</string>
+    <string name="nexa_notification_channel_description">General Nexa updates. Review details in your authorized inbox.</string>
+    <string name="nexa_notification_title" translatable="false">Nexa</string>
+    <string name="nexa_notification_body">There is an update available. Open Nexa to review it.</string>
+    <string name="push_notification_consent_title">Allow Nexa notifications?</string>
+    <string name="push_notification_consent_body">Nexa can show a general notice when there is an update. Details stay in your authorized inbox.</string>
+    <string name="push_notification_consent_continue">Allow notifications</string>
     <string name="app_name" translatable="false">Nexa Operations</string>
     <string name="driver_location_consent_title">Share location during this delivery?</string>
     <string name="driver_location_consent_body">Nexa will receive your GPS location only while this assigned delivery is dispatched or in transit. Sharing continues while you use another app and a visible ongoing notification stays on. It stops when the delivery ends, access or permissions change, or you stop sharing.</string>

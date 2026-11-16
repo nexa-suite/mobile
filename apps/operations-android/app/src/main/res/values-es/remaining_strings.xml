@@ -1,5 +1,11 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
+    <string name="nexa_notification_channel_name">Notificaciones de Nexa</string>
+    <string name="nexa_notification_channel_description">Avisos generales de Nexa. Consulta los detalles en tu bandeja autorizada.</string>
+    <string name="nexa_notification_body">Hay una actualización disponible. Abre Nexa para revisarla.</string>
+    <string name="push_notification_consent_title">¿Permitir notificaciones de Nexa?</string>
+    <string name="push_notification_consent_body">Nexa puede mostrar un aviso general cuando haya una actualización. Los detalles se consultan en tu bandeja autorizada.</string>
+    <string name="push_notification_consent_continue">Permitir notificaciones</string>
     <string name="driver_location_consent_title">¿Compartir ubicación durante esta entrega?</string>
     <string name="driver_location_consent_body">Nexa recibirá tu ubicación GPS solo mientras esta entrega asignada esté en despacho o en tránsito. El envío continúa aunque uses otra app y mantiene una notificación visible. Se detiene al terminar la entrega, cambiar el acceso o los permisos, o cuando lo detengas.</string>
     <string name="driver_location_consent_continue">Continuar</string>
