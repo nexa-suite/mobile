@@ -35,7 +35,7 @@ final class NexaBuyerPushRegistrationGateway
         body['installationId'] != installationId ||
         body['platform'] != platform ||
         body['surface'] != 'PORTAL' ||
-        body['status'] != 'ACTIVE') {
+        body['status'] != 'ENABLED') {
       throw const FormatException('Invalid native push registration.');
     }
     return id;
