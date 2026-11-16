@@ -2,6 +2,7 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.FulfillmentPreparationAction
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingAuthority
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingConfirmationCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingFulfillmentSnapshot
@@ -346,6 +347,40 @@ class PickingViewModel(
         beginIntent(PickingIntentCommand.Confirm(request), currentAuthority)
     }
 
+    fun advanceFulfillment(action: FulfillmentPreparationAction) {
+        val currentAuthority = authority ?: return
+        val current = mutableState.value
+        if (current.isIntentFrozen || current.command !in setOf(
+                PickingCommandStatus.Editing,
+                PickingCommandStatus.Confirmed
+            ) || !currentAuthority.canPick
+        ) {
+            return
+        }
+        if (current.metadata != PickingMetadataStatus.Available) {
+            return showError(PickingValidationError.MetadataUnavailable)
+        }
+        val fulfillment = current.fulfillment
+            ?: return showError(PickingValidationError.FulfillmentUnavailable)
+        val expectedStatus = when (action) {
+            FulfillmentPreparationAction.Pack -> "PICKED"
+            FulfillmentPreparationAction.Stage -> "PACKED"
+            FulfillmentPreparationAction.ReadyForDispatch -> "STAGED"
+        }
+        if (!fulfillment.status.equals(expectedStatus, ignoreCase = true)) {
+            return showError(PickingValidationError.RefreshRequired)
+        }
+        beginIntent(
+            PickingIntentCommand.Advance(
+                fulfillmentId = fulfillment.id,
+                expectedFulfillmentVersion = fulfillment.version,
+                action = action
+            ),
+            currentAuthority,
+            allowAfterConfirmed = true
+        )
+    }
+
     /** Explicitly replays only the exact persisted key and command after an unknown outcome. */
     fun retryUnknownOutcome() {
         if (mutableState.value.command != PickingCommandStatus.UnknownOutcome) return
@@ -418,13 +453,19 @@ class PickingViewModel(
         }
     }
 
-    private fun beginIntent(command: PickingIntentCommand, currentAuthority: PickingAuthority) {
+    private fun beginIntent(
+        command: PickingIntentCommand,
+        currentAuthority: PickingAuthority,
+        allowAfterConfirmed: Boolean = false
+    ) {
         val current = mutableState.value
-        if (current.isIntentFrozen || current.command in setOf(
-                PickingCommandStatus.Confirmed,
-                PickingCommandStatus.Rejected,
-                PickingCommandStatus.StaleVersion
-            ) || current.metadata != PickingMetadataStatus.Available
+        val allowedStatuses = if (allowAfterConfirmed) {
+            setOf(PickingCommandStatus.Editing, PickingCommandStatus.Confirmed)
+        } else {
+            setOf(PickingCommandStatus.Editing)
+        }
+        if (current.isIntentFrozen || current.command !in allowedStatuses ||
+            current.metadata != PickingMetadataStatus.Available
         ) {
             return
         }
@@ -437,13 +478,22 @@ class PickingViewModel(
         val requestGeneration = generation
         intent = pending
         mutableState.update {
+            val preserveBatchConfirmation = command is PickingIntentCommand.Advance
             it.copy(
                 command = PickingCommandStatus.PersistingIntent,
                 validationError = null,
                 rejectionCode = null,
-                confirmedLotId = null,
-                confirmedWarehouseId = null,
-                confirmedFulfillment = null,
+                confirmedLotId = if (preserveBatchConfirmation) it.confirmedLotId else null,
+                confirmedWarehouseId = if (preserveBatchConfirmation) {
+                    it.confirmedWarehouseId
+                } else {
+                    null
+                },
+                confirmedFulfillment = if (preserveBatchConfirmation) {
+                    it.confirmedFulfillment
+                } else {
+                    null
+                },
                 intentCleanupPending = false
             )
         }
@@ -493,6 +543,12 @@ class PickingViewModel(
                 frozen.idempotencyKey,
                 currentAuthority
             )
+
+            is PickingIntentCommand.Advance -> gateway.advanceFulfillment(
+                command,
+                frozen.idempotencyKey,
+                currentAuthority
+            )
         }
     } catch (cancelled: CancellationException) {
         throw cancelled
@@ -512,19 +568,24 @@ class PickingViewModel(
                 if (!isCurrent(requestGeneration, currentAuthority)) return
                 if (cleared) intent = null
                 val isConfirmation = frozen.command is PickingIntentCommand.Confirm
+                val isAdvancement = frozen.command is PickingIntentCommand.Advance
                 val request = (frozen.command as? PickingIntentCommand.Confirm)?.request
                 mutableState.update {
                     it.copy(
                         fulfillment = result.fulfillment,
                         allocation = if (isConfirmation) null else it.allocation,
-                        command = if (isConfirmation) {
+                        command = if (isConfirmation || isAdvancement) {
                             PickingCommandStatus.Confirmed
                         } else {
                             PickingCommandStatus.Editing
                         },
                         confirmedLotId = request?.lotId,
                         confirmedWarehouseId = request?.warehouseId,
-                        confirmedFulfillment = if (isConfirmation) result.fulfillment else null,
+                        confirmedFulfillment = when {
+                            isConfirmation -> result.fulfillment
+                            isAdvancement -> it.confirmedFulfillment
+                            else -> null
+                        },
                         intentCleanupPending = !cleared,
                         notice = if (cleared) null else PickingNotice.IntentMetadataUnavailable,
                         metadata = if (cleared) {
@@ -743,6 +804,7 @@ class PickingViewModel(
     private fun PickingIntentCommand.fulfillmentId(): String? = when (this) {
         is PickingIntentCommand.Start -> fulfillmentId
         is PickingIntentCommand.Confirm -> request.fulfillmentId
+        is PickingIntentCommand.Advance -> fulfillmentId
     }
 
     private fun PickingMutationResult.toNotice(): PickingNotice? = when (this) {
