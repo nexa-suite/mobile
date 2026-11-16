@@ -99,6 +99,36 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
                       ),
                       if (BuyerWorkspaceNavigation.canOpenLocation(
                         access.snapshot,
+                        '/messages',
+                      )) ...[
+                        const _AccountRowDivider(),
+                        _destinationTile(
+                          context,
+                          access,
+                          path: '/messages',
+                          icon: Icons.chat_bubble_outline,
+                          title: 'Mensajes con ventas',
+                          iconColor: NexaBuyerPalette.primary,
+                          iconSurface: NexaBuyerPalette.primarySurface,
+                        ),
+                      ],
+                      if (BuyerWorkspaceNavigation.canOpenLocation(
+                        access.snapshot,
+                        '/payment-methods',
+                      )) ...[
+                        const _AccountRowDivider(),
+                        _destinationTile(
+                          context,
+                          access,
+                          path: '/payment-methods',
+                          icon: Icons.credit_card,
+                          title: 'Medios de pago',
+                          iconColor: NexaBuyerPalette.primary,
+                          iconSurface: NexaBuyerPalette.primarySurface,
+                        ),
+                      ],
+                      if (BuyerWorkspaceNavigation.canOpenLocation(
+                        access.snapshot,
                         '/addresses',
                       )) ...[
                         const _AccountRowDivider(),

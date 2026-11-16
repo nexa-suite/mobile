@@ -670,6 +670,8 @@ Future<void> _openMoreDestination(
   await tester.pumpAndSettle();
   await tester.tap(find.text('Otros servicios'));
   await tester.pumpAndSettle();
+  await tester.ensureVisible(find.text(destination));
+  await tester.pumpAndSettle();
   await tester.tap(find.text(destination));
   await tester.pumpAndSettle();
 }
