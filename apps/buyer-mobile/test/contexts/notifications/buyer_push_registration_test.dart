@@ -20,6 +20,10 @@ void main() {
     expect(gateway.requests, hasLength(2));
     expect(gateway.requests.first, gateway.requests.last);
     expect(gateway.requests.first.$1, 'fcm-fid:installation-a');
+    expect(gateway.installations, hasLength(2));
+    expect(gateway.installations.first, gateway.installations.last);
+    expect(gateway.installations.first, matches(r'^buyer-[0-9a-f]{64}$'));
+    expect(gateway.installations.first, isNot(contains('installation-a')));
     expect(device.resets, 1);
     await registration.dispose();
     await access.dispose();
@@ -168,6 +172,7 @@ final class _Gateway implements BuyerPushRegistrationGateway {
   var fail = false;
   final requests = <(String, String)>[];
   final tenants = <String>[];
+  final installations = <String>[];
   @override
   Future<String> register({
     required BuyerAccessContext context,
@@ -177,6 +182,7 @@ final class _Gateway implements BuyerPushRegistrationGateway {
     required String commandKey,
   }) async {
     requests.add((destination, commandKey));
+    installations.add(installationId);
     tenants.add(context.tenantId);
     if (fail) throw StateError('provider unavailable');
     return 'id';

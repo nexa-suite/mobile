@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../tenant_access_governance/application/buyer_access_repository.dart';
@@ -144,7 +146,7 @@ final class BuyerPushRegistration {
     _commandKey ??= const Uuid().v4();
     await gateway.register(
       context: access.snapshot.currentContext!,
-      installationId: 'buyer-$fid',
+      installationId: 'buyer-${sha256.convert(utf8.encode(fid))}',
       platform: platform,
       destination: destination,
       commandKey: _commandKey!,
