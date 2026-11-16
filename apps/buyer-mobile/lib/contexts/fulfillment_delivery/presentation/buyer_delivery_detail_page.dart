@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -10,6 +11,8 @@ import '../../tenant_access_governance/application/buyer_change_feed_repository.
 import '../../../core/presentation/buyer_visible_route_poller.dart';
 import '../../../core/presentation/nexa_buyer_components.dart';
 import '../../../core/application/evidence_upload_policy.dart';
+import '../../tenant_access_governance/application/buyer_access_repository.dart';
+import '../application/buyer_receipt_draft_store.dart';
 import '../application/buyer_deliveries_repository.dart';
 import 'buyer_live_delivery_map.dart';
 import 'buyer_deliveries_view_model.dart';
@@ -49,16 +52,245 @@ final class _BuyerDeliveryDetailPageState
   GoRouter? _router;
   BuyerVisibleRoutePoller? _poller;
   late final BuyerDeliveryDetailViewModel _detail;
+  late final BuyerReceiptDraftStore _draftStore;
+  late final BuyerAccessRepository _access;
   int _authorityRevision = 0;
   String? _lastHandoffId;
+  String? _observedDraftScope;
+  String? _draftAppliedAttemptId;
+  String? _pendingDraftScope;
+  BuyerReceiptDraft? _pendingDraft;
+  Timer? _draftSaveTimer;
+  BuyerReceiptDraft? _savedDraft;
+  String? _draftMessage;
+  int _draftGeneration = 0;
+  bool _draftLoading = true;
+  bool _draftRestored = false;
+  bool _draftEdited = false;
   String _decision = 'DISPUTED';
 
   @override
   void initState() {
     super.initState();
     _detail = context.read<BuyerDeliveryDetailViewModel>();
+    _draftStore = context.read<BuyerReceiptDraftStore>();
+    _access = context.read<BuyerAccessRepository>();
     _authorityRevision = _detail.authorityRevision;
+    _observedDraftScope = _draftScopeKey;
     _detail.addListener(_syncForm);
+    unawaited(_loadReceiptDraft(_observedDraftScope));
+  }
+
+  String? get _draftScopeKey {
+    final snapshot = _access.snapshot;
+    if (!snapshot.hasActiveBuyerScope ||
+        !snapshot.currentContext!.permissions.contains('buyer.order.read')) {
+      return null;
+    }
+    return snapshot.currentContext!.scopeKey;
+  }
+
+  Future<void> _loadReceiptDraft(String? scopeKey) async {
+    final generation = ++_draftGeneration;
+    _draftLoading = scopeKey != null;
+    _savedDraft = null;
+    _draftMessage = null;
+    if (scopeKey == null) return;
+    try {
+      final draft = await _draftStore.read(
+        scopeKey: scopeKey,
+        deliveryId: _detail.deliveryId,
+      );
+      if (!mounted ||
+          generation != _draftGeneration ||
+          scopeKey != _draftScopeKey) {
+        return;
+      }
+      setState(() {
+        _savedDraft = draft;
+        _draftLoading = false;
+      });
+      _clearDraftIfAlreadyRecorded(scopeKey, draft);
+    } catch (_) {
+      if (!mounted ||
+          generation != _draftGeneration ||
+          scopeKey != _draftScopeKey) {
+        return;
+      }
+      setState(() {
+        _draftLoading = false;
+        _draftMessage = 'No se pudo abrir el borrador local.';
+      });
+    }
+  }
+
+  void _clearDraftIfAlreadyRecorded(String scopeKey, BuyerReceiptDraft? draft) {
+    if (draft == null ||
+        !_detail.receipts.any(
+          (receipt) => receipt.attemptId == draft.attemptId,
+        )) {
+      return;
+    }
+    _savedDraft = null;
+    unawaited(_deleteReceiptDraft(scopeKey: scopeKey, clearMessage: false));
+  }
+
+  Future<void> _deleteReceiptDraft({
+    String? scopeKey,
+    bool clearMessage = true,
+  }) async {
+    final scope = scopeKey ?? _draftScopeKey;
+    if (scope == null) return;
+    final generation = ++_draftGeneration;
+    try {
+      await _draftStore.delete(scopeKey: scope, deliveryId: _detail.deliveryId);
+      if (!mounted ||
+          generation != _draftGeneration ||
+          scope != _draftScopeKey) {
+        return;
+      }
+      setState(() {
+        _savedDraft = null;
+        _draftRestored = false;
+        _draftAppliedAttemptId = null;
+        _draftEdited = false;
+        _draftMessage = clearMessage ? null : _draftMessage;
+      });
+    } catch (_) {
+      if (!mounted || generation != _draftGeneration) return;
+      setState(() => _draftMessage = 'No se pudo eliminar el borrador local.');
+    }
+  }
+
+  void _restoreReceiptDraft() {
+    final draft = _savedDraft;
+    final verified = _detail.handoff;
+    if (draft == null || _draftScopeKey == null) {
+      return;
+    }
+    if (verified != null && verified.attemptId != draft.attemptId) {
+      setState(
+        () => _draftMessage = 'El intento verificado cambió. Descarta el borrador antes de continuar.',
+      );
+      return;
+    }
+    setState(() {
+      _decision = draft.decision;
+      _acceptedQuantity.text = draft.acceptedQuantity;
+      _discrepancyReason.text = draft.reason;
+      _draftRestored = true;
+      _draftAppliedAttemptId = draft.attemptId;
+      _draftEdited = false;
+      _draftMessage = 'Borrador recuperado. Aún no se ha enviado a Nexa.';
+    });
+  }
+
+  void _markReceiptDraftEdited() {
+    _draftEdited = true;
+    _draftSaveTimer?.cancel();
+    final scopeKey = _draftScopeKey;
+    final handoff = _detail.handoff;
+    final restoredDraft = _savedDraft;
+    final canEditRestoredDraft =
+        _draftRestored &&
+        restoredDraft != null &&
+        _draftAppliedAttemptId == restoredDraft.attemptId &&
+        (handoff == null || handoff.attemptId == restoredDraft.attemptId);
+    final canCreateFromVerifiedAttempt =
+        handoff != null &&
+        _detail.canSubmitReceipt &&
+        _detail.delivery?.id == _detail.deliveryId;
+    if (scopeKey == null ||
+        (!canEditRestoredDraft && !canCreateFromVerifiedAttempt) ||
+        _detail.receipts.any(
+          (receipt) =>
+              receipt.attemptId ==
+              (canEditRestoredDraft
+                  ? restoredDraft.attemptId
+                  : handoff!.attemptId),
+        ) ||
+        _detail.receiptStatus == BuyerReceiptStatus.accepted ||
+        _detail.receiptStatus == BuyerReceiptStatus.disputed) {
+      return;
+    }
+    final draft = BuyerReceiptDraft(
+      deliveryId: _detail.deliveryId,
+      attemptId: canEditRestoredDraft
+          ? restoredDraft.attemptId
+          : handoff!.attemptId,
+      decision: _decision,
+      acceptedQuantity: _acceptedQuantity.text,
+      reason: _discrepancyReason.text,
+    );
+    final generation = ++_draftGeneration;
+    _pendingDraftScope = scopeKey;
+    _pendingDraft = draft;
+    _draftMessage = 'Cambios pendientes de guardar en este dispositivo.';
+    _draftSaveTimer = Timer(const Duration(milliseconds: 350), () {
+      unawaited(_saveReceiptDraft(scopeKey, draft, generation));
+    });
+  }
+
+  Future<void> _saveRestoredDraftNow() async {
+    final scopeKey = _draftScopeKey;
+    final savedDraft = _savedDraft;
+    if (scopeKey == null ||
+        savedDraft == null ||
+        !_draftRestored ||
+        _draftAppliedAttemptId != savedDraft.attemptId ||
+        (_detail.handoff != null &&
+            _detail.handoff!.attemptId != savedDraft.attemptId)) {
+      return;
+    }
+    _draftSaveTimer?.cancel();
+    final draft = BuyerReceiptDraft(
+      deliveryId: _detail.deliveryId,
+      attemptId: savedDraft.attemptId,
+      decision: _decision,
+      acceptedQuantity: _acceptedQuantity.text,
+      reason: _discrepancyReason.text,
+    );
+    final generation = ++_draftGeneration;
+    _pendingDraftScope = scopeKey;
+    _pendingDraft = draft;
+    await _saveReceiptDraft(scopeKey, draft, generation);
+  }
+
+  Future<void> _saveReceiptDraft(
+    String scopeKey,
+    BuyerReceiptDraft draft,
+    int generation,
+  ) async {
+    try {
+      await _draftStore.write(scopeKey: scopeKey, draft: draft);
+      if (_pendingDraft == draft && _pendingDraftScope == scopeKey) {
+        _pendingDraft = null;
+        _pendingDraftScope = null;
+      }
+      if (!mounted ||
+          generation != _draftGeneration ||
+          scopeKey != _draftScopeKey ||
+          (_detail.handoff?.attemptId != draft.attemptId &&
+              (!_draftRestored || _draftAppliedAttemptId != draft.attemptId))) {
+        return;
+      }
+      setState(() {
+        _savedDraft = draft;
+        _draftMessage = _draftRestored
+            ? 'Borrador guardado en este dispositivo. Aún no se ha enviado a Nexa.'
+            : null;
+      });
+    } catch (_) {
+      if (!mounted ||
+          generation != _draftGeneration ||
+          scopeKey != _draftScopeKey) {
+        return;
+      }
+      setState(
+        () => _draftMessage =
+            'No se pudo guardar el borrador en este dispositivo.',
+      );
+    }
   }
 
   @override
@@ -81,25 +313,73 @@ final class _BuyerDeliveryDetailPageState
   }
 
   void _syncForm() {
+    final scopeKey = _draftScopeKey;
     if (_authorityRevision != _detail.authorityRevision) {
       _authorityRevision = _detail.authorityRevision;
+      _draftSaveTimer?.cancel();
+      _draftGeneration++;
       _lastHandoffId = null;
       _handoffCode.clear();
       _acceptedQuantity.clear();
       _discrepancyReason.clear();
       _decision = 'DISPUTED';
+      _draftRestored = false;
+      _draftAppliedAttemptId = null;
+      _draftEdited = false;
+      _pendingDraft = null;
+      _pendingDraftScope = null;
       if (mounted) setState(() {});
+    }
+    if (scopeKey != _observedDraftScope) {
+      _observedDraftScope = scopeKey;
+      _draftSaveTimer?.cancel();
+      _draftGeneration++;
+      _savedDraft = null;
+      _draftRestored = false;
+      _draftAppliedAttemptId = null;
+      _draftEdited = false;
+      _pendingDraft = null;
+      _pendingDraftScope = null;
+      _draftLoading = true;
+      unawaited(_loadReceiptDraft(scopeKey));
     }
     final handoff = _detail.handoff;
     if (handoff != null && handoff.handoffId != _lastHandoffId) {
       _lastHandoffId = handoff.handoffId;
       _handoffCode.clear();
-      _acceptedQuantity.text = handoff.deliveredQuantity.toString();
+      if (_draftRestored && _draftAppliedAttemptId != handoff.attemptId) {
+        _draftRestored = false;
+        _draftAppliedAttemptId = null;
+        _acceptedQuantity.text = handoff.deliveredQuantity.toString();
+        _discrepancyReason.clear();
+        _decision = 'DISPUTED';
+        _draftMessage = 'El intento verificado cambió. El borrador no se aplicó a esta recepción.';
+        if (mounted) setState(() {});
+      } else if (!_draftRestored) {
+        _acceptedQuantity.text = handoff.deliveredQuantity.toString();
+      }
+    }
+    final scope = _draftScopeKey;
+    if (_detail.receiptStatus == BuyerReceiptStatus.accepted ||
+        _detail.receiptStatus == BuyerReceiptStatus.disputed) {
+      if (_savedDraft != null && scope != null) {
+        _savedDraft = null;
+        unawaited(_deleteReceiptDraft(scopeKey: scope));
+      }
+    } else if (scope != null) {
+      _clearDraftIfAlreadyRecorded(scope, _savedDraft);
     }
   }
 
   @override
   void dispose() {
+    _draftSaveTimer?.cancel();
+    final pendingDraft = _pendingDraft;
+    final pendingScope = _pendingDraftScope;
+    if (pendingDraft != null && pendingScope != null) {
+      unawaited(_flushDraftAfterDispose(pendingScope, pendingDraft));
+    }
+    _draftGeneration++;
     _poller?.dispose();
     _detail.removeListener(_syncForm);
     _handoffCode.dispose();
@@ -108,12 +388,40 @@ final class _BuyerDeliveryDetailPageState
     super.dispose();
   }
 
+  Future<void> _flushDraftAfterDispose(
+    String scopeKey,
+    BuyerReceiptDraft draft,
+  ) async {
+    try {
+      await _draftStore.write(scopeKey: scopeKey, draft: draft);
+    } catch (_) {
+      // The explicit save action reports persistence failures while mounted.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final detail = context.watch<BuyerDeliveryDetailViewModel>();
     if (detail.status == BuyerDeliveryDetailStatus.loading) {
-      return const Scaffold(
-        body: SafeArea(child: Center(child: CircularProgressIndicator())),
+      return Scaffold(
+        appBar: AppBar(title: const Text('Seguimiento de entrega')),
+        body: SafeArea(
+          top: false,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              const NexaNotice(
+                'Consultando el estado autorizado de la entrega. Un borrador local no confirma ni envía una recepción.',
+              ),
+              const SizedBox(height: 12),
+              _receiptDraftPanel(),
+            ],
+          ),
+        ),
       );
     }
     final delivery = detail.delivery;
@@ -122,11 +430,19 @@ final class _BuyerDeliveryDetailPageState
         appBar: AppBar(title: const Text('Seguimiento de entrega')),
         body: SafeArea(
           top: false,
-          child: _DeliveryDetailMessage(
-            message: detail.message ?? 'Esta entrega no está disponible.',
-            showRefresh:
-                detail.status != BuyerDeliveryDetailStatus.permissionDenied,
-            onRefresh: detail.refresh,
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                _DeliveryDetailMessage(
+                  message: detail.message ?? 'Esta entrega no está disponible.',
+                  showRefresh:
+                      detail.status !=
+                      BuyerDeliveryDetailStatus.permissionDenied,
+                  onRefresh: detail.refresh,
+                ),
+                _receiptDraftPanel(),
+              ],
+            ),
           ),
         ),
       );
@@ -156,6 +472,7 @@ final class _BuyerDeliveryDetailPageState
                   NexaNotice(message),
                   const SizedBox(height: 12),
                 ],
+                _receiptDraftPanel(),
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -298,6 +615,161 @@ final class _BuyerDeliveryDetailPageState
                   'La recepción ya está registrada o todavía no está disponible.',
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _receiptDraftPanel() {
+    final draft = _savedDraft;
+    if (_draftLoading && draft == null && _draftMessage == null) {
+      return const SizedBox.shrink();
+    }
+    if (draft == null && _draftMessage == null) {
+      return const SizedBox.shrink();
+    }
+    final currentAttempt = _detail.handoff?.attemptId;
+    final attemptMismatch =
+        currentAttempt != null &&
+        draft != null &&
+        currentAttempt != draft.attemptId;
+    return Card(
+      key: const Key('buyer-receipt-draft-panel'),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Borrador local',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            if (draft != null) ...[
+              const SizedBox(height: 8),
+              const Text(
+                'Borrador local · sin conexión; no enviado ni confirmado por Nexa.',
+              ),
+              const SizedBox(height: 8),
+              _DetailRow(
+                label: 'Decisión',
+                value: draft.decision == 'DISPUTED'
+                    ? 'Reportar diferencia'
+                    : 'Recibí todo',
+              ),
+              _DetailRow(
+                label: 'Cantidad recibida',
+                value: draft.acceptedQuantity.isEmpty
+                    ? 'Sin completar'
+                    : draft.acceptedQuantity,
+              ),
+              if (draft.reason.isNotEmpty)
+                _DetailRow(label: 'Motivo', value: draft.reason),
+              if (_detail.handoff == null)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Verifica de nuevo el código de entrega antes de registrar la recepción. El código no se guarda en este dispositivo.',
+                  ),
+                ),
+              if (attemptMismatch)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    'El intento verificado cambió. Este borrador no se puede usar para el intento actual.',
+                  ),
+                ),
+              if (_draftRestored)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Borrador recuperado. Aún no se ha enviado a Nexa.',
+                  ),
+                ),
+              if (_draftRestored && _detail.handoff == null) ...[
+                const SizedBox(height: 12),
+                SegmentedButton<String>(
+                  key: const Key('buyer-offline-draft-decision'),
+                  segments: const [
+                    ButtonSegment(
+                      value: 'ACCEPTED',
+                      label: Text('Recibí todo'),
+                    ),
+                    ButtonSegment(
+                      value: 'DISPUTED',
+                      label: Text('Reportar diferencia'),
+                    ),
+                  ],
+                  selected: {_decision},
+                  onSelectionChanged: (selection) => setState(() {
+                    _decision = selection.single;
+                    _markReceiptDraftEdited();
+                  }),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  key: const Key('buyer-offline-draft-quantity'),
+                  controller: _acceptedQuantity,
+                  maxLength: 32,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Cantidad recibida',
+                  ),
+                  onChanged: (_) => _markReceiptDraftEdited(),
+                ),
+                if (_decision == 'DISPUTED') ...[
+                  const SizedBox(height: 8),
+                  TextField(
+                    key: const Key('buyer-offline-draft-reason'),
+                    controller: _discrepancyReason,
+                    maxLength: 2000,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Motivo de la diferencia',
+                      counterText: '',
+                    ),
+                    onChanged: (_) => _markReceiptDraftEdited(),
+                  ),
+                ],
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.icon(
+                    key: const Key('buyer-save-offline-receipt-draft'),
+                    onPressed: _saveRestoredDraftNow,
+                    icon: const Icon(Icons.save_outlined),
+                    label: const Text('Guardar borrador'),
+                  ),
+                ),
+              ],
+            ],
+            if (_draftMessage case final message?) ...[
+              const SizedBox(height: 8),
+              Text(message),
+            ],
+            if (draft != null) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    key: const Key('buyer-restore-receipt-draft'),
+                    onPressed: _draftRestored || _draftEdited || attemptMismatch
+                        ? null
+                        : _restoreReceiptDraft,
+                    icon: const Icon(Icons.restore),
+                    label: const Text('Restaurar borrador'),
+                  ),
+                  TextButton(
+                    key: const Key('buyer-delete-receipt-draft'),
+                    onPressed: () => _deleteReceiptDraft(),
+                    child: const Text('Eliminar borrador'),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -490,6 +962,7 @@ final class _BuyerDeliveryDetailPageState
                     ? null
                     : (selection) => setState(() {
                         _decision = selection.single;
+                        _markReceiptDraftEdited();
                       }),
               ),
               const SizedBox(height: 8),
@@ -497,12 +970,14 @@ final class _BuyerDeliveryDetailPageState
                 key: const Key('buyer-received-quantity'),
                 controller: _acceptedQuantity,
                 enabled: !locked && !working && detail.canSubmitReceipt,
+                maxLength: 32,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
                 decoration: const InputDecoration(
                   labelText: 'Cantidad recibida',
                 ),
+                onChanged: (_) => _markReceiptDraftEdited(),
               ),
               if (_decision == 'DISPUTED') ...[
                 const SizedBox(height: 8),
@@ -516,6 +991,7 @@ final class _BuyerDeliveryDetailPageState
                     labelText: 'Motivo de la diferencia',
                     counterText: '',
                   ),
+                  onChanged: (_) => _markReceiptDraftEdited(),
                 ),
                 const Text(
                   'Después de registrar la diferencia, puedes adjuntar evidencia.',
