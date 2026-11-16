@@ -101,6 +101,23 @@ sealed interface PickingIntentCommand {
         PickingIntentCommand
 
     data class Confirm(val request: PickingConfirmationCommand) : PickingIntentCommand
+
+    data class Advance(
+        val fulfillmentId: String,
+        val expectedFulfillmentVersion: Long,
+        val action: FulfillmentPreparationAction
+    ) : PickingIntentCommand
+}
+
+enum class FulfillmentPreparationAction(val apiValue: String) {
+    Pack("PACK"),
+    Stage("STAGE"),
+    ReadyForDispatch("READY_FOR_DISPATCH");
+
+    companion object {
+        fun fromApiValue(value: String): FulfillmentPreparationAction? =
+            values().singleOrNull { it.apiValue == value }
+    }
 }
 
 enum class PickingIntentMetadataStatus { Pending, UnknownOutcome }

@@ -49,4 +49,10 @@ interface PickingGateway {
         idempotencyKey: String,
         authority: PickingAuthority
     ): PickingMutationResult
+
+    suspend fun advanceFulfillment(
+        command: PickingIntentCommand.Advance,
+        idempotencyKey: String,
+        authority: PickingAuthority
+    ): PickingMutationResult = PickingMutationResult.ServiceUnavailable
 }
