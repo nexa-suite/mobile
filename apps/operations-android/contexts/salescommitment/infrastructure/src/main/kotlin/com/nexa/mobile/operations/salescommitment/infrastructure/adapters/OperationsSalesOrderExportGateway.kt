@@ -1,7 +1,7 @@
 package com.nexa.mobile.operations.salescommitment.infrastructure.adapters
 
 import android.content.Context
-import android.net.Uri
+import androidx.core.net.toUri
 import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.network.FailureKind
@@ -35,7 +35,7 @@ class OperationsSalesOrderExportGateway @Inject constructor(
     ): SalesOrderExportSaveResult {
         if (!validId(orderId)) return SalesOrderExportSaveResult.Unavailable
         if (!current(authority)) return SalesOrderExportSaveResult.PermissionDenied
-        val uri = runCatching { Uri.parse(destination.value) }.getOrNull()
+        val uri = runCatching { destination.value.toUri() }.getOrNull()
             ?.takeIf { it.scheme == "content" && !it.authority.isNullOrBlank() }
             ?: return SalesOrderExportSaveResult.Unavailable
         val lease = sessions.currentAccess() ?: return SalesOrderExportSaveResult.ContextInvalidated

@@ -20,11 +20,7 @@ data class SalesMessagingAuthority(
 
 data class SalesConversationBuyer(val membershipId: String, val displayName: String)
 
-data class SalesConversationMessage(
-    val sender: String,
-    val body: String,
-    val createdAt: String
-) {
+data class SalesConversationMessage(val sender: String, val body: String, val createdAt: String) {
     override fun toString(): String = "SalesConversationMessage(body=REDACTED)"
 }
 
@@ -64,10 +60,7 @@ enum class SalesMessageSendResult {
 }
 
 interface SalesConversationGateway {
-    suspend fun load(
-        authority: SalesMessagingAuthority,
-        accountId: String
-    ): SalesConversationRead
+    suspend fun load(authority: SalesMessagingAuthority, accountId: String): SalesConversationRead
 
     suspend fun pending(authority: SalesMessagingAuthority): SalesPendingMessageRead
 
