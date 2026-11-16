@@ -18,6 +18,40 @@ const _paymentId = '00000000-0000-4000-8000-000000000003';
 const _retryId = '00000000-0000-4000-8000-000000000004';
 
 void main() {
+  testWidgets('phone report button waits for proof validation', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final access = _FakeAccess(_snapshot());
+    final repository = _FakePaymentsRepository();
+    final vm = _viewModel(access, repository, _FakeIdempotencyStore());
+    addTearDown(vm.dispose);
+    addTearDown(access.dispose);
+    await _uploadProof(vm);
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: vm,
+        child: const MaterialApp(
+          home: Scaffold(body: BuyerPaymentActivityPage()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final action = find.byKey(const Key('buyer-payment-report-action'));
+    expect(tester.widget<FilledButton>(action).onPressed, isNull);
+    expect(find.text('transfer.pdf'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await vm.refreshProof();
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(action).onPressed, isNotNull);
+    expect(
+      find.text('Comprobante validado. Se adjuntará al reporte.'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   test(
     'waits for server scanning before reporting with the proof id',
     () async {

@@ -1,7 +1,11 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/presentation/nexa_buyer_components.dart';
+import '../../../core/application/evidence_upload_policy.dart';
 import '../application/buyer_payments_repository.dart';
 import 'buyer_payment_activity_view_model.dart';
 
@@ -87,11 +91,45 @@ final class _BuyerPaymentActivityPageState
               hintText: 'Referencia bancaria',
             ),
           ),
+          OutlinedButton.icon(
+            key: const Key('buyer-transfer-proof-pick'),
+            onPressed:
+                viewModel.canReport &&
+                    !viewModel.isReporting &&
+                    !viewModel.isPreparingProof
+                ? () => _pickProof(viewModel)
+                : null,
+            icon: const Icon(Icons.attach_file),
+            label: const Text('Adjuntar comprobante (opcional)'),
+          ),
+          if (viewModel.proofFilename != null) ...[
+            Text(viewModel.proofFilename!),
+            TextButton(
+              onPressed: !viewModel.isReporting && !viewModel.isPreparingProof
+                  ? viewModel.removeProof
+                  : null,
+              child: const Text('Retirar del reporte'),
+            ),
+            if (viewModel.proof != null && !viewModel.proof!.isRejected)
+              TextButton.icon(
+                key: const Key('buyer-transfer-proof-refresh'),
+                onPressed: !viewModel.isReporting && !viewModel.isPreparingProof
+                    ? viewModel.refreshProof
+                    : null,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Actualizar estado del comprobante'),
+              ),
+          ],
+          if (viewModel.proofMessage != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: NexaNotice(viewModel.proofMessage!),
+            ),
           Align(
             alignment: Alignment.centerRight,
             child: FilledButton.icon(
               key: const Key('buyer-payment-report-action'),
-              onPressed: viewModel.canReport && !viewModel.isReporting
+              onPressed: viewModel.canSubmitReport
                   ? () async {
                       await viewModel.reportBankTransfer(
                         _referenceController.text,
@@ -131,6 +169,62 @@ final class _BuyerPaymentActivityPageState
       ),
     ),
   );
+
+  Future<void> _pickProof(BuyerPaymentActivityViewModel viewModel) async {
+    final selectionLease = viewModel.proofSelectionLease;
+    if (selectionLease == null) return;
+    try {
+      final files = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['jpg', 'jpeg', 'png', 'pdf'],
+      );
+      if (!mounted || files.isEmpty) return;
+      final file = files.single;
+      final size = await file.length();
+      if (size == null || size <= 0 || size > evidenceUploadMaximumBytes) {
+        _pickerMessage('Selecciona un archivo de hasta 10 MiB.');
+        return;
+      }
+      final contentType = switch (file.name.split('.').last.toLowerCase()) {
+        'jpg' || 'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'pdf' => 'application/pdf',
+        _ => null,
+      };
+      if (contentType == null) {
+        _pickerMessage('Selecciona una imagen JPG, PNG o un PDF.');
+        return;
+      }
+      final builder = BytesBuilder(copy: false);
+      await for (final chunk in file.readAsByteStream()) {
+        if (chunk.length > evidenceUploadMaximumBytes - builder.length) {
+          _pickerMessage('El archivo excede el límite de 10 MiB.');
+          return;
+        }
+        builder.add(chunk);
+      }
+      final bytes = builder.takeBytes();
+      try {
+        if (!mounted || bytes.length != size) return;
+        await viewModel.uploadTransferProof(
+          filename: file.name,
+          contentType: contentType,
+          bytes: bytes,
+          selectionLease: selectionLease,
+        );
+      } finally {
+        bytes.fillRange(0, bytes.length, 0);
+      }
+    } catch (_) {
+      _pickerMessage('No se pudo leer el archivo seleccionado.');
+    }
+  }
+
+  void _pickerMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
 
   Widget _historySection(
     BuildContext context,
