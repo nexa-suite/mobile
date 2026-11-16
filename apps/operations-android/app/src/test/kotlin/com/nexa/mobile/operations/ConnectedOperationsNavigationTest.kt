@@ -212,12 +212,7 @@ class ConnectedOperationsNavigationTest {
     }
 
     @Test fun commercialRequestRequiresCustomerSalesAndCatalogReadPermissions() {
-        val requestEntry = ConnectedOperationEntry(
-            key = "commercial.request",
-            label = "Preparar solicitud",
-            readPermissions = setOf("catalog.read", "catalog:read"),
-            requiredReadPermissionGroups = listOf(setOf("client.read"), setOf("sales:read"))
-        )
+        val requestEntry = CONNECTED_OPERATIONS.single { it.key == "commercial.request" }
         for (catalogPermission in listOf("catalog.read", "catalog:read")) {
             val requestAuthority = authority.copy(
                 permissions = setOf("client.read", "sales:read", catalogPermission),
