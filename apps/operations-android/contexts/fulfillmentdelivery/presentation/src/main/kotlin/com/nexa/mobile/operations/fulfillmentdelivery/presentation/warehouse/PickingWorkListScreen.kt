@@ -207,6 +207,9 @@ private fun PickingWorkItemCard(item: PickingWorkItem, onSelectFulfillment: (Str
 private fun pickingStatusLabel(status: String): String = when (status.uppercase()) {
     "ALLOCATED" -> stringResource(R.string.picking_work_status_allocated)
     "PICKING" -> stringResource(R.string.picking_work_status_picking)
+    "PICKED" -> stringResource(R.string.picking_work_status_picked)
+    "PACKED" -> stringResource(R.string.picking_work_status_packed)
+    "STAGED" -> stringResource(R.string.picking_work_status_staged)
     "READY_FOR_DISPATCH" -> stringResource(R.string.picking_work_status_ready)
     else -> status.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase)
 }

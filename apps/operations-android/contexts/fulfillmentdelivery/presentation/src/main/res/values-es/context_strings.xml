@@ -1002,6 +1002,9 @@
     </plurals>
     <string name="picking_work_status_allocated">Asignada</string>
     <string name="picking_work_status_picking">En preparación</string>
+    <string name="picking_work_status_picked">Recogida</string>
+    <string name="picking_work_status_packed">Empacada</string>
+    <string name="picking_work_status_staged">En zona de despacho</string>
     <string name="picking_work_status_ready">Lista para despacho</string>
     <string name="picking_work_item_order">Orden: %1$s</string>
     <string name="picking_work_item_status">Estado: %1$s · versión: %2$d</string>

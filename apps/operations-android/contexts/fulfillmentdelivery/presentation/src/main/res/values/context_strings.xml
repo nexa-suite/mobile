@@ -998,6 +998,9 @@
     </plurals>
     <string name="picking_work_status_allocated">Assigned</string>
     <string name="picking_work_status_picking">In progress</string>
+    <string name="picking_work_status_picked">Picked</string>
+    <string name="picking_work_status_packed">Packed</string>
+    <string name="picking_work_status_staged">Staged</string>
     <string name="picking_work_status_ready">Ready for dispatch</string>
     <string name="picking_work_item_order">Order: %1$s</string>
     <string name="picking_work_item_status">Status: %1$s · version: %2$d</string>
