@@ -1,0 +1,17 @@
+<resources>
+    <string name="sales_messages_title">Buyer conversation</string>
+    <string name="sales_messages_loading">Loading messages…</string>
+    <string name="sales_messages_unavailable">Messages or the pending command could not be loaded.</string>
+    <string name="sales_messages_permission_denied">You do not have permission to read or manage these messages.</string>
+    <string name="sales_messages_context_changed">The active access context changed. Reopen this conversation.</string>
+    <string name="sales_messages_empty">There are no messages yet.</string>
+    <string name="sales_messages_pending">A message is awaiting confirmation. Retry the same message before sending another.</string>
+    <string name="sales_messages_retry">Retry pending message</string>
+    <string name="sales_messages_body">Message</string>
+    <string name="sales_messages_send">Send</string>
+    <string name="sales_messages_refresh">Refresh</string>
+    <string name="sales_messages_close">Close</string>
+    <string name="sales_messages_byline">%1$s · %2$s</string>
+    <string name="sales_messages_selected_buyer">✓ %1$s</string>
+    <string name="sales_messages_choose_buyer">%1$s</string>
+</resources>
