@@ -12,6 +12,110 @@ const _paymentId = '00000000-0000-4000-8000-000000000003';
 const _idempotencyKey = '00000000-0000-4000-8000-000000000004';
 
 void main() {
+  test('uploads a scoped receivable proof with a stable command key', () async {
+    late http.Request captured;
+    final api = _api((request) async {
+      captured = request;
+      return http.Response(jsonEncode(_proof()), 201);
+    });
+    final result = await BuyerPaymentsRepositoryImpl(api).uploadTransferProof(
+      receivableId: _receivableId,
+      filename: 'transfer.pdf',
+      contentType: 'application/pdf',
+      bytes: const [37, 80, 68, 70],
+      idempotencyKey: _idempotencyKey,
+    );
+    expect(captured.url.path, '/api/v1/business-document-evidence');
+    expect(captured.headers['idempotency-key'], _idempotencyKey);
+    expect(captured.body, contains('RECEIVABLE'));
+    expect(captured.body, contains(_receivableId));
+    expect(captured.body, contains('filename="transfer.pdf"'));
+    expect(result.isAvailable, isFalse);
+    api.close();
+  });
+
+  test('proof lookup rejects a response from another receivable', () async {
+    final api = _api(
+      (request) async => http.Response(
+        jsonEncode({..._proof(), 'subjectId': _accountId}),
+        200,
+      ),
+    );
+    await expectLater(
+      BuyerPaymentsRepositoryImpl(api).transferProof(
+        receivableId: _receivableId,
+        evidenceId: _proof()['id']! as String,
+      ),
+      throwsA(isA<NexaApiFailure>()),
+    );
+    api.close();
+  });
+
+  test('only sends a valid optional proof id in the payment command', () async {
+    late http.Request captured;
+    var calls = 0;
+    final api = _api((request) async {
+      calls++;
+      captured = request;
+      return http.Response(jsonEncode(_payment()), 201);
+    });
+    final repository = BuyerPaymentsRepositoryImpl(api);
+    await repository.reportBankTransfer(
+      receivableId: _receivableId,
+      reference: 'BANK-REF-71',
+      idempotencyKey: _idempotencyKey,
+      proofEvidenceId: _proof()['id']! as String,
+    );
+    expect(jsonDecode(captured.body)['proofEvidenceId'], _proof()['id']);
+    await expectLater(
+      repository.reportBankTransfer(
+        receivableId: _receivableId,
+        reference: 'BANK-REF-71',
+        idempotencyKey: _idempotencyKey,
+        proofEvidenceId: '../bad',
+      ),
+      throwsA(isA<NexaApiFailure>()),
+    );
+    expect(calls, 1);
+    api.close();
+  });
+
+  test(
+    'rejects unsafe proof filenames and oversized files before dispatch',
+    () async {
+      var calls = 0;
+      final api = _api((request) async {
+        calls++;
+        return http.Response('{}', 500);
+      });
+      final repository = BuyerPaymentsRepositoryImpl(api);
+      for (final name in ['../transfer.pdf', 'transfer.exe', 'bad\n.pdf']) {
+        await expectLater(
+          repository.uploadTransferProof(
+            receivableId: _receivableId,
+            filename: name,
+            contentType: 'application/pdf',
+            bytes: const [1],
+            idempotencyKey: _idempotencyKey,
+          ),
+          throwsA(isA<NexaApiFailure>()),
+        );
+      }
+      await expectLater(
+        repository.uploadTransferProof(
+          receivableId: _receivableId,
+          filename: 'transfer.pdf',
+          contentType: 'application/pdf',
+          bytes: List.filled(10 * 1024 * 1024 + 1, 0),
+          idempotencyKey: _idempotencyKey,
+        ),
+        throwsA(isA<NexaApiFailure>()),
+      );
+      expect(calls, 0);
+      api.close();
+    },
+  );
+
   test('reads payment history from the server-scoped receivable', () async {
     late http.Request captured;
     final api = _api((request) async {
@@ -150,6 +254,14 @@ void main() {
     api.close();
   });
 }
+
+Map<String, Object?> _proof() => {
+  'id': '00000000-0000-4000-8000-000000000005',
+  'subjectType': 'RECEIVABLE',
+  'subjectId': _receivableId,
+  'originalFilename': 'transfer.pdf',
+  'lifecycleStatus': 'SCANNING',
+};
 
 NexaApiClient _api(Future<http.Response> Function(http.Request) handler) =>
     NexaApiClient(

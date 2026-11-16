@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nexa_buyer_mobile/contexts/payments/application/buyer_payments_repository.dart';
+import 'package:nexa_buyer_mobile/contexts/payments/application/buyer_transfer_proof_repository.dart';
 import 'package:nexa_buyer_mobile/contexts/payments/application/payment_report_idempotency_store.dart';
 import 'package:nexa_buyer_mobile/contexts/payments/presentation/buyer_payment_activity_view_model.dart';
 import 'package:nexa_buyer_mobile/contexts/payments/presentation/buyer_payment_activity_page.dart';
@@ -334,6 +335,29 @@ final class _FakeAccess implements BuyerAccessRepository {
 }
 
 final class _FakePaymentsRepository implements BuyerPaymentsRepository {
+  Future<BuyerTransferProofProjection> Function()? uploadHandler;
+  Future<BuyerTransferProofProjection> Function()? proofHandler;
+  final List<String> uploadKeys = [];
+  String? reportedProof;
+
+  @override
+  Future<BuyerTransferProofProjection> uploadTransferProof({
+    required String receivableId,
+    required String filename,
+    required String contentType,
+    required List<int> bytes,
+    required String idempotencyKey,
+  }) {
+    uploadKeys.add(idempotencyKey);
+    return uploadHandler?.call() ?? Future.value(_proof('SCANNING'));
+  }
+
+  @override
+  Future<BuyerTransferProofProjection> transferProof({
+    required String receivableId,
+    required String evidenceId,
+  }) => proofHandler?.call() ?? Future.value(_proof('AVAILABLE'));
+
   final List<_ReportCall> reportCalls = [];
   int historyCalls = 0;
   Future<BuyerPaymentProjection> Function(
@@ -364,7 +388,9 @@ final class _FakePaymentsRepository implements BuyerPaymentsRepository {
     required String receivableId,
     required String reference,
     required String idempotencyKey,
+    String? proofEvidenceId,
   }) {
+    reportedProof = proofEvidenceId;
     reportCalls.add(_ReportCall(reference, idempotencyKey));
     if (reportStarted != null && !reportStarted!.isCompleted) {
       reportStarted!.complete();
@@ -373,6 +399,14 @@ final class _FakePaymentsRepository implements BuyerPaymentsRepository {
         Future.value(_payment());
   }
 }
+
+BuyerTransferProofProjection _proof(String status) =>
+    BuyerTransferProofProjection(
+      id: '00000000-0000-4000-8000-000000000005',
+      receivableId: _receivableId,
+      filename: 'transfer.pdf',
+      lifecycleStatus: status,
+    );
 
 final class _ReportCall {
   const _ReportCall(this.reference, this.idempotencyKey);
