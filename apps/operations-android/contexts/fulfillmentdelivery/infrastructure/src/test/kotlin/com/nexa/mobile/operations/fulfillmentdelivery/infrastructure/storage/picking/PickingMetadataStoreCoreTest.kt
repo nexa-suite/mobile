@@ -38,6 +38,26 @@ class PickingMetadataStoreCoreTest {
     }
 
     @Test
+    fun codecRoundTripsVersionedPreparationTransition() {
+        val scope = scope()
+        val transition = PickingIntentMetadataRecord(
+            scope,
+            "stage-key",
+            PickingCommandRecord.Advance("fulfillment-9", 12, "STAGE"),
+            PickingIntentStatus.UnknownOutcome
+        )
+
+        val restored = PickingMetadataCodec.decode(
+            PickingMetadataCodec.encode(PickingMetadataSnapshot(scope, transition))
+        )
+
+        assertEquals(transition, restored.intent)
+        assertFails {
+            PickingCommandRecord.Advance("fulfillment-9", 12, "DISPATCH")
+        }
+    }
+
+    @Test
     fun codecRejectsUnknownSchemaTruncationAndTrailingBytes() {
         val valid = PickingMetadataCodec.encode(PickingMetadataSnapshot(scope(), null))
 

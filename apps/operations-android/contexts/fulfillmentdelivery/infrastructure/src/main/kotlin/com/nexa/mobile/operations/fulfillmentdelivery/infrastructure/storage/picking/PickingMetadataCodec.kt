@@ -79,6 +79,12 @@ internal object PickingMetadataCodec {
                 writeField(command.quantity, 128)
                 writeField(command.unit, 128)
             }
+
+            is PickingCommandRecord.Advance -> {
+                writeByte(3)
+                writeCommon(command)
+                writeField(command.action, 128)
+            }
         }
         writeByte(
             when (intent.status) {
@@ -115,6 +121,15 @@ internal object PickingMetadataCodec {
                     warehouseId = readField(256),
                     quantity = readField(128),
                     unit = readField(128)
+                )
+            }
+
+            3 -> {
+                val (fulfillmentId, fulfillmentVersion) = readCommon()
+                PickingCommandRecord.Advance(
+                    fulfillmentId = fulfillmentId,
+                    expectedFulfillmentVersion = fulfillmentVersion,
+                    action = readField(128)
                 )
             }
 

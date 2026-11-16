@@ -1,5 +1,6 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.adapters
 
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.FulfillmentPreparationAction
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingConfirmationCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingIntentCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingIntentMetadata
@@ -87,6 +88,12 @@ private fun PickingIntentMetadata.toLocal(): PickingIntentMetadataRecord =
             )
 
             is PickingIntentCommand.Confirm -> value.request.toLocal()
+
+            is PickingIntentCommand.Advance -> PickingCommandRecord.Advance(
+                fulfillmentId = value.fulfillmentId,
+                expectedFulfillmentVersion = value.expectedFulfillmentVersion,
+                action = value.action.apiValue
+            )
         },
         status = when (status) {
             PickingIntentMetadataStatus.Pending -> PickingIntentStatus.Pending
@@ -135,6 +142,13 @@ private fun PickingIntentMetadataRecord.toFeatureOrNull(): PickingIntentMetadata
                     quantity = BigDecimal(value.quantity),
                     unit = value.unit
                 )
+            )
+
+            is PickingCommandRecord.Advance -> PickingIntentCommand.Advance(
+                fulfillmentId = value.fulfillmentId,
+                expectedFulfillmentVersion = value.expectedFulfillmentVersion,
+                action = FulfillmentPreparationAction.fromApiValue(value.action)
+                    ?: throw IllegalArgumentException("Unknown preparation action")
             )
         },
         status = when (status) {
