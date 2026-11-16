@@ -135,6 +135,32 @@ class OperationsPickingGateway @Inject constructor(
         }
     }
 
+    override suspend fun advanceFulfillment(
+        command: PickingIntentCommand.Advance,
+        idempotencyKey: String,
+        authority: PickingAuthority
+    ): PickingMutationResult {
+        val before = authorize(authority, FULFILLMENT_WRITE_PERMISSIONS)
+        if (before !is Authorization.Current) return before.toMutationFailure()
+        val outcome = try {
+            picking.advanceFulfillment(
+                command.fulfillmentId,
+                command.expectedFulfillmentVersion,
+                command.action,
+                idempotencyKey
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return PickingMutationResult.UnknownOutcome
+        }
+        return if (currentAfter(authority, before.lease)) {
+            outcome.toMutationResult()
+        } else {
+            authorityDriftMutation(authority)
+        }
+    }
+
     private suspend fun authorize(
         authority: PickingAuthority,
         requiredPermissions: Set<String>

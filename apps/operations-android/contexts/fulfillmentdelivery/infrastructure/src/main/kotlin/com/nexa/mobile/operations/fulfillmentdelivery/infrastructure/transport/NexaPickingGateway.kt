@@ -6,6 +6,7 @@ import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
 import com.nexa.mobile.operations.core.network.ProtectedMethod
 import com.nexa.mobile.operations.core.network.ProtectedRequest
 import com.nexa.mobile.operations.core.network.ProtectedResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.FulfillmentPreparationAction
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
@@ -29,6 +30,9 @@ private const val FULFILLMENTS_PATH = "/api/v1/fulfillments"
 private const val FULFILLMENT_ALLOCATION_SUFFIX = "/physical-allocation"
 private const val PICKING_STARTS_SUFFIX = "/picking-starts"
 private const val PICKING_CONFIRMATIONS_SUFFIX = "/picking-confirmations"
+private const val PACKING_SUFFIX = "/packing"
+private const val STAGING_SUFFIX = "/staging"
+private const val READY_FOR_DISPATCH_SUFFIX = "/ready-for-dispatch"
 private val pickingJson = Json { ignoreUnknownKeys = true }
 private val uuidPattern = Regex("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
@@ -253,6 +257,31 @@ class NexaPickingGateway(private val protectedCalls: ProtectedCallExecutor) {
         )
     }
 
+    suspend fun advanceFulfillment(
+        fulfillmentId: String,
+        expectedFulfillmentVersion: Long,
+        action: FulfillmentPreparationAction,
+        idempotencyKey: String
+    ): PickingNetworkOutcome {
+        if (!uuidPattern.matches(fulfillmentId) || expectedFulfillmentVersion < 0 ||
+            idempotencyKey.isBlank() || idempotencyKey.length > 160
+        ) {
+            return PickingNetworkOutcome.ServiceUnavailable
+        }
+        val suffix = when (action) {
+            FulfillmentPreparationAction.Pack -> PACKING_SUFFIX
+            FulfillmentPreparationAction.Stage -> STAGING_SUFFIX
+            FulfillmentPreparationAction.ReadyForDispatch -> READY_FOR_DISPATCH_SUFFIX
+        }
+        return mutate(
+            fulfillmentId,
+            expectedFulfillmentVersion,
+            idempotencyKey,
+            suffix,
+            payload = null
+        )
+    }
+
     private suspend fun mutate(
         fulfillmentId: String,
         expectedVersion: Long,
@@ -356,7 +385,14 @@ class NexaPickingGateway(private val protectedCalls: ProtectedCallExecutor) {
             val salesOrderId = item.string("salesOrderId")?.takeIf(uuidPattern::matches)
                 ?: return null
             val status = item.string("status")?.takeIf {
-                it in setOf("ALLOCATED", "PICKING", "READY_FOR_DISPATCH")
+                it in setOf(
+                    "ALLOCATED",
+                    "PICKING",
+                    "PICKED",
+                    "PACKED",
+                    "STAGED",
+                    "READY_FOR_DISPATCH"
+                )
             }
                 ?: return null
             val version = item.long("version")?.takeIf { it >= 0 } ?: return null

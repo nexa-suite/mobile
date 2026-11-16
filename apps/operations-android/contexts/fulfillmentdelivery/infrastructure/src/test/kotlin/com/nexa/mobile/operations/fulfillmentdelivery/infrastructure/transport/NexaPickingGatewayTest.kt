@@ -6,6 +6,7 @@ import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.network.ApiEndpoint
 import com.nexa.mobile.operations.core.network.ApiHttpClient
 import com.nexa.mobile.operations.core.network.ProtectedCallExecutor
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.FulfillmentPreparationAction
 import java.math.BigDecimal
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +23,37 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NexaPickingGatewayTest {
+    @Test
+    fun workListAcceptsExistingPreparationStatusesForResumingDetailActions() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(
+                jsonResponse(
+                    200,
+                    workListJson(
+                        listOf(
+                            "ALLOCATED",
+                            "PICKING",
+                            "PICKED",
+                            "PACKED",
+                            "STAGED",
+                            "READY_FOR_DISPATCH"
+                        )
+                    )
+                )
+            )
+
+            val result = gateway(server).workList()
+
+            assertTrue(result is PickingWorkListNetworkOutcome.Loaded)
+            assertEquals(
+                listOf("ALLOCATED", "PICKING", "PICKED", "PACKED", "STAGED", "READY_FOR_DISPATCH"),
+                (result as PickingWorkListNetworkOutcome.Loaded).value.items.map { it.status }
+            )
+            assertEquals("/api/v1/fulfillments?page=0&size=25", server.takeRequest().path)
+        }
+    }
+
     @Test
     fun loadsFulfillmentAndExactAllocationProjectionWithServerVersions() = runTest {
         MockWebServer().use { server ->
@@ -169,6 +201,90 @@ class NexaPickingGatewayTest {
     }
 
     @Test
+    fun preparationProgressionUsesCurrentVersionAndTheMatchingServerTransition() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(jsonResponse(200, fulfillmentJson(13)).setHeader("ETag", "\"13\""))
+            server.enqueue(jsonResponse(200, fulfillmentJson(14)).setHeader("ETag", "\"14\""))
+            server.enqueue(jsonResponse(200, fulfillmentJson(15)).setHeader("ETag", "\"15\""))
+            val gateway = gateway(server)
+            val steps = listOf(
+                Triple(FulfillmentPreparationAction.Pack, 12L, "/packing"),
+                Triple(FulfillmentPreparationAction.Stage, 13L, "/staging"),
+                Triple(FulfillmentPreparationAction.ReadyForDispatch, 14L, "/ready-for-dispatch")
+            )
+
+            steps.forEachIndexed { index, (action, version, suffix) ->
+                assertTrue(
+                    gateway.advanceFulfillment(
+                        FULFILLMENT_ID,
+                        version,
+                        action,
+                        "prepare-step-$index"
+                    ) is PickingNetworkOutcome.Updated
+                )
+                val request = server.takeRequest()
+                assertEquals("POST", request.method)
+                assertEquals("/api/v1/fulfillments/$FULFILLMENT_ID$suffix", request.path)
+                assertEquals("\"$version\"", request.getHeader("If-Match"))
+                assertEquals("prepare-step-$index", request.getHeader("Idempotency-Key"))
+                assertEquals("", request.body.readUtf8())
+            }
+        }
+    }
+
+    @Test
+    fun preparationRetryAfterUnauthorizedKeepsTheSameKeyVersionAndBody() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(problemResponse(401, "ACCESS_TOKEN_INVALID"))
+            server.enqueue(jsonResponse(200, fulfillmentJson(13)).setHeader("ETag", "\"13\""))
+            val source = FakeAccessTokenSource()
+
+            assertTrue(
+                gateway(server, source).advanceFulfillment(
+                    FULFILLMENT_ID,
+                    12,
+                    FulfillmentPreparationAction.Pack,
+                    "pack-same-identity"
+                ) is PickingNetworkOutcome.Updated
+            )
+
+            val first = server.takeRequest()
+            val replay = server.takeRequest()
+            assertEquals(1, source.recoverCount)
+            assertEquals("pack-same-identity", first.getHeader("Idempotency-Key"))
+            assertEquals(first.getHeader("Idempotency-Key"), replay.getHeader("Idempotency-Key"))
+            assertEquals("\"12\"", first.getHeader("If-Match"))
+            assertEquals(first.getHeader("If-Match"), replay.getHeader("If-Match"))
+            assertEquals(first.body.readUtf8(), replay.body.readUtf8())
+            assertEquals("Bearer access-1", first.getHeader("Authorization"))
+            assertEquals("Bearer access-2", replay.getHeader("Authorization"))
+        }
+    }
+
+    @Test
+    fun stalePreparationVersionRemainsAStaleOutcome() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(problemResponse(412, "FULFILLMENT_VERSION_STALE"))
+
+            assertEquals(
+                PickingNetworkOutcome.StaleVersion,
+                gateway(server).advanceFulfillment(
+                    FULFILLMENT_ID,
+                    12,
+                    FulfillmentPreparationAction.Stage,
+                    "stale-stage"
+                )
+            )
+            val request = server.takeRequest()
+            assertEquals("/api/v1/fulfillments/$FULFILLMENT_ID/staging", request.path)
+            assertEquals("\"12\"", request.getHeader("If-Match"))
+        }
+    }
+
+    @Test
     fun malformedOrInconsistentAllocationProjectionNeverBecomesAnOffer() = runTest {
         MockWebServer().use { server ->
             server.start()
@@ -209,6 +325,27 @@ class NexaPickingGatewayTest {
     private fun fulfillmentJson(version: Long) =
         """{"id":"$FULFILLMENT_ID","status":"PICKING","version":$version,"lines":[{"id":"$FULFILLMENT_LINE_ID","skuId":"$SKU_ID","catalogItemId":"CAT-0017","allocatedQuantity":4.000,"pickedQuantity":0.500,"remainingQuantity":3.500,"unit":"KG"}]}"""
 
+    private fun workListJson(statuses: List<String>): String =
+        statuses.mapIndexed { index, status ->
+            val fulfillmentId = FULFILLMENT_ID.dropLast(1) + (index + 1)
+            """
+            {
+              "fulfillmentId":"$fulfillmentId",
+              "salesOrderId":"$SALES_ORDER_ID",
+              "status":"$status",
+              "version":${12 + index},
+              "physicalAllocationId":"$ALLOCATION_ID",
+              "allocationVersion":8,
+              "lineCount":1
+            }
+            """.trimIndent()
+        }.joinToString(
+            prefix = """{"items":[""",
+            postfix = """
+            ],"page":0,"size":25,"totalItems":${statuses.size},"asOf":"2026-11-16T00:00:00Z"}
+            """.trimIndent()
+        )
+
     private fun allocationJson(remaining: String = "0.500") =
         """{"allocationId":"$ALLOCATION_ID","status":"ALLOCATED","version":8,"asOf":"2026-09-30T15:00:00Z","lines":[{"physicalAllocationLineId":"$PHYSICAL_ALLOCATION_LINE_ID","skuId":"$SKU_ID","catalogItemId":"CAT-0017","warehouseId":"$WAREHOUSE_ID","zoneId":null,"lotId":"$LOT_ID","quantity":1.000,"releasedQuantity":0.250,"consumedQuantity":0.250,"remainingQuantity":$remaining,"unit":"KG","expirationDate":"2027-06-30"}]}"""
 
@@ -244,6 +381,7 @@ class NexaPickingGatewayTest {
 
     private companion object {
         const val FULFILLMENT_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413001"
+        const val SALES_ORDER_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413008"
         const val FULFILLMENT_LINE_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413002"
         const val ALLOCATION_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413003"
         const val PHYSICAL_ALLOCATION_LINE_ID = "b8c24a46-57d9-4f64-8fa7-6a641b413004"
