@@ -58,6 +58,7 @@ import 'contexts/customer_buyer_relationships/infrastructure/buyer_favorites_rep
 import 'contexts/customer_buyer_relationships/presentation/buyer_favorites_page.dart';
 import 'contexts/customer_buyer_relationships/presentation/buyer_favorites_view_model.dart';
 import 'contexts/fulfillment_delivery/application/buyer_deliveries_repository.dart';
+import 'contexts/fulfillment_delivery/infrastructure/secure_buyer_delivery_summary_cache.dart';
 import 'contexts/fulfillment_delivery/application/buyer_handoff_receipt_repository.dart';
 import 'contexts/fulfillment_delivery/application/buyer_receipt_evidence_idempotency_store.dart';
 import 'contexts/fulfillment_delivery/application/buyer_receipt_draft_store.dart';
@@ -447,6 +448,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp>
           create: (context) => BuyerDeliveriesViewModel(
             context.read<BuyerDeliveriesRepository>(),
             context.read<BuyerAccessRepository>(),
+            summaryCache: SecureBuyerDeliverySummaryCache(),
           ),
         ),
         ChangeNotifierProvider<BuyerRequestsViewModel>(
