@@ -5,8 +5,10 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/application/error/nexa_api_failure.dart';
+import '../../../core/application/evidence_upload_policy.dart';
 import '../../tenant_access_governance/application/buyer_access_repository.dart';
 import '../application/buyer_payments_repository.dart';
+import '../application/buyer_transfer_proof_repository.dart';
 import '../application/payment_report_idempotency_store.dart';
 
 enum BuyerPaymentHistoryStatus {
@@ -25,6 +27,17 @@ enum BuyerTransferReportStatus {
   uncertain,
   unavailable,
   permissionDenied,
+}
+
+enum BuyerTransferProofStatus {
+  idle,
+  uploading,
+  checking,
+  pending,
+  available,
+  rejected,
+  unavailable,
+  uncertain,
 }
 
 final class BuyerPaymentActivityViewModel extends ChangeNotifier {
@@ -51,6 +64,7 @@ final class BuyerPaymentActivityViewModel extends ChangeNotifier {
   String? _leaseKey;
   int _historyGeneration = 0;
   int _reportGeneration = 0;
+  int _proofGeneration = 0;
 
   BuyerPaymentHistoryStatus historyStatus = BuyerPaymentHistoryStatus.idle;
   BuyerPaymentHistoryPageProjection? history;
@@ -58,6 +72,167 @@ final class BuyerPaymentActivityViewModel extends ChangeNotifier {
   BuyerTransferReportStatus reportStatus = BuyerTransferReportStatus.idle;
   BuyerPaymentProjection? reportedPayment;
   String? reportMessage;
+  BuyerTransferProofProjection? proof;
+  String? proofFilename;
+  String? proofMessage;
+  BuyerTransferProofStatus proofStatus = BuyerTransferProofStatus.idle;
+  String? get proofSelectionLease => canReport ? _leaseKey : null;
+
+  bool get isPreparingProof =>
+      proofStatus == BuyerTransferProofStatus.uploading ||
+      proofStatus == BuyerTransferProofStatus.checking;
+  bool get canSubmitReport =>
+      canReport &&
+      !isReporting &&
+      !isPreparingProof &&
+      (proofFilename == null || proof?.isAvailable == true);
+
+  void removeProof() {
+    if (isReporting || isPreparingProof) return;
+    _proofGeneration++;
+    proof = null;
+    proofFilename = null;
+    proofMessage = null;
+    proofStatus = BuyerTransferProofStatus.idle;
+    notifyListeners();
+  }
+
+  Future<void> uploadTransferProof({
+    required String filename,
+    required String contentType,
+    required List<int> bytes,
+    required String selectionLease,
+  }) async {
+    final lease = _leaseKey;
+    if (lease == null ||
+        lease != selectionLease ||
+        !canReport ||
+        isReporting ||
+        isPreparingProof) {
+      return;
+    }
+    if (bytes.isEmpty || bytes.length > evidenceUploadMaximumBytes) {
+      proofMessage = 'Selecciona un archivo de hasta 10 MiB.';
+      notifyListeners();
+      return;
+    }
+    final generation = ++_proofGeneration;
+    proof = null;
+    proofFilename = filename;
+    proofStatus = BuyerTransferProofStatus.uploading;
+    proofMessage = 'Subiendo comprobante para su validación…';
+    notifyListeners();
+    var dispatched = false;
+    try {
+      final fingerprint = sha256
+          .convert(
+            utf8.encode(
+              jsonEncode([
+                filename.trim(),
+                contentType,
+                sha256.convert(bytes).toString(),
+              ]),
+            ),
+          )
+          .toString();
+      final key = await _idempotencyStore.keyFor(
+        scopeKey: '${_access.snapshot.currentContext!.scopeKey}|transfer-proof',
+        receivableId: receivableId,
+        referenceFingerprint: fingerprint,
+      );
+      if (!_isCurrentProof(generation, lease) || !canReport) return;
+      dispatched = true;
+      final result = await _repository.uploadTransferProof(
+        receivableId: receivableId,
+        filename: filename,
+        contentType: contentType,
+        bytes: bytes,
+        idempotencyKey: key,
+      );
+      if (!_isCurrentProof(generation, lease)) return;
+      _setProof(result);
+    } on NexaApiFailure catch (failure) {
+      if (!_isCurrentProof(generation, lease)) return;
+      if (_isAuthorityFailure(failure)) {
+        _invalidateCurrentAuthority();
+        return;
+      }
+      _proofFailure(failure, dispatched);
+    } catch (_) {
+      if (!_isCurrentProof(generation, lease)) return;
+      _proofFailure(null, dispatched);
+    }
+    notifyListeners();
+  }
+
+  Future<void> refreshProof() async {
+    final lease = _leaseKey;
+    final current = proof;
+    if (lease == null ||
+        !canReport ||
+        current == null ||
+        isReporting ||
+        isPreparingProof) {
+      return;
+    }
+    final generation = ++_proofGeneration;
+    proofStatus = BuyerTransferProofStatus.checking;
+    notifyListeners();
+    try {
+      final result = await _repository.transferProof(
+        receivableId: receivableId,
+        evidenceId: current.id,
+      );
+      if (!_isCurrentProof(generation, lease)) return;
+      _setProof(result);
+    } on NexaApiFailure catch (failure) {
+      if (!_isCurrentProof(generation, lease)) return;
+      if (_isAuthorityFailure(failure)) {
+        _invalidateCurrentAuthority();
+        return;
+      }
+      proof = null;
+      _proofFailure(failure, false);
+    } catch (_) {
+      if (!_isCurrentProof(generation, lease)) return;
+      proof = null;
+      _proofFailure(null, false);
+    }
+    notifyListeners();
+  }
+
+  void _setProof(BuyerTransferProofProjection value) {
+    proof = value;
+    proofFilename = value.filename;
+    proofStatus = value.isAvailable
+        ? BuyerTransferProofStatus.available
+        : value.isRejected
+        ? BuyerTransferProofStatus.rejected
+        : BuyerTransferProofStatus.pending;
+    proofMessage = value.isAvailable
+        ? 'Comprobante validado. Se adjuntará al reporte.'
+        : value.isRejected
+        ? 'El servidor rechazó o eliminó el archivo. Selecciona otro comprobante.'
+        : 'El servidor está validando el archivo. Actualiza su estado antes de reportar.';
+  }
+
+  void _proofFailure(NexaApiFailure? failure, bool dispatched) {
+    final uncertain =
+        dispatched &&
+        (failure?.statusCode == null || failure!.statusCode! >= 500);
+    proofStatus = uncertain
+        ? BuyerTransferProofStatus.uncertain
+        : BuyerTransferProofStatus.unavailable;
+    proofMessage = uncertain
+        ? 'No se confirmó la carga. Vuelve a seleccionar el mismo archivo para reintentar sin duplicarlo.'
+        : failure?.statusCode == 403
+        ? 'No tienes permiso para adjuntar este comprobante.'
+        : 'No se pudo validar el comprobante. Vuelve a seleccionar el archivo.';
+  }
+
+  bool _isCurrentProof(int generation, String lease) =>
+      generation == _proofGeneration &&
+      _isCurrentReport(_reportGeneration, lease);
 
   bool get canRead => _hasPermission(_access.snapshot, readPermission);
   bool get canReport => _hasPermission(_access.snapshot, createPermission);
@@ -167,6 +342,13 @@ final class BuyerPaymentActivityViewModel extends ChangeNotifier {
       return;
     }
     if (isReporting) return;
+    if (isPreparingProof ||
+        (proofFilename != null && proof?.isAvailable != true)) {
+      reportMessage =
+          'Espera la validación del comprobante o retíralo del reporte.';
+      notifyListeners();
+      return;
+    }
     final normalizedReference = reference.trim();
     if (normalizedReference.isEmpty || normalizedReference.length > 160) {
       reportStatus = BuyerTransferReportStatus.unavailable;
@@ -214,6 +396,7 @@ final class BuyerPaymentActivityViewModel extends ChangeNotifier {
         receivableId: receivableId,
         reference: normalizedReference,
         idempotencyKey: idempotencyKey,
+        proofEvidenceId: proof?.id,
       );
       if (!_isCurrentReport(generation, lease)) return;
       reportedPayment = payment;
@@ -281,6 +464,7 @@ final class BuyerPaymentActivityViewModel extends ChangeNotifier {
     _leaseKey = nextLease;
     _historyGeneration++;
     _reportGeneration++;
+    _clearProof();
     _clearHistory(
       snapshot.isSignedIn && !_hasPermission(snapshot, readPermission)
           ? BuyerPaymentHistoryStatus.permissionDenied
@@ -299,6 +483,7 @@ final class BuyerPaymentActivityViewModel extends ChangeNotifier {
   void _invalidateCurrentAuthority() {
     _historyGeneration++;
     _reportGeneration++;
+    _clearProof();
     _clearHistory(
       BuyerPaymentHistoryStatus.unavailable,
       'El acceso activo cambió. Inicia sesión nuevamente.',
@@ -309,6 +494,14 @@ final class BuyerPaymentActivityViewModel extends ChangeNotifier {
     reportMessage = 'El acceso activo cambió. Inicia sesión nuevamente.';
     _access.invalidateLocalSession();
     notifyListeners();
+  }
+
+  void _clearProof() {
+    _proofGeneration++;
+    proof = null;
+    proofFilename = null;
+    proofMessage = null;
+    proofStatus = BuyerTransferProofStatus.idle;
   }
 
   void _clearHistory(
@@ -343,6 +536,7 @@ final class BuyerPaymentActivityViewModel extends ChangeNotifier {
   void dispose() {
     _historyGeneration++;
     _reportGeneration++;
+    _proofGeneration++;
     _subscription.cancel();
     super.dispose();
   }

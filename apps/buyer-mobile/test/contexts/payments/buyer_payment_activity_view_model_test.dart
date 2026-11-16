@@ -19,6 +19,102 @@ const _retryId = '00000000-0000-4000-8000-000000000004';
 
 void main() {
   test(
+    'waits for server scanning before reporting with the proof id',
+    () async {
+      final access = _FakeAccess(_snapshot());
+      final repository = _FakePaymentsRepository();
+      final vm = _viewModel(access, repository, _FakeIdempotencyStore());
+      addTearDown(vm.dispose);
+      addTearDown(access.dispose);
+
+      await _uploadProof(vm);
+      expect(vm.proofStatus, BuyerTransferProofStatus.pending);
+      expect(vm.canSubmitReport, isFalse);
+      await vm.reportBankTransfer('BANK-REF-71');
+      expect(repository.reportCalls, isEmpty);
+
+      await vm.refreshProof();
+      expect(vm.proofStatus, BuyerTransferProofStatus.available);
+      expect(vm.canSubmitReport, isTrue);
+      await vm.reportBankTransfer('BANK-REF-71');
+      expect(repository.reportedProof, _proof('AVAILABLE').id);
+      expect(vm.reportedPayment!.status, 'PROCESSING');
+    },
+  );
+
+  test(
+    'retries an ambiguous proof upload with its durable key after reopen',
+    () async {
+      final access = _FakeAccess(_snapshot());
+      final repository = _FakePaymentsRepository()
+        ..uploadHandler = () => Future.error(
+          const NexaApiFailure(
+            code: 'network_timeout',
+            userMessage: 'Unavailable',
+            retryable: true,
+          ),
+        );
+      final store = _FakeIdempotencyStore();
+      final first = _viewModel(access, repository, store);
+      await _uploadProof(first);
+      expect(first.proofStatus, BuyerTransferProofStatus.uncertain);
+      expect(first.canSubmitReport, isFalse);
+      first.dispose();
+      repository.uploadHandler = () async => _proof('AVAILABLE');
+      final reopened = _viewModel(access, repository, store);
+      addTearDown(reopened.dispose);
+      addTearDown(access.dispose);
+      await _uploadProof(reopened);
+      expect(repository.uploadKeys[0], repository.uploadKeys[1]);
+      expect(reopened.canSubmitReport, isTrue);
+    },
+  );
+
+  test('picker and upload completion cannot cross authority changes', () async {
+    final access = _FakeAccess(_snapshot());
+    final repository = _FakePaymentsRepository();
+    final vm = _viewModel(access, repository, _FakeIdempotencyStore());
+    addTearDown(vm.dispose);
+    addTearDown(access.dispose);
+    final oldLease = vm.proofSelectionLease!;
+    access.emit(_snapshot(epoch: 2, tenantId: 'tenant-next'));
+    await vm.uploadTransferProof(
+      filename: 'transfer.pdf',
+      contentType: 'application/pdf',
+      bytes: const [37, 80, 68, 70],
+      selectionLease: oldLease,
+    );
+    expect(repository.uploadKeys, isEmpty);
+    final pending = Completer<BuyerTransferProofProjection>();
+    repository.uploadHandler = () => pending.future;
+    final request = _uploadProof(vm);
+    while (repository.uploadKeys.isEmpty) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    access.emit(_snapshot(epoch: 3));
+    pending.complete(_proof('AVAILABLE'));
+    await request;
+    expect(vm.proof, isNull);
+    expect(vm.proofFilename, isNull);
+  });
+
+  test('rejected proof blocks report until explicitly removed', () async {
+    final access = _FakeAccess(_snapshot());
+    final repository = _FakePaymentsRepository()
+      ..uploadHandler = () async => _proof('REJECTED');
+    final vm = _viewModel(access, repository, _FakeIdempotencyStore());
+    addTearDown(vm.dispose);
+    addTearDown(access.dispose);
+    await _uploadProof(vm);
+    expect(vm.canSubmitReport, isFalse);
+    await vm.reportBankTransfer('BANK-REF-71');
+    expect(repository.reportCalls, isEmpty);
+    vm.removeProof();
+    await vm.reportBankTransfer('BANK-REF-71');
+    expect(repository.reportedProof, isNull);
+  });
+
+  test(
     'does not issue a report without the exact payment.create grant',
     () async {
       final access = _FakeAccess(
@@ -250,6 +346,14 @@ void main() {
     expect(reportResult.message, contains('no confirma que el pago'));
   });
 }
+
+Future<void> _uploadProof(BuyerPaymentActivityViewModel vm) =>
+    vm.uploadTransferProof(
+      filename: 'transfer.pdf',
+      contentType: 'application/pdf',
+      bytes: const [37, 80, 68, 70],
+      selectionLease: vm.proofSelectionLease!,
+    );
 
 BuyerPaymentActivityViewModel _viewModel(
   _FakeAccess access,
