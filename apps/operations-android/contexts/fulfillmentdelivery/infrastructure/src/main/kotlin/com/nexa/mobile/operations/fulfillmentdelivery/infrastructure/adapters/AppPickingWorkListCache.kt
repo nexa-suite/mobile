@@ -58,7 +58,7 @@ class AppPickingWorkListCache(private val local: ScopedMetadataStore) : PickingW
         sessionEpoch: Long,
         page: PickingWorkPage
     ): PickingWorkListCacheWrite = withScopeLock(authority.scope.toLocal()) {
-        if (sessionEpoch <= 0 || !page.isValid()) {
+        if (sessionEpoch < 0 || !page.isValid()) {
             return@withScopeLock PickingWorkListCacheWrite.Unavailable
         }
         val localScope = authority.scope.toLocal()
@@ -115,7 +115,7 @@ class AppPickingWorkListCache(private val local: ScopedMetadataStore) : PickingW
         authority: PickingAuthority,
         sessionEpoch: Long
     ): PickingWorkListCacheWrite = withScopeLock(authority.scope.toLocal()) {
-        if (sessionEpoch <= 0) {
+        if (sessionEpoch < 0) {
             return@withScopeLock PickingWorkListCacheWrite.Unavailable
         }
         val encoded = try {
@@ -171,7 +171,7 @@ class AppPickingWorkListCache(private val local: ScopedMetadataStore) : PickingW
         }
         val denial = stored.denial
         if (denial != null) {
-            if (denial.authorityEpoch <= 0 || denial.sessionEpoch <= 0 ||
+            if (denial.authorityEpoch <= 0 || denial.sessionEpoch < 0 ||
                 denial.authorityEpoch != stored.authorityEpoch ||
                 denial.permissionsFingerprint != stored.permissionsFingerprint ||
                 stored.pages.isNotEmpty()

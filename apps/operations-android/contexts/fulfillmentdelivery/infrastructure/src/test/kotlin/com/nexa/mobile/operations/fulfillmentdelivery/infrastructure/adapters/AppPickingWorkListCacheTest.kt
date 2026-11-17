@@ -18,6 +18,44 @@ import org.junit.Test
 
 class AppPickingWorkListCacheTest {
     @Test
+    fun restoredSessionWithInitialEpochCanPersistPageAndDenial() = runTest {
+        val backend = MemoryScopedMetadataStore()
+        val cache = AppPickingWorkListCache(backend)
+
+        assertEquals(
+            PickingWorkListCacheWrite.Saved,
+            cache.saveServerConfirmedPage(authority(), 0, page())
+        )
+        val reopened = AppPickingWorkListCache(backend)
+        val result = reopened.load(authority(), 0) as PickingWorkListCacheRead.Available
+        assertEquals(FULFILLMENT_ID, result.value?.items?.single()?.fulfillmentId)
+
+        assertEquals(PickingWorkListCacheWrite.Saved, reopened.markDenied(authority(), 0))
+        assertEquals(
+            PickingWorkListCacheRead.Unavailable,
+            AppPickingWorkListCache(backend).load(authority(), 0)
+        )
+        assertEquals(
+            PickingWorkListCacheWrite.Saved,
+            reopened.saveServerConfirmedPage(authority(), 0, page())
+        )
+        assertTrue(reopened.load(authority(), 0) is PickingWorkListCacheRead.Available)
+    }
+
+    @Test
+    fun negativeSessionEpochCannotPersistPageOrDenial() = runTest {
+        val backend = MemoryScopedMetadataStore()
+        val cache = AppPickingWorkListCache(backend)
+
+        assertEquals(
+            PickingWorkListCacheWrite.Unavailable,
+            cache.saveServerConfirmedPage(authority(), -1, page())
+        )
+        assertEquals(PickingWorkListCacheWrite.Unavailable, cache.markDenied(authority(), -1))
+        assertTrue(backend.values.isEmpty())
+    }
+
+    @Test
     fun reconstructedCacheRetainsOnlyAllowlistedPageForSameScope() = runTest {
         val backend = MemoryScopedMetadataStore()
         val cache = AppPickingWorkListCache(backend)
