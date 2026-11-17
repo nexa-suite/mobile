@@ -22,6 +22,7 @@ import kotlinx.coroutines.withContext
 /** Only accepted, caller-owned staging purposes. This store has no authority or replay behavior. */
 enum class ScopedMetadataPurpose {
     DriverAttemptStart,
+    PickingWorkListCache,
     FieldPurchaseRequest,
     FieldRequestDraft,
     FieldVisit,
