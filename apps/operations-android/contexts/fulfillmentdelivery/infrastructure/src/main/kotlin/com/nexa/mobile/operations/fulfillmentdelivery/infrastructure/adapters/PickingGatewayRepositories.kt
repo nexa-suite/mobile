@@ -21,6 +21,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.P
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PickingFulfillmentLineProjection as NetworkFulfillmentLine
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PickingFulfillmentProjection as NetworkFulfillment
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PickingNetworkOutcome
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PickingWorkListTransport
 import com.nexa.mobile.operations.inventoryavailability.application.publicapi.PhysicalAllocationLineProjection
 import com.nexa.mobile.operations.inventoryavailability.application.publicapi.PhysicalAllocationProjection
 import dagger.Module
@@ -348,4 +349,8 @@ object PickingGatewayModule {
     @Provides
     @Singleton
     fun pickingGateway(protectedCalls: ProtectedCallExecutor) = NexaPickingGateway(protectedCalls)
+
+    @Provides
+    @Singleton
+    fun pickingWorkListTransport(gateway: NexaPickingGateway): PickingWorkListTransport = gateway
 }

@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -49,12 +50,40 @@ class NexaPickingWorkListGatewayTest {
             val gateway = gateway(server)
 
             assertEquals(
-                PickingWorkListNetworkOutcome.ServiceUnavailable,
+                PickingWorkListNetworkOutcome.UnexpectedFailure,
                 gateway.workList(page = 1, size = 25)
             )
             assertEquals(
-                PickingWorkListNetworkOutcome.ServiceUnavailable,
+                PickingWorkListNetworkOutcome.UnexpectedFailure,
                 gateway.workList(page = 1, size = 25)
+            )
+        }
+    }
+
+    @Test
+    fun onlyNetworkAndServerFailuresAreCacheFallbackCandidates() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(jsonResponse(503, ""))
+            server.enqueue(jsonResponse(400, ""))
+            server.enqueue(jsonResponse(403, ""))
+            val gateway = gateway(server)
+
+            assertEquals(PickingWorkListNetworkOutcome.ServiceUnavailable, gateway.workList())
+            assertEquals(PickingWorkListNetworkOutcome.UnexpectedFailure, gateway.workList())
+            assertEquals(PickingWorkListNetworkOutcome.PermissionDenied, gateway.workList())
+        }
+    }
+
+    @Test
+    fun disconnectedWorkListIsClassifiedAsNetworkUnavailable() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))
+
+            assertEquals(
+                PickingWorkListNetworkOutcome.NetworkUnavailable,
+                gateway(server).workList()
             )
         }
     }

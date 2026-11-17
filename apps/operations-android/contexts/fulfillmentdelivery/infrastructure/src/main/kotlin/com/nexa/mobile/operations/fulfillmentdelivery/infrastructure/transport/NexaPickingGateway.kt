@@ -150,15 +150,22 @@ sealed interface PickingWorkListNetworkOutcome {
     data class Loaded(val value: PickingWorkListProjection) : PickingWorkListNetworkOutcome
     data object NetworkUnavailable : PickingWorkListNetworkOutcome
     data object ServiceUnavailable : PickingWorkListNetworkOutcome
+    data object UnexpectedFailure : PickingWorkListNetworkOutcome
     data object PermissionDenied : PickingWorkListNetworkOutcome
     data object ContextInvalidated : PickingWorkListNetworkOutcome
     data object SessionInvalidated : PickingWorkListNetworkOutcome
 }
 
+/** Protected read seam for the Operations gateway's cache and authority policy. */
+interface PickingWorkListTransport {
+    suspend fun workList(page: Int = 0, size: Int = 25): PickingWorkListNetworkOutcome
+}
+
 /** Protected transport for current fulfillment/allocation projections and exact picking commands. */
-class NexaPickingGateway(private val protectedCalls: ProtectedCallExecutor) {
-    suspend fun workList(page: Int = 0, size: Int = 25): PickingWorkListNetworkOutcome {
-        if (page < 0 || size !in 1..100) return PickingWorkListNetworkOutcome.ServiceUnavailable
+class NexaPickingGateway(private val protectedCalls: ProtectedCallExecutor) :
+    PickingWorkListTransport {
+    override suspend fun workList(page: Int, size: Int): PickingWorkListNetworkOutcome {
+        if (page < 0 || size !in 1..100) return PickingWorkListNetworkOutcome.UnexpectedFailure
         val result = protectedCalls.execute(
             ProtectedRequest(
                 ProtectedMethod.GET,
@@ -170,7 +177,7 @@ class NexaPickingGateway(private val protectedCalls: ProtectedCallExecutor) {
 
             is ProtectedResult.Success -> {
                 val projection = result.body.toWorkListProjection(page, size)
-                    ?: return PickingWorkListNetworkOutcome.ServiceUnavailable
+                    ?: return PickingWorkListNetworkOutcome.UnexpectedFailure
                 PickingWorkListNetworkOutcome.Loaded(projection)
             }
         }
@@ -559,21 +566,24 @@ class NexaPickingGateway(private val protectedCalls: ProtectedCallExecutor) {
         else -> PickingNetworkOutcome.ServiceUnavailable
     }
 
-    private fun ClientFailure.toWorkListOutcome(): PickingWorkListNetworkOutcome =
-        when (toReadOutcome()) {
-            PickingNetworkOutcome.NetworkUnavailable ->
-                PickingWorkListNetworkOutcome.NetworkUnavailable
+    private fun ClientFailure.toWorkListOutcome(): PickingWorkListNetworkOutcome = when {
+        kind == FailureKind.AuthenticationRequired ->
+            PickingWorkListNetworkOutcome.SessionInvalidated
 
-            PickingNetworkOutcome.PermissionDenied -> PickingWorkListNetworkOutcome.PermissionDenied
+        httpStatus == 403 && problemCode == ACCESS_CONTEXT_INVALID ->
+            PickingWorkListNetworkOutcome.ContextInvalidated
 
-            PickingNetworkOutcome.ContextInvalidated ->
-                PickingWorkListNetworkOutcome.ContextInvalidated
+        kind == FailureKind.AuthorizationFailure ->
+            PickingWorkListNetworkOutcome.PermissionDenied
 
-            PickingNetworkOutcome.SessionInvalidated ->
-                PickingWorkListNetworkOutcome.SessionInvalidated
+        kind == FailureKind.NetworkUnavailable || kind == FailureKind.Timeout ->
+            PickingWorkListNetworkOutcome.NetworkUnavailable
 
-            else -> PickingWorkListNetworkOutcome.ServiceUnavailable
-        }
+        kind == FailureKind.RetryableServerFailure && httpStatus in 500..599 ->
+            PickingWorkListNetworkOutcome.ServiceUnavailable
+
+        else -> PickingWorkListNetworkOutcome.UnexpectedFailure
+    }
 
     private fun ClientFailure.toMutationOutcome(): PickingNetworkOutcome = when {
         kind == FailureKind.UnknownOutcome || kind == FailureKind.NetworkUnavailable ||
