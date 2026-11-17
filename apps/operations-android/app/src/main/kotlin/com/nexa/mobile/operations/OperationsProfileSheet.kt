@@ -50,7 +50,6 @@ internal fun OperationsProfileSheet(
     onDetails: (() -> Unit)?,
     onPassword: () -> Unit,
     onOtherSessions: () -> Unit,
-    onChangeWorkspace: () -> Unit,
     onLogout: () -> Unit
 ) {
     var securityExpanded by remember { mutableStateOf(false) }
@@ -113,12 +112,6 @@ internal fun OperationsProfileSheet(
                             )
                         }
                     }
-                    HorizontalDivider(color = NexaColors.Border)
-                    ProfileActionRow(
-                        title = stringResource(R.string.work_nav_change_context),
-                        icon = DesignR.drawable.ic_sync,
-                        onClick = onChangeWorkspace
-                    )
                 }
             }
 

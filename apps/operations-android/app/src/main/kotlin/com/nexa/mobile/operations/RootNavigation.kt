@@ -531,7 +531,6 @@ internal fun RootNavigation(
                                 )
                                 OperationsHomeScreen(
                                     company = accessState.activeContext?.companyName.orEmpty(),
-                                    workspace = accessState.activeContext?.workspaceName.orEmpty(),
                                     role = activeRoleLabel.orEmpty(),
                                     entries = visibleConnectedEntries,
                                     dashboard = dashboard,
@@ -880,10 +879,6 @@ internal fun RootNavigation(
             },
             onPassword = { passwordChangeDialogVisible = true },
             onOtherSessions = { revokeSessionsDialogVisible = true },
-            onChangeWorkspace = {
-                profileSheetVisible = false
-                onChangeContext()
-            },
             onLogout = {
                 profileSheetVisible = false
                 onLogout()

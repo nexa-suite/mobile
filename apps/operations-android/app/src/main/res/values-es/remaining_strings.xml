@@ -44,7 +44,6 @@
     <string name="work_role_warehouse">Almacén</string>
     <string name="work_role_dispatch">Despacho</string>
     <string name="work_role_driver">Operador de entregas</string>
-    <string name="work_nav_change_context">Cambiar espacio</string>
     <string name="work_nav_logout">Cerrar sesión</string>
     <string name="work_nav_change_password">Cambiar contraseña</string>
     <string name="work_nav_current_password">Contraseña actual</string>

@@ -46,7 +46,6 @@
     <string name="work_role_warehouse">Warehouse</string>
     <string name="work_role_dispatch">Dispatch</string>
     <string name="work_role_driver">Delivery Operator</string>
-    <string name="work_nav_change_context">Switch workspace</string>
     <string name="work_nav_logout">Sign out</string>
     <string name="work_nav_change_password">Change password</string>
     <string name="work_nav_current_password">Current password</string>
