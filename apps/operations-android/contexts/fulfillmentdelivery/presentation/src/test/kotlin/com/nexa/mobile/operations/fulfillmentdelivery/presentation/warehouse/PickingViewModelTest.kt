@@ -381,6 +381,27 @@ class PickingViewModelTest {
         )
     }
 
+    @Test
+    fun cachedListReferenceRequiresOnlineDetailBeforeAnyPickingCommand() = runTest {
+        val gateway = FakePickingGateway().apply {
+            loadResults += PickingLoadResult.NetworkUnavailable
+        }
+        val viewModel = PickingViewModel(gateway, FakePickingMetadataStore())
+
+        viewModel.activate(authority(), FULFILLMENT_ID)
+        advanceUntilIdle()
+        viewModel.startPicking()
+        viewModel.confirmPick()
+        viewModel.advanceFulfillment(FulfillmentPreparationAction.Pack)
+        advanceUntilIdle()
+
+        assertEquals(PickingLoadStatus.NetworkUnavailable, viewModel.state.value.loadStatus)
+        assertNull(viewModel.state.value.fulfillment)
+        assertEquals(0, gateway.startCalls)
+        assertEquals(0, gateway.confirmCalls)
+        assertTrue(gateway.preparationCommands.isEmpty())
+    }
+
     private suspend fun TestScope.readyViewModel(
         gateway: FakePickingGateway,
         store: FakePickingMetadataStore = FakePickingMetadataStore()
@@ -479,6 +500,7 @@ class PickingViewModelTest {
         var loadResults = mutableListOf<PickingLoadResult>()
         var confirmResults = mutableListOf<PickingMutationResult>()
         var confirmDeferred: CompletableDeferred<PickingMutationResult>? = null
+        var startCalls = 0
         var confirmCalls = 0
         val commands = mutableListOf<PickingConfirmationCommand>()
         val keys = mutableListOf<String>()
@@ -497,7 +519,10 @@ class PickingViewModelTest {
             command: PickingIntentCommand.Start,
             idempotencyKey: String,
             authority: PickingAuthority
-        ): PickingMutationResult = PickingMutationResult.UnknownOutcome
+        ): PickingMutationResult {
+            startCalls++
+            return PickingMutationResult.UnknownOutcome
+        }
 
         override suspend fun confirmPicking(
             command: PickingConfirmationCommand,
