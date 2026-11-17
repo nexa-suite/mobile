@@ -53,10 +53,24 @@ final class BuyerPushRegistration {
   String? _commandKey;
   bool _disposed = false;
   bool _pendingOpen = false;
+  String? _pendingOpenLease;
+  bool _opening = false;
+  int _openGeneration = 0;
   bool _resetRequired = true;
 
   void start() {
-    _subscriptions.add(access.changes.listen((_) => refresh()));
+    _subscriptions.add(
+      access.changes.listen((_) {
+        final lease = _lease();
+        if (_pendingOpenLease != null && _pendingOpenLease != lease) {
+          _pendingOpen = false;
+          _pendingOpenLease = null;
+          _openGeneration++;
+        }
+        _scheduleOpen();
+        refresh();
+      }),
+    );
     _subscriptions.add(
       device.registrations.listen((fid) {
         if (fid.isEmpty || fid.length > 128) return;
@@ -75,18 +89,20 @@ final class BuyerPushRegistration {
     );
     _subscriptions.add(
       device.openedMessages.listen((_) {
-        _pendingOpen = true;
-        _enqueue(_openIfAuthorized);
+        _requestOpen(_lease());
       }),
     );
-    _enqueue(() async {
-      _pendingOpen = await device.wasOpenedFromNotification();
-    });
+    final initialLease = _lease();
+    final initialGeneration = _openGeneration;
+    unawaited(_readInitialOpen(initialLease, initialGeneration));
     refresh();
   }
 
   /// Also called on foreground return, so failed registrations can recover.
-  void refresh() => _enqueue(_synchronize);
+  void refresh() {
+    _scheduleOpen();
+    _enqueue(_synchronize);
+  }
 
   String? _lease() {
     final snapshot = access.snapshot;
@@ -134,7 +150,6 @@ final class BuyerPushRegistration {
     if (!await device.register()) return;
     if (lease != _lease()) return;
     await _registerDestination();
-    await _openIfAuthorized();
   }
 
   Future<void> _registerDestination() async {
@@ -161,13 +176,62 @@ final class BuyerPushRegistration {
     if (_lease() != null && _scope == _lease()) await refreshInbox();
   }
 
-  Future<void> _openIfAuthorized() async {
-    if (!_pendingOpen || _lease() == null || _scope != _lease()) return;
+  Future<void> _readInitialOpen(String? lease, int generation) async {
+    try {
+      final opened = await device.wasOpenedFromNotification();
+      if (!_disposed &&
+          opened &&
+          generation == _openGeneration &&
+          (lease == null || lease == _lease())) {
+        _requestOpen(lease);
+      }
+    } catch (_) {
+      // A provider failure must not affect authentication or inbox access.
+    }
+  }
+
+  void _requestOpen(String? lease) {
+    if (_disposed) return;
+    _openGeneration++;
+    if (_opening && _pendingOpenLease == lease) return;
+    _pendingOpen = true;
+    _pendingOpenLease = lease;
+    _scheduleOpen();
+  }
+
+  void _scheduleOpen() {
+    if (_disposed || _opening || !_pendingOpen) return;
     final lease = _lease();
-    await refreshInbox();
-    if (_disposed || lease != _lease()) return;
-    _pendingOpen = false;
-    openInbox();
+    if (lease == null) return;
+    if (_pendingOpenLease != null && _pendingOpenLease != lease) {
+      _pendingOpen = false;
+      _pendingOpenLease = null;
+      return;
+    }
+    _pendingOpenLease = lease;
+    _opening = true;
+    unawaited(_openInbox(lease));
+  }
+
+  Future<void> _openInbox(String lease) async {
+    try {
+      await refreshInbox();
+      if (!_disposed &&
+          _pendingOpen &&
+          _pendingOpenLease == lease &&
+          lease == _lease()) {
+        _pendingOpen = false;
+        _pendingOpenLease = null;
+        openInbox();
+      }
+    } catch (_) {
+      // Leave an authorized request pending for a later access or resume event.
+    } finally {
+      _opening = false;
+      if (!_disposed && _pendingOpen && _pendingOpenLease != lease) {
+        _scheduleOpen();
+      }
+    }
   }
 
   Future<void> dispose() async {

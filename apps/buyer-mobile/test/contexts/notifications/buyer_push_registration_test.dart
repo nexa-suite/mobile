@@ -5,6 +5,147 @@ import 'package:nexa_buyer_mobile/contexts/notifications/application/buyer_push_
 import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/application/buyer_access_repository.dart';
 
 void main() {
+  test('tap opens while provider registration is blocked', () async {
+    final access = _Access(_active(1, 'a'));
+    final device = _Device()..registrationGate = Completer<bool>();
+    var opened = 0;
+    final registration = _openingRegistration(device, access, () async {}, () {
+      opened++;
+    })..start();
+    await _flush();
+    device.opened.add(null);
+    await _flush();
+    expect(opened, 1);
+    device.registrationGate!.complete(true);
+    await registration.dispose();
+    await access.dispose();
+    await device.dispose();
+  });
+
+  test('initial false cannot erase a concurrent tap', () async {
+    final access = _Access(_active(1, 'a'));
+    final device = _Device()..initialGate = Completer<bool>();
+    var opened = 0;
+    final registration = _openingRegistration(device, access, () async {}, () {
+      opened++;
+    })..start();
+    await _flush();
+    device.opened.add(null);
+    device.initialGate!.complete(false);
+    await _flush();
+    expect(opened, 1);
+    await registration.dispose();
+    await access.dispose();
+    await device.dispose();
+  });
+
+  test('duplicate taps coalesce during inbox refresh', () async {
+    final access = _Access(_active(1, 'a'));
+    final device = _Device();
+    final refresh = Completer<void>();
+    var opened = 0;
+    final registration = _openingRegistration(
+      device,
+      access,
+      () => refresh.future,
+      () {
+        opened++;
+      },
+    )..start();
+    await _flush();
+    device.opened.add(null);
+    device.opened.add(null);
+    refresh.complete();
+    await _flush();
+    expect(opened, 1);
+    await registration.dispose();
+    await access.dispose();
+    await device.dispose();
+  });
+
+  for (final next in [
+    const BuyerAccessSnapshot(status: BuyerAccessStatus.signedOut),
+    _active(2, 'b'),
+    _active(2, 'a', membership: 'other'),
+  ]) {
+    test(
+      'scope change during inbox refresh prevents old tap opening',
+      () async {
+        final access = _Access(_active(1, 'a'));
+        final device = _Device();
+        final refresh = Completer<void>();
+        var opened = 0;
+        final registration = _openingRegistration(
+          device,
+          access,
+          () => refresh.future,
+          () {
+            opened++;
+          },
+        )..start();
+        await _flush();
+        device.opened.add(null);
+        access.emit(next);
+        refresh.complete();
+        await _flush();
+        expect(opened, 0);
+        await registration.dispose();
+        await access.dispose();
+        await device.dispose();
+      },
+    );
+  }
+
+  test('dispose prevents late inbox opening', () async {
+    final access = _Access(_active(1, 'a'));
+    final device = _Device();
+    final refresh = Completer<void>();
+    var opened = 0;
+    final registration = _openingRegistration(
+      device,
+      access,
+      () => refresh.future,
+      () {
+        opened++;
+      },
+    )..start();
+    await _flush();
+    device.opened.add(null);
+    await registration.dispose();
+    refresh.complete();
+    await _flush();
+    expect(opened, 0);
+    await access.dispose();
+    await device.dispose();
+  });
+
+  test('timed registration retry keeps the same idempotency key', () async {
+    final access = _Access(_active(1, 'a'));
+    final device = _Device();
+    final gateway = _Gateway()..fail = true;
+    final registration = BuyerPushRegistration(
+      device: device,
+      gateway: gateway,
+      access: access,
+      platform: 'ANDROID',
+      refreshInbox: () async {},
+      openInbox: () {},
+      retryDelay: const Duration(milliseconds: 100),
+    )..start();
+    await _flush();
+    device.ids.add('installation-a');
+    await _flush();
+    expect(gateway.requests, hasLength(1));
+    gateway.fail = false;
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    await _flush();
+    expect(gateway.requests, hasLength(2));
+    expect(gateway.requests.first, gateway.requests.last);
+    await registration.dispose();
+    await access.dispose();
+    await device.dispose();
+  });
+
   test('uncertain registration retries the same destination and key', () async {
     final access = _Access(_active(1, 'a'));
     final device = _Device();
@@ -110,6 +251,20 @@ Future<void> _flush() async {
   }
 }
 
+BuyerPushRegistration _openingRegistration(
+  _Device device,
+  _Access access,
+  Future<void> Function() refresh,
+  void Function() open,
+) => BuyerPushRegistration(
+  device: device,
+  gateway: _Gateway(),
+  access: access,
+  platform: 'ANDROID',
+  refreshInbox: refresh,
+  openInbox: open,
+);
+
 BuyerPushRegistration _registration(
   _Device device,
   _Gateway gateway,
@@ -123,12 +278,16 @@ BuyerPushRegistration _registration(
   openInbox: () {},
 );
 
-BuyerAccessSnapshot _active(int epoch, String tenant) => BuyerAccessSnapshot(
+BuyerAccessSnapshot _active(
+  int epoch,
+  String tenant, {
+  String membership = 'm',
+}) => BuyerAccessSnapshot(
   status: BuyerAccessStatus.signedIn,
   authorityEpoch: epoch,
   currentContext: BuyerAccessContext(
     userId: 'u',
-    membershipId: 'm',
+    membershipId: membership,
     tenantId: tenant,
     tenantName: tenant,
     tenantSlug: tenant,
@@ -144,6 +303,8 @@ final class _Device implements BuyerPushDevice {
   final ids = StreamController<String>.broadcast(sync: true);
   final messages = StreamController<void>.broadcast(sync: true);
   final opened = StreamController<void>.broadcast(sync: true);
+  Completer<bool>? registrationGate;
+  Completer<bool>? initialGate;
   var resets = 0;
   var initial = false;
   @override
@@ -153,14 +314,16 @@ final class _Device implements BuyerPushDevice {
   @override
   Stream<void> get openedMessages => opened.stream;
   @override
-  Future<bool> register() async => true;
+  Future<bool> register() async =>
+      registrationGate == null ? true : await registrationGate!.future;
   @override
   Future<void> reset() async {
     resets++;
   }
 
   @override
-  Future<bool> wasOpenedFromNotification() async => initial;
+  Future<bool> wasOpenedFromNotification() async =>
+      initialGate == null ? initial : await initialGate!.future;
   Future<void> dispose() async {
     await ids.close();
     await messages.close();
