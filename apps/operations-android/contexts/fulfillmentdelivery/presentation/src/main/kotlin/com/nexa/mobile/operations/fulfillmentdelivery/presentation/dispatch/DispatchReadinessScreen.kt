@@ -85,7 +85,11 @@ fun DispatchReadinessScreen(
     onRefreshDeliveryPod: (() -> Unit)? = null,
     onSealPod: ((String) -> Unit)? = null,
     onRetryPodSeal: (() -> Unit)? = null,
-    canSealPod: Boolean = false
+    canSealPod: Boolean = false,
+    onStartTransit: (() -> Unit)? = null,
+    onRetryTransitStart: (() -> Unit)? = null,
+    canStartTransit: Boolean = false,
+    canRetryTransitStart: Boolean = false
 ) {
     DispatchReadinessAutoRefresh(
         state = state,
@@ -209,7 +213,11 @@ fun DispatchReadinessScreen(
                                     canSeal = canSealPod,
                                     onRefresh = onRefreshDeliveryPod ?: {},
                                     onSeal = { onSealPod?.invoke(deliveryId) },
-                                    onRetrySeal = onRetryPodSeal ?: {}
+                                    onRetrySeal = onRetryPodSeal ?: {},
+                                    onStartTransit = onStartTransit ?: {},
+                                    onRetryTransit = onRetryTransitStart ?: {},
+                                    canStartTransit = canStartTransit,
+                                    canRetryTransit = canRetryTransitStart
                                 )
                             }
                             NexaWorkSection(stringResource(R.string.dispatch_work_actions)) {
@@ -276,7 +284,11 @@ private fun DeliveryPodPanel(
     canSeal: Boolean,
     onRefresh: () -> Unit,
     onSeal: () -> Unit,
-    onRetrySeal: () -> Unit
+    onRetrySeal: () -> Unit,
+    onStartTransit: () -> Unit,
+    onRetryTransit: () -> Unit,
+    canStartTransit: Boolean,
+    canRetryTransit: Boolean
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -385,6 +397,59 @@ private fun DeliveryPodPanel(
                 DispatchPodSealStatus.PermissionDenied -> Text(
                     stringResource(R.string.dispatch_pod_permission)
                 )
+            }
+
+            when (state.transitStartStatus) {
+                DispatchTransitStartStatus.Idle -> Unit
+
+                DispatchTransitStartStatus.CheckingIntent -> Text(
+                    stringResource(R.string.dispatch_transit_checking)
+                )
+
+                DispatchTransitStartStatus.Persisting -> Text(
+                    stringResource(R.string.dispatch_transit_persisting)
+                )
+
+                DispatchTransitStartStatus.Pending -> Text(
+                    stringResource(R.string.dispatch_transit_pending)
+                )
+
+                DispatchTransitStartStatus.Started -> Text(
+                    stringResource(R.string.dispatch_transit_started)
+                )
+
+                DispatchTransitStartStatus.UnknownOutcome -> Text(
+                    stringResource(R.string.dispatch_transit_unknown)
+                )
+
+                DispatchTransitStartStatus.PersistenceUnavailable -> Text(
+                    stringResource(R.string.dispatch_transit_storage_unavailable)
+                )
+
+                DispatchTransitStartStatus.Stale -> Text(
+                    stringResource(R.string.dispatch_transit_stale)
+                )
+
+                DispatchTransitStartStatus.Conflict -> Text(
+                    stringResource(R.string.dispatch_transit_conflict)
+                )
+
+                DispatchTransitStartStatus.PermissionDenied -> Text(
+                    stringResource(R.string.dispatch_transit_permission)
+                )
+            }
+
+            if (canStartTransit && state.transitStartStatus == DispatchTransitStartStatus.Idle) {
+                Button(onClick = onStartTransit, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.dispatch_transit_start))
+                }
+            }
+            if (canRetryTransit &&
+                state.transitStartStatus == DispatchTransitStartStatus.UnknownOutcome
+            ) {
+                OutlinedButton(onClick = onRetryTransit, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.dispatch_transit_retry_same))
+                }
             }
 
             if (canSeal && state.podSealStatus == DispatchPodSealStatus.Idle) {

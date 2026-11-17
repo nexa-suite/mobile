@@ -523,6 +523,17 @@
     <string name="dispatch_pod_title">Prueba de entrega (POD)</string>
     <string name="dispatch_pod_unknown">Nexa has not confirmed the result. Retry the exact same request or check the state.</string>
     <string name="dispatch_pod_unavailable">No hay una entrega moderna disponible para consultar.</string>
+    <string name="dispatch_transit_checking">Checking for a saved transit request…</string>
+    <string name="dispatch_transit_conflict">Nexa found a conflicting delivery change. Refresh before deciding again.</string>
+    <string name="dispatch_transit_pending">Sending the saved transit request to Nexa…</string>
+    <string name="dispatch_transit_permission">This workspace cannot start transit for this delivery.</string>
+    <string name="dispatch_transit_persisting">Saving the exact transit request before sending…</string>
+    <string name="dispatch_transit_retry_same">Retry the same saved transit request</string>
+    <string name="dispatch_transit_stale">The delivery changed. Refresh before starting transit.</string>
+    <string name="dispatch_transit_started">Nexa confirmed that delivery is in transit.</string>
+    <string name="dispatch_transit_start">Start transit</string>
+    <string name="dispatch_transit_storage_unavailable">The exact transit request could not be saved securely. Nothing was sent.</string>
+    <string name="dispatch_transit_unknown">Nexa did not confirm the result. Retry the exact same request.</string>
     <string name="dispatch_temperature_affected_quantity">Quantity affected by server hold: %1$s</string>
     <string name="dispatch_temperature_as_of">Policy checked at %1$s</string>
     <string name="dispatch_temperature_authority_note">Current SKU cold-chain policy and manual Celsius readings for this prepared fulfillment.</string>
@@ -601,6 +612,7 @@
     <string name="driver_delivery_hide_list">Ocultar lista de entregas</string>
     <string name="driver_delivery_begin">Comenzar entrega</string>
     <string name="driver_delivery_checking">Confirmando la asignación actual antes de comenzar…</string>
+    <string name="driver_delivery_transit_required">Ask Dispatch to start transit before beginning this delivery.</string>
     <string name="driver_delivery_contact_unavailable">Contacto e instrucciones no disponibles: Nexa no entregó un canal vigente y autorizado para esta entrega.</string>
     <string name="driver_delivery_context">Cambió el contexto de trabajo. Selecciona de nuevo un contexto autorizado.</string>
     <string name="driver_delivery_coordination_title">Coordinación de entrega</string>

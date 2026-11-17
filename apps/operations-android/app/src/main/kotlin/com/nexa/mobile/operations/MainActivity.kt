@@ -4473,6 +4473,51 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     canSealPod = readinessViewModel.canSealPod(),
+                                    onStartTransit = {
+                                        val current = readinessViewModel.state.value
+                                        val currentRoute = connectedRoute
+                                        if (current.detail?.deliveryId ==
+                                            current.deliveryPod?.deliveryId &&
+                                            current.detailStatus == ReadinessDetailStatus.Current &&
+                                            readinessViewModel.canStartTransit() &&
+                                            currentRoute?.authority?.permissions?.contains(
+                                                "logistics:write"
+                                            ) == true &&
+                                            ConnectedOperationsNavigation.permits(
+                                                currentRoute,
+                                                CONNECTED_OPERATIONS,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            readinessViewModel.startTransit()
+                                        }
+                                    },
+                                    onRetryTransitStart = {
+                                        val current = readinessViewModel.state.value
+                                        val currentRoute = connectedRoute
+                                        if (current.pendingTransitStart?.command?.deliveryId ==
+                                            current.detail?.deliveryId &&
+                                            current.detailStatus == ReadinessDetailStatus.Current &&
+                                            readinessViewModel.canRetryTransitStart() &&
+                                            currentRoute?.authority?.permissions?.contains(
+                                                "logistics:write"
+                                            ) == true &&
+                                            ConnectedOperationsNavigation.permits(
+                                                currentRoute,
+                                                CONNECTED_OPERATIONS,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            readinessViewModel.retryTransitStart()
+                                        }
+                                    },
+                                    canStartTransit = readinessViewModel.canStartTransit(),
+                                    canRetryTransitStart =
+                                        readinessViewModel.canRetryTransitStart(),
                                     onRecordTemperature = { fulfillmentId ->
                                         val current = readinessViewModel.state.value
                                         if (current.detail?.fulfillmentId == fulfillmentId &&

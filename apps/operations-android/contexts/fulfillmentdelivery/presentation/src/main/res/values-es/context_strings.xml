@@ -526,6 +526,17 @@
     <string name="dispatch_pod_title">Prueba de entrega (POD)</string>
     <string name="dispatch_pod_unknown">Nexa aún no confirmó el resultado. Reintenta exactamente el mismo comando o consulta el estado.</string>
     <string name="dispatch_pod_unavailable">No hay una entrega moderna disponible para consultar.</string>
+    <string name="dispatch_transit_checking">Buscando un inicio de tránsito guardado…</string>
+    <string name="dispatch_transit_conflict">Nexa detectó un cambio en conflicto. Actualiza antes de decidir de nuevo.</string>
+    <string name="dispatch_transit_pending">Enviando a Nexa el inicio de tránsito guardado…</string>
+    <string name="dispatch_transit_permission">Este espacio no puede iniciar el tránsito de esta entrega.</string>
+    <string name="dispatch_transit_persisting">Guardando el inicio de tránsito exacto antes de enviarlo…</string>
+    <string name="dispatch_transit_retry_same">Reintentar el mismo inicio de tránsito guardado</string>
+    <string name="dispatch_transit_stale">La entrega cambió. Actualiza antes de iniciar el tránsito.</string>
+    <string name="dispatch_transit_started">Nexa confirmó que la entrega está en tránsito.</string>
+    <string name="dispatch_transit_start">Iniciar tránsito</string>
+    <string name="dispatch_transit_storage_unavailable">No se pudo guardar el inicio exacto de forma segura. No se envió.</string>
+    <string name="dispatch_transit_unknown">Nexa no confirmó el resultado. Reintenta exactamente la misma solicitud.</string>
     <string name="dispatch_temperature_affected_quantity">Cantidad afectada por la retención del servidor: %1$s</string>
     <string name="dispatch_temperature_as_of">Política consultada: %1$s</string>
     <string name="dispatch_temperature_authority_note">Política vigente de cadena de frío del SKU y lecturas manuales en Celsius para esta preparación.</string>
@@ -604,6 +615,7 @@
     <string name="driver_delivery_hide_list">Ocultar lista de entregas</string>
     <string name="driver_delivery_begin">Comenzar entrega</string>
     <string name="driver_delivery_checking">Confirmando la asignación actual antes de comenzar…</string>
+    <string name="driver_delivery_transit_required">Pide a Despacho que inicie el tránsito antes de comenzar esta entrega.</string>
     <string name="driver_delivery_contact_unavailable">Contacto e instrucciones no disponibles: Nexa no entregó un canal vigente y autorizado para esta entrega.</string>
     <string name="driver_delivery_context">Cambió el contexto de trabajo. Selecciona de nuevo un contexto autorizado.</string>
     <string name="driver_delivery_coordination_title">Coordinación de entrega</string>
