@@ -4,10 +4,20 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexa.mobile.operations.fulfillmentdelivery.application.changefeed.OperationsChangeFeedGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryPodGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryPodSnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGatewayResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTransitStartCommand
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTransitStartConfirmation
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTransitStartGatewayResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTransitStartIntent
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTransitStartIntentStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTransitStartMetadataRead
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTransitStartMetadataStore
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTransitStartMetadataWrite
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTransitStartScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.SealDispatchPodCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
 import java.time.Instant
@@ -22,6 +32,7 @@ import kotlinx.coroutines.launch
 
 class DispatchReadinessViewModel(
     private val gateway: DispatchReadinessGateway,
+    private val transitMetadataStore: DispatchTransitStartMetadataStore,
     private val now: () -> Instant = Instant::now,
     private val newCommandKey: () -> String = { UUID.randomUUID().toString() },
     private val changeFeedGateway: OperationsChangeFeedGateway = OperationsChangeFeedGateway.None
@@ -162,6 +173,8 @@ class DispatchReadinessViewModel(
         }
         cancelListRead()
         val request = ++generation
+        val selectedItem = current.items.firstOrNull { it.fulfillmentId == fulfillmentId }
+        val hasDelivery = selectedItem?.deliveryId != null
         mutableState.value = current.copy(
             status = if (current.items.isEmpty()) {
                 DispatchReadinessStatus.Empty
@@ -172,15 +185,19 @@ class DispatchReadinessViewModel(
             detail = null,
             detailStatus = DispatchReadinessDetailStatus.Loading,
             deliveryPod = null,
-            deliveryPodStatus = if (current.items.firstOrNull { it.fulfillmentId == fulfillmentId }
-                    ?.deliveryId != null
-            ) {
+            deliveryPodStatus = if (hasDelivery) {
                 DispatchDeliveryPodStatus.Loading
             } else {
                 DispatchDeliveryPodStatus.NotRequested
             },
             podSealStatus = DispatchPodSealStatus.Idle,
-            pendingPodSeal = null
+            pendingPodSeal = null,
+            transitStartStatus = if (hasDelivery) {
+                DispatchTransitStartStatus.CheckingIntent
+            } else {
+                DispatchTransitStartStatus.Idle
+            },
+            pendingTransitStart = null
         )
         viewModelScope.launch {
             val result = safeCall { gateway.detail(fulfillmentId, context) }
@@ -207,6 +224,7 @@ class DispatchReadinessViewModel(
                             val podResult = safePodRead { gateway.deliveryPod(deliveryId, context) }
                             if (!isCurrent(request, context)) return@launch
                             applyPodReadResult(result.item, podResult)
+                            restoreTransitIntent(result.item, context, request)
                         }
                     }
                 }
@@ -249,7 +267,9 @@ class DispatchReadinessViewModel(
             deliveryPod = null,
             deliveryPodStatus = DispatchDeliveryPodStatus.NotRequested,
             podSealStatus = DispatchPodSealStatus.Idle,
-            pendingPodSeal = null
+            pendingPodSeal = null,
+            transitStartStatus = DispatchTransitStartStatus.Idle,
+            pendingTransitStart = null
         )
     }
 
@@ -312,6 +332,372 @@ class DispatchReadinessViewModel(
         submitPodSeal(command)
     }
 
+    fun canStartTransit(): Boolean {
+        val context = activeContext ?: return false
+        val identity = context.identity ?: return false
+        val current = mutableState.value
+        val detail = current.detail ?: return false
+        val delivery = current.deliveryPod ?: return false
+        return current.detailStatus == DispatchReadinessDetailStatus.Current &&
+            current.deliveryPodStatus == DispatchDeliveryPodStatus.Current &&
+            current.transitStartStatus == DispatchTransitStartStatus.Idle &&
+            current.pendingTransitStart == null && detail.deliveryId == delivery.deliveryId &&
+            detail.fulfillmentId == delivery.fulfillmentId &&
+            delivery.deliveryStatus == "DISPATCHED" &&
+            DISPATCH_READ_PERMISSION in identity.permissions &&
+            LOGISTICS_WRITE_PERMISSION in identity.permissions
+    }
+
+    fun canRetryTransitStart(): Boolean {
+        val context = activeContext ?: return false
+        val identity = context.identity ?: return false
+        val intent = mutableState.value.pendingTransitStart ?: return false
+        return mutableState.value.transitStartStatus == DispatchTransitStartStatus.UnknownOutcome &&
+            intent.status == DispatchTransitStartIntentStatus.UnknownOutcome &&
+            intent.scope == identity.transitScope() &&
+            DISPATCH_READ_PERMISSION in identity.permissions &&
+            LOGISTICS_WRITE_PERMISSION in identity.permissions
+    }
+
+    /** Persists a fixed Delivery version and key before asking the server to start transit. */
+    fun startTransit() {
+        if (!canStartTransit()) return
+        val context = activeContext ?: return
+        val identity = context.identity ?: return
+        val delivery = mutableState.value.deliveryPod ?: return
+        val command = DispatchTransitStartCommand(
+            deliveryId = delivery.deliveryId,
+            fulfillmentId = delivery.fulfillmentId,
+            deliveryEtag = delivery.deliveryEtag,
+            idempotencyKey = newCommandKey()
+        )
+        if (!command.isValid()) return
+        val intent = DispatchTransitStartIntent(identity.transitScope(), command)
+        val request = ++generation
+        mutableState.value = mutableState.value.copy(
+            transitStartStatus = DispatchTransitStartStatus.Persisting,
+            pendingTransitStart = intent
+        )
+        viewModelScope.launch {
+            val saved = safeTransitMetadataWrite { transitMetadataStore.saveIntent(intent) }
+            if (!isCurrent(request, context)) return@launch
+            when (saved) {
+                DispatchTransitStartMetadataWrite.Saved -> {
+                    mutableState.value = mutableState.value.copy(
+                        transitStartStatus = DispatchTransitStartStatus.Pending
+                    )
+                    runTransitStart(intent, context, request, replayUnknown = false)
+                }
+
+                DispatchTransitStartMetadataWrite.Conflict,
+                DispatchTransitStartMetadataWrite.Stale -> {
+                    mutableState.value = mutableState.value.copy(
+                        transitStartStatus = DispatchTransitStartStatus.Conflict,
+                        pendingTransitStart = null
+                    )
+                }
+
+                DispatchTransitStartMetadataWrite.Unavailable -> {
+                    mutableState.value = mutableState.value.copy(
+                        transitStartStatus = DispatchTransitStartStatus.PersistenceUnavailable,
+                        pendingTransitStart = null
+                    )
+                }
+            }
+        }
+    }
+
+    /** Replays only the persisted command after an ambiguous result, with its original ETag and key. */
+    fun retryTransitStart() {
+        val context = activeContext ?: return
+        val intent = mutableState.value.pendingTransitStart ?: return
+        if (!canRetryTransitStart() || context.identity?.transitScope() != intent.scope) return
+        val request = ++generation
+        mutableState.value = mutableState.value.copy(
+            transitStartStatus = DispatchTransitStartStatus.Pending
+        )
+        viewModelScope.launch {
+            runTransitStart(intent, context, request, replayUnknown = true)
+        }
+    }
+
+    private suspend fun restoreTransitIntent(
+        readiness: DispatchReadiness,
+        context: DispatchAuthorityContext,
+        request: Long
+    ) {
+        val deliveryId = readiness.deliveryId ?: return
+        val scope = context.identity?.transitScope()
+        if (scope == null) {
+            mutableState.value = mutableState.value.copy(
+                transitStartStatus = DispatchTransitStartStatus.PersistenceUnavailable
+            )
+            return
+        }
+        val read = safeTransitMetadataRead {
+            transitMetadataStore.loadIntent(
+                scope,
+                deliveryId
+            )
+        }
+        when (read) {
+            is DispatchTransitStartMetadataRead.Available -> {
+                if (!isCurrent(request, context)) return
+                val intent = read.intent
+                if (intent == null) {
+                    mutableState.value = mutableState.value.copy(
+                        transitStartStatus = DispatchTransitStartStatus.Idle,
+                        pendingTransitStart = null
+                    )
+                } else if (
+                    intent.scope == scope && intent.command.deliveryId.equals(deliveryId, true) &&
+                    intent.command.fulfillmentId.equals(readiness.fulfillmentId, true) &&
+                    intent.command.isValid()
+                ) {
+                    val recovered = intent.copy(
+                        status = DispatchTransitStartIntentStatus.UnknownOutcome
+                    )
+                    mutableState.value = mutableState.value.copy(
+                        transitStartStatus = DispatchTransitStartStatus.UnknownOutcome,
+                        pendingTransitStart = recovered
+                    )
+                } else {
+                    mutableState.value = mutableState.value.copy(
+                        transitStartStatus = DispatchTransitStartStatus.PersistenceUnavailable,
+                        pendingTransitStart = null
+                    )
+                }
+            }
+
+            DispatchTransitStartMetadataRead.Unavailable -> {
+                if (!isCurrent(request, context)) return
+                mutableState.value = mutableState.value.copy(
+                    transitStartStatus = DispatchTransitStartStatus.PersistenceUnavailable,
+                    pendingTransitStart = null
+                )
+            }
+        }
+    }
+
+    private suspend fun runTransitStart(
+        intent: DispatchTransitStartIntent,
+        context: DispatchAuthorityContext,
+        request: Long,
+        replayUnknown: Boolean
+    ) {
+        val result = safeTransitStart {
+            gateway.startTransit(intent, context, replayUnknown)
+        }
+        if (!isCurrent(request, context)) return
+        when (result) {
+            is DispatchTransitStartGatewayResult.Started -> {
+                if (!reconcileTransitConfirmation(intent, result.value, replayUnknown)) {
+                    persistUnknownTransitIntent(intent, request, context)
+                    return
+                }
+                if (hasEqualVersionTransitConflict(result.value)) {
+                    persistUnknownTransitIntent(intent, request, context)
+                    if (!isCurrent(request, context)) return
+                    refreshDeliveryPod()
+                    return
+                }
+                if (!clearTransitIntentIfCurrent(intent, request, context)) return
+                if (!hasNewerLocalTransitVersion(result.value)) {
+                    updateDeliveryAfterTransit(result.value)
+                }
+                mutableState.value = mutableState.value.copy(
+                    transitStartStatus = DispatchTransitStartStatus.Started,
+                    pendingTransitStart = null
+                )
+            }
+
+            DispatchTransitStartGatewayResult.UnknownOutcome,
+            DispatchTransitStartGatewayResult.NetworkUnavailable,
+            DispatchTransitStartGatewayResult.ServiceUnavailable ->
+                persistUnknownTransitIntent(intent, request, context)
+
+            DispatchTransitStartGatewayResult.Stale -> {
+                if (!clearTransitIntentIfCurrent(intent, request, context)) return
+                mutableState.value = mutableState.value.copy(
+                    transitStartStatus = DispatchTransitStartStatus.Stale,
+                    pendingTransitStart = null
+                )
+            }
+
+            DispatchTransitStartGatewayResult.Conflict -> {
+                if (!clearTransitIntentIfCurrent(intent, request, context)) return
+                mutableState.value = mutableState.value.copy(
+                    transitStartStatus = DispatchTransitStartStatus.Conflict,
+                    pendingTransitStart = null
+                )
+            }
+
+            DispatchTransitStartGatewayResult.PermissionDenied -> {
+                if (!clearTransitIntentIfCurrent(intent, request, context)) return
+                mutableState.value = mutableState.value.copy(
+                    transitStartStatus = DispatchTransitStartStatus.PermissionDenied,
+                    pendingTransitStart = null
+                )
+            }
+
+            DispatchTransitStartGatewayResult.ContextInvalidated -> invalidateContext()
+
+            DispatchTransitStartGatewayResult.SessionInvalidated -> invalidateSession()
+        }
+    }
+
+    private suspend fun clearTransitIntentIfCurrent(
+        intent: DispatchTransitStartIntent,
+        request: Long,
+        context: DispatchAuthorityContext
+    ): Boolean {
+        safeClearTransitIntent(intent)
+        return isCurrent(request, context)
+    }
+
+    private suspend fun persistUnknownTransitIntent(
+        intent: DispatchTransitStartIntent,
+        request: Long,
+        context: DispatchAuthorityContext
+    ) {
+        val unknown = intent.copy(status = DispatchTransitStartIntentStatus.UnknownOutcome)
+        safeTransitMetadataWrite { transitMetadataStore.saveIntent(unknown) }
+        if (!isCurrent(request, context)) return
+        mutableState.value = mutableState.value.copy(
+            transitStartStatus = DispatchTransitStartStatus.UnknownOutcome,
+            pendingTransitStart = unknown
+        )
+    }
+
+    private fun reconcileTransitConfirmation(
+        intent: DispatchTransitStartIntent,
+        confirmation: DispatchTransitStartConfirmation,
+        replayUnknown: Boolean
+    ): Boolean {
+        val expectedVersion = intent.command.expectedVersion ?: return false
+        val confirmedVersion = confirmation.deliveryEtag.versionFromEtag() ?: return false
+        val statusMatches = if (replayUnknown) {
+            confirmation.deliveryStatus in TRANSIT_REPLAY_STATUSES
+        } else {
+            confirmation.deliveryStatus == "IN_TRANSIT"
+        }
+        return confirmation.deliveryId.equals(intent.command.deliveryId, true) &&
+            confirmation.fulfillmentId.equals(intent.command.fulfillmentId, true) &&
+            statusMatches &&
+            confirmation.deliveryVersion > expectedVersion &&
+            (replayUnknown || confirmation.deliveryVersion == expectedVersion + 1) &&
+            confirmedVersion == confirmation.deliveryVersion
+    }
+
+    private fun hasEqualVersionTransitConflict(
+        confirmation: DispatchTransitStartConfirmation
+    ): Boolean {
+        val current = mutableState.value
+        val delivery = current.deliveryPod?.takeIf {
+            it.deliveryId == confirmation.deliveryId &&
+                it.fulfillmentId == confirmation.fulfillmentId
+        }
+        if (delivery != null && delivery.deliveryVersion == confirmation.deliveryVersion) {
+            if (delivery.deliveryStatus != confirmation.deliveryStatus ||
+                delivery.deliveryEtag != confirmation.deliveryEtag
+            ) {
+                return true
+            }
+        }
+
+        val projections = buildList {
+            current.detail?.let(::add)
+            addAll(current.items)
+        }
+        return projections.any { projection ->
+            projection.deliveryId == confirmation.deliveryId &&
+                projection.fulfillmentId == confirmation.fulfillmentId &&
+                projection.deliveryVersion == confirmation.deliveryVersion &&
+                projection.deliveryStatus != confirmation.deliveryStatus
+        }
+    }
+
+    private fun hasNewerLocalTransitVersion(
+        confirmation: DispatchTransitStartConfirmation
+    ): Boolean {
+        val current = mutableState.value
+        if (current.deliveryPod?.let {
+                it.deliveryId == confirmation.deliveryId &&
+                    it.fulfillmentId == confirmation.fulfillmentId &&
+                    it.deliveryVersion > confirmation.deliveryVersion
+            } == true
+        ) {
+            return true
+        }
+        val projections = buildList {
+            current.detail?.let(::add)
+            addAll(current.items)
+        }
+        return projections.any { projection ->
+            projection.deliveryId == confirmation.deliveryId &&
+                projection.fulfillmentId == confirmation.fulfillmentId &&
+                projection.deliveryVersion?.let { it > confirmation.deliveryVersion } == true
+        }
+    }
+
+    private fun updateDeliveryAfterTransit(confirmation: DispatchTransitStartConfirmation) {
+        val current = mutableState.value
+        val delivery = current.deliveryPod ?: return
+        if (delivery.deliveryId != confirmation.deliveryId ||
+            delivery.fulfillmentId != confirmation.fulfillmentId
+        ) {
+            return
+        }
+        val updated = delivery.copy(
+            deliveryStatus = confirmation.deliveryStatus,
+            deliveryVersion = confirmation.deliveryVersion,
+            deliveryEtag = confirmation.deliveryEtag,
+            pod = delivery.pod?.takeIf {
+                it.deliveryVersion == confirmation.deliveryVersion &&
+                    it.deliveryEtag == confirmation.deliveryEtag
+            }
+        )
+        val detail = current.detail?.takeIf {
+            it.deliveryId == confirmation.deliveryId &&
+                it.fulfillmentId == confirmation.fulfillmentId
+        }?.copy(
+            deliveryStatus = confirmation.deliveryStatus,
+            deliveryVersion = confirmation.deliveryVersion
+        )
+        val items = current.items.map { item ->
+            if (item.fulfillmentId == confirmation.fulfillmentId &&
+                item.deliveryId == confirmation.deliveryId
+            ) {
+                item.copy(
+                    deliveryStatus = confirmation.deliveryStatus,
+                    deliveryVersion = confirmation.deliveryVersion
+                )
+            } else {
+                item
+            }
+        }
+        mutableState.value = current.copy(
+            items = items,
+            detail = detail,
+            deliveryPod = updated,
+            deliveryPodStatus = DispatchDeliveryPodStatus.Current
+        )
+    }
+
+    private suspend fun safeClearTransitIntent(intent: DispatchTransitStartIntent) {
+        try {
+            transitMetadataStore.clearIntent(
+                intent.scope,
+                intent.command.deliveryId,
+                intent.command.idempotencyKey
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // A confirmed/rejected server result remains authoritative; persisted retries stay safe.
+        }
+    }
+
     fun deactivate() {
         cancelListRead()
         generation++
@@ -371,19 +757,48 @@ class DispatchReadinessViewModel(
                 val snapshot = result.value
                 val readinessDeliveryVersion = readiness.deliveryVersion
                 val pod = snapshot.pod
+                val podConsistent = pod?.let { evidence ->
+                    evidence.deliveryId == snapshot.deliveryId &&
+                        evidence.deliveryVersion == snapshot.deliveryVersion &&
+                        evidence.deliveryEtag == snapshot.deliveryEtag
+                } ?: true
                 val consistent = readiness.deliveryId == snapshot.deliveryId &&
                     readiness.fulfillmentId == snapshot.fulfillmentId &&
                     readinessDeliveryVersion != null &&
                     snapshot.deliveryVersion >= readinessDeliveryVersion &&
-                    (
-                        pod == null ||
-                            (
-                                pod.deliveryId == snapshot.deliveryId &&
-                                    pod.deliveryVersion == snapshot.deliveryVersion &&
-                                    pod.deliveryEtag == snapshot.deliveryEtag
-                                )
+                    podConsistent
+                val current = mutableState.value
+                val updatedDetail = current.detail?.takeIf {
+                    it.deliveryId == snapshot.deliveryId &&
+                        it.fulfillmentId == snapshot.fulfillmentId
+                }?.copy(
+                    deliveryStatus = snapshot.deliveryStatus,
+                    deliveryVersion = snapshot.deliveryVersion
+                )
+                val items = current.items.map { item ->
+                    if (item.deliveryId == snapshot.deliveryId &&
+                        item.fulfillmentId == snapshot.fulfillmentId
+                    ) {
+                        item.copy(
+                            deliveryStatus = snapshot.deliveryStatus,
+                            deliveryVersion = snapshot.deliveryVersion
                         )
-                mutableState.value = mutableState.value.copy(
+                    } else {
+                        item
+                    }
+                }
+                val transitStatus = when (current.transitStartStatus) {
+                    DispatchTransitStartStatus.Stale,
+                    DispatchTransitStartStatus.Conflict,
+                    DispatchTransitStartStatus.PermissionDenied,
+                    DispatchTransitStartStatus.PersistenceUnavailable ->
+                        DispatchTransitStartStatus.Idle
+
+                    else -> current.transitStartStatus
+                }
+                mutableState.value = current.copy(
+                    items = items,
+                    detail = updatedDetail,
                     deliveryPod = snapshot.takeIf { consistent },
                     deliveryPodStatus = if (consistent) {
                         DispatchDeliveryPodStatus.Current
@@ -391,7 +806,12 @@ class DispatchReadinessViewModel(
                         DispatchDeliveryPodStatus.ServiceUnavailable
                     },
                     podSealStatus = DispatchPodSealStatus.Idle,
-                    pendingPodSeal = null
+                    pendingPodSeal = null,
+                    transitStartStatus = if (consistent) {
+                        transitStatus
+                    } else {
+                        current.transitStartStatus
+                    }
                 )
             }
 
@@ -536,6 +956,36 @@ class DispatchReadinessViewModel(
         DispatchDeliveryPodGatewayResult.UnknownOutcome
     }
 
+    private suspend fun safeTransitMetadataRead(
+        block: suspend () -> DispatchTransitStartMetadataRead
+    ): DispatchTransitStartMetadataRead = try {
+        block()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        DispatchTransitStartMetadataRead.Unavailable
+    }
+
+    private suspend fun safeTransitMetadataWrite(
+        block: suspend () -> DispatchTransitStartMetadataWrite
+    ): DispatchTransitStartMetadataWrite = try {
+        block()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        DispatchTransitStartMetadataWrite.Unavailable
+    }
+
+    private suspend fun safeTransitStart(
+        block: suspend () -> DispatchTransitStartGatewayResult
+    ): DispatchTransitStartGatewayResult = try {
+        block()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        DispatchTransitStartGatewayResult.UnknownOutcome
+    }
+
     private suspend fun safeCall(
         block: suspend () -> DispatchReadinessGatewayResult
     ): DispatchReadinessGatewayResult = try {
@@ -575,13 +1025,34 @@ class DispatchReadinessViewModel(
             physicalAllocationVersion >= summary.physicalAllocationVersion &&
             deliveryId == summary.deliveryId
 
+    private fun DispatchAuthorityIdentity.transitScope() = DispatchTransitStartScopeIdentity(
+        userId = userId,
+        tenantId = tenantId,
+        workspaceId = workspaceId,
+        membershipId = membershipId
+    )
+
+    private fun String.versionFromEtag(): Long? {
+        val value = trim().removeSurrounding("\"")
+        if (value.isEmpty() || value.any { !it.isDigit() }) return null
+        return value.toLongOrNull()?.takeIf { it >= 0 }
+    }
+
     private enum class PermissionHint { Available, Unavailable, Unknown }
 
     private companion object {
         const val PREPARED_FULFILLMENT = "PREPARED_FULFILLMENT"
         const val DISPATCH_READ_PERMISSION = "dispatch.read"
+        const val LOGISTICS_WRITE_PERMISSION = "logistics:write"
         val DISPATCH_READ_PERMISSIONS = setOf("dispatch.read")
         val POD_SEAL_PERMISSIONS = setOf("dispatch.complete", "logistics:write")
+        val TRANSIT_REPLAY_STATUSES = setOf(
+            "IN_TRANSIT",
+            "PARTIAL",
+            "DELIVERED",
+            "FAILED",
+            "CANCELLED"
+        )
         val INVALIDATED_STATUS = setOf(
             DispatchReadinessStatus.ContextInvalidated,
             DispatchReadinessStatus.SessionInvalidated
