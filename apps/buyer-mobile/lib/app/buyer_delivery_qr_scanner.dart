@@ -9,30 +9,53 @@ final class BuyerDeliveryQrScanner extends StatefulWidget {
 }
 
 final class _BuyerDeliveryQrScannerState extends State<BuyerDeliveryQrScanner> {
+  final _code = TextEditingController();
+  bool _manual = false;
   bool _returned = false;
   String? _notice;
 
   void _detected(BarcodeCapture capture) {
     if (!mounted ||
         _returned ||
+        _manual ||
         WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
       return;
     }
     for (final barcode in capture.barcodes) {
       final value = barcode.rawValue?.trim();
       if (barcode.format != BarcodeFormat.qrCode || value == null) continue;
-      if (value.isEmpty ||
-          value.length > 400 ||
-          value.contains(RegExp(r'\s'))) {
-        setState(
-          () => _notice = 'Usa el QR de entrega que te muestra el repartidor.',
-        );
-        return;
-      }
-      _returned = true;
-      Navigator.of(context).pop(value);
+      _submit(value);
       return;
     }
+  }
+
+  void _submit(String rawValue) {
+    if (!mounted ||
+        _returned ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
+    final value = rawValue.trim();
+    if (value.isEmpty || value.length > 400 || value.contains(RegExp(r'\s'))) {
+      setState(() => _notice = 'Usa el código de entrega sin espacios.');
+      return;
+    }
+    _returned = true;
+    Navigator.of(context).pop(value);
+  }
+
+  void _openManual() {
+    if (!mounted || _returned) return;
+    setState(() {
+      _manual = true;
+      _notice = null;
+    });
+  }
+
+  @override
+  void dispose() {
+    _code.dispose();
+    super.dispose();
   }
 
   @override
@@ -49,45 +72,69 @@ final class _BuyerDeliveryQrScannerState extends State<BuyerDeliveryQrScanner> {
                   'Al escanear el QR del repartidor, confirmas que recibiste el pedido. Si hay una diferencia, vuelve para registrarla.',
                 ),
               ),
-              SizedBox(
-                height: (constraints.maxHeight * .6).clamp(240, 560).toDouble(),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
-                  child: MobileScanner(
-                    onDetect: _detected,
-                    errorBuilder: (context, error) => ColoredBox(
-                      color: Theme.of(context).colorScheme.surfaceContainerLow,
-                      child: Center(
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.no_photography_outlined,
-                                size: 40,
-                              ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'No podemos usar la cámara. Habilítala en los ajustes del dispositivo o escribe el código de entrega.',
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 16),
-                              FilledButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                style: FilledButton.styleFrom(
-                                  minimumSize: const Size.fromHeight(48),
+              if (_manual)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _code,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        maxLength: 400,
+                        decoration: const InputDecoration(
+                          labelText: 'Código de entrega',
+                        ),
+                        onSubmitted: _submit,
+                      ),
+                      FilledButton(
+                        onPressed: () => _submit(_code.text),
+                        child: const Text('Continuar'),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                SizedBox(
+                  height: (constraints.maxHeight * .6)
+                      .clamp(240, 560)
+                      .toDouble(),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: MobileScanner(
+                      onDetect: _detected,
+                      errorBuilder: (context, error) => ColoredBox(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerLow,
+                        child: Center(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.no_photography_outlined,
+                                  size: 40,
                                 ),
-                                child: const Text('Escribir código'),
-                              ),
-                            ],
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'No podemos usar la cámara. Habilítala en los ajustes del dispositivo o escribe el código de entrega.',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
+              if (!_manual)
+                TextButton(
+                  onPressed: _openManual,
+                  child: const Text('Escribir código'),
+                ),
               if (_notice != null)
                 Padding(
                   padding: const EdgeInsets.all(16),
@@ -96,7 +143,11 @@ final class _BuyerDeliveryQrScannerState extends State<BuyerDeliveryQrScanner> {
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () {
+                    if (_returned) return;
+                    _returned = true;
+                    Navigator.of(context).pop();
+                  },
                   style: TextButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
                   ),
