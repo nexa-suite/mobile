@@ -23,7 +23,10 @@ final class _BuyerNotificationsPageState extends State<BuyerNotificationsPage> {
   @override
   void initState() {
     super.initState();
-    unawaited(context.read<BuyerNotificationsViewModel>().refreshInbox());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(context.read<BuyerNotificationsViewModel>().refreshInbox());
+    });
   }
 
   @override
