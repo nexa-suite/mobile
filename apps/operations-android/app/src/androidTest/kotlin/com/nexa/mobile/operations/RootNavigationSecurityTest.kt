@@ -105,12 +105,13 @@ class RootNavigationSecurityTest {
 
         composeRule.onNodeWithText("Operations").assertIsDisplayed()
         composeRule.onNodeWithText("Nexa Demo Distribución").assertIsDisplayed()
-        composeRule.onNodeWithText("Almacén Principal").assertIsDisplayed()
+        composeRule.onNodeWithText("Almacén Principal").assertDoesNotExist()
         composeRule.onNodeWithText(targetString(R.string.nav_catalog))
             .assertIsDisplayed()
             .performClick()
         composeRule.onNodeWithText("Almacén Principal")
-            .assertIsDisplayed()
+            .assertDoesNotExist()
+        composeRule.onNodeWithText("Nexa Demo Distribución").assertIsDisplayed()
         composeRule.onNodeWithText(targetString(AccessR.string.access_sign_in_title))
             .assertDoesNotExist()
         composeRule.runOnIdle { assertEquals(1, catalogNavigationCalls) }
