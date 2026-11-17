@@ -1007,6 +1007,7 @@
     <string name="picking_work_item_title">Preparation %1$s</string>
     <string name="picking_work_loading">Loading preparation tasks…</string>
     <string name="picking_work_network_error">No connection. Check your connection and try again.</string>
+    <string name="picking_work_cached_notice">Offline, read-only snapshot from %1$s. Opening a task requests fresh server details; actions require server confirmation.</string>
     <string name="picking_work_next">Next</string>
     <string name="picking_work_open">Open task</string>
     <string name="picking_work_permission_error">You do not have access to preparation tasks in this workspace. Contact an administrator.</string>

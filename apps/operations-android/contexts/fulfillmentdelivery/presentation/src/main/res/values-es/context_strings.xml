@@ -1011,6 +1011,7 @@
     <string name="picking_work_item_title">Preparación %1$s</string>
     <string name="picking_work_loading">Cargando preparaciones…</string>
     <string name="picking_work_network_error">Sin conexión. Revisa tu conexión e inténtalo de nuevo.</string>
+    <string name="picking_work_cached_notice">Sin conexión: lista de solo lectura guardada el %1$s. Al abrir una tarea se solicitan datos actuales al servidor; las acciones requieren confirmación del servidor.</string>
     <string name="picking_work_next">Siguiente</string>
     <string name="picking_work_open">Abrir preparación</string>
     <string name="picking_work_permission_error">No tienes acceso a las tareas de preparación en este espacio. Contacta a un administrador.</string>

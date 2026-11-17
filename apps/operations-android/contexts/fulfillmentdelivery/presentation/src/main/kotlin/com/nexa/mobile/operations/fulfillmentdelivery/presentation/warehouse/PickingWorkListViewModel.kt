@@ -43,7 +43,10 @@ class PickingWorkListViewModel(private val gateway: PickingWorkListGateway) : Vi
 
     fun nextPage() {
         val current = mutableState.value
-        if (current.status != PickingWorkListStatus.Ready ||
+        if (current.status !in setOf(
+                PickingWorkListStatus.Ready,
+                PickingWorkListStatus.Cached
+            ) ||
             (current.page.toLong() + 1) * current.size >= current.totalItems
         ) {
             return
@@ -56,7 +59,13 @@ class PickingWorkListViewModel(private val gateway: PickingWorkListGateway) : Vi
 
     fun previousPage() {
         val current = mutableState.value
-        if (current.page <= 0 || current.status != PickingWorkListStatus.Ready) return
+        if (current.page <= 0 || current.status !in setOf(
+                PickingWorkListStatus.Ready,
+                PickingWorkListStatus.Cached
+            )
+        ) {
+            return
+        }
         authority?.let { currentAuthority ->
             generation++
             loadPage(current.page - 1, currentAuthority, generation)
@@ -91,6 +100,15 @@ class PickingWorkListViewModel(private val gateway: PickingWorkListGateway) : Vi
                     size = result.value.size,
                     totalItems = result.value.totalItems,
                     asOf = result.value.asOf
+                )
+
+                is PickingWorkListResult.Cached -> PickingWorkListUiState(
+                    status = PickingWorkListStatus.Cached,
+                    page = result.value.page,
+                    size = result.value.size,
+                    totalItems = result.value.totalItems,
+                    asOf = result.value.asOf,
+                    cachedProjection = result.value
                 )
 
                 PickingWorkListResult.NetworkUnavailable -> failure(
