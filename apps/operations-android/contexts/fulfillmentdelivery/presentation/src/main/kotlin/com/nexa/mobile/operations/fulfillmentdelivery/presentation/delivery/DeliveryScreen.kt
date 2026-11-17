@@ -839,12 +839,16 @@ fun DriverDeliveryScreen(
                         DriverDeliveryCommandStatus.StaleVersion
                     )
                 ) {
-                    NexaPrimaryButton(
-                        label = stringResource(R.string.driver_delivery_begin),
-                        onClick = onBeginDelivery,
-                        enabled =
-                            state.canStart && state.detailStatus == DriverDeliveryLoadStatus.Ready
-                    )
+                    if (delivery.status.uppercase() in setOf("IN_TRANSIT", "PARTIAL")) {
+                        NexaPrimaryButton(
+                            label = stringResource(R.string.driver_delivery_begin),
+                            onClick = onBeginDelivery,
+                            enabled = state.canStart &&
+                                state.detailStatus == DriverDeliveryLoadStatus.Ready
+                        )
+                    } else if (delivery.status.uppercase() in setOf("ASSIGNED", "DISPATCHED")) {
+                        Notice(stringResource(R.string.driver_delivery_transit_required))
+                    }
                 }
             }
         }

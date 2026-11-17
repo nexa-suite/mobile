@@ -211,7 +211,9 @@ data class DriverDeliveryUiState(
         "DriverDeliveryUiState(epoch=$authorityEpoch, list=$listStatus, detail=$detailStatus, command=$commandStatus, items=${deliveries.size})"
 }
 
-private val DRIVER_OPERATIONAL_DELIVERY_STATUSES = setOf("ASSIGNED", "DISPATCHED", "IN_TRANSIT")
+private val DRIVER_OPERATIONAL_DELIVERY_STATUSES =
+    setOf("ASSIGNED", "DISPATCHED", "IN_TRANSIT", "PARTIAL")
+private val DRIVER_ATTEMPT_START_DELIVERY_STATUSES = setOf("IN_TRANSIT", "PARTIAL")
 
 /** Connected list/detail/start flow; a timeout remains unconfirmed until replay or refresh. */
 class DriverDeliveryViewModel(
@@ -569,6 +571,16 @@ class DriverDeliveryViewModel(
             if (current.activeAttempt != null) {
                 pendingStart = null
                 mutableState.update { it.copy(commandStatus = DriverDeliveryCommandStatus.Started) }
+                return@launch
+            }
+            if (current.status.uppercase() !in DRIVER_ATTEMPT_START_DELIVERY_STATUSES) {
+                pendingStart = null
+                mutableState.update {
+                    it.copy(
+                        commandStatus = DriverDeliveryCommandStatus.Idle,
+                        hasRecoverableStart = false
+                    )
+                }
                 return@launch
             }
             val command = DriverAttemptStartCommand(

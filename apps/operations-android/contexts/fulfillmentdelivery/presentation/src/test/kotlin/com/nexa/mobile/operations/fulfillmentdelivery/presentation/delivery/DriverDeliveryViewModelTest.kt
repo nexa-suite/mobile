@@ -89,8 +89,60 @@ class DriverDeliveryViewModelTest {
     }
 
     @Test
+    fun driverStartWaitsForDispatchTransitAndAcceptsPartialDelivery() = runTest {
+        for (status in listOf("ASSIGNED", "DISPATCHED")) {
+            val gateway = FakeDriverDeliveryGateway().apply {
+                listItems = listOf(delivery().copy(status = status))
+                detailBlock = {
+                    DriverDeliveryLoadResult.DetailLoaded(delivery().copy(status = status))
+                }
+            }
+            val viewModel = DriverDeliveryViewModel(
+                gateway,
+                FakeDriverAttemptMetadataStore(),
+                requestBodyCodec = TestDeliveryRequestBodyCodec()
+            )
+            viewModel.activate(AUTHORITY)
+            advanceUntilIdle()
+            viewModel.selectDelivery(DELIVERY_ID)
+            advanceUntilIdle()
+
+            viewModel.beginSelectedDelivery()
+            advanceUntilIdle()
+
+            assertEquals(status, viewModel.state.value.selectedDelivery?.status)
+            assertEquals(DriverDeliveryCommandStatus.Idle, viewModel.state.value.commandStatus)
+            assertTrue(gateway.commands.isEmpty())
+        }
+
+        val partialGateway = FakeDriverDeliveryGateway().apply {
+            listItems = listOf(delivery().copy(status = "PARTIAL"))
+            detailBlock = {
+                DriverDeliveryLoadResult.DetailLoaded(delivery().copy(status = "PARTIAL"))
+            }
+        }
+        val partialViewModel = DriverDeliveryViewModel(
+            partialGateway,
+            FakeDriverAttemptMetadataStore(),
+            requestBodyCodec = TestDeliveryRequestBodyCodec()
+        )
+        partialViewModel.activate(AUTHORITY)
+        advanceUntilIdle()
+        partialViewModel.selectDelivery(DELIVERY_ID)
+        advanceUntilIdle()
+        assertEquals(
+            DELIVERY_ID,
+            partialViewModel.state.value.authorizedInstructionsDeliveryId
+        )
+        partialViewModel.beginSelectedDelivery()
+        advanceUntilIdle()
+
+        assertEquals(1, partialGateway.commands.size)
+    }
+
+    @Test
     fun instructionsEntryRequiresCurrentOperationalAssignmentButNotAnActiveAttempt() = runTest {
-        val assigned = delivery()
+        val assigned = delivery().copy(status = "ASSIGNED")
         val delivered = delivery().copy(id = DELIVERED_DELIVERY_ID, status = "DELIVERED")
         val cancelled = delivery().copy(id = CANCELLED_DELIVERY_ID, status = "CANCELLED")
         val gateway = FakeDriverDeliveryGateway().apply {
@@ -1161,7 +1213,7 @@ class DriverDeliveryViewModelTest {
             id = DELIVERY_ID,
             fulfillmentId = null,
             salesOrderId = null,
-            status = "DISPATCHED",
+            status = "IN_TRANSIT",
             destination = "Server destination",
             scheduledAt = null,
             dispatchedAt = null,
