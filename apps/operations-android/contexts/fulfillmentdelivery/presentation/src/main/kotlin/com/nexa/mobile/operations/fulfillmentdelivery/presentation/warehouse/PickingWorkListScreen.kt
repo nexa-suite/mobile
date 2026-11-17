@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -38,6 +39,9 @@ import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.Pic
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.common.OperationsGlyph
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.common.OperationsGlyphKind
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 /** Shows current work or an explicitly stale, summary-only read-only snapshot. */
 @Composable
@@ -133,7 +137,10 @@ fun PickingWorkListScreen(
                         NexaFeedbackBanner(
                             stringResource(
                                 R.string.picking_work_cached_notice,
-                                cached.asOf.toString()
+                                DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
+                                    .withLocale(LocalLocale.current.platformLocale)
+                                    .withZone(ZoneId.systemDefault())
+                                    .format(cached.asOf)
                             ),
                             NexaFeedbackTone.Warning
                         )
