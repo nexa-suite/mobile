@@ -1,0 +1,8 @@
+<resources>
+    <string name="sales_export_pdf">Guardar PDF</string>
+    <string name="sales_export_csv">Guardar CSV</string>
+    <string name="sales_export_loading">Descargando resumen…</string>
+    <string name="sales_export_saved">Resumen guardado.</string>
+    <string name="sales_export_failed">No se pudo guardar el resumen. Inténtalo de nuevo.</string>
+    <string name="sales_export_permission_denied">No tienes permiso para exportar este pedido.</string>
+</resources>

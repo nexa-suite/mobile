@@ -1,5 +1,6 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse
 
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.FulfillmentPreparationAction
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingAuthority
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingConfirmationCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingFulfillmentSnapshot
@@ -172,6 +173,142 @@ class PickingViewModelTest {
     }
 
     @Test
+    fun preparationTransitionsUseServerConfirmedStatusAndCurrentVersion() = runTest {
+        val gateway = FakePickingGateway().apply {
+            currentSnapshot = snapshot(status = "PICKED")
+            preparationResults += PickingMutationResult.Confirmed(
+                fulfillment(status = "PACKED", version = 13)
+            )
+            preparationResults += PickingMutationResult.Confirmed(
+                fulfillment(status = "STAGED", version = 14)
+            )
+            preparationResults += PickingMutationResult.Confirmed(
+                fulfillment(status = "READY_FOR_DISPATCH", version = 15)
+            )
+        }
+        val viewModel = readyViewModel(gateway)
+
+        viewModel.advanceFulfillment(FulfillmentPreparationAction.Pack)
+        advanceUntilIdle()
+        assertEquals("PACKED", viewModel.state.value.fulfillment?.status)
+        assertEquals(13L, viewModel.state.value.fulfillment?.version)
+
+        viewModel.advanceFulfillment(FulfillmentPreparationAction.Stage)
+        advanceUntilIdle()
+        assertEquals("STAGED", viewModel.state.value.fulfillment?.status)
+        assertEquals(14L, viewModel.state.value.fulfillment?.version)
+
+        viewModel.advanceFulfillment(FulfillmentPreparationAction.ReadyForDispatch)
+        advanceUntilIdle()
+        assertEquals("READY_FOR_DISPATCH", viewModel.state.value.fulfillment?.status)
+        assertEquals(15L, viewModel.state.value.fulfillment?.version)
+        assertEquals(
+            listOf(12L, 13L, 14L),
+            gateway.preparationCommands.map { it.expectedFulfillmentVersion }
+        )
+        assertEquals(
+            listOf(
+                FulfillmentPreparationAction.Pack,
+                FulfillmentPreparationAction.Stage,
+                FulfillmentPreparationAction.ReadyForDispatch
+            ),
+            gateway.preparationCommands.map { it.action }
+        )
+        assertEquals(3, gateway.preparationKeys.distinct().size)
+    }
+
+    @Test
+    fun unknownPreparationOutcomeFreezesAndReplaysTheSameScopedCommand() = runTest {
+        val gateway = FakePickingGateway().apply {
+            currentSnapshot = snapshot(status = "PICKED")
+            preparationResults += PickingMutationResult.UnknownOutcome
+            preparationResults += PickingMutationResult.Confirmed(
+                fulfillment(status = "PACKED", version = 13)
+            )
+        }
+        val store = FakePickingMetadataStore()
+        val viewModel = readyViewModel(gateway, store)
+
+        viewModel.advanceFulfillment(FulfillmentPreparationAction.Pack)
+        advanceUntilIdle()
+        assertEquals(PickingCommandStatus.UnknownOutcome, viewModel.state.value.command)
+        assertTrue(viewModel.state.value.isIntentFrozen)
+        val frozen = store.intent
+        val frozenCommand = frozen?.command as? PickingIntentCommand.Advance
+        assertEquals(FulfillmentPreparationAction.Pack, frozenCommand?.action)
+        assertEquals(12L, frozenCommand?.expectedFulfillmentVersion)
+        assertEquals(authority().scope, frozen?.scope)
+        assertEquals(PickingIntentMetadataStatus.UnknownOutcome, frozen?.status)
+
+        viewModel.retryUnknownOutcome()
+        advanceUntilIdle()
+
+        assertEquals(PickingCommandStatus.Confirmed, viewModel.state.value.command)
+        assertEquals("PACKED", viewModel.state.value.fulfillment?.status)
+        assertEquals(gateway.preparationCommands.first(), gateway.preparationCommands.last())
+        assertEquals(1, gateway.preparationKeys.distinct().size)
+        assertEquals(frozen?.idempotencyKey, gateway.preparationKeys.last())
+        assertNull(store.intent)
+    }
+
+    @Test
+    fun latePreparationResultCannotCrossAnInvalidatedAuthorityEpoch() = runTest {
+        val deferred = CompletableDeferred<PickingMutationResult>()
+        val gateway = FakePickingGateway().apply {
+            currentSnapshot = snapshot(status = "PICKED")
+            preparationDeferred = deferred
+        }
+        val store = FakePickingMetadataStore()
+        val viewModel = readyViewModel(gateway, store)
+        viewModel.advanceFulfillment(FulfillmentPreparationAction.Pack)
+        runCurrent()
+        assertEquals(1, gateway.preparationCommands.size)
+        val key = store.intent?.idempotencyKey
+
+        viewModel.invalidate()
+        deferred.complete(PickingMutationResult.Confirmed(fulfillment("PACKED", 13)))
+        advanceUntilIdle()
+
+        assertEquals(PickingLoadStatus.SessionInvalidated, viewModel.state.value.loadStatus)
+        assertEquals(PickingCommandStatus.Editing, viewModel.state.value.command)
+        assertNull(viewModel.state.value.fulfillment)
+        assertEquals(key, store.intent?.idempotencyKey)
+        assertEquals(authority().scope, store.intent?.scope)
+        assertEquals(PickingIntentMetadataStatus.Pending, store.intent?.status)
+    }
+
+    @Test
+    fun stalePreparationVersionRequiresRefreshBeforeUsingTheNewServerVersion() = runTest {
+        val gateway = FakePickingGateway().apply {
+            currentSnapshot = snapshot(status = "PICKED")
+            preparationResults += PickingMutationResult.StaleVersion
+            preparationResults += PickingMutationResult.Confirmed(
+                fulfillment(status = "PACKED", version = 15)
+            )
+        }
+        val viewModel = readyViewModel(gateway)
+        viewModel.advanceFulfillment(FulfillmentPreparationAction.Pack)
+        advanceUntilIdle()
+        assertEquals(PickingCommandStatus.StaleVersion, viewModel.state.value.command)
+
+        gateway.loadResults += PickingLoadResult.Loaded(
+            snapshot(version = 14, status = "PICKED")
+        )
+        viewModel.reload()
+        advanceUntilIdle()
+        viewModel.advanceFulfillment(FulfillmentPreparationAction.Pack)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(12L, 14L),
+            gateway.preparationCommands.map {
+                it.expectedFulfillmentVersion
+            }
+        )
+        assertEquals("PACKED", viewModel.state.value.fulfillment?.status)
+    }
+
+    @Test
     fun lateMutationResultCannotOverwriteInvalidatedContextAndIntentStaysPending() = runTest {
         val deferred = CompletableDeferred<PickingMutationResult>()
         val gateway = FakePickingGateway().apply { confirmDeferred = deferred }
@@ -244,6 +381,27 @@ class PickingViewModelTest {
         )
     }
 
+    @Test
+    fun cachedListReferenceRequiresOnlineDetailBeforeAnyPickingCommand() = runTest {
+        val gateway = FakePickingGateway().apply {
+            loadResults += PickingLoadResult.NetworkUnavailable
+        }
+        val viewModel = PickingViewModel(gateway, FakePickingMetadataStore())
+
+        viewModel.activate(authority(), FULFILLMENT_ID)
+        advanceUntilIdle()
+        viewModel.startPicking()
+        viewModel.confirmPick()
+        viewModel.advanceFulfillment(FulfillmentPreparationAction.Pack)
+        advanceUntilIdle()
+
+        assertEquals(PickingLoadStatus.NetworkUnavailable, viewModel.state.value.loadStatus)
+        assertNull(viewModel.state.value.fulfillment)
+        assertEquals(0, gateway.startCalls)
+        assertEquals(0, gateway.confirmCalls)
+        assertTrue(gateway.preparationCommands.isEmpty())
+    }
+
     private suspend fun TestScope.readyViewModel(
         gateway: FakePickingGateway,
         store: FakePickingMetadataStore = FakePickingMetadataStore()
@@ -257,11 +415,12 @@ class PickingViewModelTest {
     private fun snapshot(
         version: Long = 12,
         allocationVersion: Long = 8,
-        allocationStatus: String = "ALLOCATED"
+        allocationStatus: String = "ALLOCATED",
+        status: String = "PICKING"
     ) = PickingFulfillmentSnapshot(
         fulfillment = FulfillmentPickingSnapshot(
             id = FULFILLMENT_ID,
-            status = "PICKING",
+            status = status,
             version = version,
             lines = listOf(
                 FulfillmentPickingLine(
@@ -298,6 +457,11 @@ class PickingViewModelTest {
             )
         )
     )
+
+    private fun fulfillment(status: String, version: Long) = snapshot(
+        version = version,
+        status = status
+    ).fulfillment
 
     private fun updatedFulfillment(version: Long = 13) =
         snapshot(version = version).fulfillment.copy(
@@ -336,9 +500,14 @@ class PickingViewModelTest {
         var loadResults = mutableListOf<PickingLoadResult>()
         var confirmResults = mutableListOf<PickingMutationResult>()
         var confirmDeferred: CompletableDeferred<PickingMutationResult>? = null
+        var startCalls = 0
         var confirmCalls = 0
         val commands = mutableListOf<PickingConfirmationCommand>()
         val keys = mutableListOf<String>()
+        var preparationDeferred: CompletableDeferred<PickingMutationResult>? = null
+        val preparationCommands = mutableListOf<PickingIntentCommand.Advance>()
+        val preparationKeys = mutableListOf<String>()
+        val preparationResults = mutableListOf<PickingMutationResult>()
 
         override suspend fun load(
             fulfillmentId: String,
@@ -350,7 +519,10 @@ class PickingViewModelTest {
             command: PickingIntentCommand.Start,
             idempotencyKey: String,
             authority: PickingAuthority
-        ): PickingMutationResult = PickingMutationResult.UnknownOutcome
+        ): PickingMutationResult {
+            startCalls++
+            return PickingMutationResult.UnknownOutcome
+        }
 
         override suspend fun confirmPicking(
             command: PickingConfirmationCommand,
@@ -362,6 +534,17 @@ class PickingViewModelTest {
             keys += idempotencyKey
             confirmDeferred?.let { return it.await() }
             return confirmResults.removeFirstOrNull() ?: PickingMutationResult.UnknownOutcome
+        }
+
+        override suspend fun advanceFulfillment(
+            command: PickingIntentCommand.Advance,
+            idempotencyKey: String,
+            authority: PickingAuthority
+        ): PickingMutationResult {
+            preparationCommands += command
+            preparationKeys += idempotencyKey
+            preparationDeferred?.let { return it.await() }
+            return preparationResults.removeFirstOrNull() ?: PickingMutationResult.UnknownOutcome
         }
     }
 

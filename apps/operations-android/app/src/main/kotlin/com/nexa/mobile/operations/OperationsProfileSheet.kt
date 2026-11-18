@@ -48,9 +48,9 @@ internal fun OperationsProfileSheet(
     role: String,
     onDismiss: () -> Unit,
     onDetails: (() -> Unit)?,
+    onTerms: () -> Unit,
     onPassword: () -> Unit,
     onOtherSessions: () -> Unit,
-    onChangeWorkspace: () -> Unit,
     onLogout: () -> Unit
 ) {
     var securityExpanded by remember { mutableStateOf(false) }
@@ -86,6 +86,12 @@ internal fun OperationsProfileSheet(
                         HorizontalDivider(color = NexaColors.Border)
                     }
                     ProfileActionRow(
+                        title = stringResource(R.string.profile_terms),
+                        icon = DesignR.drawable.ic_identity,
+                        onClick = onTerms
+                    )
+                    HorizontalDivider(color = NexaColors.Border)
+                    ProfileActionRow(
                         title = stringResource(R.string.profile_security),
                         icon = DesignR.drawable.ic_lock,
                         onClick = { securityExpanded = !securityExpanded },
@@ -113,12 +119,6 @@ internal fun OperationsProfileSheet(
                             )
                         }
                     }
-                    HorizontalDivider(color = NexaColors.Border)
-                    ProfileActionRow(
-                        title = stringResource(R.string.work_nav_change_context),
-                        icon = DesignR.drawable.ic_sync,
-                        onClick = onChangeWorkspace
-                    )
                 }
             }
 

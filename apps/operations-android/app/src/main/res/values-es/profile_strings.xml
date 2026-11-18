@@ -1,6 +1,7 @@
 <resources>
     <string name="profile_my_profile">Mi perfil</string>
     <string name="profile_personal_details">Mis datos personales</string>
+    <string name="profile_terms">Términos y condiciones</string>
     <string name="profile_security">Seguridad y acceso</string>
     <string name="home_start">Accesos rápidos</string>
     <string name="home_receive_title">Registrar llegada</string>

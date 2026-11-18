@@ -13,10 +13,65 @@ import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NexaOutgoingGoodsCheckGatewayTest {
+    @Test
+    fun dispatchSummaryTreatsNoCheckAsEmptyAndPreservesForbiddenReadAsFailure() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val gateway = gateway(server)
+            server.enqueue(MockResponse().setResponseCode(204))
+
+            val empty = gateway.dispatchSummary(FULFILLMENT_ID)
+                as OutgoingGoodsCheckNetworkOutcome.DispatchSummary
+
+            assertEquals(null, empty.check)
+            assertEquals(
+                "/api/v1/fulfillments/$FULFILLMENT_ID/outgoing-checks/current-summary",
+                server.takeRequest().path
+            )
+
+            server.enqueue(MockResponse().setResponseCode(403))
+            assertEquals(
+                OutgoingGoodsCheckNetworkOutcome.PermissionDenied,
+                gateway.dispatchSummary(FULFILLMENT_ID)
+            )
+            assertEquals(
+                "/api/v1/fulfillments/$FULFILLMENT_ID/outgoing-checks/current-summary",
+                server.takeRequest().path
+            )
+        }
+    }
+
+    @Test
+    fun dispatchSummaryParsesOnlyCurrentCheckIdentityAndVersionFacts() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(
+                jsonResponse(
+                    """{"id":"$CHECK_ID","fulfillmentId":"$FULFILLMENT_ID","fulfillmentVersion":12,"physicalAllocationId":"$ALLOCATION_ID","physicalAllocationVersion":7,"matches":true,"current":true,"openDiscrepancy":false}"""
+                ).setResponseCode(200).addHeader("ETag", "\"12\"")
+            )
+
+            val outcome = gateway(server).dispatchSummary(FULFILLMENT_ID)
+                as OutgoingGoodsCheckNetworkOutcome.DispatchSummary
+            val check = requireNotNull(outcome.check)
+
+            assertEquals(CHECK_ID, check.id)
+            assertEquals(12, check.fulfillmentVersion)
+            assertEquals(7, check.physicalAllocationVersion)
+            assertTrue(check.matches && check.current)
+            assertFalse(check.openDiscrepancy)
+            assertEquals(
+                "/api/v1/fulfillments/$FULFILLMENT_ID/outgoing-checks/current-summary",
+                server.takeRequest().path
+            )
+        }
+    }
+
     @Test
     fun recordPostsFrozenBodyAndExactAuthorityHeaders() = runTest {
         MockWebServer().use { server ->

@@ -61,7 +61,8 @@ fun CustomerProgressScreen(
     onNextPage: () -> Unit,
     onRouteClosed: () -> Unit,
     onOpenDeliveryInstructions: ((String) -> Unit)? = null,
-    onChooseCustomer: (() -> Unit)? = null
+    onChooseCustomer: (() -> Unit)? = null,
+    orderActions: @Composable (String) -> Unit = {}
 ) {
     val close = rememberUpdatedState(onRouteClosed)
     DisposableEffect(Unit) { onDispose { close.value() } }
@@ -205,6 +206,7 @@ fun CustomerProgressScreen(
                                         color = NexaColors.TextPrimary
                                     )
                                 }
+                                orderActions(order.id)
                                 onOpenDeliveryInstructions?.let { open ->
                                     TextButton(
                                         onClick = { open(order.id) },

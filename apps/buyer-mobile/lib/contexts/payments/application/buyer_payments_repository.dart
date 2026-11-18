@@ -1,3 +1,5 @@
+import 'buyer_transfer_proof_repository.dart';
+
 final class BuyerPaymentProjection {
   const BuyerPaymentProjection({
     required this.id,
@@ -38,7 +40,8 @@ final class BuyerPaymentHistoryPageProjection {
   final int total;
 }
 
-abstract interface class BuyerPaymentsRepository {
+abstract interface class BuyerPaymentsRepository
+    implements BuyerTransferProofRepository {
   Future<BuyerPaymentHistoryPageProjection> listForReceivable({
     required String receivableId,
     required int page,
@@ -49,5 +52,6 @@ abstract interface class BuyerPaymentsRepository {
     required String receivableId,
     required String reference,
     required String idempotencyKey,
+    String? proofEvidenceId,
   });
 }

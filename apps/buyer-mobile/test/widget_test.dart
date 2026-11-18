@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -13,10 +15,28 @@ import 'package:nexa_buyer_mobile/contexts/fulfillment_delivery/presentation/buy
 import 'package:nexa_buyer_mobile/core/network/nexa_api_client.dart';
 import 'package:nexa_buyer_mobile/core/presentation/nexa_buyer_theme.dart';
 import 'package:nexa_buyer_mobile/main.dart';
+import 'package:nexa_buyer_mobile/contexts/notifications/application/buyer_push_registration.dart';
+import 'package:nexa_buyer_mobile/contexts/notifications/presentation/buyer_notifications_page.dart';
 
 const _documentId = '00000000-0000-4000-8000-000000000001';
 const _documentBytes = [37, 80, 68, 70, 45, 49, 46, 55];
 const _deliveryId = '00000000-0000-4000-8000-000000000004';
+
+Map<String, Object?> _legalTermsResponse() {
+  const content = 'Condiciones de uso para pruebas.';
+  return {
+    'documentId': 'mobile-terms',
+    'version': '1',
+    'content': content,
+    'contentDigest': sha256.convert(utf8.encode(content)).toString(),
+  };
+}
+
+Map<String, Object?> _legalAcceptanceResponse() => {
+  ..._legalTermsResponse(),
+  'accepted': true,
+  'acceptedAt': '2026-11-17T15:00:00Z',
+};
 
 void main() {
   testWidgets('shows safe configuration guidance without an API origin', (
@@ -34,6 +54,108 @@ void main() {
     expect(theme.colorScheme.primary, const Color(0xFF2563EB));
     expect(theme.extension<NexaThemeExtension>()?.radiusControl, 10);
   });
+
+  testWidgets(
+    'push tap opens the notifications page while registration waits',
+    (tester) async {
+      _useBuyerMobileViewport(tester);
+      final device = _BlockedPushDevice();
+      final httpClient = MockClient((request) async {
+        final path = request.url.path;
+        if (path.endsWith('/authentication/identity-sign-in')) {
+          return http.Response(
+            jsonEncode({'outcome': 'CONTEXT_SELECTION_REQUIRED'}),
+            200,
+            headers: {'x-nexa-context-ticket': 'context-ticket'},
+          );
+        }
+        if (path.endsWith('/me/access-contexts')) {
+          return http.Response(
+            jsonEncode({
+              'accessContexts': [
+                _contextOption(
+                  membershipId: 'membership-north',
+                  tenantId: 'tenant-north',
+                  tenantName: 'Empresa Norte',
+                  tenantSlug: 'empresa-norte',
+                  workspaceId: 'workspace-north',
+                  workspaceName: 'Sucursal principal',
+                  workspaceSlug: 'principal',
+                ),
+              ],
+            }),
+            200,
+          );
+        }
+        if (path.endsWith('/me/access-context-selections')) {
+          final response = _authenticationResponse(
+            'membership-north',
+            'tenant-north',
+          );
+          final session = response['session']! as Map<String, Object?>;
+          (session['permissions']! as List<String>).add('notification.read');
+          return http.Response(
+            jsonEncode(response),
+            200,
+            headers: {'x-nexa-refresh-token': 'refresh-secret'},
+          );
+        }
+        if (path == '/api/v1/notifications') {
+          return http.Response(
+            jsonEncode({'items': [], 'unreadCount': 0, 'limit': 25}),
+            200,
+          );
+        }
+        if (path == '/api/v1/me/legal-acceptance') {
+          return http.Response(jsonEncode(_legalAcceptanceResponse()), 200);
+        }
+        if (path == '/api/v1/legal/mobile-terms') {
+          return http.Response(jsonEncode(_legalTermsResponse()), 200);
+        }
+        if (path == '/api/v1/catalog-items') {
+          return http.Response(
+            jsonEncode({
+              'items': [],
+              'page': 0,
+              'size': 20,
+              'totalItems': 0,
+              'totalPages': 0,
+            }),
+            200,
+          );
+        }
+        return http.Response('{}', 200);
+      });
+      await tester.pumpWidget(
+        BuyerMobileApp(
+          apiBaseUrl: 'https://api.nexa.example',
+          allowLocalHttp: false,
+          httpClient: httpClient,
+          pushDevice: device,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Continuar'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byType(TextFormField).at(0),
+        'buyer@example.test',
+      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'test-password');
+      await tester.tap(find.widgetWithText(FilledButton, 'Iniciar sesión'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Empresa Norte'));
+      await tester.pumpAndSettle();
+      device.opened.add(null);
+      await tester.pumpAndSettle();
+      expect(find.byType(BuyerNotificationsPage), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      device.registerGate.complete(true);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      await device.close();
+    },
+  );
 
   testWidgets('hides delivery navigation without the exact tracking grant', (
     tester,
@@ -81,6 +203,12 @@ void main() {
           200,
           headers: {'x-nexa-refresh-token': 'refresh-secret'},
         );
+      }
+      if (path == '/api/v1/me/legal-acceptance') {
+        return http.Response(jsonEncode(_legalAcceptanceResponse()), 200);
+      }
+      if (path == '/api/v1/legal/mobile-terms') {
+        return http.Response(jsonEncode(_legalTermsResponse()), 200);
       }
       if (path == '/api/v1/catalog-items') {
         return http.Response(
@@ -442,6 +570,12 @@ void main() {
             200,
           );
         }
+        if (path == '/api/v1/me/legal-acceptance') {
+          return http.Response(jsonEncode(_legalAcceptanceResponse()), 200);
+        }
+        if (path == '/api/v1/legal/mobile-terms') {
+          return http.Response(jsonEncode(_legalTermsResponse()), 200);
+        }
         if (path == '/api/v1/business-documents/$_documentId/downloads') {
           documentDownloads++;
           expect(headers['authorization'], 'Bearer access-secret');
@@ -670,6 +804,8 @@ Future<void> _openMoreDestination(
   await tester.pumpAndSettle();
   await tester.tap(find.text('Otros servicios'));
   await tester.pumpAndSettle();
+  await tester.ensureVisible(find.text(destination));
+  await tester.pumpAndSettle();
   await tester.tap(find.text(destination));
   await tester.pumpAndSettle();
 }
@@ -785,3 +921,21 @@ Map<String, String> _normalizedHeaders(http.BaseRequest request) => {
   for (final entry in request.headers.entries)
     entry.key.toLowerCase(): entry.value,
 };
+
+final class _BlockedPushDevice implements BuyerPushDevice {
+  final registerGate = Completer<bool>();
+  final opened = StreamController<void>.broadcast(sync: true);
+  @override
+  Stream<String> get registrations => const Stream.empty();
+  @override
+  Stream<void> get foregroundMessages => const Stream.empty();
+  @override
+  Stream<void> get openedMessages => opened.stream;
+  @override
+  Future<bool> register() => registerGate.future;
+  @override
+  Future<void> reset() async {}
+  @override
+  Future<bool> wasOpenedFromNotification() async => false;
+  Future<void> close() => opened.close();
+}

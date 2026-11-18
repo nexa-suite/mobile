@@ -1,5 +1,7 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.storage.picking
 
+private val preparationActions = setOf("PACK", "STAGE", "READY_FOR_DISPATCH")
+
 /** Local partition only; it never carries permissions, session tokens, or server facts. */
 data class PickingMetadataScope(
     val userId: String,
@@ -20,7 +22,7 @@ data class PickingMetadataScope(
     }
 }
 
-/** Immutable request data for the two picking mutations supported by the API. */
+/** Immutable request data for the fulfillment preparation mutations supported by the API. */
 sealed interface PickingCommandRecord {
     val fulfillmentId: String
     val expectedFulfillmentVersion: Long
@@ -51,6 +53,18 @@ sealed interface PickingCommandRecord {
 
         override fun toString(): String = "PickingCommandRecord.Confirm(REDACTED)"
     }
+
+    data class Advance(
+        override val fulfillmentId: String,
+        override val expectedFulfillmentVersion: Long,
+        val action: String
+    ) : PickingCommandRecord {
+        init {
+            require(action in preparationActions)
+        }
+
+        override fun toString(): String = "PickingCommandRecord.Advance(REDACTED)"
+    }
 }
 
 enum class PickingIntentStatus { Pending, UnknownOutcome }
@@ -76,6 +90,9 @@ data class PickingIntentMetadataRecord(
                 command.warehouseId,
                 command.unit
             ).forEach { require(it.isNotBlank()) }
+        }
+        if (command is PickingCommandRecord.Advance) {
+            require(command.action in preparationActions)
         }
     }
 

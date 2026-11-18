@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -56,6 +57,7 @@ import com.nexa.mobile.operations.core.designsystem.NexaWorkSummary
 import com.nexa.mobile.operations.core.designsystem.R as DesignR
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.OtherSessionsRevocationResult
 import com.nexa.mobile.operations.tenantaccessgovernance.application.access.OwnPasswordChangeResult
+import com.nexa.mobile.operations.tenantaccessgovernance.application.legal.MobileTermsDocument
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.access.WorkforceContextSummary
 import com.nexa.mobile.operations.tenantaccessgovernance.domain.model.profile.OwnProfile
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessNotice
@@ -66,6 +68,10 @@ import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.Con
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserPhase
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserScreen
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.ContextChooserUiState
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.legal.LegalAcceptanceScreen
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.legal.LegalAcceptanceUiState
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.legal.PublicLegalTermsScreen
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.legal.PublicTermsUiState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
@@ -83,6 +89,8 @@ internal enum class RootDestination {
 internal enum class ProductDestination {
     Access,
     ContextChooser,
+    LegalGate,
+    PublicTerms,
     WorkEntry,
     ProductSearch,
     ConfirmedSku,
@@ -103,6 +111,14 @@ internal fun SessionState.rootDestination(): RootDestination = when (this) {
     SessionState.LocalProtectionError -> RootDestination.LocalProtectionError
 }
 
+internal fun requiresLegalAcceptance(
+    session: SessionState,
+    legalState: LegalAcceptanceUiState,
+    hasConfirmedContext: Boolean,
+    authorityEpoch: Long
+): Boolean = session == SessionState.Active && hasConfirmedContext &&
+    (legalState as? LegalAcceptanceUiState.Accepted)?.authorityEpoch != authorityEpoch
+
 /** Product content is reachable only from an active session and a confirmed context. */
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
@@ -110,6 +126,11 @@ internal fun RootNavigation(
     state: SessionState,
     accessState: AccessUiState,
     warehouseState: WarehouseUiState,
+    legalAcceptanceState: LegalAcceptanceUiState = LegalAcceptanceUiState.Inactive,
+    publicTermsState: PublicTermsUiState = PublicTermsUiState.Idle,
+    onLegalTermsAccept: (MobileTermsDocument, Boolean) -> Unit = { _, _ -> },
+    onLegalTermsRetry: () -> Unit = {},
+    onPublicTermsLoad: () -> Unit = {},
     ownProfileContent: (@Composable (() -> Unit) -> Unit)? = null,
     ownProfile: OwnProfile? = null,
     onProfileOpened: () -> Unit = {},
@@ -270,7 +291,15 @@ internal fun RootNavigation(
     } else {
         emptyList()
     }
-    val workspaceChromeVisible = protectedContentAllowed && accessState.chooser == null
+    var publicTermsVisible by rememberSaveable { mutableStateOf(false) }
+    val legalGateVisible = requiresLegalAcceptance(
+        state,
+        legalAcceptanceState,
+        hasConfirmedContext = protectedContentAllowed && accessState.chooser == null,
+        authorityEpoch = accessState.authorityEpoch
+    )
+    val workspaceChromeVisible = protectedContentAllowed && accessState.chooser == null &&
+        !legalGateVisible && !publicTermsVisible
     val warehouseEntryVisible =
         warehouseState.route in setOf(WarehouseRoute.WorkEntry, WarehouseRoute.StockCondition) &&
             connectedOperationRoute == null
@@ -306,6 +335,10 @@ internal fun RootNavigation(
     }
 
     val destination = when {
+        legalGateVisible -> ProductDestination.LegalGate
+
+        publicTermsVisible -> ProductDestination.PublicTerms
+
         protectedContentAllowed && connectedOperationRoute != null &&
             ConnectedOperationsNavigation.permits(
                 connectedOperationRoute,
@@ -482,6 +515,9 @@ internal fun RootNavigation(
                         mutableStateListOf<Any>(destination)
                     }
 
+                    ProductDestination.LegalGate,
+                    ProductDestination.PublicTerms -> mutableStateListOf<Any>(destination)
+
                     else -> mutableStateListOf<Any>(destination)
                 }
             }
@@ -503,6 +539,10 @@ internal fun RootNavigation(
                                 onRequestPasswordReset = onRequestPasswordReset,
                                 onRetry = onRetry,
                                 onClearLocalSession = onLogout,
+                                onViewTerms = {
+                                    publicTermsVisible = true
+                                    onPublicTermsLoad()
+                                },
                                 showRetry =
                                     (state as? SessionState.Restoring)?.canRetryConnection == true
                             )
@@ -519,6 +559,19 @@ internal fun RootNavigation(
                             )
                         }
 
+                        ProductDestination.LegalGate -> LegalAcceptanceScreen(
+                            state = legalAcceptanceState,
+                            onAccept = onLegalTermsAccept,
+                            onRetry = onLegalTermsRetry,
+                            onSignOut = onLogout
+                        )
+
+                        ProductDestination.PublicTerms -> PublicLegalTermsScreen(
+                            state = publicTermsState,
+                            onBack = { publicTermsVisible = false },
+                            onRetry = onPublicTermsLoad
+                        )
+
                         ProductDestination.WorkEntry -> {
                             WarehouseContentNotice(accessState.notice) {
                                 OperationsDashboardAutoRefresh(
@@ -531,7 +584,6 @@ internal fun RootNavigation(
                                 )
                                 OperationsHomeScreen(
                                     company = accessState.activeContext?.companyName.orEmpty(),
-                                    workspace = accessState.activeContext?.workspaceName.orEmpty(),
                                     role = activeRoleLabel.orEmpty(),
                                     entries = visibleConnectedEntries,
                                     dashboard = dashboard,
@@ -834,6 +886,10 @@ internal fun RootNavigation(
                                 }
                             }
 
+                            ProductDestination.PublicTerms -> publicTermsVisible = false
+
+                            ProductDestination.LegalGate -> Unit
+
                             ProductDestination.Access, ProductDestination.WorkEntry -> Unit
                         }
                     },
@@ -841,6 +897,8 @@ internal fun RootNavigation(
                         when (entryKey) {
                             ProductDestination.Access,
                             ProductDestination.ContextChooser,
+                            ProductDestination.LegalGate,
+                            ProductDestination.PublicTerms,
                             ProductDestination.WorkEntry,
                             ProductDestination.ConnectedOperation,
                             ProductDestination.ProductSearch,
@@ -878,12 +936,13 @@ internal fun RootNavigation(
             } else {
                 null
             },
+            onTerms = {
+                profileSheetVisible = false
+                publicTermsVisible = true
+                onPublicTermsLoad()
+            },
             onPassword = { passwordChangeDialogVisible = true },
             onOtherSessions = { revokeSessionsDialogVisible = true },
-            onChangeWorkspace = {
-                profileSheetVisible = false
-                onChangeContext()
-            },
             onLogout = {
                 profileSheetVisible = false
                 onLogout()

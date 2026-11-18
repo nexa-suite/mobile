@@ -12,10 +12,9 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.Dispa
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverPermissions
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsIntentStatus
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchOutgoingGoodsScopeIdentity
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverOutgoingCheckSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverReceipt
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverSnapshot
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsAllocation
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCheck
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.PreparedFulfillmentDriverAssignment
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.testsupport.TestDispatchRequestBodyCodec
@@ -263,18 +262,15 @@ class DispatchHandoverViewModelTest {
         val work = readiness(version, allocationVersion)
         return DispatchHandoverSnapshot(
             readiness = work,
-            allocation = DispatchOutgoingGoodsAllocation(
-                id = ALLOCATION_ID,
-                status = "ALLOCATED",
-                version = allocationVersion,
-                asOf = AS_OF,
-                lines = emptyList()
-            ),
-            outgoingCheck = DispatchOutgoingGoodsCheck(
-                id = CHECK_ID, fulfillmentId = FULFILLMENT_ID, fulfillmentVersion = version,
-                physicalAllocationId = ALLOCATION_ID, physicalAllocationVersion = allocationVersion,
-                matches = true, current = true, openDiscrepancy = false, checkedAt = AS_OF,
-                lines = emptyList(), replayed = false
+            outgoingCheck = DispatchHandoverOutgoingCheckSummary(
+                id = CHECK_ID,
+                fulfillmentId = FULFILLMENT_ID,
+                fulfillmentVersion = version,
+                physicalAllocationId = ALLOCATION_ID,
+                physicalAllocationVersion = allocationVersion,
+                matches = true,
+                current = true,
+                openDiscrepancy = false
             ),
             driverAssignment = PreparedFulfillmentDriverAssignment(
                 id = ASSIGNMENT_ID, fulfillmentId = FULFILLMENT_ID, fulfillmentVersion = version,

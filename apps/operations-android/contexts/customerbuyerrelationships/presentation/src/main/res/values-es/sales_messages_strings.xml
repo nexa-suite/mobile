@@ -1,0 +1,17 @@
+<resources>
+    <string name="sales_messages_title">Mensajes con comprador</string>
+    <string name="sales_messages_loading">Consultando mensajes…</string>
+    <string name="sales_messages_unavailable">No se pudieron consultar los mensajes o recuperar una acción pendiente.</string>
+    <string name="sales_messages_permission_denied">No tienes permiso para consultar o gestionar estos mensajes.</string>
+    <string name="sales_messages_context_changed">El contexto de acceso cambió. Abre nuevamente esta conversación.</string>
+    <string name="sales_messages_empty">Todavía no hay mensajes.</string>
+    <string name="sales_messages_pending">Hay un mensaje pendiente de confirmación. Reintenta el mismo mensaje antes de enviar otro.</string>
+    <string name="sales_messages_retry">Reintentar mensaje pendiente</string>
+    <string name="sales_messages_body">Mensaje</string>
+    <string name="sales_messages_send">Enviar</string>
+    <string name="sales_messages_refresh">Actualizar</string>
+    <string name="sales_messages_close">Cerrar</string>
+    <string name="sales_messages_byline">%1$s · %2$s</string>
+    <string name="sales_messages_selected_buyer">✓ %1$s</string>
+    <string name="sales_messages_choose_buyer">%1$s</string>
+</resources>

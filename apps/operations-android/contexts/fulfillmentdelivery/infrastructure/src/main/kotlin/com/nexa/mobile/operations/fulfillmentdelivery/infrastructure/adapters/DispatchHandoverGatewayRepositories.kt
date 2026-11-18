@@ -12,18 +12,15 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.Dispa
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverGatewayResult as HandoverGatewayResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchHandoverPermissions
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverEvidence
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverOutgoingCheckSummary
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverReceipt
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchHandoverSnapshot
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsAllocation as OutgoingGoodsAllocation
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCheck
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsCheckLine as OutgoingGoodsCheckLine
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsDiscrepancy as OutgoingGoodsDiscrepancy
-import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchOutgoingGoodsLine
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.PreparedFulfillmentDriverAssignment
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.dispatch.JsonDispatchRequestBodyCodec
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchAssignmentNetworkOutcome as AssignmentOutcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchDriverAssignmentProjection as DriverAssignmentProjection
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchOutgoingGoodsCheckSummaryProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchReadinessNetworkOutcome as ReadinessOutcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.FulfillmentDispatchNetworkOutcome as DispatchOutcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.FulfillmentDispatchProjection as DispatchProjection
@@ -34,8 +31,6 @@ import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.N
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaFulfillmentDispatchGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaOutgoingGoodsCheckGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.OutgoingGoodsCheckNetworkOutcome as OutgoingGoodsCheckOutcome
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.OutgoingGoodsCheckProjection
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PhysicalAllocationProjection
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -121,18 +116,13 @@ class OperationsDispatchHandoverGateway @Inject constructor(
         }
         if (!isCurrent(context, authorization.lease)) return authorityDrift(context)
 
-        val physical = when (val result = outgoingGoods.snapshot(fulfillment.fulfillmentId)) {
-            is OutgoingGoodsCheckOutcome.Snapshot -> result
+        val outgoingCheckProjection = when (
+            val result = outgoingGoods.dispatchSummary(fulfillment.fulfillmentId)
+        ) {
+            is OutgoingGoodsCheckOutcome.DispatchSummary -> result.check
             else -> return result.toHandoverFailure()
         }
-        if (!physical.allocation.id.equals(
-                currentReadiness.physicalAllocationId,
-                ignoreCase = true
-            ) ||
-            physical.allocation.version != currentReadiness.physicalAllocationVersion
-        ) {
-            return HandoverGatewayResult.Stale
-        }
+        val outgoingCheck = outgoingCheckProjection?.toFeature()
         if (!isCurrent(context, authorization.lease)) return authorityDrift(context)
 
         val assignment = when (val result = assignments.current(fulfillment.fulfillmentId)) {
@@ -144,8 +134,7 @@ class OperationsDispatchHandoverGateway @Inject constructor(
         return HandoverGatewayResult.Snapshot(
             DispatchHandoverSnapshot(
                 readiness = currentReadiness,
-                allocation = physical.allocation.toFeature(),
-                outgoingCheck = physical.currentCheck?.toFeature(),
+                outgoingCheck = outgoingCheck,
                 driverAssignment = assignment
             )
         )
@@ -167,8 +156,8 @@ class OperationsDispatchHandoverGateway @Inject constructor(
 
         if (snapshot != null) {
             if (command.expectedFulfillmentVersion != snapshot.readiness.fulfillmentVersion ||
-                command.physicalAllocationId != snapshot.allocation.id ||
-                command.physicalAllocationVersion != snapshot.allocation.version ||
+                command.physicalAllocationId != snapshot.readiness.physicalAllocationId ||
+                command.physicalAllocationVersion != snapshot.readiness.physicalAllocationVersion ||
                 command.driverAssignmentId != snapshot.driverAssignment?.id ||
                 command.driverAssignmentVersion != snapshot.driverAssignment?.fulfillmentVersion ||
                 command.outgoingGoodsCheckId != snapshot.outgoingCheck?.id
@@ -182,8 +171,8 @@ class OperationsDispatchHandoverGateway @Inject constructor(
             }
             if (!fresh.canConfirm ||
                 fresh.readiness.fulfillmentVersion != command.expectedFulfillmentVersion ||
-                fresh.allocation.id != command.physicalAllocationId ||
-                fresh.allocation.version != command.physicalAllocationVersion ||
+                fresh.readiness.physicalAllocationId != command.physicalAllocationId ||
+                fresh.readiness.physicalAllocationVersion != command.physicalAllocationVersion ||
                 fresh.driverAssignment?.id != command.driverAssignmentId ||
                 fresh.driverAssignment?.fulfillmentVersion != command.driverAssignmentVersion ||
                 fresh.outgoingCheck?.id != command.outgoingGoodsCheckId
@@ -313,70 +302,17 @@ class OperationsDispatchHandoverGateway @Inject constructor(
         deliveryId = deliveryId
     )
 
-    private fun PhysicalAllocationProjection.toFeature() = OutgoingGoodsAllocation(
-        id = id,
-        status = status,
-        version = version,
-        asOf = asOf,
-        lines = lines.map {
-            DispatchOutgoingGoodsLine(
-                physicalAllocationLineId = it.id,
-                skuId = it.skuId,
-                catalogItemId = it.catalogItemId,
-                expectedLotId = it.lotId,
-                allocatedQuantity = it.quantity,
-                releasedQuantity = it.releasedQuantity,
-                consumedQuantity = it.consumedQuantity,
-                remainingQuantity = it.remainingQuantity,
-                unit = it.unit
-            )
-        }
-    )
-
-    private fun OutgoingGoodsCheckProjection.toFeature() = DispatchOutgoingGoodsCheck(
-        id = id,
-        fulfillmentId = fulfillmentId,
-        fulfillmentVersion = fulfillmentVersion,
-        physicalAllocationId = physicalAllocationId,
-        physicalAllocationVersion = physicalAllocationVersion,
-        matches = matches,
-        current = current,
-        openDiscrepancy = openDiscrepancy,
-        checkedAt = checkedAt,
-        lines = lines.map {
-            OutgoingGoodsCheckLine(
-                it.physicalAllocationLineId,
-                it.expectedLotId,
-                it.observedLotId,
-                it.expectedQuantity,
-                it.observedQuantity,
-                it.unit,
-                it.matches
-            )
-        },
-        replayed = replayed,
-        discrepancy = discrepancy?.let { detail ->
-            OutgoingGoodsDiscrepancy(
-                id = detail.id,
-                fulfillmentVersion = detail.fulfillmentVersion,
-                physicalAllocationId = detail.physicalAllocationId,
-                physicalAllocationVersion = detail.physicalAllocationVersion,
-                checkedByMembershipId = detail.checkedByMembershipId,
-                checkedAt = detail.checkedAt,
-                lines = detail.lines.map {
-                    OutgoingGoodsCheckLine(
-                        it.physicalAllocationLineId,
-                        it.expectedLotId,
-                        it.observedLotId,
-                        it.expectedQuantity,
-                        it.observedQuantity,
-                        it.unit,
-                        it.matches
-                    )
-                }
-            )
-        }
-    )
+    private fun DispatchOutgoingGoodsCheckSummaryProjection.toFeature() =
+        DispatchHandoverOutgoingCheckSummary(
+            id = id,
+            fulfillmentId = fulfillmentId,
+            fulfillmentVersion = fulfillmentVersion,
+            physicalAllocationId = physicalAllocationId,
+            physicalAllocationVersion = physicalAllocationVersion,
+            matches = matches,
+            current = current,
+            openDiscrepancy = openDiscrepancy
+        )
 
     private fun DispatchProjection.toHandoverReceipt() = DispatchHandoverReceipt(
         fulfillmentId = fulfillmentId,
@@ -449,6 +385,7 @@ class OperationsDispatchHandoverGateway @Inject constructor(
 
         is OutgoingGoodsCheckOutcome.Recorded,
         is OutgoingGoodsCheckOutcome.Snapshot,
+        is OutgoingGoodsCheckOutcome.DispatchSummary,
         is OutgoingGoodsCheckOutcome.Resolved ->
             HandoverGatewayResult.ServiceUnavailable
     }

@@ -65,6 +65,9 @@ final class _BuyerDeliveriesPageState extends State<BuyerDeliveriesPage> {
   @override
   Widget build(BuildContext context) {
     final deliveries = context.watch<BuyerDeliveriesViewModel>();
+    if (deliveries.isShowingCachedSummary) {
+      return _CachedDeliverySummaryList(viewModel: deliveries);
+    }
     if (deliveries.status == BuyerDeliveriesStatus.loading &&
         deliveries.items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -159,6 +162,75 @@ final class _BuyerDeliveriesPageState extends State<BuyerDeliveriesPage> {
       ),
     );
   }
+}
+
+final class _CachedDeliverySummaryList extends StatelessWidget {
+  const _CachedDeliverySummaryList({required this.viewModel});
+
+  final BuyerDeliveriesViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final asOf = viewModel.summaryAsOf;
+    final refreshedAt = asOf == null ? 'hora desconocida' : _offlineTime(asOf);
+    return NexaPageWidth(
+      padding: EdgeInsets.zero,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 20),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: NexaSectionHeader(
+                    eyebrow: 'Cumplimiento',
+                    title: 'Entregas guardadas',
+                    description: 'Resumen local de solo lectura. No confirma el estado actual ni permite acciones.',
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Actualizar entregas',
+                  onPressed: viewModel.isRefreshing ? null : viewModel.refresh,
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            ),
+          ),
+          if (viewModel.isRefreshing) const LinearProgressIndicator(),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: NexaNotice(
+              'No hay una respuesta actual de Nexa. Datos recibidos el $refreshedAt; pueden estar desactualizados. No se pueden abrir entregas ni registrar recibos desde esta lista.',
+              key: const Key('buyer-deliveries-offline-cache-notice'),
+            ),
+          ),
+          for (final delivery in viewModel.cachedSummaries)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Card(
+                key: Key('buyer-cached-delivery-${delivery.deliveryId}'),
+                child: ListTile(
+                  leading: const Icon(Icons.local_shipping_outlined),
+                  title: Text('Pedido ${delivery.orderNumber}'),
+                  subtitle: Text(
+                    'Estado recibido: ${delivery.status} · actualizado ${_offlineTime(delivery.updatedAt)}',
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+String _offlineTime(DateTime value) {
+  final local = value.toLocal();
+  String twoDigits(int component) => component.toString().padLeft(2, '0');
+  return '${twoDigits(local.day)}/${twoDigits(local.month)}/${local.year} '
+      '${twoDigits(local.hour)}:${twoDigits(local.minute)}';
 }
 
 final class _DeliveryCard extends StatelessWidget {

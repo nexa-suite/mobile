@@ -98,6 +98,7 @@ fun AccessScreen(
     onRequestPasswordReset: () -> Unit = {},
     onRetry: () -> Unit = {},
     onClearLocalSession: () -> Unit = {},
+    onViewTerms: () -> Unit = {},
     showRetry: Boolean = false
 ) {
     var credentialsRequested by rememberSaveable { mutableStateOf(false) }
@@ -178,7 +179,8 @@ fun AccessScreen(
                         modifier = Modifier.widthIn(max = 620.dp).fillMaxWidth()
                             .fillMaxHeight(),
                         compact = compactForm,
-                        onContinue = { credentialsRequested = true }
+                        onContinue = { credentialsRequested = true },
+                        onViewTerms = onViewTerms
                     )
                 } else {
                     Column(
@@ -383,38 +385,44 @@ private fun AccessBrandPlane(
 private fun AccessWelcomeContent(
     modifier: Modifier = Modifier,
     compact: Boolean = false,
-    onContinue: () -> Unit
+    onContinue: () -> Unit,
+    onViewTerms: () -> Unit
 ) {
     Column(
         modifier = modifier.padding(top = if (compact) 4.dp else 16.dp, bottom = 8.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         AccessWelcomeCopy()
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val continueLabel = stringResource(R.string.access_welcome_continue)
-            TextButton(onClick = onContinue) {
-                Text(
-                    continueLabel,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = NexaColors.Primary
-                )
-            }
-            IconButton(
-                onClick = onContinue,
-                modifier = Modifier.size(NexaSizes.minimumTouchTarget)
-                    .background(NexaColors.Primary, CircleShape)
-                    .semantics { contentDescription = continueLabel }
+        Column(horizontalAlignment = Alignment.End) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    painter = painterResource(DesignR.drawable.ic_chevron_right),
-                    contentDescription = null,
-                    tint = NexaColors.Surface,
-                    modifier = Modifier.size(NexaSizes.icon)
-                )
+                val continueLabel = stringResource(R.string.access_welcome_continue)
+                TextButton(onClick = onContinue) {
+                    Text(
+                        continueLabel,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = NexaColors.Primary
+                    )
+                }
+                IconButton(
+                    onClick = onContinue,
+                    modifier = Modifier.size(NexaSizes.minimumTouchTarget)
+                        .background(NexaColors.Primary, CircleShape)
+                        .semantics { contentDescription = continueLabel }
+                ) {
+                    Icon(
+                        painter = painterResource(DesignR.drawable.ic_chevron_right),
+                        contentDescription = null,
+                        tint = NexaColors.Surface,
+                        modifier = Modifier.size(NexaSizes.icon)
+                    )
+                }
+            }
+            TextButton(onClick = onViewTerms) {
+                Text(stringResource(R.string.access_view_terms))
             }
         }
     }

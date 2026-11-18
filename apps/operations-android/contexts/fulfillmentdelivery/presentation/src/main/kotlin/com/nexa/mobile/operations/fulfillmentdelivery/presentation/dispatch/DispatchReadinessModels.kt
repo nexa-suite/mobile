@@ -2,6 +2,7 @@ package com.nexa.mobile.operations.fulfillmentdelivery.presentation.dispatch
 
 import androidx.compose.runtime.Immutable
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchDeliveryPodSnapshot
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTransitStartIntent
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.SealDispatchPodCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchReadiness
 import java.time.Instant
@@ -54,6 +55,19 @@ enum class DispatchPodSealStatus {
     PermissionDenied
 }
 
+enum class DispatchTransitStartStatus {
+    Idle,
+    CheckingIntent,
+    Persisting,
+    Pending,
+    Started,
+    UnknownOutcome,
+    PersistenceUnavailable,
+    Stale,
+    Conflict,
+    PermissionDenied
+}
+
 @Immutable
 data class DispatchReadinessUiState(
     val authorityEpoch: Long = 0,
@@ -68,9 +82,12 @@ data class DispatchReadinessUiState(
     val deliveryPodStatus: DispatchDeliveryPodStatus = DispatchDeliveryPodStatus.NotRequested,
     val podSealStatus: DispatchPodSealStatus = DispatchPodSealStatus.Idle,
     val pendingPodSeal: SealDispatchPodCommand? = null,
+    val transitStartStatus: DispatchTransitStartStatus = DispatchTransitStartStatus.Idle,
+    val pendingTransitStart: DispatchTransitStartIntent? = null,
     val changeFeedSignals: Flow<Unit> = emptyFlow()
 ) {
     override fun toString(): String = "DispatchReadinessUiState(status=$status, " +
         "items=${items.size}, detailStatus=$detailStatus, deliveryPodStatus=$deliveryPodStatus, " +
-        "podSealStatus=$podSealStatus, authorityEpoch=$authorityEpoch)"
+        "podSealStatus=$podSealStatus, transitStartStatus=$transitStartStatus, " +
+        "authorityEpoch=$authorityEpoch)"
 }

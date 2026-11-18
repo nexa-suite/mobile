@@ -1,6 +1,8 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse
 
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingAuthority
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingWorkListCacheItem
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingWorkListCacheProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingWorkListResult
 import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingWorkListGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.PickingWorkItem
@@ -61,6 +63,37 @@ class PickingWorkListViewModelTest {
         gate.complete(Unit)
         advanceUntilIdle()
         assertEquals(PickingWorkListStatus.NotRequested, viewModel.state.value.status)
+        assertTrue(viewModel.state.value.items.isEmpty())
+    }
+
+    @Test
+    fun cachedWorkListIsMarkedStaleAndDoesNotBecomeActionableDomainWork() = runTest {
+        val cached = PickingWorkListCacheProjection(
+            items = listOf(
+                PickingWorkListCacheItem(
+                    FULFILLMENT_ID,
+                    SALES_ORDER_ID,
+                    "ORDER-2048",
+                    "PICKED",
+                    12,
+                    1
+                )
+            ),
+            page = 0,
+            size = 25,
+            totalItems = 1,
+            asOf = Instant.parse("2026-11-16T12:00:00Z")
+        )
+        val gateway = FakeWorkListGateway().apply {
+            results += PickingWorkListResult.Cached(cached)
+        }
+        val viewModel = PickingWorkListViewModel(gateway)
+
+        viewModel.activate(authority())
+        advanceUntilIdle()
+
+        assertEquals(PickingWorkListStatus.Cached, viewModel.state.value.status)
+        assertEquals(cached, viewModel.state.value.cachedProjection)
         assertTrue(viewModel.state.value.items.isEmpty())
     }
 

@@ -3,7 +3,7 @@ package com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchAuthorityContext
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGatewayResult
 
-/** Read-only port. Implementations bind every request to verified current identity and lease. */
+/** Dispatch reads and commands bound to the verified current identity and access token lease. */
 interface DispatchReadinessGateway {
     suspend fun list(context: DispatchAuthorityContext): DispatchReadinessGatewayResult
 
@@ -21,4 +21,10 @@ interface DispatchReadinessGateway {
         command: SealDispatchPodCommand,
         context: DispatchAuthorityContext
     ): DispatchDeliveryPodGatewayResult
+
+    suspend fun startTransit(
+        intent: DispatchTransitStartIntent,
+        context: DispatchAuthorityContext,
+        replayUnknown: Boolean
+    ): DispatchTransitStartGatewayResult
 }

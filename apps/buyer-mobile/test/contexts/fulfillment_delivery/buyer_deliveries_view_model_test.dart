@@ -1,10 +1,15 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:nexa_buyer_mobile/contexts/fulfillment_delivery/application/buyer_delivery_summary_cache.dart';
 import 'package:nexa_buyer_mobile/contexts/fulfillment_delivery/application/buyer_deliveries_repository.dart';
 import 'package:nexa_buyer_mobile/contexts/fulfillment_delivery/application/buyer_receipt_evidence_idempotency_store.dart';
 import 'package:nexa_buyer_mobile/contexts/fulfillment_delivery/application/buyer_receipt_idempotency_store.dart';
 import 'package:nexa_buyer_mobile/contexts/fulfillment_delivery/presentation/buyer_deliveries_view_model.dart';
+import 'package:nexa_buyer_mobile/contexts/fulfillment_delivery/presentation/buyer_deliveries_page.dart';
 import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/application/buyer_access_repository.dart';
 import 'package:nexa_buyer_mobile/core/network/nexa_api_client.dart';
 
@@ -847,6 +852,397 @@ void main() {
       await access.dispose();
     },
   );
+
+  test(
+    'network failure restores a scoped summary as read-only cached state',
+    () async {
+      final access = _FakeAccess(_signedInSnapshot());
+      final repository = _Repository(
+        (_) => Future.error(
+          const NexaApiFailure(
+            code: 'network_unavailable',
+            userMessage: 'Network unavailable.',
+            retryable: true,
+          ),
+        ),
+      );
+      final cache = _FakeSummaryCache()..snapshot = _summarySnapshot();
+      final viewModel = BuyerDeliveriesViewModel(
+        repository,
+        access,
+        summaryCache: cache,
+      );
+
+      await viewModel.refresh();
+
+      expect(viewModel.status, BuyerDeliveriesStatus.cached);
+      expect(viewModel.items, isEmpty);
+      expect(viewModel.isShowingCachedSummary, isTrue);
+      expect(viewModel.cachedSummaries.single.orderNumber, 'SO-CACHED');
+      expect(viewModel.summaryAsOf, _cacheAsOf);
+      expect(cache.reads, 1);
+      expect(repository.detailCalls, 0);
+
+      viewModel.dispose();
+      await access.dispose();
+    },
+  );
+
+  test(
+    'refresh offline replaces open deliveries with read-only summaries',
+    () async {
+      final access = _FakeAccess(_signedInSnapshot());
+      var connected = true;
+      final repository = _Repository((page) async {
+        if (!connected) {
+          throw const NexaApiFailure(
+            code: 'network_unavailable',
+            userMessage: 'Network unavailable.',
+            retryable: true,
+          );
+        }
+        return _page(page, 26, salesOrderNumber: 'SO-PAGE-$page');
+      });
+      final cache = _FakeSummaryCache();
+      final viewModel = BuyerDeliveriesViewModel(
+        repository,
+        access,
+        summaryCache: cache,
+      );
+      addTearDown(() async {
+        viewModel.dispose();
+        await access.dispose();
+      });
+
+      await viewModel.refresh();
+      await viewModel.nextPage();
+      expect(viewModel.page, 1);
+      connected = false;
+      await viewModel.refresh();
+
+      expect(viewModel.isShowingCachedSummary, isTrue);
+      expect(viewModel.items, isEmpty);
+      expect(viewModel.page, 0);
+      expect(viewModel.cachedSummaries.single.orderNumber, 'SO-PAGE-0');
+      await viewModel.nextPage();
+      expect(repository.pages, [0, 1, 1]);
+
+      connected = true;
+      await viewModel.refresh();
+      expect(viewModel.status, BuyerDeliveriesStatus.current);
+      expect(viewModel.cachedSummaries, isEmpty);
+      expect(viewModel.items.single.salesOrderNumber, 'SO-PAGE-0');
+    },
+  );
+
+  test('5xx may restore cache while a semantic conflict never does', () async {
+    for (final failure in [
+      const NexaApiFailure(
+        code: 'server_error',
+        statusCode: 503,
+        userMessage: 'Service unavailable.',
+        retryable: true,
+      ),
+      const NexaApiFailure(
+        code: 'conflict',
+        statusCode: 409,
+        userMessage: 'The resource changed.',
+      ),
+    ]) {
+      final access = _FakeAccess(_signedInSnapshot());
+      final repository = _Repository((_) => Future.error(failure));
+      final cache = _FakeSummaryCache()..snapshot = _summarySnapshot();
+      final viewModel = BuyerDeliveriesViewModel(
+        repository,
+        access,
+        summaryCache: cache,
+      );
+
+      await viewModel.refresh();
+
+      if (failure.statusCode == 503) {
+        expect(cache.reads, 1);
+        expect(viewModel.status, BuyerDeliveriesStatus.cached);
+      } else {
+        expect(cache.reads, 0);
+        expect(viewModel.isShowingCachedSummary, isFalse);
+      }
+
+      viewModel.dispose();
+      await access.dispose();
+    }
+  });
+
+  test('successful server list writes only the summary projection', () async {
+    final access = _FakeAccess(_signedInSnapshot());
+    final repository = _Repository(
+      (_) async => _page(0, 1, salesOrderNumber: 'SO-SERVER'),
+    );
+    final cache = _FakeSummaryCache();
+    final viewModel = BuyerDeliveriesViewModel(
+      repository,
+      access,
+      summaryCache: cache,
+    );
+
+    await viewModel.refresh();
+
+    expect(viewModel.status, BuyerDeliveriesStatus.current);
+    expect(cache.writes, 1);
+    expect(cache.snapshot?.items, hasLength(1));
+    expect(cache.snapshot?.items.single.orderNumber, 'SO-SERVER');
+    expect(cache.snapshot?.items.single.deliveryId, _deliveryId);
+    expect(
+      cache.snapshot?.items.single.updatedAt,
+      _delivery('SO-SERVER').updatedAt,
+    );
+    expect(cache.snapshot?.asOf, isNotNull);
+
+    viewModel.dispose();
+    await access.dispose();
+  });
+
+  test(
+    '401, 403 and invalid authority never restore cached summaries',
+    () async {
+      for (final failure in [
+        const NexaApiFailure(
+          code: 'session_expired',
+          statusCode: 401,
+          userMessage: 'Sign in again.',
+        ),
+        const NexaApiFailure(
+          code: 'permission_denied',
+          statusCode: 403,
+          userMessage: 'Not permitted.',
+        ),
+        const NexaApiFailure(
+          code: 'ACCESS_CONTEXT_INVALID',
+          statusCode: 403,
+          userMessage: 'Context invalid.',
+        ),
+      ]) {
+        final access = _FakeAccess(_signedInSnapshot());
+        final repository = _Repository((_) => Future.error(failure));
+        final cache = _FakeSummaryCache()..snapshot = _summarySnapshot();
+        final viewModel = BuyerDeliveriesViewModel(
+          repository,
+          access,
+          summaryCache: cache,
+        );
+
+        await viewModel.refresh();
+
+        expect(cache.reads, 0, reason: failure.code);
+        expect(viewModel.cachedSummaries, isEmpty, reason: failure.code);
+        expect(viewModel.isShowingCachedSummary, isFalse, reason: failure.code);
+        if (failure.statusCode == 403) {
+          expect(cache.deletes, greaterThan(0), reason: failure.code);
+        }
+        if (failure.statusCode == 401 ||
+            failure.code == 'ACCESS_CONTEXT_INVALID') {
+          expect(access.invalidations, 1, reason: failure.code);
+        }
+
+        viewModel.dispose();
+        await access.dispose();
+      }
+    },
+  );
+
+  test(
+    'failed secure-cache deletion after 403 stays suppressed for that scope',
+    () async {
+      var failure = const NexaApiFailure(
+        code: 'permission_denied',
+        statusCode: 403,
+        userMessage: 'Not permitted.',
+      );
+      final access = _FakeAccess(_signedInSnapshot());
+      final repository = _Repository((_) => Future.error(failure));
+      final cache = _FakeSummaryCache()
+        ..snapshot = _summarySnapshot()
+        ..failDelete = true;
+      final viewModel = BuyerDeliveriesViewModel(
+        repository,
+        access,
+        summaryCache: cache,
+      );
+
+      await viewModel.refresh();
+      expect(viewModel.status, BuyerDeliveriesStatus.permissionDenied);
+      expect(cache.snapshot, isNotNull);
+      expect(cache.reads, 0);
+
+      failure = const NexaApiFailure(
+        code: 'network_unavailable',
+        userMessage: 'Network unavailable.',
+        retryable: true,
+      );
+      await viewModel.refresh();
+
+      expect(cache.reads, 0);
+      expect(viewModel.isShowingCachedSummary, isFalse);
+      expect(viewModel.status, BuyerDeliveriesStatus.unavailable);
+
+      viewModel.dispose();
+      await access.dispose();
+    },
+  );
+
+  test(
+    'authority permission change clears the restored cache and partition',
+    () async {
+      final access = _FakeAccess(_signedInSnapshot());
+      final repository = _Repository(
+        (_) => Future.error(
+          const NexaApiFailure(
+            code: 'network_timeout',
+            userMessage: 'Timed out.',
+            retryable: true,
+          ),
+        ),
+      );
+      final cache = _FakeSummaryCache()..snapshot = _summarySnapshot();
+      final viewModel = BuyerDeliveriesViewModel(
+        repository,
+        access,
+        summaryCache: cache,
+      );
+      await viewModel.refresh();
+      expect(viewModel.isShowingCachedSummary, isTrue);
+
+      access.emit(_signedInSnapshot(permissions: const {}));
+
+      expect(viewModel.cachedSummaries, isEmpty);
+      expect(viewModel.summaryAsOf, isNull);
+      expect(viewModel.status, BuyerDeliveriesStatus.permissionDenied);
+      expect(cache.deletes, greaterThan(0));
+      expect(access.snapshot.isSignedIn, isTrue);
+      expect(access.invalidations, 0);
+
+      viewModel.dispose();
+      await access.dispose();
+    },
+  );
+
+  testWidgets('cached delivery summary has no detail or receipt navigation', (
+    tester,
+  ) async {
+    final access = _FakeAccess(_signedInSnapshot());
+    final repository = _Repository(
+      (_) => Future.error(
+        const NexaApiFailure(
+          code: 'network_unavailable',
+          userMessage: 'Network unavailable.',
+          retryable: true,
+        ),
+      ),
+    );
+    final cache = _FakeSummaryCache()..snapshot = _summarySnapshot();
+    final viewModel = BuyerDeliveriesViewModel(
+      repository,
+      access,
+      summaryCache: cache,
+    );
+    final router = GoRouter(
+      initialLocation: '/deliveries',
+      routes: [
+        GoRoute(
+          path: '/deliveries',
+          builder: (context, state) => const BuyerDeliveriesPage(),
+        ),
+        GoRoute(
+          path: '/deliveries/:deliveryId',
+          builder: (context, state) => const Text('DETAIL ROUTE'),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    addTearDown(viewModel.dispose);
+    addTearDown(access.dispose);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<BuyerDeliveriesViewModel>.value(
+        value: viewModel,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(viewModel.status, BuyerDeliveriesStatus.cached);
+    expect(viewModel.cachedSummaries, hasLength(1));
+    expect(
+      find.byKey(const Key('buyer-deliveries-offline-cache-notice')),
+      findsOneWidget,
+    );
+    expect(find.text('Entregas guardadas'), findsOneWidget);
+
+    await tester.drag(find.byType(ListView).last, const Offset(0, -700));
+    await tester.pumpAndSettle();
+    final cachedCard = find.byKey(
+      const Key('buyer-cached-delivery-$_deliveryId'),
+    );
+    expect(cachedCard, findsOneWidget);
+    expect(find.textContaining('No se pueden abrir entregas'), findsOneWidget);
+    await tester.tap(cachedCard);
+    await tester.pumpAndSettle();
+
+    expect(router.routeInformationProvider.value.uri.path, '/deliveries');
+    expect(find.text('DETAIL ROUTE'), findsNothing);
+    expect(repository.detailCalls, 0);
+  });
+}
+
+final _cacheAsOf = DateTime.utc(2026, 11, 16, 12, 30);
+
+BuyerDeliverySummaryCacheSnapshot _summarySnapshot() =>
+    BuyerDeliverySummaryCacheSnapshot(
+      items: [
+        BuyerDeliverySummaryProjection(
+          deliveryId: _deliveryId,
+          orderNumber: 'SO-CACHED',
+          status: 'DISPATCHED',
+          updatedAt: DateTime.utc(2026, 11, 16, 12),
+        ),
+      ],
+      asOf: _cacheAsOf,
+    );
+
+final class _FakeSummaryCache implements BuyerDeliverySummaryCache {
+  BuyerDeliverySummaryCacheSnapshot? snapshot;
+  int reads = 0;
+  int writes = 0;
+  int deletes = 0;
+  bool failDelete = false;
+  BuyerDeliverySummaryCacheScope? lastScope;
+
+  @override
+  Future<BuyerDeliverySummaryCacheSnapshot?> read({
+    required BuyerDeliverySummaryCacheScope scope,
+  }) async {
+    reads++;
+    lastScope = scope;
+    return snapshot;
+  }
+
+  @override
+  Future<void> write({
+    required BuyerDeliverySummaryCacheScope scope,
+    required BuyerDeliverySummaryCacheSnapshot snapshot,
+  }) async {
+    writes++;
+    lastScope = scope;
+    this.snapshot = snapshot;
+  }
+
+  @override
+  Future<void> delete({required BuyerDeliverySummaryCacheScope scope}) async {
+    deletes++;
+    lastScope = scope;
+    if (failDelete) throw StateError('secure delete failed');
+    snapshot = null;
+  }
 }
 
 BuyerDeliveryPageProjection _page(

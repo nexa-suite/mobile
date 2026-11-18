@@ -1,0 +1,17 @@
+<resources>
+    <string name="mobile_terms_title">Terms and conditions</string>
+    <string name="mobile_terms_acceptance_heading">Please review the current terms</string>
+    <string name="mobile_terms_acceptance_checkbox">I have read and agree to these terms.</string>
+    <string name="mobile_terms_continue">Continue</string>
+    <string name="mobile_terms_sign_out">Sign out</string>
+    <string name="mobile_terms_loading">Loading terms…</string>
+    <string name="mobile_terms_version">Version %1$s</string>
+    <string name="mobile_terms_unavailable_title">Terms are unavailable</string>
+    <string name="mobile_terms_unavailable_body">We could not load your terms or confirm your acceptance. Check your connection and try again.</string>
+    <string name="mobile_terms_retry">Retry</string>
+    <string name="mobile_terms_retry_status">Check acceptance status</string>
+    <string name="mobile_terms_session_expired_title">Your session needs attention</string>
+    <string name="mobile_terms_session_expired_body">Sign in again to review and accept the current terms.</string>
+    <string name="mobile_terms_stale_document">The terms changed. Review the current version before continuing.</string>
+    <string name="mobile_terms_unknown_outcome">We could not confirm whether acceptance was recorded. Checking the server status…</string>
+</resources>

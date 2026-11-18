@@ -17,8 +17,10 @@ import com.nexa.mobile.operations.creditreceivables.application.publicapi.Custom
 import com.nexa.mobile.operations.creditreceivables.infrastructure.transport.NexaCustomerCreditGateway
 import com.nexa.mobile.operations.customerbuyerrelationships.application.publicapi.CommercialCustomerQuery
 import com.nexa.mobile.operations.customerbuyerrelationships.infrastructure.adapters.AuthorizedCommercialCustomerQuery
+import com.nexa.mobile.operations.tenantaccessgovernance.application.legal.LegalAcceptanceGateway
 import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.NexaAuthGateway
 import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.NexaIdentityAccessGateway
+import com.nexa.mobile.operations.tenantaccessgovernance.infrastructure.transport.NexaLegalAcceptanceGateway
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -105,4 +107,8 @@ object FoundationModule {
     fun customerCreditQuery(
         implementation: NexaCustomerCreditGateway
     ): CustomerCreditExposureQuery = implementation
+
+    @Provides
+    fun legalAcceptanceGateway(implementation: NexaLegalAcceptanceGateway): LegalAcceptanceGateway =
+        implementation
 }

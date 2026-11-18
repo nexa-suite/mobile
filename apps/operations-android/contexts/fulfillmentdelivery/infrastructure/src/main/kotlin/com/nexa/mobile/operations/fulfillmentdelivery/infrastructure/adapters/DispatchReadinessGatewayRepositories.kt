@@ -17,6 +17,10 @@ import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.Dispa
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchPodEvidence
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchReadinessGatewayResult as ReadinessGatewayResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTransitStartGatewayResult as TransitStartGatewayResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTransitStartIntent
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTransitStartIntentStatus
+import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.DispatchTransitStartScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.dispatch.SealDispatchPodCommand
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchAssignmentSnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.dispatch.DispatchDriverCandidate
@@ -32,9 +36,11 @@ import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.D
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchPodEvidenceProjection as PodEvidenceProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchReadinessNetworkOutcome as ReadinessOutcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchReadinessProjection as ReadinessProjection
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.DispatchTransitStartNetworkOutcome as TransitStartOutcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDispatchAssignmentGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDispatchDeliveryPodSealGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDispatchReadinessGateway
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaDispatchTransitStartGateway
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -56,6 +62,12 @@ object DispatchReadinessGatewayBindings {
     fun dispatchDeliveryPodSealGateway(
         protectedCalls: ProtectedCallExecutor
     ): NexaDispatchDeliveryPodSealGateway = NexaDispatchDeliveryPodSealGateway(protectedCalls)
+
+    @Provides
+    @Singleton
+    fun dispatchTransitStartGateway(
+        protectedCalls: ProtectedCallExecutor
+    ): NexaDispatchTransitStartGateway = NexaDispatchTransitStartGateway(protectedCalls)
 
     @Provides
     @Singleton
@@ -510,7 +522,8 @@ class OperationsDispatchAssignmentGateway @Inject constructor(
 class OperationsDispatchReadinessGateway @Inject constructor(
     private val sessions: SessionCoordinator,
     private val readiness: NexaDispatchReadinessGateway,
-    private val deliveryPodSeal: NexaDispatchDeliveryPodSealGateway
+    private val deliveryPodSeal: NexaDispatchDeliveryPodSealGateway,
+    private val transitStart: NexaDispatchTransitStartGateway
 ) : DispatchReadinessGateway {
     override suspend fun list(context: DispatchAuthorityContext): ReadinessGatewayResult {
         val authorization = authorize(context)
@@ -564,9 +577,80 @@ class OperationsDispatchReadinessGateway @Inject constructor(
         }
     }
 
+    override suspend fun startTransit(
+        intent: DispatchTransitStartIntent,
+        context: DispatchAuthorityContext,
+        replayUnknown: Boolean
+    ): TransitStartGatewayResult {
+        val authorization = authorize(context, requireTransitStartPermission = true)
+        if (authorization !is Authorization.Current) return authorization.toTransitResult()
+        val identity = context.identity ?: return TransitStartGatewayResult.ContextInvalidated
+        if (intent.scope != identity.transitScope() || !intent.command.isValid() ||
+            (replayUnknown && intent.status != DispatchTransitStartIntentStatus.UnknownOutcome) ||
+            (!replayUnknown && intent.status != DispatchTransitStartIntentStatus.Pending)
+        ) {
+            return TransitStartGatewayResult.ContextInvalidated
+        }
+
+        if (!replayUnknown) {
+            when (
+                val current = readiness.deliveryPod(intent.command.deliveryId).toFeatureResult()
+            ) {
+                is DispatchDeliveryPodGatewayResult.Snapshot -> {
+                    val snapshot = current.value
+                    if (snapshot.deliveryId != intent.command.deliveryId ||
+                        snapshot.fulfillmentId != intent.command.fulfillmentId ||
+                        snapshot.deliveryStatus != "DISPATCHED" ||
+                        snapshot.deliveryEtag != intent.command.deliveryEtag
+                    ) {
+                        return TransitStartGatewayResult.Stale
+                    }
+                }
+
+                DispatchDeliveryPodGatewayResult.PermissionDenied ->
+                    return TransitStartGatewayResult.PermissionDenied
+
+                DispatchDeliveryPodGatewayResult.ContextInvalidated ->
+                    return TransitStartGatewayResult.ContextInvalidated
+
+                DispatchDeliveryPodGatewayResult.SessionInvalidated ->
+                    return TransitStartGatewayResult.SessionInvalidated
+
+                DispatchDeliveryPodGatewayResult.Stale ->
+                    return TransitStartGatewayResult.Stale
+
+                DispatchDeliveryPodGatewayResult.Conflict ->
+                    return TransitStartGatewayResult.Conflict
+
+                DispatchDeliveryPodGatewayResult.UnknownOutcome ->
+                    return TransitStartGatewayResult.UnknownOutcome
+
+                DispatchDeliveryPodGatewayResult.NetworkUnavailable ->
+                    return TransitStartGatewayResult.NetworkUnavailable
+
+                DispatchDeliveryPodGatewayResult.ServiceUnavailable ->
+                    return TransitStartGatewayResult.ServiceUnavailable
+
+                is DispatchDeliveryPodGatewayResult.Sealed ->
+                    return TransitStartGatewayResult.ServiceUnavailable
+            }
+        }
+
+        if (!isCurrent(context, authorization.lease, requireTransitStartPermission = true)) {
+            return authorityDriftTransit(context)
+        }
+        val result = transitStart.startTransit(intent.command, replayUnknown).toFeatureResult()
+        return if (isCurrent(context, authorization.lease, requireTransitStartPermission = true)) {
+            result
+        } else {
+            authorityDriftTransit(context)
+        }
+    }
+
     private suspend fun authorize(
         context: DispatchAuthorityContext,
-        requireSealPermission: Boolean = false
+        requireSealPermission: Boolean = false,
+        requireTransitStartPermission: Boolean = false
     ): Authorization {
         if (sessions.sessionState.value !=
             SessionState.Active
@@ -593,6 +677,9 @@ class OperationsDispatchReadinessGateway @Inject constructor(
             requireSealPermission && identity.permissions.none { it in POD_SEAL_PERMISSIONS } ->
                 Authorization.PermissionDenied
 
+            requireTransitStartPermission && LOGISTICS_WRITE_PERMISSION !in identity.permissions ->
+                Authorization.PermissionDenied
+
             else -> Authorization.Current(lease)
         }
     }
@@ -600,7 +687,8 @@ class OperationsDispatchReadinessGateway @Inject constructor(
     private suspend fun isCurrent(
         context: DispatchAuthorityContext,
         originalLease: AccessTokenLease,
-        requireSealPermission: Boolean = false
+        requireSealPermission: Boolean = false,
+        requireTransitStartPermission: Boolean = false
     ): Boolean {
         if (sessions.sessionState.value != SessionState.Active ||
             !sessions.isEpochCurrent(originalLease.epoch)
@@ -610,7 +698,8 @@ class OperationsDispatchReadinessGateway @Inject constructor(
         val identity = context.identity ?: return false
         return sessions.verifiedSession.value?.matches(identity) == true &&
             DISPATCH_READ_PERMISSION in identity.permissions &&
-            (!requireSealPermission || identity.permissions.any { it in POD_SEAL_PERMISSIONS })
+            (!requireSealPermission || identity.permissions.any { it in POD_SEAL_PERMISSIONS }) &&
+            (!requireTransitStartPermission || LOGISTICS_WRITE_PERMISSION in identity.permissions)
     }
 
     private suspend fun authorityDrift(context: DispatchAuthorityContext) = when {
@@ -742,9 +831,49 @@ class OperationsDispatchReadinessGateway @Inject constructor(
         else -> DispatchDeliveryPodGatewayResult.ContextInvalidated
     }
 
+    private suspend fun authorityDriftTransit(
+        context: DispatchAuthorityContext
+    ): TransitStartGatewayResult = when {
+        sessions.sessionState.value != SessionState.Active ->
+            TransitStartGatewayResult.SessionInvalidated
+
+        sessions.verifiedSession.value?.let { verified ->
+            context.identity?.let { expected -> verified.matches(expected) } == true
+        } == true -> TransitStartGatewayResult.SessionInvalidated
+
+        else -> TransitStartGatewayResult.ContextInvalidated
+    }
+
+    private fun Authorization.toTransitResult(): TransitStartGatewayResult = when (this) {
+        Authorization.SessionInvalidated -> TransitStartGatewayResult.SessionInvalidated
+        Authorization.ContextInvalidated -> TransitStartGatewayResult.ContextInvalidated
+        Authorization.PermissionDenied -> TransitStartGatewayResult.PermissionDenied
+        is Authorization.Current -> error("authorized result is not a failure")
+    }
+
+    private fun TransitStartOutcome.toFeatureResult(): TransitStartGatewayResult = when (this) {
+        is TransitStartOutcome.Started -> TransitStartGatewayResult.Started(value)
+        TransitStartOutcome.UnknownOutcome -> TransitStartGatewayResult.UnknownOutcome
+        TransitStartOutcome.NetworkUnavailable -> TransitStartGatewayResult.NetworkUnavailable
+        TransitStartOutcome.ServiceUnavailable -> TransitStartGatewayResult.ServiceUnavailable
+        TransitStartOutcome.PermissionDenied -> TransitStartGatewayResult.PermissionDenied
+        TransitStartOutcome.Stale -> TransitStartGatewayResult.Stale
+        TransitStartOutcome.Conflict -> TransitStartGatewayResult.Conflict
+        TransitStartOutcome.ContextInvalidated -> TransitStartGatewayResult.ContextInvalidated
+        TransitStartOutcome.SessionInvalidated -> TransitStartGatewayResult.SessionInvalidated
+    }
+
+    private fun DispatchAuthorityIdentity.transitScope() = DispatchTransitStartScopeIdentity(
+        userId = userId,
+        tenantId = tenantId,
+        workspaceId = workspaceId,
+        membershipId = membershipId
+    )
+
     private companion object {
         const val DISPATCH_READ_PERMISSION = "dispatch.read"
         val POD_SEAL_PERMISSIONS = setOf("dispatch.complete", "logistics:write")
+        const val LOGISTICS_WRITE_PERMISSION = "logistics:write"
     }
 }
 

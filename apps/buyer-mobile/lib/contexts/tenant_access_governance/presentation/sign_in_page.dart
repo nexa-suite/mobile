@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/presentation/nexa_buyer_components.dart';
@@ -128,6 +129,10 @@ final class _SignInPageState extends State<SignInPage> {
         onPressed: () => setState(() => _showSignIn = true),
         style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
         child: const Text('Continuar'),
+      ),
+      TextButton(
+        onPressed: () => context.push('/legal/terms'),
+        child: const Text('Términos de uso'),
       ),
     ],
   );

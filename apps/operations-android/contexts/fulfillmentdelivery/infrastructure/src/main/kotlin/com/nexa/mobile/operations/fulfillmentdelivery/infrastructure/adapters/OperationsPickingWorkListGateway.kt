@@ -5,25 +5,44 @@ import com.nexa.mobile.operations.core.auth.session.SessionCoordinator
 import com.nexa.mobile.operations.core.auth.session.SessionState
 import com.nexa.mobile.operations.core.auth.session.VerifiedSession
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingAuthority
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingScopeIdentity
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingWorkListResult
+import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingWorkListCache
+import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingWorkListCacheRead
 import com.nexa.mobile.operations.fulfillmentdelivery.application.warehouse.PickingWorkListGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.PickingWorkItem
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.PickingWorkPage
-import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.NexaPickingGateway
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PickingWorkListItemProjection as NetworkItem
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PickingWorkListNetworkOutcome as PickingWorkListOutcome
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PickingWorkListProjection as NetworkPage
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PickingWorkListTransport
+import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** Applies the current verified session fence around the protected picking work list read. */
 @Singleton
 class OperationsPickingWorkListGateway @Inject constructor(
     private val sessions: SessionCoordinator,
-    private val picking: NexaPickingGateway
+    private val picking: PickingWorkListTransport,
+    private val cache: PickingWorkListCache
 ) : PickingWorkListGateway {
     override suspend fun list(
+        authority: PickingAuthority,
+        page: Int,
+        size: Int
+    ): PickingWorkListResult = workListLocks.getOrPut(authority.scope) { Mutex() }.withLock {
+        listLocked(authority, page, size)
+    }
+
+    private val deniedAuthorities =
+        ConcurrentHashMap<PickingAuthority, PickingWorkListDenialFence>()
+
+    private suspend fun listLocked(
         authority: PickingAuthority,
         page: Int,
         size: Int
@@ -34,28 +53,102 @@ class OperationsPickingWorkListGateway @Inject constructor(
             picking.workList(page, size)
         } catch (cancelled: CancellationException) {
             throw cancelled
+        } catch (_: IOException) {
+            return cacheFallback(
+                authority,
+                page,
+                before.lease,
+                PickingWorkListResult.NetworkUnavailable
+            )
         } catch (_: Exception) {
             return PickingWorkListResult.ServiceUnavailable
         }
+        when (outcome) {
+            PickingWorkListOutcome.PermissionDenied,
+            PickingWorkListOutcome.ContextInvalidated -> markDenied(authority, before.lease)
+
+            else -> Unit
+        }
         if (!currentAfter(authority, before.lease)) return authorityDrift(authority)
         return when (outcome) {
-            is PickingWorkListOutcome.Loaded -> PickingWorkListResult.Loaded(
-                outcome.value.toFeature()
+            is PickingWorkListOutcome.Loaded -> {
+                val pageResult = outcome.value.toFeature()
+                try {
+                    cache.saveServerConfirmedPage(
+                        authority,
+                        before.lease.epoch,
+                        pageResult
+                    )
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // The protected server read remains usable when best-effort caching fails.
+                }
+                if (!currentAfter(authority, before.lease)) return authorityDrift(authority)
+                deniedAuthorities.remove(authority)
+                PickingWorkListResult.Loaded(pageResult)
+            }
+
+            PickingWorkListOutcome.NetworkUnavailable -> cacheFallback(
+                authority,
+                page,
+                before.lease,
+                PickingWorkListResult.NetworkUnavailable
             )
 
-            PickingWorkListOutcome.NetworkUnavailable ->
-                PickingWorkListResult.NetworkUnavailable
-
-            PickingWorkListOutcome.ServiceUnavailable ->
+            PickingWorkListOutcome.ServiceUnavailable -> cacheFallback(
+                authority,
+                page,
+                before.lease,
                 PickingWorkListResult.ServiceUnavailable
+            )
+
+            PickingWorkListOutcome.UnexpectedFailure -> PickingWorkListResult.ServiceUnavailable
 
             PickingWorkListOutcome.PermissionDenied -> PickingWorkListResult.PermissionDenied
 
-            PickingWorkListOutcome.ContextInvalidated ->
-                PickingWorkListResult.ContextInvalidated
+            PickingWorkListOutcome.ContextInvalidated -> PickingWorkListResult.ContextInvalidated
 
             PickingWorkListOutcome.SessionInvalidated ->
                 PickingWorkListResult.SessionInvalidated
+        }
+    }
+
+    private suspend fun cacheFallback(
+        authority: PickingAuthority,
+        page: Int,
+        lease: AccessTokenLease,
+        failure: PickingWorkListResult
+    ): PickingWorkListResult {
+        if (!currentAfter(authority, lease) || !authority.canRead) return authorityDrift(authority)
+        if (deniedAuthorities.containsKey(authority)) return failure
+        val cached = try {
+            cache.load(authority, page)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            PickingWorkListCacheRead.Unavailable
+        }
+        if (!currentAfter(authority, lease)) return authorityDrift(authority)
+        return when (cached) {
+            is PickingWorkListCacheRead.Available -> cached.value?.let(
+                PickingWorkListResult::Cached
+            )
+                ?: failure
+
+            PickingWorkListCacheRead.Unavailable -> failure
+        }
+    }
+
+    private suspend fun markDenied(authority: PickingAuthority, lease: AccessTokenLease) {
+        val fence = PickingWorkListDenialFence(authority.authorityEpoch, lease.epoch)
+        deniedAuthorities[authority] = fence
+        try {
+            cache.markDenied(authority, fence.sessionEpoch)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Keep the process-level fence when durable eviction is unavailable.
         }
     }
 
@@ -122,5 +215,11 @@ class OperationsPickingWorkListGateway @Inject constructor(
         data object SessionInvalidated : Authorization
         data object ContextInvalidated : Authorization
         data object PermissionDenied : Authorization
+    }
+
+    private data class PickingWorkListDenialFence(val authorityEpoch: Long, val sessionEpoch: Long)
+
+    private companion object {
+        val workListLocks = ConcurrentHashMap<PickingScopeIdentity, Mutex>()
     }
 }

@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/application/error/nexa_api_failure.dart';
 import '../../tenant_access_governance/application/buyer_access_repository.dart';
+import '../application/buyer_delivery_summary_cache.dart';
 import '../application/buyer_deliveries_repository.dart';
 import '../application/buyer_receipt_evidence_idempotency_store.dart';
 import '../application/buyer_receipt_idempotency_store.dart';
@@ -56,13 +57,21 @@ enum BuyerDeliveriesStatus {
   idle,
   loading,
   current,
+  cached,
   unavailable,
   permissionDenied,
 }
 
 final class BuyerDeliveriesViewModel extends ChangeNotifier {
-  BuyerDeliveriesViewModel(this._repository, this._access)
-    : _leaseKey = _activeLease(_access.snapshot) {
+  factory BuyerDeliveriesViewModel(
+    BuyerDeliveriesRepository repository,
+    BuyerAccessRepository access, {
+    BuyerDeliverySummaryCache? summaryCache,
+  }) => BuyerDeliveriesViewModel._(repository, access, summaryCache);
+
+  BuyerDeliveriesViewModel._(this._repository, this._access, this._summaryCache)
+    : _leaseKey = _activeLease(_access.snapshot),
+      _activeSummaryCacheScope = _cacheScope(_access.snapshot) {
     _subscription = _access.changes.listen(_onAccessChanged);
   }
 
@@ -71,18 +80,27 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
 
   final BuyerDeliveriesRepository _repository;
   final BuyerAccessRepository _access;
+  final BuyerDeliverySummaryCache? _summaryCache;
   late final StreamSubscription<BuyerAccessSnapshot> _subscription;
   String? _leaseKey;
   int _requestGeneration = 0;
   int? _activeListRequest;
+  BuyerDeliverySummaryCacheScope? _activeSummaryCacheScope;
+  String? _summaryCacheSuppressedScope;
 
   BuyerDeliveriesStatus status = BuyerDeliveriesStatus.idle;
   List<BuyerDeliveryProjection> items = const [];
+  List<BuyerDeliverySummaryProjection> cachedSummaries = const [];
+  DateTime? summaryAsOf;
   int page = 0;
   int total = 0;
   String? message;
   bool get isRefreshing =>
-      _activeListRequest != null && status == BuyerDeliveriesStatus.current;
+      _activeListRequest != null &&
+      (status == BuyerDeliveriesStatus.current ||
+          status == BuyerDeliveriesStatus.cached);
+  bool get isShowingCachedSummary =>
+      status == BuyerDeliveriesStatus.cached && cachedSummaries.isNotEmpty;
 
   Future<void> refresh() => _load(page);
 
@@ -105,6 +123,7 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
     if (_activeListRequest != null) return;
     final lease = _leaseKey;
     if (lease == null) {
+      unawaited(_deleteCurrentSummaryCache());
       _clear(
         BuyerDeliveriesStatus.unavailable,
         'Inicia sesión para consultar tus entregas.',
@@ -113,6 +132,7 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
     }
     if (!BuyerDeliveriesViewModel._hasPermission(_access.snapshot)) {
       _requestGeneration++;
+      unawaited(_deleteCurrentSummaryCache());
       _clear(
         BuyerDeliveriesStatus.permissionDenied,
         'No tienes permiso para consultar el seguimiento de entregas.',
@@ -131,11 +151,17 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
     _activeListRequest = generation;
     final keepCurrent =
         status == BuyerDeliveriesStatus.current && requestedPage == page;
-    if (keepCurrent) {
+    final keepCached =
+        status == BuyerDeliveriesStatus.cached &&
+        requestedPage == 0 &&
+        cachedSummaries.isNotEmpty;
+    if (keepCurrent || keepCached) {
       message = null;
     } else {
       status = BuyerDeliveriesStatus.loading;
       items = const [];
+      cachedSummaries = const [];
+      summaryAsOf = null;
       total = 0;
       page = requestedPage;
       message = null;
@@ -145,9 +171,42 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
       final result = await _repository.list(page: requestedPage);
       if (!_isCurrent(generation, lease)) return;
       items = result.items;
+      cachedSummaries = const [];
+      summaryAsOf = null;
       page = result.page;
       total = result.total;
       status = BuyerDeliveriesStatus.current;
+      _summaryCacheSuppressedScope = null;
+      if (result.page == 0) {
+        final scope = _currentSummaryCacheScope();
+        if (scope != null) {
+          _activeSummaryCacheScope = scope;
+          try {
+            await _summaryCache?.write(
+              scope: scope,
+              snapshot: BuyerDeliverySummaryCacheSnapshot(
+                items: [
+                  for (final delivery in result.items)
+                    BuyerDeliverySummaryProjection(
+                      deliveryId: delivery.id,
+                      orderNumber: delivery.salesOrderNumber,
+                      status: delivery.status,
+                      updatedAt: delivery.updatedAt,
+                    ),
+                ],
+                asOf: DateTime.now().toUtc(),
+              ),
+            );
+            if (!_isCurrent(generation, lease)) {
+              await _deleteSummaryCache(scope);
+              return;
+            }
+          } catch (_) {
+            // Secure local storage is a convenience, not a precondition for
+            // the server's current delivery projection.
+          }
+        }
+      }
     } on NexaApiFailure catch (failure) {
       if (!_isCurrent(generation, lease)) return;
       if (failure.statusCode == 401 ||
@@ -156,20 +215,53 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
         return;
       }
       if (failure.statusCode == 403) {
+        _summaryCacheSuppressedScope = _scopeIdentity(
+          _currentSummaryCacheScope() ?? _activeSummaryCacheScope,
+        );
+        await _deleteCurrentSummaryCache();
+        if (!_isCurrent(generation, lease)) return;
         _clear(
           BuyerDeliveriesStatus.permissionDenied,
           'No tienes permiso para consultar el seguimiento de entregas.',
         );
       } else if (failure.statusCode == 404) {
+        _summaryCacheSuppressedScope = _scopeIdentity(
+          _currentSummaryCacheScope() ?? _activeSummaryCacheScope,
+        );
+        await _deleteCurrentSummaryCache();
+        if (!_isCurrent(generation, lease)) return;
         _clear(
           BuyerDeliveriesStatus.unavailable,
           'No se pudieron consultar tus entregas.',
         );
+      } else if (_mayUseSummaryCache(failure)) {
+        final canRestore =
+            (requestedPage == 0 || keepCurrent) &&
+            _summaryCacheSuppressedScope !=
+                _scopeIdentity(_currentSummaryCacheScope());
+        final restored =
+            canRestore && await _restoreSummaryCache(generation, lease);
+        if (!_isCurrent(generation, lease)) return;
+        items = const [];
+        page = 0;
+        if (restored) {
+          status = BuyerDeliveriesStatus.cached;
+          total = cachedSummaries.length;
+          message = 'No se pudo obtener una respuesta actual de Nexa. Esta lista local puede estar desactualizada y no autoriza acciones.';
+        } else {
+          status = BuyerDeliveriesStatus.unavailable;
+          cachedSummaries = const [];
+          summaryAsOf = null;
+          total = 0;
+          message = failure.userMessage;
+        }
       } else if (keepCurrent) {
         status = BuyerDeliveriesStatus.current;
         message = 'No se pudo actualizar; se muestra la lista recibida.';
       } else {
         status = BuyerDeliveriesStatus.unavailable;
+        cachedSummaries = const [];
+        summaryAsOf = null;
         message = failure.userMessage;
       }
     } catch (_) {
@@ -179,6 +271,8 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
         message = 'No se pudo actualizar; se muestra la lista recibida.';
       } else {
         status = BuyerDeliveriesStatus.unavailable;
+        cachedSummaries = const [];
+        summaryAsOf = null;
         message = 'No se pudieron consultar tus entregas.';
       }
     } finally {
@@ -200,9 +294,14 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
   void _onAccessChanged(BuyerAccessSnapshot snapshot) {
     final nextLease = _activeLease(snapshot);
     if (nextLease == _leaseKey) return;
+    final previousCacheScope = _activeSummaryCacheScope;
+    _activeSummaryCacheScope = _cacheScope(snapshot);
     _leaseKey = nextLease;
     _requestGeneration++;
     _activeListRequest = null;
+    if (previousCacheScope != null) {
+      unawaited(_deleteSummaryCache(previousCacheScope));
+    }
     _clear(
       snapshot.isSignedIn && !_hasPermission(snapshot)
           ? BuyerDeliveriesStatus.permissionDenied
@@ -214,6 +313,10 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
   }
 
   void _invalidateCurrentAuthority() {
+    _summaryCacheSuppressedScope = _scopeIdentity(
+      _currentSummaryCacheScope() ?? _activeSummaryCacheScope,
+    );
+    unawaited(_deleteCurrentSummaryCache());
     _requestGeneration++;
     _activeListRequest = null;
     _clear(
@@ -226,6 +329,8 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
   void _clear(BuyerDeliveriesStatus nextStatus, String? nextMessage) {
     status = nextStatus;
     items = const [];
+    cachedSummaries = const [];
+    summaryAsOf = null;
     page = 0;
     total = 0;
     message = nextMessage;
@@ -235,6 +340,69 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
   static bool _hasPermission(BuyerAccessSnapshot snapshot) =>
       snapshot.hasActiveBuyerScope &&
       snapshot.currentContext!.permissions.contains(readPermission);
+
+  static bool _mayUseSummaryCache(NexaApiFailure failure) =>
+      (failure.statusCode != null && failure.statusCode! >= 500) ||
+      failure.code == 'network_timeout' ||
+      failure.code == 'network_unavailable';
+
+  static BuyerDeliverySummaryCacheScope? _cacheScope(
+    BuyerAccessSnapshot snapshot,
+  ) {
+    if (!snapshot.hasActiveBuyerScope || !_hasPermission(snapshot)) return null;
+    final context = snapshot.currentContext!;
+    return BuyerDeliverySummaryCacheScope(
+      userId: context.userId!,
+      tenantId: context.tenantId,
+      workspaceId: context.workspaceId,
+      membershipId: context.membershipId,
+      authorityFingerprint: context.authorityFingerprint,
+    );
+  }
+
+  BuyerDeliverySummaryCacheScope? _currentSummaryCacheScope() =>
+      _cacheScope(_access.snapshot);
+
+  String? _scopeIdentity(BuyerDeliverySummaryCacheScope? scope) {
+    if (scope == null) return null;
+    return '${scope.userId}|${scope.tenantId}|${scope.workspaceId}|'
+        '${scope.membershipId}|${scope.authorityFingerprint}';
+  }
+
+  Future<bool> _restoreSummaryCache(int generation, String lease) async {
+    final cache = _summaryCache;
+    final scope = _currentSummaryCacheScope();
+    if (cache == null || scope == null || !_isCurrent(generation, lease)) {
+      return false;
+    }
+    try {
+      final snapshot = await cache.read(scope: scope);
+      if (!_isCurrent(generation, lease) || snapshot == null) return false;
+      _activeSummaryCacheScope = scope;
+      cachedSummaries = snapshot.items;
+      summaryAsOf = snapshot.asOf;
+      return cachedSummaries.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _deleteCurrentSummaryCache() async {
+    final scope = _currentSummaryCacheScope() ?? _activeSummaryCacheScope;
+    if (scope == null) return;
+    await _deleteSummaryCache(scope);
+    if (identical(_activeSummaryCacheScope, scope)) {
+      _activeSummaryCacheScope = null;
+    }
+  }
+
+  Future<void> _deleteSummaryCache(BuyerDeliverySummaryCacheScope scope) async {
+    try {
+      await _summaryCache?.delete(scope: scope);
+    } catch (_) {
+      // Do not let secure-storage cleanup failure restore unauthorized UI.
+    }
+  }
 
   static String? _activeLease(BuyerAccessSnapshot snapshot) =>
       snapshot.isSignedIn

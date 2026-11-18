@@ -1,9 +1,9 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <plurals name="delivery_load_version_stops">
-        <item quantity="one">%1$s · versión %2$d · %3$d parada</item>
-        <item quantity="other">%1$s · versión %2$d · %3$d paradas</item>
-        <item quantity="many">%1$s · versión %2$d · %3$d paradas</item>
+    <plurals name="delivery_load_stop_count">
+        <item quantity="one">%1$d parada</item>
+        <item quantity="other">%1$d paradas</item>
+        <item quantity="many">%1$d paradas</item>
     </plurals>
     <plurals name="driver_incident_evidence_file">
         <item quantity="one">Archivo protegido: %1$s (%2$d byte)</item>
@@ -107,12 +107,11 @@
     <string name="customer_instructions_version">Versión %1$d · %2$s</string>
     <string name="delivery_load_accept">Aceptar carga completa</string>
     <string name="delivery_load_acceptance_note">Aceptar transfiere la responsabilidad por toda la carga y el orden de sus paradas.</string>
-    <string name="delivery_load_assign">Asignar al conductor elegible seleccionado</string>
+    <string name="delivery_load_assign">Asignar conductor</string>
     <string name="delivery_load_assigned_list">Cargas asignadas</string>
     <string name="delivery_load_back">Volver</string>
     <string name="delivery_load_cancel_window">Cancelar</string>
-    <string name="delivery_load_candidate_version">Preparación del servidor: %1$s; versión %2$d</string>
-    <string name="delivery_load_candidates">Preparaciones listas para despacho</string>
+    <string name="delivery_load_candidates">Listas para despacho</string>
     <string name="delivery_load_capacity">La capacidad es suficiente para la carga combinada</string>
     <string name="delivery_load_compatibility">Revisión de compatibilidad</string>
     <string name="delivery_load_compatibility_body">Confirma cada punto según los datos operativos actuales. El servidor mantiene la autoridad; si faltan datos de compatibilidad o ventanas requeridas, la operación se bloquea.</string>
@@ -120,10 +119,8 @@
     <string name="delivery_load_confirmed">El servidor confirmó el comando.</string>
     <string name="delivery_load_create">Crear carga de entrega</string>
     <string name="delivery_load_current_list">Cargas actuales</string>
-    <string name="delivery_load_dispatch_intro">Agrupa preparaciones listas, define el orden de las paradas y asigna un conductor elegible.</string>
     <string name="delivery_load_down">Bajar</string>
     <string name="delivery_load_driver_id">Conductor asignado: %1$s</string>
-    <string name="delivery_load_driver_intro">Revisa y acepta la carga asignada como una sola transferencia de responsabilidad.</string>
     <string name="delivery_load_drivers">Conductores elegibles</string>
     <string name="delivery_load_exclusive">Ninguna parada exige transporte exclusivo</string>
     <string name="delivery_load_fulfillment">Preparación %1$s</string>
@@ -132,7 +129,7 @@
     <string name="delivery_load_loading">Consultando cargas y preparación actual…</string>
     <string name="delivery_load_offer">Ofrecer carga al conductor</string>
     <string name="delivery_load_outcome_unknown">Se desconoce el resultado; revisa el estado antes de reintentar explícitamente.</string>
-    <string name="delivery_load_plan_window">Planificar ventana faltante</string>
+    <string name="delivery_load_plan_window">Fijar horario</string>
     <string name="delivery_load_plan_window_body">El plan de solo anexado registra al actor de despacho y el motivo. No reemplaza ventanas comerciales existentes.</string>
     <string name="delivery_load_plan_window_fulfillment">Preparación %1$s</string>
     <string name="delivery_load_plan_window_title">Planificar una ventana de despacho</string>
@@ -140,14 +137,13 @@
     <string name="delivery_load_reason">Motivo de agrupación</string>
     <string name="delivery_load_reason_hint">El servicio de despacho lo requiere (máximo 500 caracteres).</string>
     <string name="delivery_load_recovery_unavailable">La recuperación cifrada del comando no está disponible; no se permiten cambios.</string>
-    <string name="delivery_load_refresh">Consultar estado actual del servidor</string>
+    <string name="delivery_load_refresh">Actualizar</string>
     <string name="delivery_load_rejected">El servidor rechazó el comando (%1$s).</string>
     <string name="delivery_load_rejected_generic">El servidor rechazó el comando.</string>
     <string name="delivery_load_retry">Reintentar comando guardado</string>
     <string name="delivery_load_review_delivery">Revisar entrega</string>
     <string name="delivery_load_save_window">Guardar plan de ventana</string>
     <string name="delivery_load_status_context">Cambió el tenant, workspace o membresía activa. Abre esta vista otra vez.</string>
-    <string name="delivery_load_status_current">El estado actual de la carga está disponible.</string>
     <string name="delivery_load_status_empty">No hay una carga actual ni preparaciones listas.</string>
     <string name="delivery_load_status_failed">No se pudo verificar la respuesta del servicio (%1$s).</string>
     <string name="delivery_load_status_failed_generic">No se pudo verificar la respuesta del servicio.</string>
@@ -155,17 +151,26 @@
     <string name="delivery_load_status_loading">Actualizando desde el servicio…</string>
     <string name="delivery_load_status_permission">La sesión verificada no tiene un permiso requerido.</string>
     <string name="delivery_load_status_session">La sesión verificada ya no está activa. Inicia sesión otra vez.</string>
+    <string name="delivery_load_state_draft">Borrador</string>
+    <string name="delivery_load_state_assigned">Conductor asignado</string>
+    <string name="delivery_load_state_offered">Enviada al conductor</string>
+    <string name="delivery_load_state_confirmed">Traspaso confirmado</string>
+    <string name="delivery_load_state_accepted">Aceptada por el conductor</string>
+    <string name="delivery_load_state_transferred">Responsabilidad transferida</string>
+    <string name="delivery_load_window_from">Desde %1$s</string>
+    <string name="delivery_load_window_until">Hasta %1$s</string>
+    <string name="delivery_load_window_same_day">%1$s\n%2$s – %3$s</string>
+    <string name="delivery_load_window_range">%1$s – %2$s</string>
     <string name="delivery_load_stop_delivery">%1$d. Entrega %2$s</string>
-    <string name="delivery_load_stop_order">Orden manual de paradas</string>
+    <string name="delivery_load_stop_order">Orden de paradas</string>
     <string name="delivery_load_stop_order_body">El orden seleccionado se envía como secuencia de paradas de la carga.</string>
     <string name="delivery_load_title">Cargas de entrega</string>
     <string name="delivery_load_unknown_body">No se reintenta automáticamente. Reintenta el mismo comando y clave guardados después de revisar el estado actual.</string>
     <string name="delivery_load_unknown_title">Es posible que un comando anterior haya llegado al servidor.</string>
     <string name="delivery_load_up">Subir</string>
-    <string name="delivery_load_window_current">Ventana de entrega (%1$s): %2$s a %3$s</string>
     <string name="delivery_load_window_end">Fin de ventana</string>
     <string name="delivery_load_window_iso_hint">Usa fecha y hora ISO 8601 con zona horaria.</string>
-    <string name="delivery_load_window_missing">Aún no hay una ventana de entrega.</string>
+    <string name="delivery_load_window_missing">Sin horario de entrega</string>
     <string name="delivery_load_window_reason">Motivo de la ventana</string>
     <string name="delivery_load_window_start">Inicio de ventana</string>
     <string name="delivery_load_zone">Las zonas de entrega son razonables para una ruta</string>
@@ -314,7 +319,7 @@
     <string name="dispatch_handover_historical_fact">registro histórico; el despacho cambió después</string>
     <string name="dispatch_handover_initial">Consulta pendiente</string>
     <string name="dispatch_handover_loading">Consultando estado actual</string>
-    <string name="dispatch_handover_missing">Pendiente</string>
+    <string name="dispatch_handover_missing">Pendiente de verificación del almacén</string>
     <string name="dispatch_handover_network">No se pudo consultar el estado actual.</string>
     <string name="dispatch_handover_permission">El permiso o grant actual no permite esta operación.</string>
     <string name="dispatch_handover_refresh">Consultar estado actual</string>
@@ -526,6 +531,17 @@
     <string name="dispatch_pod_title">Prueba de entrega (POD)</string>
     <string name="dispatch_pod_unknown">Nexa aún no confirmó el resultado. Reintenta exactamente el mismo comando o consulta el estado.</string>
     <string name="dispatch_pod_unavailable">No hay una entrega moderna disponible para consultar.</string>
+    <string name="dispatch_transit_checking">Buscando un inicio de tránsito guardado…</string>
+    <string name="dispatch_transit_conflict">Nexa detectó un cambio en conflicto. Actualiza antes de decidir de nuevo.</string>
+    <string name="dispatch_transit_pending">Enviando a Nexa el inicio de tránsito guardado…</string>
+    <string name="dispatch_transit_permission">Este espacio no puede iniciar el tránsito de esta entrega.</string>
+    <string name="dispatch_transit_persisting">Guardando el inicio de tránsito exacto antes de enviarlo…</string>
+    <string name="dispatch_transit_retry_same">Reintentar el mismo inicio de tránsito guardado</string>
+    <string name="dispatch_transit_stale">La entrega cambió. Actualiza antes de iniciar el tránsito.</string>
+    <string name="dispatch_transit_started">Nexa confirmó que la entrega está en tránsito.</string>
+    <string name="dispatch_transit_start">Iniciar tránsito</string>
+    <string name="dispatch_transit_storage_unavailable">No se pudo guardar el inicio exacto de forma segura. No se envió.</string>
+    <string name="dispatch_transit_unknown">Nexa no confirmó el resultado. Reintenta exactamente la misma solicitud.</string>
     <string name="dispatch_temperature_affected_quantity">Cantidad afectada por la retención del servidor: %1$s</string>
     <string name="dispatch_temperature_as_of">Política consultada: %1$s</string>
     <string name="dispatch_temperature_authority_note">Política vigente de cadena de frío del SKU y lecturas manuales en Celsius para esta preparación.</string>
@@ -604,6 +620,7 @@
     <string name="driver_delivery_hide_list">Ocultar lista de entregas</string>
     <string name="driver_delivery_begin">Comenzar entrega</string>
     <string name="driver_delivery_checking">Confirmando la asignación actual antes de comenzar…</string>
+    <string name="driver_delivery_transit_required">Pide a Despacho que inicie el tránsito antes de comenzar esta entrega.</string>
     <string name="driver_delivery_contact_unavailable">Contacto e instrucciones no disponibles: Nexa no entregó un canal vigente y autorizado para esta entrega.</string>
     <string name="driver_delivery_context">Cambió el contexto de trabajo. Selecciona de nuevo un contexto autorizado.</string>
     <string name="driver_delivery_coordination_title">Coordinación de entrega</string>
@@ -688,7 +705,6 @@
     <string name="driver_delivery_stale">La entrega cambió. Actualiza su detalle antes de comenzar.</string>
     <string name="driver_delivery_start_pending">Enviando el inicio a Nexa…</string>
     <string name="driver_delivery_start_permission">No se pudo confirmar el permiso para iniciar una entrega.</string>
-    <string name="driver_delivery_started">Nexa confirmó el intento activo para esta entrega.</string>
     <string name="driver_delivery_status">Estado de entrega: %1$s</string>
     <string name="driver_delivery_status_assigned">Asignada</string>
     <string name="driver_delivery_status_dispatched">Despachada</string>
@@ -1002,12 +1018,16 @@
     </plurals>
     <string name="picking_work_status_allocated">Asignada</string>
     <string name="picking_work_status_picking">En preparación</string>
+    <string name="picking_work_status_picked">Recogida</string>
+    <string name="picking_work_status_packed">Empacada</string>
+    <string name="picking_work_status_staged">En zona de despacho</string>
     <string name="picking_work_status_ready">Lista para despacho</string>
     <string name="picking_work_item_order">Orden: %1$s</string>
     <string name="picking_work_item_status">Estado: %1$s · versión: %2$d</string>
     <string name="picking_work_item_title">Preparación %1$s</string>
     <string name="picking_work_loading">Cargando preparaciones…</string>
     <string name="picking_work_network_error">Sin conexión. Revisa tu conexión e inténtalo de nuevo.</string>
+    <string name="picking_work_cached_notice">Sin conexión. Mostramos la lista guardada el %1$s, solo para consulta. Conéctate para abrir tareas o realizar cambios.</string>
     <string name="picking_work_next">Siguiente</string>
     <string name="picking_work_open">Abrir preparación</string>
     <string name="picking_work_permission_error">No tienes acceso a las tareas de preparación en este espacio. Contacta a un administrador.</string>
@@ -1063,4 +1083,7 @@
     <string name="dispatch_driver_location_network">No se pudo consultar la ubicación por falta de conexión.</string>
     <string name="dispatch_driver_location_service">La ubicación no pudo verificarse. Intenta de nuevo.</string>
     <string name="dispatch_driver_location_refresh">Actualizar ubicación</string>
+    <string name="driver_delivery_more_actions">Más acciones</string>
+    <string name="driver_delivery_section_expanded">Expandida</string>
+    <string name="driver_delivery_section_collapsed">Contraída</string>
 </resources>

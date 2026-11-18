@@ -85,20 +85,20 @@ final class BuyerAccessRepositoryImpl
 
   @override
   Future<bool> restoreBiometricSession() async {
+    final attemptEpoch = _authorityEpoch;
     if (!await _biometricSessionStore.isEnabled()) {
       _biometricEnabled = false;
       return false;
     }
     final refreshToken = await _biometricSessionStore.readRefreshToken();
     final biometricScope = await _biometricSessionStore.readScope();
+    if (!_isCurrentEpoch(attemptEpoch)) return false;
     if (refreshToken == null ||
         refreshToken.isEmpty ||
         biometricScope == null) {
-      await _biometricSessionStore.disable();
-      _biometricEnabled = false;
+      await _discardBiometricRefreshCredential();
       return false;
     }
-    final attemptEpoch = _authorityEpoch;
     try {
       final response = await _api.post(
         '/authentication/refresh',
@@ -113,14 +113,18 @@ final class BuyerAccessRepositoryImpl
         requiredBiometricScope: biometricScope,
       );
       return _snapshot.hasActiveBuyerScope;
-    } on NexaApiFailure catch (failure) {
-      if (failure.statusCode == 401 || failure.statusCode == 403) {
-        _biometricEnabled = false;
-        await _biometricSessionStore.disable();
-        return false;
+    } catch (_) {
+      if (_isCurrentEpoch(attemptEpoch)) {
+        await _discardBiometricRefreshCredential();
       }
-      rethrow;
+      return false;
     }
+  }
+
+  Future<void> _discardBiometricRefreshCredential() async {
+    _biometricEnabled = false;
+    // A failed request may have rotated the token before the response was lost.
+    await _biometricSessionStore.disable();
   }
 
   @override
@@ -385,18 +389,16 @@ final class BuyerAccessRepositoryImpl
         requiredScopeKey: oldContext.scopeKey,
       );
       return _accessToken;
-    } catch (error, stackTrace) {
+    } catch (_, stackTrace) {
       if (!_isCurrentEpoch(expectedAuthorityEpoch)) return null;
-      if (error is NexaApiFailure &&
-          (error.statusCode == 401 || error.statusCode == 403)) {
-        _biometricEnabled = false;
+      if (_biometricEnabled) {
         try {
-          await _biometricSessionStore.disable();
+          await _discardBiometricRefreshCredential();
         } catch (_) {
-          // The server has rejected the refresh credential.
+          // Keep protected content closed if local cleanup fails.
         }
       }
-      _clear();
+      _clearIfCurrent(expectedAuthorityEpoch);
       Error.throwWithStackTrace(_sessionExpired(), stackTrace);
     }
   }

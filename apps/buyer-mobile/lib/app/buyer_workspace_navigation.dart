@@ -127,6 +127,13 @@ abstract final class BuyerWorkspaceNavigation {
     if (path == '/home' || path == '/account' || path == '/profile') {
       return true;
     }
+    if (_isWithin(path, '/messages')) {
+      return permissions.contains(_buyerSalesRead);
+    }
+    if (_isWithin(path, '/payment-methods')) {
+      return context.roles.contains(_buyerRole) &&
+          permissions.contains(_paymentRead);
+    }
     if (_isWithin(path, '/addresses')) {
       return permissions.contains(_buyerSalesRead);
     }

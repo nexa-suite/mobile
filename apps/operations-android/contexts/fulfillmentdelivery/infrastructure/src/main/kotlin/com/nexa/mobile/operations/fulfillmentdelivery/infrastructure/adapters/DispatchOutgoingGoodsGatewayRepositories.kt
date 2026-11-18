@@ -341,6 +341,7 @@ class OperationsDispatchOutgoingGoodsGateway @Inject constructor(
             OutgoingGoodsCheckOutcome.UnknownOutcome ->
                 OutgoingGoodsGatewayResult.UnknownOutcome
 
+            is OutgoingGoodsCheckOutcome.DispatchSummary,
             OutgoingGoodsCheckOutcome.ServiceUnavailable ->
                 OutgoingGoodsGatewayResult.ServiceUnavailable
 
