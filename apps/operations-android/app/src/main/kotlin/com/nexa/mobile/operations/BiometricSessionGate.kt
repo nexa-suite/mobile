@@ -177,12 +177,29 @@ internal fun BiometricSessionGate(
 
     DisposableEffect(activity.lifecycle, scope, sessionActive, enabled) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) {
-                reentry = reentry.invalidate()
-                if (enabled && sessionActive) {
-                    unlocked = false
-                    passwordFallbackScope = null
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    biometricAvailable = canAuthenticateStrongBiometric(activity)
+                    val canUpdateAvailabilityNotice = statusResource == 0 ||
+                        statusResource == R.string.biometric_unlock_unavailable
+                    if (sessionActive && scope != null && canUpdateAvailabilityNotice) {
+                        statusResource = if (biometricAvailable) {
+                            0
+                        } else {
+                            R.string.biometric_unlock_unavailable
+                        }
+                    }
                 }
+
+                Lifecycle.Event.ON_STOP -> {
+                    reentry = reentry.invalidate()
+                    if (enabled && sessionActive) {
+                        unlocked = false
+                        passwordFallbackScope = null
+                    }
+                }
+
+                else -> Unit
             }
         }
         activity.lifecycle.addObserver(observer)
