@@ -40,28 +40,33 @@ final class _BuyerPaymentActivityPageState
   @override
   Widget build(BuildContext context) {
     final viewModel = context.watch<BuyerPaymentActivityViewModel>();
-    return SafeArea(
-      child: RefreshIndicator(
-        onRefresh: viewModel.refreshHistory,
-        child: NexaPageWidth(
-          padding: EdgeInsets.zero,
-          child: ListView(
-            key: const Key('buyer-payment-activity-list'),
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(16),
-            children: [
-              NexaPageIntro(
-                title: widget.receivableNumber == null
-                    ? 'Cuenta por cobrar'
-                    : 'Cuenta ${widget.receivableNumber}',
-                description: 'El servidor verifica el saldo y el estado antes de registrar un reporte.',
-                icon: Icons.payments_outlined,
-              ),
-              _reportSection(viewModel),
-              const SizedBox(height: 20),
-              _historySection(context, viewModel),
-            ],
-          ),
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pagos')),
+      body: SafeArea(top: false, child: _activityContent(viewModel)),
+    );
+  }
+
+  Widget _activityContent(BuyerPaymentActivityViewModel viewModel) {
+    return RefreshIndicator(
+      onRefresh: viewModel.refreshHistory,
+      child: NexaPageWidth(
+        padding: EdgeInsets.zero,
+        child: ListView(
+          key: const Key('buyer-payment-activity-list'),
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            NexaPageIntro(
+              title: widget.receivableNumber == null
+                  ? 'Cuenta por cobrar'
+                  : 'Cuenta ${widget.receivableNumber}',
+              description: 'El servidor verifica el saldo y el estado antes de registrar un reporte.',
+              icon: Icons.payments_outlined,
+            ),
+            _reportSection(viewModel),
+            const SizedBox(height: 20),
+            _historySection(context, viewModel),
+          ],
         ),
       ),
     );

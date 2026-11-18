@@ -411,9 +411,12 @@ final class BuyerPaymentActivityViewModel extends ChangeNotifier {
       if (!_isCurrentReport(generation, lease)) return;
       reportedPayment = payment;
       reportStatus = BuyerTransferReportStatus.reported;
-      reportMessage =
-          'El servidor recibió el reporte. Estado actual: ${payment.status}. '
-          'Reportar una transferencia no confirma que el pago se haya aplicado.';
+      _clearProof();
+      reportMessage = payment.status == 'PROCESSING'
+          ? 'Reporte recibido. Pendiente de revisión. '
+                'Reportar una transferencia no confirma que el pago se haya aplicado.'
+          : 'Reporte recibido. Consulta el estado en el historial. '
+                'Reportar una transferencia no confirma que el pago se haya aplicado.';
       notifyListeners();
       if (canRead) await loadHistory(history?.page ?? 0);
     } on NexaApiFailure catch (failure) {

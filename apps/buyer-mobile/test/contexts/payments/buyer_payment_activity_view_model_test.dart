@@ -32,9 +32,7 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
         value: vm,
-        child: const MaterialApp(
-          home: Scaffold(body: BuyerPaymentActivityPage()),
-        ),
+        child: const MaterialApp(home: BuyerPaymentActivityPage()),
       ),
     );
     await tester.pumpAndSettle();
@@ -73,6 +71,8 @@ void main() {
       await vm.reportBankTransfer('BANK-REF-71');
       expect(repository.reportedProof, _proof('AVAILABLE').id);
       expect(vm.reportedPayment!.status, 'PROCESSING');
+      expect(vm.proof, isNull);
+      expect(vm.proofFilename, isNull);
     },
   );
 
@@ -402,7 +402,8 @@ void main() {
 
     expect(repository.reportCalls, hasLength(1));
     expect(repository.reportCalls.single.reference, 'BANK-REF-71');
-    expect(find.textContaining('Estado actual: PROCESSING'), findsOneWidget);
+    expect(find.byType(Scaffold), findsOneWidget);
+    expect(find.textContaining('Pendiente de revisión'), findsWidgets);
     final reportResult = tester.widget<NexaNotice>(
       find.byKey(const Key('payment-report-result')),
     );
