@@ -76,6 +76,17 @@ data class OutgoingGoodsCheckProjection(
     val discrepancy: OutgoingGoodsDiscrepancyProjection? = null
 )
 
+data class DispatchOutgoingGoodsCheckSummaryProjection(
+    val id: String,
+    val fulfillmentId: String,
+    val fulfillmentVersion: Long,
+    val physicalAllocationId: String,
+    val physicalAllocationVersion: Long,
+    val matches: Boolean,
+    val current: Boolean,
+    val openDiscrepancy: Boolean
+)
+
 data class OutgoingGoodsDiscrepancyResolutionCommand(
     val fulfillmentId: String,
     val expectedFulfillmentVersion: Long,
@@ -125,6 +136,9 @@ sealed interface OutgoingGoodsCheckNetworkOutcome {
         val currentCheck: OutgoingGoodsCheckProjection?
     ) : OutgoingGoodsCheckNetworkOutcome
 
+    data class DispatchSummary(val check: DispatchOutgoingGoodsCheckSummaryProjection?) :
+        OutgoingGoodsCheckNetworkOutcome
+
     data class Recorded(val check: OutgoingGoodsCheckProjection) : OutgoingGoodsCheckNetworkOutcome
     data class Resolved(val resolution: OutgoingGoodsDiscrepancyResolutionProjection) :
         OutgoingGoodsCheckNetworkOutcome
@@ -140,6 +154,39 @@ sealed interface OutgoingGoodsCheckNetworkOutcome {
 
 /** Protected current allocation and server-attributed outbound comparison routes. */
 class NexaOutgoingGoodsCheckGateway(private val protectedCalls: ProtectedCallExecutor) {
+    suspend fun dispatchSummary(fulfillmentId: String): OutgoingGoodsCheckNetworkOutcome {
+        if (!fulfillmentId.isUuid()) return OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
+        return when (
+            val result = protectedCalls.execute(
+                ProtectedRequest(
+                    ProtectedMethod.GET,
+                    fulfillmentPath(fulfillmentId, "outgoing-checks/current-summary")
+                )
+            )
+        ) {
+            is ProtectedResult.Failure -> result.error.toOutgoingOutcome(mutation = false)
+
+            is ProtectedResult.Success -> when (result.status) {
+                204 -> OutgoingGoodsCheckNetworkOutcome.DispatchSummary(check = null)
+
+                200 -> {
+                    val summary =
+                        result.body.decode<OutgoingGoodsCheckSummaryWire>()?.toProjection()
+                            ?: return OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
+                    if (!summary.fulfillmentId.equals(fulfillmentId, ignoreCase = true) ||
+                        result.etag.toVersion() != summary.fulfillmentVersion
+                    ) {
+                        OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
+                    } else {
+                        OutgoingGoodsCheckNetworkOutcome.DispatchSummary(check = summary)
+                    }
+                }
+
+                else -> OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
+            }
+        }
+    }
+
     suspend fun snapshot(fulfillmentId: String): OutgoingGoodsCheckNetworkOutcome {
         if (!fulfillmentId.isUuid()) return OutgoingGoodsCheckNetworkOutcome.ServiceUnavailable
         val allocationPath = fulfillmentPath(fulfillmentId, "physical-allocation")
@@ -380,6 +427,25 @@ class NexaOutgoingGoodsCheckGateway(private val protectedCalls: ProtectedCallExe
         )
     }
 
+    private fun OutgoingGoodsCheckSummaryWire.toProjection():
+        DispatchOutgoingGoodsCheckSummaryProjection? {
+        val safeId = id?.takeIf { it.isUuid() } ?: return null
+        val fulfillment = fulfillmentId?.takeIf { it.isUuid() } ?: return null
+        val safeFulfillmentVersion = fulfillmentVersion?.takeIf { it >= 0 } ?: return null
+        val allocation = physicalAllocationId?.takeIf { it.isUuid() } ?: return null
+        val allocationVersion = physicalAllocationVersion?.takeIf { it >= 0 } ?: return null
+        return DispatchOutgoingGoodsCheckSummaryProjection(
+            id = safeId,
+            fulfillmentId = fulfillment,
+            fulfillmentVersion = safeFulfillmentVersion,
+            physicalAllocationId = allocation,
+            physicalAllocationVersion = allocationVersion,
+            matches = matches ?: return null,
+            current = current ?: return null,
+            openDiscrepancy = openDiscrepancy ?: return null
+        )
+    }
+
     private fun OutgoingGoodsDiscrepancyWire.toProjection(): OutgoingGoodsDiscrepancyProjection? {
         val safeId = id?.takeIf { it.isUuid() } ?: return null
         val safeAllocation = physicalAllocationId?.takeIf { it.isUuid() } ?: return null
@@ -566,6 +632,18 @@ private data class PhysicalAllocationLineWire(
     val consumedQuantity: kotlinx.serialization.json.JsonElement? = null,
     val remainingQuantity: kotlinx.serialization.json.JsonElement? = null,
     val unit: String? = null
+)
+
+@Serializable
+private data class OutgoingGoodsCheckSummaryWire(
+    val id: String? = null,
+    val fulfillmentId: String? = null,
+    val fulfillmentVersion: Long? = null,
+    val physicalAllocationId: String? = null,
+    val physicalAllocationVersion: Long? = null,
+    val matches: Boolean? = null,
+    val current: Boolean? = null,
+    val openDiscrepancy: Boolean? = null
 )
 
 @Serializable

@@ -218,14 +218,13 @@ class DispatchHandoverViewModel(
         val snapshot = mutableState.value.snapshot ?: return
         if (!mutableState.value.canConfirm || !context.hasDispatchAuthority()) return
         val scope = context.scopeIdentity() ?: return
-        val allocation = snapshot.allocation
         val assignment = snapshot.driverAssignment ?: return
         val check = snapshot.outgoingCheck ?: return
         val partial = DispatchHandoverCommand(
             fulfillmentId = fulfillment.fulfillmentId,
             expectedFulfillmentVersion = snapshot.readiness.fulfillmentVersion,
-            physicalAllocationId = allocation.id,
-            physicalAllocationVersion = allocation.version,
+            physicalAllocationId = snapshot.readiness.physicalAllocationId,
+            physicalAllocationVersion = snapshot.readiness.physicalAllocationVersion,
             driverAssignmentId = assignment.id,
             driverAssignmentVersion = assignment.fulfillmentVersion,
             outgoingGoodsCheckId = check.id,

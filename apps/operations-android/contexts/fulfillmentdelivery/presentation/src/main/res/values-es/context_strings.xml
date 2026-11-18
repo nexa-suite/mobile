@@ -314,7 +314,7 @@
     <string name="dispatch_handover_historical_fact">registro histórico; el despacho cambió después</string>
     <string name="dispatch_handover_initial">Consulta pendiente</string>
     <string name="dispatch_handover_loading">Consultando estado actual</string>
-    <string name="dispatch_handover_missing">Pendiente</string>
+    <string name="dispatch_handover_missing">Pendiente de verificación del almacén</string>
     <string name="dispatch_handover_network">No se pudo consultar el estado actual.</string>
     <string name="dispatch_handover_permission">El permiso o grant actual no permite esta operación.</string>
     <string name="dispatch_handover_refresh">Consultar estado actual</string>

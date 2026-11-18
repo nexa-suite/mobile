@@ -34,27 +34,24 @@ data class DispatchHandoverEvidence(
 
 data class DispatchHandoverSnapshot(
     val readiness: DispatchReadiness,
-    val allocation: DispatchOutgoingGoodsAllocation,
-    val outgoingCheck: DispatchOutgoingGoodsCheck?,
+    val outgoingCheck: DispatchHandoverOutgoingCheckSummary?,
     val driverAssignment: PreparedFulfillmentDriverAssignment?
 ) {
     val canConfirm: Boolean
         get() = readiness.ready && readiness.fulfillmentStatus == READY_FOR_DISPATCH &&
             readiness.physicalAllocationStatus == ALLOCATED &&
-            allocation.id == readiness.physicalAllocationId &&
-            allocation.version == readiness.physicalAllocationVersion &&
-            allocation.status == ALLOCATED &&
             driverAssignment?.let {
                 it.fulfillmentId == readiness.fulfillmentId &&
                     it.fulfillmentVersion == readiness.fulfillmentVersion &&
-                    it.physicalAllocationId == allocation.id &&
-                    it.physicalAllocationVersion == allocation.version && it.deliveryId == null
+                    it.physicalAllocationId == readiness.physicalAllocationId &&
+                    it.physicalAllocationVersion == readiness.physicalAllocationVersion &&
+                    it.deliveryId == null
             } == true &&
             outgoingCheck?.let {
                 it.fulfillmentId == readiness.fulfillmentId &&
                     it.fulfillmentVersion == readiness.fulfillmentVersion &&
-                    it.physicalAllocationId == allocation.id &&
-                    it.physicalAllocationVersion == allocation.version &&
+                    it.physicalAllocationId == readiness.physicalAllocationId &&
+                    it.physicalAllocationVersion == readiness.physicalAllocationVersion &&
                     it.current && it.matches && !it.openDiscrepancy
             } == true
 
@@ -65,3 +62,15 @@ data class DispatchHandoverSnapshot(
         const val ALLOCATED = "ALLOCATED"
     }
 }
+
+/** Minimal server facts available to dispatch without warehouse-only check details. */
+data class DispatchHandoverOutgoingCheckSummary(
+    val id: String,
+    val fulfillmentId: String,
+    val fulfillmentVersion: Long,
+    val physicalAllocationId: String,
+    val physicalAllocationVersion: Long,
+    val matches: Boolean,
+    val current: Boolean,
+    val openDiscrepancy: Boolean
+)
