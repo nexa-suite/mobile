@@ -5,6 +5,58 @@ import 'package:nexa_buyer_mobile/contexts/notifications/application/buyer_push_
 import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/application/buyer_access_repository.dart';
 
 void main() {
+  test(
+    'foreground inbox refresh does not wait for provider registration',
+    () async {
+      final access = _Access(_active(1, 'a'));
+      final device = _Device()..registrationGate = Completer<bool>();
+      var refreshed = 0;
+      final registration = _openingRegistration(device, access, () async {
+        refreshed++;
+      }, () {})..start();
+      await _flush();
+
+      device.messages.add(null);
+      await _flush();
+      expect(refreshed, 1);
+
+      device.registrationGate!.complete(true);
+      await registration.dispose();
+      await access.dispose();
+      await device.dispose();
+    },
+  );
+
+  test(
+    'queued foreground invalidation cannot cross an authority change',
+    () async {
+      final access = _Access(_active(1, 'a'));
+      final device = _Device();
+      final firstRefresh = Completer<void>();
+      var refreshed = 0;
+      final registration = _openingRegistration(device, access, () async {
+        refreshed++;
+        if (refreshed == 1) await firstRefresh.future;
+      }, () {})..start();
+      await _flush();
+
+      device.messages.add(null);
+      await _flush();
+      device.messages.add(null);
+      access.emit(_active(2, 'b'));
+      firstRefresh.complete();
+      await _flush();
+      expect(refreshed, 1);
+
+      device.messages.add(null);
+      await _flush();
+      expect(refreshed, 2);
+      await registration.dispose();
+      await access.dispose();
+      await device.dispose();
+    },
+  );
+
   test('tap opens while provider registration is blocked', () async {
     final access = _Access(_active(1, 'a'));
     final device = _Device()..registrationGate = Completer<bool>();

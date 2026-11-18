@@ -46,6 +46,7 @@ final class BuyerPushRegistration {
   final Duration retryDelay;
   final List<StreamSubscription<Object?>> _subscriptions = [];
   Future<void> _tail = Future.value();
+  Future<void> _foregroundTail = Future.value();
   Timer? _retry;
   String? _scope;
   String? _fid;
@@ -85,7 +86,7 @@ final class BuyerPushRegistration {
       }),
     );
     _subscriptions.add(
-      device.foregroundMessages.listen((_) => _enqueue(_refreshIfAuthorized)),
+      device.foregroundMessages.listen((_) => _requestForegroundRefresh()),
     );
     _subscriptions.add(
       device.openedMessages.listen((_) {
@@ -172,8 +173,18 @@ final class BuyerPushRegistration {
     }
   }
 
-  Future<void> _refreshIfAuthorized() async {
-    if (_lease() != null && _scope == _lease()) await refreshInbox();
+  void _requestForegroundRefresh() {
+    final lease = _lease();
+    if (_disposed || lease == null) return;
+    // Inbox invalidation must not wait for an unrelated provider registration.
+    _foregroundTail = _foregroundTail.then((_) async {
+      if (_disposed || lease != _lease() || _scope != lease) return;
+      try {
+        await refreshInbox();
+      } catch (_) {
+        // The inbox owns its visible error state and its next explicit refresh.
+      }
+    });
   }
 
   Future<void> _readInitialOpen(String? lease, int generation) async {
