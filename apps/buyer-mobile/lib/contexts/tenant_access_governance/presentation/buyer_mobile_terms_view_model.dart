@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../../../core/network/nexa_api_client.dart';
 import '../application/buyer_access_repository.dart';
 import '../application/buyer_mobile_terms_repository.dart';
 
@@ -90,11 +89,12 @@ final class BuyerMobileTermsViewModel extends ChangeNotifier {
       }
     } catch (error) {
       if (!_isCurrent(generation, identity)) return;
-      if (error is NexaApiFailure && error.statusCode == 401) {
+      if (error == BuyerMobileTermsFailure.sessionRequired) {
         _access.invalidateLocalSession();
         return;
       }
-      if (previouslyAccepted && _isRetryableTransportFailure(error)) {
+      if (previouslyAccepted &&
+          error == BuyerMobileTermsFailure.connectionUnavailable) {
         document = previousDocument;
         status = BuyerMobileTermsViewState.accepted;
         acceptedAt = previousAcceptedAt;
@@ -132,13 +132,13 @@ final class BuyerMobileTermsViewModel extends ChangeNotifier {
         );
         return;
       }
-    } on NexaApiFailure catch (failure) {
+    } on BuyerMobileTermsFailure catch (failure) {
       if (!_isCurrent(generation, identity)) return;
-      if (failure.statusCode == 401) {
+      if (failure == BuyerMobileTermsFailure.sessionRequired) {
         _access.invalidateLocalSession();
         return;
       }
-      if (failure.statusCode == 403) {
+      if (failure == BuyerMobileTermsFailure.accessDenied) {
         _setUnavailable(
           'No se pudo verificar tu acceso para aceptar los términos. Actualiza el estado o vuelve a iniciar sesión.',
         );
@@ -146,7 +146,7 @@ final class BuyerMobileTermsViewModel extends ChangeNotifier {
         await _refreshAfterPost(
           generation,
           identity,
-          failure.statusCode == 409
+          failure == BuyerMobileTermsFailure.documentChanged
               ? 'Los términos cambiaron. Revisa la versión vigente antes de continuar.'
               : 'Comprobamos el estado para confirmar si se registró la aceptación.',
         );
@@ -198,7 +198,7 @@ final class BuyerMobileTermsViewModel extends ChangeNotifier {
       }
     } catch (error) {
       if (!_isCurrent(generation, identity)) return;
-      if (error is NexaApiFailure && error.statusCode == 401) {
+      if (error == BuyerMobileTermsFailure.sessionRequired) {
         _access.invalidateLocalSession();
         return;
       }
@@ -238,12 +238,9 @@ final class BuyerMobileTermsViewModel extends ChangeNotifier {
       acceptance.contentDigest == currentDocument.contentDigest;
 
   String _messageFor(Object error) =>
-      error is NexaApiFailure && error.statusCode == 403
+      error == BuyerMobileTermsFailure.accessDenied
       ? 'No se pudo consultar el estado de los términos con este acceso.'
       : 'No se pudieron cargar los términos vigentes. Inténtalo de nuevo.';
-
-  bool _isRetryableTransportFailure(Object error) =>
-      error is NexaApiFailure && error.statusCode == null && error.retryable;
 
   static String? _keyFor(BuyerAccessSnapshot snapshot) {
     if (!snapshot.hasActiveBuyerScope) return null;

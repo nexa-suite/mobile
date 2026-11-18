@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/application/buyer_access_repository.dart';
 import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/application/buyer_mobile_terms_repository.dart';
 import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/presentation/buyer_mobile_terms_view_model.dart';
-import 'package:nexa_buyer_mobile/core/network/nexa_api_client.dart';
 
 void main() {
   final docV1 = _document('1');
@@ -22,11 +21,7 @@ void main() {
     await _flush();
     expect(viewModel.isAcceptedForCurrentSession, isTrue);
 
-    repository.statusError = const NexaApiFailure(
-      code: 'network_unavailable',
-      userMessage: 'offline',
-      retryable: true,
-    );
+    repository.statusError = BuyerMobileTermsFailure.connectionUnavailable;
     await viewModel.refreshAfterResume();
 
     expect(viewModel.isAcceptedForCurrentSession, isTrue);
@@ -49,11 +44,7 @@ void main() {
       final viewModel = BuyerMobileTermsViewModel(repository, access);
       await _flush();
 
-      repository.statusError = const NexaApiFailure(
-        code: 'network_unavailable',
-        userMessage: 'offline',
-        retryable: true,
-      );
+      repository.statusError = BuyerMobileTermsFailure.connectionUnavailable;
       access.emit(_snapshot(epoch: 2));
       await _flush();
       expect(viewModel.status, BuyerMobileTermsViewState.unavailable);
@@ -82,11 +73,7 @@ void main() {
           accepted: false,
           acceptedAt: null,
         )
-        ..acceptError = const NexaApiFailure(
-          code: 'request_outcome_unknown',
-          userMessage: 'unknown',
-          retryable: true,
-        );
+        ..acceptError = BuyerMobileTermsFailure.unconfirmed;
       final access = _Access(_snapshot());
       final viewModel = BuyerMobileTermsViewModel(repository, access);
       await _flush();

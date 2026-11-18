@@ -47,3 +47,11 @@ abstract interface class BuyerMobileTermsRepository {
 
   Future<BuyerMobileTermsAcceptance> accept(BuyerMobileTermsDocument document);
 }
+
+enum BuyerMobileTermsFailure implements Exception {
+  sessionRequired,
+  accessDenied,
+  documentChanged,
+  connectionUnavailable,
+  unconfirmed,
+}

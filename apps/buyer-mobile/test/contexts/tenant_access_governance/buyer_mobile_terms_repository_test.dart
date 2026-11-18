@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/application/buyer_access_repository.dart';
+import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/application/buyer_mobile_terms_repository.dart';
 import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/infrastructure/buyer_mobile_terms_repository_impl.dart';
 import 'package:nexa_buyer_mobile/core/network/nexa_api_client.dart';
 
@@ -105,7 +106,7 @@ void main() {
 
     await expectLater(
       repository.fetchPublicTerms(),
-      throwsA(isA<NexaApiFailure>()),
+      throwsA(BuyerMobileTermsFailure.unconfirmed),
     );
     client.close();
   });

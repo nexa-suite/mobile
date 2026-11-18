@@ -15,9 +15,8 @@ final class BuyerMobileTermsRepositoryImpl
 
   @override
   Future<BuyerMobileTermsDocument> fetchPublicTerms() async {
-    final response = await _api.get(
-      '/legal/mobile-terms',
-      authenticated: false,
+    final response = await _readTerms(
+      () => _api.get('/legal/mobile-terms', authenticated: false),
     );
     return _parseDocument(response.body);
   }
@@ -26,9 +25,8 @@ final class BuyerMobileTermsRepositoryImpl
   Future<BuyerMobileTermsStatus> fetchCurrentStatus() async {
     final identity = _activeIdentityKey;
     if (identity == null) _throwSessionRequired();
-    final response = await _api.get(
-      '/me/legal-acceptance',
-      refreshAfterUnauthorized: true,
+    final response = await _readTerms(
+      () => _api.get('/me/legal-acceptance', refreshAfterUnauthorized: true),
     );
     _requireCurrentIdentity(identity);
     final document = _parseDocument(response.body);
@@ -50,13 +48,15 @@ final class BuyerMobileTermsRepositoryImpl
   ) async {
     final identity = _activeIdentityKey;
     if (identity == null) _throwSessionRequired();
-    final response = await _api.post(
-      '/me/legal-acceptance',
-      body: {
-        'documentId': document.documentId,
-        'version': document.version,
-        'contentDigest': document.contentDigest,
-      },
+    final response = await _readTerms(
+      () => _api.post(
+        '/me/legal-acceptance',
+        body: {
+          'documentId': document.documentId,
+          'version': document.version,
+          'contentDigest': document.contentDigest,
+        },
+      ),
     );
     _requireCurrentIdentity(identity);
     final body = response.body;
@@ -89,11 +89,7 @@ final class BuyerMobileTermsRepositoryImpl
 
   void _requireCurrentIdentity(String expected) {
     if (_activeIdentityKey != expected) {
-      throw const NexaApiFailure(
-        code: 'authority_changed',
-        statusCode: 403,
-        userMessage: 'Actualiza tu acceso antes de continuar.',
-      );
+      throw BuyerMobileTermsFailure.accessDenied;
     }
   }
 
@@ -128,14 +124,23 @@ final class BuyerMobileTermsRepositoryImpl
     return DateTime.tryParse(value) ?? _throwInvalidResponse();
   }
 
-  Never _throwInvalidResponse() => throw const NexaApiFailure(
-    code: 'invalid_legal_terms_response',
-    userMessage: 'No se pudieron comprobar los términos vigentes.',
-  );
+  Future<T> _readTerms<T>(Future<T> Function() request) async {
+    try {
+      return await request();
+    } on NexaApiFailure catch (failure) {
+      throw switch (failure.statusCode) {
+        401 => BuyerMobileTermsFailure.sessionRequired,
+        403 => BuyerMobileTermsFailure.accessDenied,
+        409 => BuyerMobileTermsFailure.documentChanged,
+        null when failure.retryable =>
+          BuyerMobileTermsFailure.connectionUnavailable,
+        _ => BuyerMobileTermsFailure.unconfirmed,
+      };
+    }
+  }
 
-  Never _throwSessionRequired() => throw const NexaApiFailure(
-    code: 'session_required',
-    statusCode: 401,
-    userMessage: 'Inicia sesión para aceptar los términos.',
-  );
+  Never _throwInvalidResponse() => throw BuyerMobileTermsFailure.unconfirmed;
+
+  Never _throwSessionRequired() =>
+      throw BuyerMobileTermsFailure.sessionRequired;
 }
