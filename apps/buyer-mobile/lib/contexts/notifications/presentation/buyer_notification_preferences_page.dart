@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/presentation/nexa_buyer_components.dart';
 import '../application/buyer_notifications_repository.dart';
+import 'buyer_notification_display.dart';
 import 'buyer_notifications_view_model.dart';
 
 final class BuyerNotificationPreferencesPage extends StatefulWidget {
@@ -95,7 +96,11 @@ final class _BuyerNotificationPreferencesPageState
                               viewModel.setPreference(preference, enabled),
                             )
                           : null,
-                      title: Text(_categoryLabel(preference.eventCategory)),
+                      title: Text(
+                        buyerNotificationCategoryLabel(
+                          preference.eventCategory,
+                        ),
+                      ),
                       subtitle: Text(_channelLabel(preference.channel)),
                       secondary: viewModel.pendingPreferenceKeys.isNotEmpty
                           ? const SizedBox.square(
@@ -122,12 +127,6 @@ final class _BuyerNotificationPreferencesPageState
           )
           .toList(growable: false) ??
       const [];
-
-  String _categoryLabel(String value) => value
-      .split('_')
-      .where((part) => part.isNotEmpty)
-      .map((part) => '${part[0]}${part.substring(1).toLowerCase()}')
-      .join(' ');
 
   String _channelLabel(String channel) =>
       _channelLabelOrNull(channel) ?? 'Canal no disponible';

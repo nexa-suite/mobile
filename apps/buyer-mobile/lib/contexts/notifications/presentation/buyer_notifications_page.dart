@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../tenant_access_governance/application/buyer_change_feed_repository.dart';
 import '../../../core/presentation/buyer_visible_route_poller.dart';
 import '../../../core/presentation/nexa_buyer_components.dart';
+import 'buyer_notification_display.dart';
 import 'buyer_notifications_view_model.dart';
 
 final class BuyerNotificationsPage extends StatefulWidget {
@@ -151,8 +152,9 @@ final class _BuyerNotificationsPageState extends State<BuyerNotificationsPage> {
                         : 'Todavía no tienes notificaciones.',
                     icon: Icons.notifications_none_outlined,
                   ),
-                for (final notification in viewModel.notifications)
-                  Card(
+                ...viewModel.notifications.map((notification) {
+                  final display = buyerNotificationDisplay(notification);
+                  return Card(
                     margin: const EdgeInsets.only(top: 10),
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(
@@ -168,7 +170,7 @@ final class _BuyerNotificationsPageState extends State<BuyerNotificationsPage> {
                             : Theme.of(context).colorScheme.primary,
                       ),
                       title: Text(
-                        notification.title,
+                        display.title,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       subtitle: Padding(
@@ -176,10 +178,10 @@ final class _BuyerNotificationsPageState extends State<BuyerNotificationsPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(notification.message),
+                            Text(display.message),
                             const SizedBox(height: 6),
                             Text(
-                              '${notification.category} · ${_createdAt(context, notification.createdAt)}',
+                              '${display.category} · ${_createdAt(context, notification.createdAt)}',
                               style: Theme.of(context).textTheme.labelSmall,
                             ),
                           ],
@@ -202,7 +204,8 @@ final class _BuyerNotificationsPageState extends State<BuyerNotificationsPage> {
                         icon: const Icon(Icons.check_circle_outline),
                       ),
                     ),
-                  ),
+                  );
+                }),
               ],
             ),
           ),
