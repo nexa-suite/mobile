@@ -20,6 +20,31 @@ const _authorityChangedMessage =
     'No se envió este código; actualiza la entrega antes de volver a escanear.';
 
 void main() {
+  testWidgets('shows receipt action and proof status before delivery history', (
+    tester,
+  ) async {
+    final access = _Access();
+    final detail = _detail(_DeliveriesRepository(), access);
+    await detail.load();
+    final router = _router(detail, () async => null);
+
+    await tester.pumpWidget(_app(access, router));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Comprobante de entrega'), findsOneWidget);
+    final scan = find.byKey(const Key('buyer-scan-delivery-qr'));
+    expect(scan, findsOneWidget);
+    expect(
+      tester.getTopLeft(scan).dy,
+      greaterThan(tester.getTopLeft(find.text('Comprobante de entrega')).dy),
+    );
+    expect(find.text('Historial de entrega'), findsNothing);
+    await tester.scrollUntilVisible(find.text('Historial de entrega'), 300);
+    expect(find.text('Historial de entrega'), findsOneWidget);
+
+    await _dispose(tester, router, detail, access);
+  });
+
   testWidgets(
     'does not submit a scanned token after authority changes and explains why',
     (tester) async {

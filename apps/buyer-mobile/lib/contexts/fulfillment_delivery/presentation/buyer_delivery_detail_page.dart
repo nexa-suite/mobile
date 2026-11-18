@@ -493,6 +493,13 @@ final class _BuyerDeliveryDetailPageState
                             label: 'Programada',
                             value: _dateTimeLabel(delivery.scheduledAt)!,
                           ),
+                        if (delivery.proofOfDeliveryStatus != null)
+                          _DetailRow(
+                            label: 'Comprobante de entrega',
+                            value: _statusLabel(
+                              delivery.proofOfDeliveryStatus!,
+                            ),
+                          ),
                         ExpansionTile(
                           tilePadding: EdgeInsets.zero,
                           title: const Text('Detalles de entrega'),
@@ -507,13 +514,6 @@ final class _BuyerDeliveryDetailPageState
                                 label: 'Entregada',
                                 value: _dateTimeLabel(delivery.deliveredAt)!,
                               ),
-                            if (delivery.proofOfDeliveryStatus != null)
-                              _DetailRow(
-                                label: 'Comprobante de entrega',
-                                value: _statusLabel(
-                                  delivery.proofOfDeliveryStatus!,
-                                ),
-                              ),
                             _DetailRow(
                               label: 'Actualización',
                               value: _dateTimeLabel(delivery.updatedAt)!,
@@ -524,6 +524,16 @@ final class _BuyerDeliveryDetailPageState
                     ),
                   ),
                 ),
+                const SizedBox(height: 16),
+                if (detail.handoffAcceptance != null)
+                  _handoffAndReceipt(context, detail)
+                else if (widget.scanDeliveryToken != null)
+                  _qrReceiptCard(detail, delivery),
+                if (detail.handoffAcceptance == null)
+                  ExpansionTile(
+                    title: const Text('Hay una diferencia con mi entrega'),
+                    children: [_handoffAndReceipt(context, detail)],
+                  ),
                 if (detail.hasActiveDeliveryLocationScope) ...[
                   const SizedBox(height: 12),
                   _liveLocation(context, detail),
@@ -552,15 +562,6 @@ final class _BuyerDeliveryDetailPageState
                     ),
                   ),
                 const SizedBox(height: 16),
-                if (detail.handoffAcceptance != null)
-                  _handoffAndReceipt(context, detail)
-                else if (widget.scanDeliveryToken != null)
-                  _qrReceiptCard(detail, delivery),
-                if (detail.handoffAcceptance == null)
-                  ExpansionTile(
-                    title: const Text('Hay una diferencia con mi entrega'),
-                    children: [_handoffAndReceipt(context, detail)],
-                  ),
                 _receiptHistory(context, detail),
               ],
             ),
