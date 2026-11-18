@@ -41,8 +41,7 @@ sealed interface MobileTermsAcceptanceResult {
     data class Available(
         val acceptance: MobileTermsAcceptance,
         val lease: MobileTermsSessionLease
-    ) :
-        MobileTermsAcceptanceResult
+    ) : MobileTermsAcceptanceResult
 
     data object SessionExpired : MobileTermsAcceptanceResult
     data class Unavailable(
