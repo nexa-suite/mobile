@@ -18,7 +18,7 @@
     <string name="access_notice_context_unavailable">The change could not be confirmed. Your current context remains active.</string>
     <string name="access_notice_context_unknown">We could not confirm the context change. Access was closed to protect your data.</string>
     <string name="access_notice_expired">Your session expired or is no longer available. Sign in again.</string>
-    <string name="access_notice_integration">Operations access is not connected in this environment yet.</string>
+    <string name="access_notice_integration">Operations access is unavailable in this environment.</string>
     <string name="access_notice_network">We could not connect. Your access remains protected; try again.</string>
     <string name="access_notice_no_context">No work contexts are available for this identity.</string>
     <string name="access_notice_service">The access service is temporarily unavailable.</string>
