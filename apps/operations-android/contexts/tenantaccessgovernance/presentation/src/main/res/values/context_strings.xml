@@ -46,6 +46,7 @@
     <string name="access_sign_in_title">Sign in</string>
     <string name="access_submit">Sign in</string>
     <string name="access_welcome_continue">Continue</string>
+    <string name="access_view_terms">Terms and conditions</string>
     <string name="access_welcome_illustration_description">A package moves through cold-chain handling to dispatch.</string>
     <string name="access_welcome_support">Sign in with your work identity to continue to your Operations workspace.</string>
     <string name="access_welcome_title">A clear start to your workday</string>

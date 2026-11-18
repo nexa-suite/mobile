@@ -49,7 +49,6 @@ private data class HomeAction(
 @Composable
 internal fun OperationsHomeScreen(
     company: String,
-    workspace: String,
     role: String,
     entries: List<ConnectedOperationEntry>,
     dashboard: OperationsDashboardSnapshot?,
@@ -73,7 +72,7 @@ internal fun OperationsHomeScreen(
                     .padding(horizontal = 16.dp).padding(top = 12.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                HomeContext(company = company, workspace = workspace, role = role)
+                HomeContext(company = company, role = role)
 
                 dashboard?.let { snapshot ->
                     val dispatchReadiness = entries.firstOrNull { it.key == "dispatch.readiness" }
@@ -130,7 +129,7 @@ internal fun OperationsHomeScreen(
 }
 
 @Composable
-private fun HomeContext(company: String, workspace: String, role: String) {
+private fun HomeContext(company: String, role: String) {
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 2.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -159,13 +158,6 @@ private fun HomeContext(company: String, workspace: String, role: String) {
                         color = NexaColors.PrimaryStrong
                     )
                 }
-            }
-            if (workspace.isNotBlank()) {
-                Text(
-                    workspace,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = NexaColors.TextSecondary
-                )
             }
         }
     }

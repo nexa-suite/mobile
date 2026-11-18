@@ -1,6 +1,7 @@
 <resources>
     <string name="profile_my_profile">My profile</string>
     <string name="profile_personal_details">Personal details</string>
+    <string name="profile_terms">Terms and conditions</string>
     <string name="profile_security">Security and access</string>
     <string name="home_start">Quick actions</string>
     <string name="home_receive_title">Receive stock</string>

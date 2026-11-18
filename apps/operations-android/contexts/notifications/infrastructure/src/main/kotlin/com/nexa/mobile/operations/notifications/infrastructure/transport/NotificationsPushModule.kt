@@ -1,0 +1,16 @@
+package com.nexa.mobile.operations.notifications.infrastructure.transport
+
+import com.nexa.mobile.operations.notifications.application.push.PushSubscriptionRegistrationGateway
+import dagger.Binds
+import dagger.Module
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class NotificationsPushModule {
+    @Binds
+    abstract fun pushSubscriptionRegistrationGateway(
+        implementation: OperationsPushSubscriptionGateway
+    ): PushSubscriptionRegistrationGateway
+}

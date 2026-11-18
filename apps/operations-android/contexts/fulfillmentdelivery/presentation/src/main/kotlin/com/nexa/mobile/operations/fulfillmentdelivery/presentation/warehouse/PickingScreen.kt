@@ -54,8 +54,10 @@ import com.nexa.mobile.operations.core.designsystem.NexaShapes
 import com.nexa.mobile.operations.core.designsystem.NexaStatePanel
 import com.nexa.mobile.operations.core.designsystem.NexaTopAppBar
 import com.nexa.mobile.operations.core.designsystem.NexaWorkSection
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.FulfillmentPreparationAction
 import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingOffer
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.FulfillmentPickingLine
+import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.FulfillmentPickingSnapshot
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.common.OperationsGlyph
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.common.OperationsGlyphKind
@@ -75,6 +77,7 @@ fun PickingScreen(
     onQuantityChanged: (String) -> Unit,
     onStartPicking: () -> Unit,
     onConfirmPick: () -> Unit,
+    onAdvanceFulfillment: (FulfillmentPreparationAction) -> Unit,
     onRetryUnknownOutcome: () -> Unit,
     onRetryIntentCleanup: () -> Unit,
     onProposeLotSubstitution: ((String) -> Unit)? = null
@@ -213,6 +216,20 @@ fun PickingScreen(
                             )
                         }
 
+                        val preparationAction = fulfillment.preparationAction()
+                        if (preparationAction != null && state.command in setOf(
+                                PickingCommandStatus.Editing,
+                                PickingCommandStatus.Confirmed
+                            )
+                        ) {
+                            NexaPrimaryButton(
+                                label = preparationAction.visualLabel(),
+                                onClick = { onAdvanceFulfillment(preparationAction) },
+                                enabled = state.canPick && state.metadata ==
+                                    PickingMetadataStatus.Available && !state.isIntentFrozen
+                            )
+                        }
+
                         if (state.command == PickingCommandStatus.Editing &&
                             state.loadStatus != PickingLoadStatus.Loading
                         ) {
@@ -229,7 +246,8 @@ fun PickingScreen(
                         state = state,
                         onReload = onReload,
                         onRetryUnknownOutcome = onRetryUnknownOutcome,
-                        onRetryIntentCleanup = onRetryIntentCleanup
+                        onRetryIntentCleanup = onRetryIntentCleanup,
+                        showReloadAction = state.fulfillment?.preparationAction() == null
                     )
                 }
             }
@@ -685,7 +703,8 @@ private fun PickingCommandFeedback(
     state: PickingUiState,
     onReload: () -> Unit,
     onRetryUnknownOutcome: () -> Unit,
-    onRetryIntentCleanup: () -> Unit
+    onRetryIntentCleanup: () -> Unit,
+    showReloadAction: Boolean
 ) {
     when (state.command) {
         PickingCommandStatus.PersistingIntent,
@@ -720,7 +739,7 @@ private fun PickingCommandFeedback(
                 ) {
                     Text(stringResource(R.string.picking_visual_retry_cleanup))
                 }
-            } else {
+            } else if (showReloadAction) {
                 NexaPrimaryButton(
                     label = stringResource(R.string.picking_visual_refresh),
                     onClick = onReload
@@ -820,8 +839,32 @@ private fun String.visualLabel(): String = stringResource(
     when (uppercase(Locale.ROOT)) {
         "ALLOCATED" -> R.string.picking_visual_status_assigned
         "PICKING" -> R.string.picking_visual_status_picking
+        "PICKED" -> R.string.picking_visual_status_picked
+        "PACKED" -> R.string.picking_visual_status_packed
+        "STAGED" -> R.string.picking_visual_status_staged
+        "SHORTAGE" -> R.string.picking_visual_status_shortage
         "READY_FOR_DISPATCH" -> R.string.picking_visual_status_ready
         else -> R.string.picking_visual_status_current
+    }
+)
+
+private fun FulfillmentPickingSnapshot.preparationAction(): FulfillmentPreparationAction? =
+    when (status.uppercase(Locale.ROOT)) {
+        "PICKED" -> FulfillmentPreparationAction.Pack
+        "PACKED" -> FulfillmentPreparationAction.Stage
+        "STAGED" -> FulfillmentPreparationAction.ReadyForDispatch
+        else -> null
+    }
+
+@Composable
+private fun FulfillmentPreparationAction.visualLabel(): String = stringResource(
+    when (this) {
+        FulfillmentPreparationAction.Pack -> R.string.picking_visual_pack
+
+        FulfillmentPreparationAction.Stage -> R.string.picking_visual_stage
+
+        FulfillmentPreparationAction.ReadyForDispatch ->
+            R.string.picking_visual_ready_for_dispatch_action
     }
 )
 

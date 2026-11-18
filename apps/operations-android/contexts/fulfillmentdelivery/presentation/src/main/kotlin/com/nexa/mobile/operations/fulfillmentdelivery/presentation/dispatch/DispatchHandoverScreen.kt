@@ -41,7 +41,7 @@ fun DispatchHandoverScreen(
                 stringResource(
                     R.string.dispatch_handover_versions,
                     snapshot.readiness.fulfillmentVersion,
-                    snapshot.allocation.version
+                    snapshot.readiness.physicalAllocationVersion
                 )
             )
             Text(
@@ -54,7 +54,9 @@ fun DispatchHandoverScreen(
             Text(
                 stringResource(
                     R.string.dispatch_handover_check,
-                    if (outgoingCheck?.current == true && outgoingCheck.matches) {
+                    if (outgoingCheck?.current == true && outgoingCheck.matches &&
+                        !outgoingCheck.openDiscrepancy
+                    ) {
                         stringResource(R.string.dispatch_handover_confirmed)
                     } else {
                         stringResource(R.string.dispatch_handover_missing)

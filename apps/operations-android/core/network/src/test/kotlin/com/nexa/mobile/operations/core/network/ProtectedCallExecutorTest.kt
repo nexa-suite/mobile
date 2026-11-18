@@ -37,6 +37,7 @@ class ProtectedCallExecutorTest {
         assertTrue(requests.all { it.url.encodedPath == PATH })
         assertTrue(requests.all { it.url.scheme == "http" && it.url.host == "127.0.0.1" })
         assertTrue(requests.all { it.header("Authorization") != null })
+        assertTrue(requests.all { it.header("X-Nexa-Client") == null })
         assertTrue(requests.map { it.header("Authorization") }.distinct().size == 1)
         assertEquals(2, tokens.epochChecks)
         assertEquals(0, tokens.recoverCalls)
@@ -65,6 +66,30 @@ class ProtectedCallExecutorTest {
             assertEquals(1, requests.size)
             assertEquals(0, tokens.recoverCalls)
         }
+    }
+
+    @Test
+    fun nativeClientMutationAddsMarkerAndKeepsIdempotencyHeader() = runBlocking {
+        val requests = mutableListOf<Request>()
+        val executor = executor(FakeAccessTokens()) { chain ->
+            requests += chain.request()
+            response(chain.request(), 201)
+        }
+
+        val result = executor.execute(
+            ProtectedRequest(
+                ProtectedMethod.POST,
+                "/api/v1/notifications/push-subscriptions",
+                payload = "{}",
+                idempotencyKey = "stable-registration-key",
+                nativeClient = true
+            )
+        )
+
+        assertEquals(201, (result as ProtectedResult.Success).status)
+        assertEquals(1, requests.size)
+        assertEquals("NATIVE", requests.single().header("X-Nexa-Client"))
+        assertEquals("stable-registration-key", requests.single().header("Idempotency-Key"))
     }
 
     @Test

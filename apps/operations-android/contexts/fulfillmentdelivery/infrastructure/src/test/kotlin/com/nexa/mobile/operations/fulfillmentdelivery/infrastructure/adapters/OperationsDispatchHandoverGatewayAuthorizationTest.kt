@@ -34,6 +34,48 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class OperationsDispatchHandoverGatewayAuthorizationTest {
     @Test
+    fun coordinatorHandoverUsesDispatchSummaryAndTreats204AsNoWarehouseCheck() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val permissions = setOf(DispatchHandoverPermissions.READ, "dispatch.complete")
+            server.enqueue(
+                jsonResponse(
+                    """{"id":"$FULFILLMENT_ID","status":"READY_FOR_DISPATCH","version":1,"updatedAt":"2026-10-26T00:00:00Z"}"""
+                ).addHeader("ETag", "\"1\"")
+            )
+            server.enqueue(
+                jsonResponse(
+                    """{"subjectKind":"PREPARED_FULFILLMENT","fulfillmentId":"$FULFILLMENT_ID","fulfillmentVersion":1,"fulfillmentStatus":"READY_FOR_DISPATCH","physicalAllocationId":"$ALLOCATION_ID","physicalAllocationStatus":"ALLOCATED","physicalAllocationVersion":1,"allocationComplete":true,"pickingComplete":true,"pickingEvidenceComplete":true,"ready":true,"reasons":[],"lines":[],"asOf":"2026-10-26T00:00:00Z"}"""
+                )
+            )
+            server.enqueue(MockResponse().setResponseCode(204))
+            server.enqueue(MockResponse().setResponseCode(204))
+            val sessions = activeSessions(permissions, backgroundScope)
+
+            val result = gateway(server, sessions).load(readiness(), context(permissions))
+
+            assertTrue(
+                "Expected a pending handover snapshot, got $result",
+                result is DispatchHandoverGatewayResult.Snapshot
+            )
+            val snapshot = (result as DispatchHandoverGatewayResult.Snapshot).value
+            assertEquals(null, snapshot.outgoingCheck)
+            assertFalse(snapshot.canConfirm)
+            assertEquals(4, server.requestCount)
+            val requestPaths = List(4) { server.takeRequest().path }
+            assertEquals(
+                listOf(
+                    "/api/v1/fulfillments/$FULFILLMENT_ID",
+                    "/api/v1/dispatch-readiness/$FULFILLMENT_ID",
+                    "/api/v1/fulfillments/$FULFILLMENT_ID/outgoing-checks/current-summary",
+                    "/api/v1/fulfillments/$FULFILLMENT_ID/driver-assignments"
+                ),
+                requestPaths
+            )
+        }
+    }
+
+    @Test
     fun canonicalAndAliasPermissionsReachProtectedDispatchReadWithoutFulfillmentManage() = runTest {
         for (completionPermission in DispatchHandoverPermissions.complete) {
             MockWebServer().use { server ->
@@ -139,6 +181,11 @@ class OperationsDispatchHandoverGatewayAuthorizationTest {
             JsonDispatchRequestBodyCodec()
         )
     }
+
+    private fun jsonResponse(body: String) = MockResponse()
+        .setResponseCode(200)
+        .addHeader("Content-Type", "application/json; charset=utf-8")
+        .setBody(body)
 
     private suspend fun activeSessions(
         permissions: Set<String>,

@@ -3,10 +3,41 @@ import '../../../core/network/nexa_api_client.dart';
 import '../application/buyer_orders_repository.dart';
 
 final class BuyerOrdersRepositoryImpl
-    implements BuyerOrdersRepository, BuyerOrderHistoryRepository {
+    implements
+        BuyerOrdersRepository,
+        BuyerOrderHistoryRepository,
+        BuyerOrderSummaryExportRepository {
   BuyerOrdersRepositoryImpl(this._api);
 
   final NexaApiClient _api;
+
+  @override
+  Future<BuyerOrderSummaryExport> downloadSummary(
+    String orderId,
+    String format,
+  ) async {
+    if (!RegExp(r'^[A-Za-z0-9-]{1,80}$').hasMatch(orderId) ||
+        !const {'pdf', 'csv'}.contains(format)) {
+      _invalidResponse();
+    }
+    final response = await _api.getBinary(
+      '/buyer/orders/${Uri.encodeComponent(orderId)}/exports/summary.$format',
+      refreshAfterUnauthorized: true,
+    );
+    final contentType = response.headers.entries
+        .where((entry) => entry.key.toLowerCase() == 'content-type')
+        .map((entry) => entry.value.split(';').first.trim().toLowerCase())
+        .firstOrNull;
+    if (response.statusCode != 200 ||
+        response.bytes.isEmpty ||
+        contentType != (format == 'pdf' ? 'application/pdf' : 'text/csv')) {
+      response.clear();
+      _invalidResponse();
+    }
+    final result = BuyerOrderSummaryExport(response.bytes);
+    response.clear();
+    return result;
+  }
 
   @override
   Future<BuyerOrdersPageProjection> list({

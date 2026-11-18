@@ -4,6 +4,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.Pic
 
 sealed interface PickingWorkListResult {
     data class Loaded(val value: PickingWorkPage) : PickingWorkListResult
+    data class Cached(val value: PickingWorkListCacheProjection) : PickingWorkListResult
     data object NetworkUnavailable : PickingWorkListResult
     data object ServiceUnavailable : PickingWorkListResult
     data object PermissionDenied : PickingWorkListResult

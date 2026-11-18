@@ -1,3 +1,12 @@
+import 'contexts/payments/application/buyer_payment_methods.dart';
+import 'contexts/payments/infrastructure/buyer_payment_methods_repository_impl.dart';
+import 'contexts/payments/infrastructure/stripe_buyer_payment_setup.dart';
+import 'contexts/payments/presentation/buyer_payment_methods_page.dart';
+import 'contexts/payments/presentation/buyer_payment_methods_view_model.dart';
+import 'contexts/customer_buyer_relationships/application/buyer_conversation_repository.dart';
+import 'contexts/customer_buyer_relationships/infrastructure/buyer_conversation_repository_impl.dart';
+import 'contexts/customer_buyer_relationships/presentation/buyer_conversation_page.dart';
+import 'contexts/customer_buyer_relationships/presentation/buyer_conversation_view_model.dart';
 import 'contexts/fulfillment_delivery/application/buyer_delivery_instructions_repository.dart';
 import 'contexts/fulfillment_delivery/infrastructure/buyer_delivery_instructions_repository_impl.dart';
 import 'contexts/fulfillment_delivery/presentation/buyer_delivery_instructions_page.dart';
@@ -29,6 +38,7 @@ import 'package:provider/provider.dart';
 import 'app/buyer_workspace_navigation.dart';
 import 'app/buyer_shopping_summary.dart';
 import 'app/buyer_delivery_qr_scanner.dart';
+import 'app/buyer_mobile_terms_navigation.dart';
 import 'contexts/business_documents/application/business_documents_repository.dart';
 import 'contexts/business_documents/infrastructure/business_documents_repository_impl.dart';
 import 'contexts/business_documents/presentation/business_document_detail_page.dart';
@@ -49,13 +59,16 @@ import 'contexts/customer_buyer_relationships/infrastructure/buyer_favorites_rep
 import 'contexts/customer_buyer_relationships/presentation/buyer_favorites_page.dart';
 import 'contexts/customer_buyer_relationships/presentation/buyer_favorites_view_model.dart';
 import 'contexts/fulfillment_delivery/application/buyer_deliveries_repository.dart';
+import 'contexts/fulfillment_delivery/infrastructure/secure_buyer_delivery_summary_cache.dart';
 import 'contexts/fulfillment_delivery/application/buyer_handoff_receipt_repository.dart';
 import 'contexts/fulfillment_delivery/application/buyer_receipt_evidence_idempotency_store.dart';
+import 'contexts/fulfillment_delivery/application/buyer_receipt_draft_store.dart';
 import 'contexts/fulfillment_delivery/application/buyer_receipt_idempotency_store.dart';
 import 'contexts/fulfillment_delivery/infrastructure/buyer_deliveries_repository_impl.dart';
 import 'contexts/fulfillment_delivery/infrastructure/buyer_handoff_receipt_repository_impl.dart';
 import 'contexts/fulfillment_delivery/infrastructure/file_buyer_receipt_evidence_idempotency_store.dart';
 import 'contexts/fulfillment_delivery/infrastructure/file_buyer_receipt_idempotency_store.dart';
+import 'contexts/fulfillment_delivery/infrastructure/secure_buyer_receipt_draft_store.dart';
 import 'contexts/fulfillment_delivery/presentation/buyer_deliveries_page.dart';
 import 'contexts/fulfillment_delivery/presentation/buyer_deliveries_view_model.dart';
 import 'contexts/fulfillment_delivery/presentation/buyer_delivery_detail_page.dart';
@@ -98,10 +111,14 @@ import 'contexts/sales_commitment/presentation/purchase_request_composer_page.da
 import 'contexts/sales_commitment/presentation/purchase_request_composer_view_model.dart';
 import 'contexts/tenant_access_governance/application/buyer_access_repository.dart';
 import 'contexts/tenant_access_governance/application/buyer_change_feed_repository.dart';
+import 'contexts/tenant_access_governance/application/buyer_mobile_terms_repository.dart';
 import 'contexts/tenant_access_governance/infrastructure/buyer_access_repository_impl.dart';
 import 'contexts/tenant_access_governance/infrastructure/buyer_change_feed_repository_impl.dart';
+import 'contexts/tenant_access_governance/infrastructure/buyer_mobile_terms_repository_impl.dart';
 import 'contexts/tenant_access_governance/infrastructure/local_buyer_biometric_authenticator.dart';
 import 'contexts/tenant_access_governance/presentation/buyer_access_view_model.dart';
+import 'contexts/tenant_access_governance/presentation/buyer_mobile_terms_page.dart';
+import 'contexts/tenant_access_governance/presentation/buyer_mobile_terms_view_model.dart';
 import 'contexts/tenant_access_governance/presentation/buyer_password_recovery_view_model.dart';
 import 'contexts/tenant_access_governance/presentation/buyer_password_reset_page.dart';
 import 'contexts/tenant_access_governance/presentation/context_selection_page.dart';
@@ -113,9 +130,13 @@ import 'contexts/tenant_access_governance/infrastructure/buyer_password_recovery
 import 'core/configuration/buyer_map_configuration.dart';
 import 'core/network/nexa_api_client.dart';
 import 'core/presentation/nexa_buyer_theme.dart';
+import 'contexts/notifications/application/buyer_push_registration.dart';
+import 'contexts/notifications/infrastructure/buyer_push_registration_gateway.dart';
+import 'contexts/notifications/infrastructure/firebase_buyer_push_device.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final pushDevice = await FirebaseBuyerPushDevice.configure();
   final walletCheckout = await StripeBuyerWalletCheckout.configure(
     const String.fromEnvironment('NEXA_STRIPE_PUBLISHABLE_KEY'),
   );
@@ -128,6 +149,7 @@ Future<void> main() async {
     BuyerMobileApp(
       apiBaseUrl: const String.fromEnvironment('NEXA_API_BASE_URL'),
       allowLocalHttp: kDebugMode,
+      pushDevice: pushDevice,
       walletCheckout: walletCheckout,
       mapTileUrlTemplate: mapConfiguration.tileUrlTemplate,
       mapAttribution: mapConfiguration.attribution,
@@ -142,6 +164,7 @@ final class BuyerMobileApp extends StatefulWidget {
     required this.allowLocalHttp,
     this.mapTileUrlTemplate = '',
     this.mapAttribution = '',
+    this.pushDevice,
     this.httpClient,
     this.walletCheckout,
   });
@@ -150,6 +173,7 @@ final class BuyerMobileApp extends StatefulWidget {
   final bool allowLocalHttp;
   final String mapTileUrlTemplate;
   final String mapAttribution;
+  final BuyerPushDevice? pushDevice;
   final http.Client? httpClient;
   final BuyerWalletCheckoutPort? walletCheckout;
 
@@ -157,7 +181,9 @@ final class BuyerMobileApp extends StatefulWidget {
   State<BuyerMobileApp> createState() => _BuyerMobileAppState();
 }
 
-final class _BuyerMobileAppState extends State<BuyerMobileApp> {
+final class _BuyerMobileAppState extends State<BuyerMobileApp>
+    with WidgetsBindingObserver {
+  BuyerPushRegistration? _pushRegistration;
   http.Client? _httpClient;
   BuyerDeliveryInstructionsRepository? _deliveryInstructionsRepository;
   BuyerFavoritesRepository? _favoritesRepository;
@@ -166,6 +192,10 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
   BuyerAccessRepositoryImpl? _accessRepository;
   BuyerChangeFeedRepositoryImpl? _buyerChangeFeedRepository;
   BuyerAccessViewModel? _accessViewModel;
+  BuyerMobileTermsRepositoryImpl? _mobileTermsRepository;
+  BuyerMobileTermsViewModel? _mobileTermsViewModel;
+  final BuyerMobileTermsNavigation _mobileTermsNavigation =
+      BuyerMobileTermsNavigation();
   password_recovery.BuyerPasswordRecoveryRepositoryImpl?
   _passwordRecoveryRepository;
   BuyerPasswordRecoveryViewModel? _passwordRecoveryViewModel;
@@ -180,7 +210,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
   FileBuyerReceiptIdempotencyStore? _buyerReceiptIdempotencyStore;
   FileBuyerReceiptEvidenceIdempotencyStore?
   _buyerReceiptEvidenceIdempotencyStore;
+  BuyerPaymentMethodsRepositoryImpl? _paymentMethodsRepository;
   BuyerOrdersRepositoryImpl? _ordersRepository;
+  BuyerConversationRepositoryImpl? _conversationRepository;
   PurchaseRequestRepositoryImpl? _purchaseRequestRepository;
   BusinessDocumentsRepositoryImpl? _businessDocumentsRepository;
   BuyerNotificationsRepositoryImpl? _notificationsRepository;
@@ -191,6 +223,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     try {
       final origin = NexaApiOrigin.parse(
         widget.apiBaseUrl,
@@ -219,6 +252,14 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         _accessRepository!,
         biometricAuthenticator: LocalBuyerBiometricAuthenticator(),
       );
+      _mobileTermsRepository = BuyerMobileTermsRepositoryImpl(
+        api,
+        _accessRepository!,
+      );
+      _mobileTermsViewModel = BuyerMobileTermsViewModel(
+        _mobileTermsRepository!,
+        _accessRepository!,
+      );
       _catalogRepository = CatalogRepositoryImpl(api);
       _creditExposureRepository = BuyerCreditExposureRepositoryImpl(api);
       _paymentsRepository = BuyerPaymentsRepositoryImpl(api);
@@ -230,7 +271,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
       _buyerReceiptIdempotencyStore = FileBuyerReceiptIdempotencyStore();
       _buyerReceiptEvidenceIdempotencyStore =
           FileBuyerReceiptEvidenceIdempotencyStore();
+      _paymentMethodsRepository = BuyerPaymentMethodsRepositoryImpl(api);
       _ordersRepository = BuyerOrdersRepositoryImpl(api);
+      _conversationRepository = BuyerConversationRepositoryImpl(api);
       _purchaseRequestRepository = PurchaseRequestRepositoryImpl(
         api,
         FilePurchaseRequestIdempotencyStore(),
@@ -243,11 +286,26 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
       );
       _router = _createRouter(
         _accessViewModel!,
+        _mobileTermsViewModel!,
+        _mobileTermsNavigation,
         _paymentsRepository!,
         _paymentIdempotencyStore!,
         widget.mapTileUrlTemplate,
         widget.mapAttribution,
       );
+      final pushDevice = widget.pushDevice;
+      if (pushDevice != null) {
+        _pushRegistration = BuyerPushRegistration(
+          device: pushDevice,
+          gateway: NexaBuyerPushRegistrationGateway(api),
+          access: _accessRepository!,
+          platform: defaultTargetPlatform == TargetPlatform.iOS
+              ? 'IOS'
+              : 'ANDROID',
+          refreshInbox: _notificationsViewModel!.refreshInbox,
+          openInbox: () => _router?.go('/notifications'),
+        )..start();
+      }
     } on FormatException {
       _configurationInvalid = true;
     }
@@ -255,8 +313,11 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_pushRegistration?.dispose());
     _router?.dispose();
     _notificationsViewModel?.dispose();
+    _mobileTermsViewModel?.dispose();
     _passwordRecoveryViewModel?.dispose();
     _accessViewModel?.dispose();
     _accessRepository?.dispose();
@@ -265,10 +326,20 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _pushRegistration?.refresh();
+      _mobileTermsViewModel?.refreshAfterResume();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final access = _accessRepository;
     final changeFeed = _buyerChangeFeedRepository;
     final accessViewModel = _accessViewModel;
+    final mobileTermsRepository = _mobileTermsRepository;
+    final mobileTermsViewModel = _mobileTermsViewModel;
     final passwordRecoveryRepository = _passwordRecoveryRepository;
     final passwordRecoveryViewModel = _passwordRecoveryViewModel;
     final catalog = _catalogRepository;
@@ -291,6 +362,8 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         access == null ||
         changeFeed == null ||
         accessViewModel == null ||
+        mobileTermsRepository == null ||
+        mobileTermsViewModel == null ||
         passwordRecoveryRepository == null ||
         passwordRecoveryViewModel == null ||
         catalog == null ||
@@ -318,6 +391,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         ),
         Provider<BuyerAccessRepository>.value(value: access),
         Provider<BuyerChangeFeedRepository>.value(value: changeFeed),
+        Provider<BuyerMobileTermsRepository>.value(
+          value: mobileTermsRepository,
+        ),
         Provider<password_recovery.BuyerPasswordRecoveryRepository>.value(
           value: passwordRecoveryRepository,
         ),
@@ -355,7 +431,24 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         Provider<BuyerReceiptEvidenceIdempotencyStore>.value(
           value: buyerReceiptEvidenceIdempotencyStore,
         ),
+        Provider<BuyerReceiptDraftStore>(
+          create: (_) => SecureBuyerReceiptDraftStore(),
+        ),
+        Provider<BuyerConversationRepository>.value(
+          value: _conversationRepository!,
+        ),
+        Provider<PendingBuyerMessageStore>(
+          create: (_) => SecurePendingBuyerMessageStore(),
+        ),
+        Provider<BuyerPaymentMethodsRepository>.value(
+          value: _paymentMethodsRepository!,
+        ),
+        Provider<BuyerSetupKeyStore>(create: (_) => SecureBuyerSetupKeyStore()),
+        Provider<BuyerPaymentSetupPort>(
+          create: (_) => const StripeBuyerPaymentSetup(),
+        ),
         Provider<BuyerOrdersRepository>.value(value: orders),
+        Provider<BuyerOrderSummaryExportRepository>.value(value: orders),
         Provider<BuyerOrderHistoryRepository>.value(value: orders),
         Provider<PurchaseRequestRepository>.value(value: purchaseRequests),
         Provider<BuyerPurchaseWorkspaceRepository>.value(
@@ -365,6 +458,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
         Provider<BuyerNotificationsRepository>.value(value: notifications),
         ChangeNotifierProvider<BuyerAccessViewModel>.value(
           value: accessViewModel,
+        ),
+        ChangeNotifierProvider<BuyerMobileTermsViewModel>.value(
+          value: mobileTermsViewModel,
         ),
         ChangeNotifierProvider<BuyerPasswordRecoveryViewModel>.value(
           value: passwordRecoveryViewModel,
@@ -385,6 +481,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
           create: (context) => BuyerDeliveriesViewModel(
             context.read<BuyerDeliveriesRepository>(),
             context.read<BuyerAccessRepository>(),
+            summaryCache: SecureBuyerDeliverySummaryCache(),
           ),
         ),
         ChangeNotifierProvider<BuyerRequestsViewModel>(
@@ -431,6 +528,8 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp> {
 
 GoRouter _createRouter(
   BuyerAccessViewModel access,
+  BuyerMobileTermsViewModel mobileTerms,
+  BuyerMobileTermsNavigation mobileTermsNavigation,
   BuyerPaymentsRepository payments,
   PaymentReportIdempotencyStore paymentIdempotencyStore,
   String mapTileUrlTemplate,
@@ -438,15 +537,58 @@ GoRouter _createRouter(
 ) => GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/home',
-  refreshListenable: access,
-  redirect: (context, state) => BuyerWorkspaceNavigation.redirectLocation(
-    access.snapshot,
-    state.uri.path,
-  ),
+  refreshListenable: Listenable.merge([access, mobileTerms]),
+  redirect: (context, state) {
+    final path = state.uri.path;
+    final snapshot = access.snapshot;
+    final termsRedirect = mobileTermsNavigation.redirectToTermsIfRequired(
+      snapshot: snapshot,
+      path: path,
+      acceptedForCurrentSession: mobileTerms.isAcceptedForCurrentSession,
+    );
+    if (termsRedirect != null) return termsRedirect;
+    if (path == '/legal/terms') return null;
+    return BuyerWorkspaceNavigation.redirectLocation(snapshot, path);
+  },
   routes: [
+    GoRoute(
+      path: '/legal/terms',
+      builder: (context, state) => BuyerMobileTermsPage(
+        onContinue: () => context.go(
+          mobileTermsNavigation.continueAfterAcceptance(access.snapshot),
+        ),
+        onSignOut: () async {
+          await access.signOut();
+          if (context.mounted) context.go('/sign-in');
+        },
+      ),
+    ),
     GoRoute(
       path: '/account',
       builder: (context, state) => const BuyerAccountPage(),
+    ),
+    GoRoute(
+      path: '/messages',
+      builder: (context, state) => ChangeNotifierProvider(
+        create: (context) => BuyerConversationViewModel(
+          context.read<BuyerConversationRepository>(),
+          context.read<PendingBuyerMessageStore>(),
+          context.read<BuyerAccessRepository>(),
+        ),
+        child: const BuyerConversationPage(),
+      ),
+    ),
+    GoRoute(
+      path: '/payment-methods',
+      builder: (context, state) => ChangeNotifierProvider(
+        create: (context) => BuyerPaymentMethodsViewModel(
+          context.read<BuyerPaymentMethodsRepository>(),
+          context.read<BuyerSetupKeyStore>(),
+          context.read<BuyerPaymentSetupPort>(),
+          context.read<BuyerAccessRepository>(),
+        ),
+        child: const BuyerPaymentMethodsPage(),
+      ),
     ),
     GoRoute(
       path: '/profile',

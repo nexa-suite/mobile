@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -31,17 +32,18 @@ import androidx.compose.ui.unit.dp
 import com.nexa.mobile.operations.core.designsystem.NexaColors
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackBanner
 import com.nexa.mobile.operations.core.designsystem.NexaFeedbackTone
-import com.nexa.mobile.operations.core.designsystem.NexaPrimaryButton
 import com.nexa.mobile.operations.core.designsystem.NexaShapes
 import com.nexa.mobile.operations.core.designsystem.NexaTopAppBar
-import com.nexa.mobile.operations.core.designsystem.NexaWorkSection
-import com.nexa.mobile.operations.core.designsystem.NexaWorkSummary
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingWorkListCacheItem
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.PickingWorkItem
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.R
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.common.OperationsGlyph
 import com.nexa.mobile.operations.fulfillmentdelivery.presentation.common.OperationsGlyphKind
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
-/** Lists current server-authorized picking work; opening a row triggers a fresh detail read. */
+/** Shows current work or an explicitly stale, summary-only read-only snapshot. */
 @Composable
 fun PickingWorkListScreen(
     state: PickingWorkListUiState,
@@ -124,6 +126,64 @@ fun PickingWorkListScreen(
                     }
                 }
 
+                PickingWorkListStatus.Cached -> {
+                    val cached = state.cachedProjection
+                    if (cached == null) {
+                        NexaFeedbackBanner(
+                            stringResource(R.string.picking_work_network_error),
+                            NexaFeedbackTone.Warning
+                        )
+                    } else {
+                        NexaFeedbackBanner(
+                            stringResource(
+                                R.string.picking_work_cached_notice,
+                                DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
+                                    .withLocale(LocalLocale.current.platformLocale)
+                                    .withZone(ZoneId.systemDefault())
+                                    .format(cached.asOf)
+                            ),
+                            NexaFeedbackTone.Warning
+                        )
+                        Text(
+                            pluralStringResource(
+                                R.plurals.picking_work_total,
+                                cached.totalItems.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt(),
+                                cached.totalItems.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
+                            ),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = NexaColors.TextSecondary
+                        )
+                        if (cached.items.isEmpty()) {
+                            NexaFeedbackBanner(
+                                stringResource(R.string.picking_work_empty),
+                                NexaFeedbackTone.Information
+                            )
+                        } else {
+                            cached.items.forEach { item ->
+                                PickingCachedWorkItemCard(item)
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                OutlinedButton(
+                                    onClick = onPreviousPage,
+                                    enabled = cached.page > 0
+                                ) {
+                                    Text(stringResource(R.string.picking_work_previous))
+                                }
+                                OutlinedButton(
+                                    onClick = onNextPage,
+                                    enabled = (cached.page.toLong() + 1) * cached.size <
+                                        cached.totalItems
+                                ) {
+                                    Text(stringResource(R.string.picking_work_next))
+                                }
+                            }
+                        }
+                    }
+                }
+
                 PickingWorkListStatus.NotRequested -> Unit
             }
 
@@ -163,41 +223,79 @@ private fun PickingWorkItemCard(item: PickingWorkItem, onSelectFulfillment: (Str
         colors = CardDefaults.cardColors(containerColor = NexaColors.Surface),
         border = BorderStroke(1.dp, NexaColors.Border)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        PickingWorkItemCardContent(item.orderNumber, item.lineCount, item.status, item.version)
+    }
+}
+
+@Composable
+private fun PickingCachedWorkItemCard(item: PickingWorkListCacheItem) {
+    val status = pickingStatusLabel(item.status)
+    val accessibilityLabel = pluralStringResource(
+        R.plurals.picking_work_item_accessibility,
+        item.lineCount,
+        item.lineCount,
+        status
+    )
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 80.dp)
+            .semantics { contentDescription = accessibilityLabel },
+        shape = NexaShapes.card,
+        colors = CardDefaults.cardColors(containerColor = NexaColors.Surface),
+        border = BorderStroke(1.dp, NexaColors.Border)
+    ) {
+        PickingWorkItemCardContent(item.orderNumber, item.lineCount, item.status, item.version)
+    }
+}
+
+@Composable
+private fun PickingWorkItemCardContent(
+    orderNumber: String?,
+    lineCount: Int,
+    rawStatus: String,
+    version: Long
+) {
+    val status = pickingStatusLabel(rawStatus)
+    Column(
+        modifier = Modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            OperationsGlyph(OperationsGlyphKind.Picking)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    orderNumber?.takeIf(String::isNotBlank)
+                        ?: stringResource(R.string.picking_work_item_heading),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = NexaColors.TextPrimary
+                )
+                Text(
+                    stringResource(R.string.picking_work_item_lines, lineCount),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = NexaColors.TextSecondary
+                )
+                Text(
+                    stringResource(R.string.picking_work_item_status, status, version),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = NexaColors.TextSecondary
+                )
+            }
+            Surface(
+                shape = NexaShapes.pill,
+                color = NexaColors.InfoSurface,
+                contentColor = NexaColors.PrimaryStrong,
+                border = BorderStroke(1.dp, NexaColors.InfoBorder)
             ) {
-                OperationsGlyph(OperationsGlyphKind.Picking)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        item.orderNumber?.takeIf(String::isNotBlank)
-                            ?: stringResource(R.string.picking_work_item_heading),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = NexaColors.TextPrimary
-                    )
-                    Text(
-                        stringResource(R.string.picking_work_item_lines, item.lineCount),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = NexaColors.TextSecondary
-                    )
-                }
-                Surface(
-                    shape = NexaShapes.pill,
-                    color = NexaColors.InfoSurface,
-                    contentColor = NexaColors.PrimaryStrong,
-                    border = BorderStroke(1.dp, NexaColors.InfoBorder)
-                ) {
-                    Text(
-                        status,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+                Text(
+                    status,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }
@@ -207,6 +305,9 @@ private fun PickingWorkItemCard(item: PickingWorkItem, onSelectFulfillment: (Str
 private fun pickingStatusLabel(status: String): String = when (status.uppercase()) {
     "ALLOCATED" -> stringResource(R.string.picking_work_status_allocated)
     "PICKING" -> stringResource(R.string.picking_work_status_picking)
+    "PICKED" -> stringResource(R.string.picking_work_status_picked)
+    "PACKED" -> stringResource(R.string.picking_work_status_packed)
+    "STAGED" -> stringResource(R.string.picking_work_status_staged)
     "READY_FOR_DISPATCH" -> stringResource(R.string.picking_work_status_ready)
     else -> status.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase)
 }

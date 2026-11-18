@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 final class BuyerOrderLineProjection {
   const BuyerOrderLineProjection({
     required this.itemName,
@@ -63,4 +65,19 @@ abstract interface class BuyerOrdersRepository {
   });
 
   Future<BuyerOrderProjection> detail(String orderId);
+}
+
+abstract interface class BuyerOrderSummaryExportRepository {
+  Future<BuyerOrderSummaryExport> downloadSummary(
+    String orderId,
+    String format,
+  );
+}
+
+final class BuyerOrderSummaryExport {
+  BuyerOrderSummaryExport(List<int> bytes) : bytes = Uint8List.fromList(bytes);
+
+  final Uint8List bytes;
+
+  void clear() => bytes.fillRange(0, bytes.length, 0);
 }

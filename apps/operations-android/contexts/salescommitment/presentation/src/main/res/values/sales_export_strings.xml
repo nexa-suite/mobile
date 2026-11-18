@@ -1,0 +1,8 @@
+<resources>
+    <string name="sales_export_pdf">Save PDF</string>
+    <string name="sales_export_csv">Save CSV</string>
+    <string name="sales_export_loading">Downloading summary…</string>
+    <string name="sales_export_saved">Summary saved.</string>
+    <string name="sales_export_failed">The summary could not be saved. Try again.</string>
+    <string name="sales_export_permission_denied">You do not have permission to export this order.</string>
+</resources>

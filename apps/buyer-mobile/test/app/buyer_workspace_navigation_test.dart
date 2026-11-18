@@ -3,6 +3,36 @@ import 'package:nexa_buyer_mobile/app/buyer_workspace_navigation.dart';
 import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/application/buyer_access_repository.dart';
 
 void main() {
+  test('messages and saved methods require current scoped server grants', () {
+    for (final route in {
+      '/messages': 'buyer.sales.read',
+      '/payment-methods': 'payment.read',
+    }.entries) {
+      expect(
+        BuyerWorkspaceNavigation.canOpenLocation(
+          _snapshot(permissions: {route.value}),
+          route.key,
+        ),
+        isTrue,
+      );
+      for (final denied in [
+        _snapshot(epoch: 2, permissions: const {}),
+        _snapshot(epoch: 0, permissions: {route.value}),
+        _snapshot(roles: const {'BOM'}, permissions: {route.value}),
+        const BuyerAccessSnapshot(status: BuyerAccessStatus.signedOut),
+      ]) {
+        expect(
+          BuyerWorkspaceNavigation.redirectLocation(denied, route.key),
+          isNotNull,
+        );
+        expect(
+          BuyerWorkspaceNavigation.canOpenLocation(denied, route.key),
+          isFalse,
+        );
+      }
+    }
+  });
+
   test('redirects are testable and have stable closed destinations', () {
     expect(
       BuyerWorkspaceNavigation.redirectLocation(

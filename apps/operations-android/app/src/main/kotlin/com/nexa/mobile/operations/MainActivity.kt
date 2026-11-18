@@ -53,6 +53,8 @@ import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commer
 import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.CustomerSearchViewModel
 import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.FieldVisitScreen
 import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.FieldVisitViewModel
+import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.SalesConversationAction
+import com.nexa.mobile.operations.customerbuyerrelationships.presentation.commercial.SalesConversationViewModel
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverDeliveryAuthority
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentMetadataWrite as IncidentMetadataWrite
 import com.nexa.mobile.operations.fulfillmentdelivery.application.delivery.DriverIncidentSelectionContext as IncidentSelectionContext
@@ -181,6 +183,10 @@ import com.nexa.mobile.operations.salescommitment.presentation.commercial.Direct
 import com.nexa.mobile.operations.salescommitment.presentation.commercial.DirectOrderViewModel
 import com.nexa.mobile.operations.salescommitment.presentation.commercial.FieldRequestDraftScreen
 import com.nexa.mobile.operations.salescommitment.presentation.commercial.FieldRequestDraftViewModel
+import com.nexa.mobile.operations.salescommitment.presentation.commercial.SalesOrderExportActions
+import com.nexa.mobile.operations.salescommitment.presentation.commercial.SalesOrderExportViewModel
+import com.nexa.mobile.operations.tenantaccessgovernance.application.legal.LegalAcceptanceGateway
+import com.nexa.mobile.operations.tenantaccessgovernance.application.legal.MobileTermsDocument
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.PermissionHint
@@ -193,6 +199,7 @@ import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.Acc
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessViewModel
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.legal.LegalAcceptanceViewModel
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.profile.OwnProfileViewModel
 import com.nexa.mobile.operations.visibility.OperationsOverviewScreen
 import dagger.hilt.android.AndroidEntryPoint
@@ -323,6 +330,16 @@ class MainActivity : ComponentActivity() {
         customerInstructionsFactory
     }
 
+    @Inject internal lateinit var salesConversationFactory: SalesConversationViewModelFactory
+    private val salesConversationViewModel: SalesConversationViewModel by viewModels {
+        salesConversationFactory
+    }
+
+    @Inject internal lateinit var salesOrderExportFactory: SalesOrderExportViewModelFactory
+    private val salesOrderExportViewModel: SalesOrderExportViewModel by viewModels {
+        salesOrderExportFactory
+    }
+
     @Inject internal lateinit var customerProgressFactory: CustomerProgressViewModelFactory
     private val customerProgressViewModel: CustomerProgressViewModel by viewModels {
         customerProgressFactory
@@ -433,6 +450,8 @@ class MainActivity : ComponentActivity() {
         notificationsFactory
     }
 
+    @Inject internal lateinit var fcmPushRegistrationCoordinator: FcmPushRegistrationCoordinator
+
     @Inject internal lateinit var fieldVisitFactory: FieldVisitViewModelFactory
     private val fieldVisitViewModel: FieldVisitViewModel by viewModels { fieldVisitFactory }
 
@@ -521,6 +540,7 @@ class MainActivity : ComponentActivity() {
         mutableStateOf<PendingTemperatureDispositionSeed?>(null)
     private val warehouseBatchViewModel: WarehouseBatchViewModel by viewModels()
     private var connectedRoute by mutableStateOf<ConnectedOperationRoute?>(null)
+    private var pendingPushInboxOpen by mutableStateOf(false)
     private var showCatalogForRequest by mutableStateOf(false)
     private var showCatalogForDirectOrder by mutableStateOf(false)
     private var pendingLoadDelivery by mutableStateOf<Pair<ConnectedOperationRoute, String>?>(null)
@@ -536,6 +556,8 @@ class MainActivity : ComponentActivity() {
 
     @Inject internal lateinit var operationsGateway: OperationsAccessGateway
 
+    @Inject internal lateinit var legalAcceptanceGateway: LegalAcceptanceGateway
+
     @Inject internal lateinit var catalogIdentificationGateway:
         OperationsCatalogIdentificationGateway
 
@@ -544,6 +566,9 @@ class MainActivity : ComponentActivity() {
     private val viewModel: RootViewModel by viewModels()
     private val accessViewModel: AccessViewModel by viewModels {
         AccessViewModelFactory(operationsGateway)
+    }
+    private val legalAcceptanceViewModel: LegalAcceptanceViewModel by viewModels {
+        LegalAcceptanceViewModelFactory(legalAcceptanceGateway)
     }
     private val warehouseViewModel: WarehouseViewModel by viewModels {
         WarehouseViewModelFactory(catalogIdentificationGateway, CatalogOperationsContextAdapter)
@@ -592,6 +617,62 @@ class MainActivity : ComponentActivity() {
 
     private var identifiedStorageSkuId: String? by mutableStateOf(null)
 
+    private fun recordPushNotificationTap(deliveredIntent: Intent?) {
+        if (deliveredIntent == null) return
+        val eventId = deliveredIntent.getStringExtra(EXTRA_PUSH_EVENT_ID)
+            ?: deliveredIntent.getStringExtra(FCM_EVENT_ID_FIELD)
+        val messageId = deliveredIntent.getStringExtra(FCM_MESSAGE_ID_FIELD)
+        val isPushTap = isFcmNotificationTap(
+            action = deliveredIntent.action,
+            hasLauncherCategory = deliveredIntent.categories
+                ?.contains(ANDROID_LAUNCHER_CATEGORY) == true,
+            explicitPushMarker = deliveredIntent.getBooleanExtra(
+                EXTRA_OPEN_NOTIFICATIONS_FROM_PUSH,
+                false
+            ),
+            messageId = messageId,
+            eventId = eventId
+        )
+        if (!isPushTap) return
+        pendingPushInboxOpen = true
+        setIntent(
+            Intent(deliveredIntent).apply {
+                if (action == ACTION_OPEN_NOTIFICATIONS_FROM_PUSH) action = Intent.ACTION_MAIN
+                data = null
+                type = null
+                removeExtra(EXTRA_OPEN_NOTIFICATIONS_FROM_PUSH)
+                removeExtra(EXTRA_PUSH_EVENT_ID)
+                removeExtra(FCM_EVENT_ID_FIELD)
+                removeExtra(FCM_MESSAGE_ID_FIELD)
+            }
+        )
+    }
+
+    private fun openNotificationsFromPush() {
+        val entry = CONNECTED_OPERATIONS.singleOrNull {
+            it.key == "operations.notifications"
+        } ?: return
+        val route = ConnectedOperationsNavigation.open(
+            entry,
+            viewModel.state.value,
+            accessViewModel.state.value,
+            warehouseViewModel.state.value
+        ) ?: return
+        closeConnectedOperation()
+        connectedRoute = route
+        val authority = route.authority
+        notificationsViewModel.activate(
+            NotificationsAuthority(
+                authority.userId,
+                authority.tenantId,
+                authority.workspaceId,
+                authority.membershipId,
+                authority.permissions,
+                route.authorityEpoch
+            )
+        )
+    }
+
     override fun onDestroy() {
         pendingDriverLocationConsent = null
         pendingDriverProofFile = null
@@ -609,6 +690,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        fcmPushRegistrationCoordinator.onForeground()
         if (pendingDriverLocationConsent == null &&
             connectedRoute?.entryKey == "driver.deliveries"
         ) {
@@ -643,8 +725,15 @@ class MainActivity : ComponentActivity() {
         verifyScannerForegroundReturn()
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        recordPushNotificationTap(intent)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        recordPushNotificationTap(intent)
         privateImageFileSelection.discardAbandonedSelections()
         AppTemperatureEvidencePhotoArtifactStore(applicationContext).discardAbandonedArtifacts()
         enableEdgeToEdge()
@@ -652,6 +741,12 @@ class MainActivity : ComponentActivity() {
             OperationsTheme {
                 var showDriverLocationDisclosure by remember { mutableStateOf(false) }
                 var showDriverLocationPermissionHelp by remember { mutableStateOf(false) }
+                var showPushNotificationPermissionRationale by
+                    remember { mutableStateOf(false) }
+                val pushNotificationPermissionLauncher =
+                    rememberLauncherForActivityResult(
+                        ActivityResultContracts.RequestPermission()
+                    ) { fcmPushRegistrationCoordinator.onForeground() }
                 val driverNotificationPermissionLauncher =
                     rememberLauncherForActivityResult(
                         ActivityResultContracts.RequestPermission()
@@ -706,6 +801,41 @@ class MainActivity : ComponentActivity() {
                             showDriverLocationPermissionHelp = true
                         }
                     }
+                if (showPushNotificationPermissionRationale) {
+                    AlertDialog(
+                        onDismissRequest = {
+                            showPushNotificationPermissionRationale = false
+                        },
+                        title = {
+                            Text(stringResource(R.string.push_notification_consent_title))
+                        },
+                        text = {
+                            Text(stringResource(R.string.push_notification_consent_body))
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showPushNotificationPermissionRationale = false
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                    checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                                    PackageManager.PERMISSION_GRANTED
+                                ) {
+                                    pushNotificationPermissionLauncher.launch(
+                                        Manifest.permission.POST_NOTIFICATIONS
+                                    )
+                                }
+                            }) {
+                                Text(stringResource(R.string.push_notification_consent_continue))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = {
+                                showPushNotificationPermissionRationale = false
+                            }) {
+                                Text(stringResource(R.string.work_nav_cancel))
+                            }
+                        }
+                    )
+                }
                 if (showDriverLocationDisclosure) {
                     AlertDialog(
                         onDismissRequest = { showDriverLocationDisclosure = false },
@@ -971,6 +1101,10 @@ class MainActivity : ComponentActivity() {
                 }
                 val state = viewModel.state.collectAsStateWithLifecycle().value
                 val accessState = accessViewModel.state.collectAsStateWithLifecycle().value
+                val legalAcceptanceState =
+                    legalAcceptanceViewModel.state.collectAsStateWithLifecycle().value
+                val publicTermsState =
+                    legalAcceptanceViewModel.publicTerms.collectAsStateWithLifecycle().value
                 val warehouseState = warehouseViewModel.state.collectAsStateWithLifecycle().value
                 val ownProfileState = ownProfileViewModel.state.collectAsStateWithLifecycle().value
                 val chooseCustomer: (() -> Unit)? = if (
@@ -1633,6 +1767,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                LaunchedEffect(state, accessState.authorityEpoch) {
+                    if (state == SessionState.Active) {
+                        legalAcceptanceViewModel.activate(accessState.authorityEpoch)
+                    } else {
+                        legalAcceptanceViewModel.deactivate()
+                    }
+                }
+
                 LaunchedEffect(state) {
                     if (state == SessionState.SignedOut || state == SessionState.ContextRequired) {
                         logoutRequested = false
@@ -2182,6 +2324,31 @@ class MainActivity : ComponentActivity() {
                         viewModel.verifyForegroundReturn(onVerified)
                     }
                 ) {
+                    LaunchedEffect(
+                        pendingPushInboxOpen,
+                        state,
+                        accessState.stage,
+                        accessState.authorityEpoch
+                    ) {
+                        if (!pendingPushInboxOpen) return@LaunchedEffect
+                        when {
+                            state == SessionState.Bootstrapping ||
+                                state is SessionState.Restoring -> Unit
+
+                            state != SessionState.Active -> pendingPushInboxOpen = false
+
+                            accessState.stage == AccessStage.WorkAuthorized -> {
+                                openNotificationsFromPush()
+                                pendingPushInboxOpen = false
+                            }
+
+                            accessState.stage == AccessStage.NoContexts ||
+                                accessState.stage == AccessStage.SessionExpired ||
+                                accessState.stage == AccessStage.LocalProtectionError -> {
+                                pendingPushInboxOpen = false
+                            }
+                        }
+                    }
                     RootNavigation(
                         ownProfile = ownProfileState.profile,
                         onProfileOpened = {
@@ -2197,6 +2364,13 @@ class MainActivity : ComponentActivity() {
                         state = state,
                         accessState = accessState,
                         warehouseState = warehouseState,
+                        legalAcceptanceState = legalAcceptanceState,
+                        publicTermsState = publicTermsState,
+                        onLegalTermsAccept = { document: MobileTermsDocument, confirmed: Boolean ->
+                            legalAcceptanceViewModel.accept(document, confirmed)
+                        },
+                        onLegalTermsRetry = legalAcceptanceViewModel::retryAcceptance,
+                        onPublicTermsLoad = legalAcceptanceViewModel::loadPublicTerms,
                         dashboard = dashboardSnapshot,
                         dashboardChangeSignals = if (
                             dashboardStockReadAllowed && dashboardEpoch > 0 &&
@@ -2235,6 +2409,15 @@ class MainActivity : ComponentActivity() {
                                 ?.let { route ->
                                     closeConnectedOperation()
                                     connectedRoute = route
+                                    if (entry.key == "operations.notifications" &&
+                                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                        checkSelfPermission(
+                                            Manifest.permission.POST_NOTIFICATIONS
+                                        ) !=
+                                        PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        showPushNotificationPermissionRationale = true
+                                    }
                                     val authority = route.authority
                                     when (entry.key) {
                                         "warehouse.cycle-count" -> cycleCountViewModel.activate(
@@ -2963,6 +3146,8 @@ class MainActivity : ComponentActivity() {
                                             onQuantityChanged = pickingViewModel::quantityChanged,
                                             onStartPicking = pickingViewModel::startPicking,
                                             onConfirmPick = pickingViewModel::confirmPick,
+                                            onAdvanceFulfillment =
+                                                pickingViewModel::advanceFulfillment,
                                             onRetryUnknownOutcome =
                                                 pickingViewModel::retryUnknownOutcome,
                                             onRetryIntentCleanup =
@@ -3801,33 +3986,46 @@ class MainActivity : ComponentActivity() {
                                     onNextPage = commercialCatalogViewModel::nextPage,
                                     onSelectProduct = commercialCatalogViewModel::selectProduct,
                                     onRouteClosed = commercialCatalogViewModel::deactivate,
-                                    onPrepareRequest = { customerId, productId ->
-                                        val entry = CONNECTED_OPERATIONS.single {
-                                            it.key ==
-                                                "commercial.request"
-                                        }
+                                    onPrepareRequest = if (
                                         ConnectedOperationsNavigation.open(
-                                            entry,
+                                            CONNECTED_OPERATIONS.single {
+                                                it.key == "commercial.request"
+                                            },
                                             state,
                                             accessState,
                                             warehouseState
-                                        )?.let { route ->
-                                            closeConnectedOperation()
-                                            connectedRoute = route
-                                            val authority = route.authority
-                                            fieldRequestDraftViewModel.activate(
-                                                CommercialAuthority(
-                                                    authority.userId,
-                                                    authority.tenantId,
-                                                    authority.workspaceId,
-                                                    authority.membershipId,
-                                                    authority.permissions,
-                                                    route.authorityEpoch
-                                                ),
-                                                customerId,
-                                                productId
-                                            )
+                                        ) != null
+                                    ) {
+                                        { customerId, productId ->
+                                            val entry = CONNECTED_OPERATIONS.single {
+                                                it.key ==
+                                                    "commercial.request"
+                                            }
+                                            ConnectedOperationsNavigation.open(
+                                                entry,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )?.let { route ->
+                                                closeConnectedOperation()
+                                                connectedRoute = route
+                                                val authority = route.authority
+                                                fieldRequestDraftViewModel.activate(
+                                                    CommercialAuthority(
+                                                        authority.userId,
+                                                        authority.tenantId,
+                                                        authority.workspaceId,
+                                                        authority.membershipId,
+                                                        authority.permissions,
+                                                        route.authorityEpoch
+                                                    ),
+                                                    customerId,
+                                                    productId
+                                                )
+                                            }
                                         }
+                                    } else {
+                                        null
                                     },
                                     onCreateDirectOrder = if (
                                         accessState.activeContext?.verifiedAuthority?.permissions
@@ -3879,6 +4077,22 @@ class MainActivity : ComponentActivity() {
 
                                 "commercial.progress" -> CustomerProgressScreen(
                                     state = customerProgressState,
+                                    orderActions = { orderId ->
+                                        connectedRoute?.let { route ->
+                                            val authority = route.authority
+                                            if ("order_export.read" in authority.permissions) {
+                                                val exportAuthority =
+                                                    authority.toSalesOrderExportAuthority(
+                                                        route.authorityEpoch
+                                                    )
+                                                SalesOrderExportActions(
+                                                    orderId = orderId,
+                                                    authority = exportAuthority,
+                                                    viewModel = salesOrderExportViewModel
+                                                )
+                                            }
+                                        }
+                                    },
                                     onBack = ::closeConnectedOperation,
                                     onChooseCustomer = chooseCustomer,
                                     onCustomerIdChanged =
@@ -3919,6 +4133,18 @@ class MainActivity : ComponentActivity() {
 
                                 "commercial.customers" -> CustomerSearchScreen(
                                     state = customerSearchState,
+                                    customerActions = { accountId ->
+                                        connectedRoute?.let { route ->
+                                            val authority = route.authority
+                                            SalesConversationAction(
+                                                accountId = accountId,
+                                                authority = authority.toSalesMessagingAuthority(
+                                                    route.authorityEpoch
+                                                ),
+                                                viewModel = salesConversationViewModel
+                                            )
+                                        }
+                                    },
                                     onBack = ::closeConnectedOperation,
                                     onQueryChanged = customerSearchViewModel::queryChanged,
                                     onSearch = customerSearchViewModel::search,
@@ -3926,32 +4152,45 @@ class MainActivity : ComponentActivity() {
                                     onPreviousPage = customerSearchViewModel::previousPage,
                                     onNextPage = customerSearchViewModel::nextPage,
                                     onRouteClosed = customerSearchViewModel::deactivate,
-                                    onPrepareRequest = { customerId ->
-                                        val entry = CONNECTED_OPERATIONS.single {
-                                            it.key ==
-                                                "commercial.request"
-                                        }
+                                    onPrepareRequest = if (
                                         ConnectedOperationsNavigation.open(
-                                            entry,
+                                            CONNECTED_OPERATIONS.single {
+                                                it.key == "commercial.request"
+                                            },
                                             state,
                                             accessState,
                                             warehouseState
-                                        )?.let { route ->
-                                            closeConnectedOperation()
-                                            connectedRoute = route
-                                            val authority = route.authority
-                                            fieldRequestDraftViewModel.activate(
-                                                CommercialAuthority(
-                                                    authority.userId,
-                                                    authority.tenantId,
-                                                    authority.workspaceId,
-                                                    authority.membershipId,
-                                                    authority.permissions,
-                                                    route.authorityEpoch
-                                                ),
-                                                customerId
-                                            )
+                                        ) != null
+                                    ) {
+                                        { customerId ->
+                                            val entry = CONNECTED_OPERATIONS.single {
+                                                it.key ==
+                                                    "commercial.request"
+                                            }
+                                            ConnectedOperationsNavigation.open(
+                                                entry,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )?.let { route ->
+                                                closeConnectedOperation()
+                                                connectedRoute = route
+                                                val authority = route.authority
+                                                fieldRequestDraftViewModel.activate(
+                                                    CommercialAuthority(
+                                                        authority.userId,
+                                                        authority.tenantId,
+                                                        authority.workspaceId,
+                                                        authority.membershipId,
+                                                        authority.permissions,
+                                                        route.authorityEpoch
+                                                    ),
+                                                    customerId
+                                                )
+                                            }
                                         }
+                                    } else {
+                                        null
                                     },
                                     onReviewProducts =
                                         if (
@@ -4261,6 +4500,51 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     canSealPod = readinessViewModel.canSealPod(),
+                                    onStartTransit = {
+                                        val current = readinessViewModel.state.value
+                                        val currentRoute = connectedRoute
+                                        if (current.detail?.deliveryId ==
+                                            current.deliveryPod?.deliveryId &&
+                                            current.detailStatus == ReadinessDetailStatus.Current &&
+                                            readinessViewModel.canStartTransit() &&
+                                            currentRoute?.authority?.permissions?.contains(
+                                                "logistics:write"
+                                            ) == true &&
+                                            ConnectedOperationsNavigation.permits(
+                                                currentRoute,
+                                                CONNECTED_OPERATIONS,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            readinessViewModel.startTransit()
+                                        }
+                                    },
+                                    onRetryTransitStart = {
+                                        val current = readinessViewModel.state.value
+                                        val currentRoute = connectedRoute
+                                        if (current.pendingTransitStart?.command?.deliveryId ==
+                                            current.detail?.deliveryId &&
+                                            current.detailStatus == ReadinessDetailStatus.Current &&
+                                            readinessViewModel.canRetryTransitStart() &&
+                                            currentRoute?.authority?.permissions?.contains(
+                                                "logistics:write"
+                                            ) == true &&
+                                            ConnectedOperationsNavigation.permits(
+                                                currentRoute,
+                                                CONNECTED_OPERATIONS,
+                                                state,
+                                                accessState,
+                                                warehouseState
+                                            )
+                                        ) {
+                                            readinessViewModel.retryTransitStart()
+                                        }
+                                    },
+                                    canStartTransit = readinessViewModel.canStartTransit(),
+                                    canRetryTransitStart =
+                                        readinessViewModel.canRetryTransitStart(),
                                     onRecordTemperature = { fulfillmentId ->
                                         val current = readinessViewModel.state.value
                                         if (current.detail?.fulfillmentId == fulfillmentId &&
@@ -4531,6 +4815,8 @@ class MainActivity : ComponentActivity() {
                                     onQuantityChanged = pickingViewModel::quantityChanged,
                                     onStartPicking = pickingViewModel::startPicking,
                                     onConfirmPick = pickingViewModel::confirmPick,
+                                    onAdvanceFulfillment =
+                                        pickingViewModel::advanceFulfillment,
                                     onRetryUnknownOutcome = pickingViewModel::retryUnknownOutcome,
                                     onRetryIntentCleanup = pickingViewModel::retryIntentCleanup,
                                     onProposeLotSubstitution = openLotSubstitution
@@ -5236,7 +5522,7 @@ private fun WorkforceContextSummary.operationsVisibilityHint(): TaskVisibilityHi
         }
     }
 
-private val CONNECTED_OPERATIONS = listOf(
+internal val CONNECTED_OPERATIONS = listOf(
     ConnectedOperationEntry(
         "warehouse.lot-substitution",
         "Sustitución razonada de lote",

@@ -1,6 +1,7 @@
 package com.nexa.mobile.operations.fulfillmentdelivery.presentation.warehouse
 
 import androidx.compose.runtime.Immutable
+import com.nexa.mobile.operations.fulfillmentdelivery.application.model.warehouse.PickingWorkListCacheProjection
 import com.nexa.mobile.operations.fulfillmentdelivery.domain.model.warehouse.PickingWorkItem
 import java.time.Instant
 
@@ -8,6 +9,7 @@ enum class PickingWorkListStatus {
     NotRequested,
     Loading,
     Ready,
+    Cached,
     NetworkUnavailable,
     ServiceUnavailable,
     PermissionDenied,
@@ -22,5 +24,6 @@ data class PickingWorkListUiState(
     val page: Int = 0,
     val size: Int = 25,
     val totalItems: Long = 0,
-    val asOf: Instant? = null
+    val asOf: Instant? = null,
+    val cachedProjection: PickingWorkListCacheProjection? = null
 )

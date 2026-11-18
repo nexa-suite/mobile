@@ -1,14 +1,175 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:nexa_buyer_mobile/contexts/sales_commitment/infrastructure/buyer_orders_repository_impl.dart';
 import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/application/buyer_access_repository.dart';
 import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/infrastructure/buyer_access_repository_impl.dart';
+import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/presentation/buyer_access_view_model.dart';
 import 'package:nexa_buyer_mobile/core/network/nexa_api_client.dart';
 
 void main() {
+  group('biometric reentry', () {
+    setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+
+    test('opens an order with the verified renewed Buyer session', () async {
+      var refreshRequests = 0;
+      var orderRequests = 0;
+      var canReadOrder = true;
+      final client = NexaApiClient(
+        origin: _testOrigin,
+        httpClient: MockClient((request) async {
+          switch (request.url.path) {
+            case '/api/v1/authentication/identity-sign-in':
+              return _buyerSignInResponse();
+            case '/api/v1/authentication/refresh':
+              final headers = _headers(request);
+              expect(headers['x-nexa-refresh-token'], 'refresh-original');
+              expect(headers['x-nexa-client'], 'NATIVE');
+              expect(headers['x-nexa-surface'], 'PORTAL');
+              expect(headers.containsKey('authorization'), isFalse);
+              refreshRequests++;
+              return http.Response(
+                jsonEncode(
+                  _authenticationResponse(
+                    roles: ['BUYER'],
+                    accessToken: 'access-renewed',
+                  ),
+                ),
+                200,
+                headers: {'x-nexa-refresh-token': 'refresh-renewed'},
+              );
+            case '/api/v1/sales-orders/order-01':
+              expect(
+                _headers(request)['authorization'],
+                'Bearer access-renewed',
+              );
+              orderRequests++;
+              if (!canReadOrder) {
+                return http.Response('{"code":"FORBIDDEN"}', 403);
+              }
+              return http.Response(
+                jsonEncode({
+                  'id': 'order-01',
+                  'number': 'SO-01',
+                  'status': 'CONFIRMED',
+                  'lines': [],
+                }),
+                200,
+              );
+            default:
+              fail('Unexpected route ${request.url.path}');
+          }
+        }),
+      );
+      addTearDown(client.close);
+      final enrolled = BuyerAccessRepositoryImpl(client);
+      final authenticator = _TestBiometricAuthenticator();
+      final enrollment = BuyerAccessViewModel(
+        enrolled,
+        biometricAuthenticator: authenticator,
+      );
+      await enrollment.signIn('buyer@example.test', 'test-password');
+      await enrollment.setBiometricUnlockEnabled(true);
+      expect(enrollment.biometricEnabled, isTrue);
+      enrollment.dispose();
+      await enrolled.dispose();
+
+      final restored = BuyerAccessRepositoryImpl(client);
+      addTearDown(restored.dispose);
+      client.sessionCredentials = restored;
+      final access = BuyerAccessViewModel(
+        restored,
+        biometricAuthenticator: authenticator,
+      );
+      addTearDown(access.dispose);
+      final orders = BuyerOrdersRepositoryImpl(client);
+
+      await access.refreshBiometricAvailability();
+      expect(access.biometricLoginAvailable, isTrue);
+      authenticator.accepted = false;
+      await access.signInWithBiometrics();
+      expect(access.snapshot.status, BuyerAccessStatus.signedOut);
+      await expectLater(
+        orders.detail('order-01'),
+        throwsA(isA<NexaApiFailure>()),
+      );
+      expect(refreshRequests, 0);
+      expect(orderRequests, 0);
+
+      authenticator.accepted = true;
+      await access.signInWithBiometrics();
+      expect(refreshRequests, 1);
+      expect(access.snapshot.hasActiveBuyerScope, isTrue);
+      expect(access.snapshot.currentContext?.membershipId, 'membership-buyer');
+      expect((await orders.detail('order-01')).status, 'CONFIRMED');
+      expect(orderRequests, 1);
+
+      canReadOrder = false;
+      await expectLater(
+        orders.detail('order-01'),
+        throwsA(
+          isA<NexaApiFailure>().having(
+            (failure) => failure.statusCode,
+            'status',
+            403,
+          ),
+        ),
+      );
+      expect(orderRequests, 2);
+    });
+
+    test(
+      'an ambiguous refresh requires password without replaying the token',
+      () async {
+        var refreshRequests = 0;
+        final client = NexaApiClient(
+          origin: _testOrigin,
+          httpClient: MockClient((request) async {
+            switch (request.url.path) {
+              case '/api/v1/authentication/identity-sign-in':
+                return _buyerSignInResponse();
+              case '/api/v1/authentication/refresh':
+                refreshRequests++;
+                throw http.ClientException('connection lost after dispatch');
+              default:
+                fail('Unexpected route ${request.url.path}');
+            }
+          }),
+        );
+        addTearDown(client.close);
+        final enrolled = BuyerAccessRepositoryImpl(client);
+        await enrolled.signIn(
+          identifier: 'buyer@example.test',
+          password: 'test-password',
+        );
+        await enrolled.setBiometricUnlockEnabled(true);
+        await enrolled.dispose();
+
+        final restored = BuyerAccessRepositoryImpl(client);
+        addTearDown(restored.dispose);
+        final access = BuyerAccessViewModel(
+          restored,
+          biometricAuthenticator: _TestBiometricAuthenticator(),
+        );
+        addTearDown(access.dispose);
+
+        await access.signInWithBiometrics();
+        expect(access.snapshot.status, BuyerAccessStatus.signedOut);
+        expect(access.biometricLoginAvailable, isFalse);
+        expect(access.biometricMessage, contains('contraseña'));
+        await access.signInWithBiometrics();
+        expect(refreshRequests, 1);
+
+        await access.signIn('buyer@example.test', 'test-password');
+        expect(access.snapshot.hasActiveBuyerScope, isTrue);
+      },
+    );
+  });
+
   test('identity sign-in reports invalid credentials in Spanish', () async {
     final client = NexaApiClient(
       origin: NexaApiOrigin.parse(
@@ -362,6 +523,7 @@ void main() {
   test(
     'an ambiguous refresh clears session without retrying the old token',
     () async {
+      FlutterSecureStorage.setMockInitialValues({});
       var protectedRequests = 0;
       var refreshRequests = 0;
       String? refreshCredentialSent;
@@ -402,6 +564,7 @@ void main() {
         identifier: 'buyer@example.test',
         password: 'secret',
       );
+      await repository.setBiometricUnlockEnabled(true);
       await expectLater(
         client.get('/catalog-items', refreshAfterUnauthorized: true),
         throwsA(
@@ -418,11 +581,36 @@ void main() {
       expect(refreshCredentialSent, 'refresh-secret');
       expect(repository.accessToken, isNull);
       expect(repository.snapshot.status, BuyerAccessStatus.signedOut);
+      expect(await repository.hasBiometricSession(), isFalse);
 
       await repository.dispose();
       client.close();
     },
   );
+}
+
+final _testOrigin = NexaApiOrigin.parse(
+  'https://api.nexa.example',
+  allowLocalHttp: false,
+);
+
+http.Response _buyerSignInResponse() => http.Response(
+  jsonEncode({
+    'outcome': 'SESSION_ESTABLISHED',
+    'session': _authenticationResponse(roles: ['BUYER']),
+  }),
+  200,
+  headers: {'x-nexa-refresh-token': 'refresh-original'},
+);
+
+final class _TestBiometricAuthenticator implements BuyerBiometricAuthenticator {
+  bool accepted = true;
+
+  @override
+  Future<bool> isAvailable() async => true;
+
+  @override
+  Future<bool> authenticate(String reason) async => accepted;
 }
 
 Map<String, Object?> _authenticationResponse({

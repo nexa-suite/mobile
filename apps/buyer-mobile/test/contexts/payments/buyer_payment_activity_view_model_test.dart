@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:nexa_buyer_mobile/contexts/payments/application/buyer_payments_repository.dart';
+import 'package:nexa_buyer_mobile/contexts/payments/application/buyer_transfer_proof_repository.dart';
 import 'package:nexa_buyer_mobile/contexts/payments/application/payment_report_idempotency_store.dart';
 import 'package:nexa_buyer_mobile/contexts/payments/presentation/buyer_payment_activity_view_model.dart';
 import 'package:nexa_buyer_mobile/contexts/payments/presentation/buyer_payment_activity_page.dart';
@@ -17,6 +18,165 @@ const _paymentId = '00000000-0000-4000-8000-000000000003';
 const _retryId = '00000000-0000-4000-8000-000000000004';
 
 void main() {
+  testWidgets('phone report button waits for proof validation', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final access = _FakeAccess(_snapshot());
+    final repository = _FakePaymentsRepository();
+    final vm = _viewModel(access, repository, _FakeIdempotencyStore());
+    addTearDown(vm.dispose);
+    addTearDown(access.dispose);
+    await _uploadProof(vm);
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: vm,
+        child: const MaterialApp(home: BuyerPaymentActivityPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final action = find.byKey(const Key('buyer-payment-report-action'));
+    expect(tester.widget<FilledButton>(action).onPressed, isNull);
+    expect(find.text('transfer.pdf'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await vm.refreshProof();
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(action).onPressed, isNotNull);
+    expect(
+      find.text('Comprobante validado. Se adjuntará al reporte.'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  test(
+    'waits for server scanning before reporting with the proof id',
+    () async {
+      final access = _FakeAccess(_snapshot());
+      final repository = _FakePaymentsRepository();
+      final vm = _viewModel(access, repository, _FakeIdempotencyStore());
+      addTearDown(vm.dispose);
+      addTearDown(access.dispose);
+
+      await _uploadProof(vm);
+      expect(vm.proofStatus, BuyerTransferProofStatus.pending);
+      expect(vm.canSubmitReport, isFalse);
+      await vm.reportBankTransfer('BANK-REF-71');
+      expect(repository.reportCalls, isEmpty);
+
+      await vm.refreshProof();
+      expect(vm.proofStatus, BuyerTransferProofStatus.available);
+      expect(vm.canSubmitReport, isTrue);
+      await vm.reportBankTransfer('BANK-REF-71');
+      expect(repository.reportedProof, _proof('AVAILABLE').id);
+      expect(vm.reportedPayment!.status, 'PROCESSING');
+      expect(vm.proof, isNull);
+      expect(vm.proofFilename, isNull);
+    },
+  );
+
+  test(
+    'retries an ambiguous proof upload with its durable key after reopen',
+    () async {
+      final access = _FakeAccess(_snapshot());
+      final repository = _FakePaymentsRepository()
+        ..uploadHandler = () => Future.error(
+          const NexaApiFailure(
+            code: 'network_timeout',
+            userMessage: 'Unavailable',
+            retryable: true,
+          ),
+        );
+      final store = _FakeIdempotencyStore();
+      final first = _viewModel(access, repository, store);
+      await _uploadProof(first);
+      expect(first.proofStatus, BuyerTransferProofStatus.uncertain);
+      expect(first.canSubmitReport, isFalse);
+      first.dispose();
+      repository.uploadHandler = () async => _proof('AVAILABLE');
+      final reopened = _viewModel(access, repository, store);
+      addTearDown(reopened.dispose);
+      addTearDown(access.dispose);
+      await _uploadProof(reopened);
+      expect(repository.uploadKeys[0], repository.uploadKeys[1]);
+      expect(reopened.canSubmitReport, isTrue);
+    },
+  );
+
+  test('a lost proof status check can retry without uploading again', () async {
+    final access = _FakeAccess(_snapshot());
+    final repository = _FakePaymentsRepository();
+    final vm = _viewModel(access, repository, _FakeIdempotencyStore());
+    addTearDown(vm.dispose);
+    addTearDown(access.dispose);
+    await _uploadProof(vm);
+    await vm.refreshProof();
+    expect(vm.canSubmitReport, isTrue);
+
+    repository.proofHandler = () => Future.error(
+      const NexaApiFailure(
+        code: 'network_timeout',
+        userMessage: 'Unavailable',
+        retryable: true,
+      ),
+    );
+    await vm.refreshProof();
+    expect(vm.canSubmitReport, isFalse);
+    await vm.reportBankTransfer('BANK-REF-71');
+    expect(repository.reportCalls, isEmpty);
+
+    repository.proofHandler = () async => _proof('AVAILABLE');
+    await vm.refreshProof();
+    await vm.reportBankTransfer('BANK-REF-71');
+    expect(repository.uploadKeys, hasLength(1));
+    expect(repository.reportedProof, _proof('AVAILABLE').id);
+  });
+
+  test('picker and upload completion cannot cross authority changes', () async {
+    final access = _FakeAccess(_snapshot());
+    final repository = _FakePaymentsRepository();
+    final vm = _viewModel(access, repository, _FakeIdempotencyStore());
+    addTearDown(vm.dispose);
+    addTearDown(access.dispose);
+    final oldLease = vm.proofSelectionLease!;
+    access.emit(_snapshot(epoch: 2, tenantId: 'tenant-next'));
+    await vm.uploadTransferProof(
+      filename: 'transfer.pdf',
+      contentType: 'application/pdf',
+      bytes: const [37, 80, 68, 70],
+      selectionLease: oldLease,
+    );
+    expect(repository.uploadKeys, isEmpty);
+    final pending = Completer<BuyerTransferProofProjection>();
+    repository.uploadHandler = () => pending.future;
+    final request = _uploadProof(vm);
+    while (repository.uploadKeys.isEmpty) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    access.emit(_snapshot(epoch: 3));
+    pending.complete(_proof('AVAILABLE'));
+    await request;
+    expect(vm.proof, isNull);
+    expect(vm.proofFilename, isNull);
+  });
+
+  test('rejected proof blocks report until explicitly removed', () async {
+    final access = _FakeAccess(_snapshot());
+    final repository = _FakePaymentsRepository()
+      ..uploadHandler = () async => _proof('REJECTED');
+    final vm = _viewModel(access, repository, _FakeIdempotencyStore());
+    addTearDown(vm.dispose);
+    addTearDown(access.dispose);
+    await _uploadProof(vm);
+    expect(vm.canSubmitReport, isFalse);
+    await vm.reportBankTransfer('BANK-REF-71');
+    expect(repository.reportCalls, isEmpty);
+    vm.removeProof();
+    await vm.reportBankTransfer('BANK-REF-71');
+    expect(repository.reportedProof, isNull);
+  });
+
   test(
     'does not issue a report without the exact payment.create grant',
     () async {
@@ -242,13 +402,22 @@ void main() {
 
     expect(repository.reportCalls, hasLength(1));
     expect(repository.reportCalls.single.reference, 'BANK-REF-71');
-    expect(find.textContaining('Estado actual: PROCESSING'), findsOneWidget);
+    expect(find.byType(Scaffold), findsOneWidget);
+    expect(find.textContaining('Pendiente de revisión'), findsWidgets);
     final reportResult = tester.widget<NexaNotice>(
       find.byKey(const Key('payment-report-result')),
     );
     expect(reportResult.message, contains('no confirma que el pago'));
   });
 }
+
+Future<void> _uploadProof(BuyerPaymentActivityViewModel vm) =>
+    vm.uploadTransferProof(
+      filename: 'transfer.pdf',
+      contentType: 'application/pdf',
+      bytes: const [37, 80, 68, 70],
+      selectionLease: vm.proofSelectionLease!,
+    );
 
 BuyerPaymentActivityViewModel _viewModel(
   _FakeAccess access,
@@ -334,6 +503,29 @@ final class _FakeAccess implements BuyerAccessRepository {
 }
 
 final class _FakePaymentsRepository implements BuyerPaymentsRepository {
+  Future<BuyerTransferProofProjection> Function()? uploadHandler;
+  Future<BuyerTransferProofProjection> Function()? proofHandler;
+  final List<String> uploadKeys = [];
+  String? reportedProof;
+
+  @override
+  Future<BuyerTransferProofProjection> uploadTransferProof({
+    required String receivableId,
+    required String filename,
+    required String contentType,
+    required List<int> bytes,
+    required String idempotencyKey,
+  }) {
+    uploadKeys.add(idempotencyKey);
+    return uploadHandler?.call() ?? Future.value(_proof('SCANNING'));
+  }
+
+  @override
+  Future<BuyerTransferProofProjection> transferProof({
+    required String receivableId,
+    required String evidenceId,
+  }) => proofHandler?.call() ?? Future.value(_proof('AVAILABLE'));
+
   final List<_ReportCall> reportCalls = [];
   int historyCalls = 0;
   Future<BuyerPaymentProjection> Function(
@@ -364,7 +556,9 @@ final class _FakePaymentsRepository implements BuyerPaymentsRepository {
     required String receivableId,
     required String reference,
     required String idempotencyKey,
+    String? proofEvidenceId,
   }) {
+    reportedProof = proofEvidenceId;
     reportCalls.add(_ReportCall(reference, idempotencyKey));
     if (reportStarted != null && !reportStarted!.isCompleted) {
       reportStarted!.complete();
@@ -373,6 +567,14 @@ final class _FakePaymentsRepository implements BuyerPaymentsRepository {
         Future.value(_payment());
   }
 }
+
+BuyerTransferProofProjection _proof(String status) =>
+    BuyerTransferProofProjection(
+      id: '00000000-0000-4000-8000-000000000005',
+      receivableId: _receivableId,
+      filename: 'transfer.pdf',
+      lifecycleStatus: status,
+    );
 
 final class _ReportCall {
   const _ReportCall(this.reference, this.idempotencyKey);

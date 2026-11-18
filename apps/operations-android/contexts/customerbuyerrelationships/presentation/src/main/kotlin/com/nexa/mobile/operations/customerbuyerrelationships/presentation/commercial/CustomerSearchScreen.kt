@@ -49,7 +49,8 @@ fun CustomerSearchScreen(
     onRouteClosed: () -> Unit,
     onReviewProgress: ((String) -> Unit)? = null,
     onReviewProducts: ((String) -> Unit)? = null,
-    onPrepareRequest: ((String) -> Unit)? = null
+    onPrepareRequest: ((String) -> Unit)? = null,
+    customerActions: @Composable (String) -> Unit = {}
 ) {
     val close = rememberUpdatedState(onRouteClosed)
     DisposableEffect(Unit) { onDispose { close.value() } }
@@ -172,6 +173,7 @@ fun CustomerSearchScreen(
                                     customer.phone?.let {
                                         Text(stringResource(R.string.customer_phone, it))
                                     }
+                                    if (customer.active) customerActions(customer.id)
                                     if (customer.active && onPrepareRequest != null) {
                                         TextButton(
                                             onClick = { onPrepareRequest(customer.id) },

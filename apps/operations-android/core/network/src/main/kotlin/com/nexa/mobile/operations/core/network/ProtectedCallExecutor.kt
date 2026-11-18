@@ -31,7 +31,8 @@ class ProtectedRequest(
     val ifMatch: String? = null,
     val binaryResponse: Boolean = false,
     val requestBody: RequestBody? = null,
-    responseHeaderNames: Set<String> = emptySet()
+    responseHeaderNames: Set<String> = emptySet(),
+    val nativeClient: Boolean = false
 ) {
     val responseHeaderNames: Set<String> = responseHeaderNames.toSet()
 
@@ -188,6 +189,7 @@ class ProtectedCallExecutor(
         val request = Request.Builder().url(url)
             .header("Authorization", "Bearer ${access.value}")
             .apply {
+                if (command.nativeClient) header("X-Nexa-Client", "NATIVE")
                 command.idempotencyKey?.let { header("Idempotency-Key", it) }
                 command.ifMatch?.let { header("If-Match", it) }
             }

@@ -13,6 +13,27 @@ val debugApiBaseUrl = providers.gradleProperty(
     "nexaDebugApiBaseUrl"
 ).orElse("http://10.0.2.2:8080/").get()
 val releaseApiBaseUrl = providers.gradleProperty("nexaReleaseApiBaseUrl").orNull.orEmpty()
+val firebaseApplicationId = providers.gradleProperty("nexaFirebaseApplicationId").orNull.orEmpty()
+val firebaseApiKey = providers.gradleProperty("nexaFirebaseApiKey").orNull.orEmpty()
+val firebaseProjectId = providers.gradleProperty("nexaFirebaseProjectId").orNull.orEmpty()
+val firebaseMessagingSenderId = providers.gradleProperty("nexaFirebaseMessagingSenderId")
+    .orNull.orEmpty()
+val firebaseMessagingConfigured = listOf(
+    firebaseApplicationId,
+    firebaseApiKey,
+    firebaseProjectId,
+    firebaseMessagingSenderId
+).all(String::isNotBlank)
+val firebaseMessagingPartiallyConfigured = listOf(
+    firebaseApplicationId,
+    firebaseApiKey,
+    firebaseProjectId,
+    firebaseMessagingSenderId
+).any(String::isNotBlank) && !firebaseMessagingConfigured
+require(!firebaseMessagingPartiallyConfigured) {
+    "Firebase messaging requires nexaFirebaseApplicationId, nexaFirebaseApiKey, " +
+        "nexaFirebaseProjectId and nexaFirebaseMessagingSenderId together"
+}
 val debugMapTileUrlTemplate = providers.gradleProperty("nexaDebugMapTileUrlTemplate")
     .orElse("https://tile.openstreetmap.org/{z}/{x}/{y}.png")
     .get()
@@ -67,10 +88,52 @@ android {
                 "MAP_TILE_URL_TEMPLATE",
                 debugMapTileUrlTemplate.asBuildConfigString()
             )
+            buildConfigField(
+                "boolean",
+                "FIREBASE_MESSAGING_CONFIGURED",
+                firebaseMessagingConfigured.toString()
+            )
+            buildConfigField(
+                "String",
+                "FIREBASE_APPLICATION_ID",
+                firebaseApplicationId.asBuildConfigString()
+            )
+            buildConfigField("String", "FIREBASE_API_KEY", firebaseApiKey.asBuildConfigString())
+            buildConfigField(
+                "String",
+                "FIREBASE_PROJECT_ID",
+                firebaseProjectId.asBuildConfigString()
+            )
+            buildConfigField(
+                "String",
+                "FIREBASE_MESSAGING_SENDER_ID",
+                firebaseMessagingSenderId.asBuildConfigString()
+            )
         }
         getByName("release") {
             buildConfigField("String", "API_BASE_URL", releaseApiBaseUrl.asBuildConfigString())
             buildConfigField("String", "MAP_TILE_URL_TEMPLATE", "\"\"")
+            buildConfigField(
+                "boolean",
+                "FIREBASE_MESSAGING_CONFIGURED",
+                firebaseMessagingConfigured.toString()
+            )
+            buildConfigField(
+                "String",
+                "FIREBASE_APPLICATION_ID",
+                firebaseApplicationId.asBuildConfigString()
+            )
+            buildConfigField("String", "FIREBASE_API_KEY", firebaseApiKey.asBuildConfigString())
+            buildConfigField(
+                "String",
+                "FIREBASE_PROJECT_ID",
+                firebaseProjectId.asBuildConfigString()
+            )
+            buildConfigField(
+                "String",
+                "FIREBASE_MESSAGING_SENDER_ID",
+                firebaseMessagingSenderId.asBuildConfigString()
+            )
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -163,6 +226,9 @@ dependencies {
     implementation(project(":core:device"))
     implementation(project(":core:designsystem"))
     implementation(platform(libs.compose.bom))
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.installations)
+    implementation(libs.firebase.messaging)
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
     implementation(libs.activity.compose)

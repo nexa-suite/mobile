@@ -21,6 +21,7 @@ import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.P
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PickingFulfillmentLineProjection as NetworkFulfillmentLine
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PickingFulfillmentProjection as NetworkFulfillment
 import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PickingNetworkOutcome
+import com.nexa.mobile.operations.fulfillmentdelivery.infrastructure.transport.PickingWorkListTransport
 import com.nexa.mobile.operations.inventoryavailability.application.publicapi.PhysicalAllocationLineProjection
 import com.nexa.mobile.operations.inventoryavailability.application.publicapi.PhysicalAllocationProjection
 import dagger.Module
@@ -123,6 +124,32 @@ class OperationsPickingGateway @Inject constructor(
         if (before !is Authorization.Current) return before.toMutationFailure()
         val outcome = try {
             picking.confirmPicking(command.toNetwork(), idempotencyKey)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return PickingMutationResult.UnknownOutcome
+        }
+        return if (currentAfter(authority, before.lease)) {
+            outcome.toMutationResult()
+        } else {
+            authorityDriftMutation(authority)
+        }
+    }
+
+    override suspend fun advanceFulfillment(
+        command: PickingIntentCommand.Advance,
+        idempotencyKey: String,
+        authority: PickingAuthority
+    ): PickingMutationResult {
+        val before = authorize(authority, FULFILLMENT_WRITE_PERMISSIONS)
+        if (before !is Authorization.Current) return before.toMutationFailure()
+        val outcome = try {
+            picking.advanceFulfillment(
+                command.fulfillmentId,
+                command.expectedFulfillmentVersion,
+                command.action,
+                idempotencyKey
+            )
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -322,4 +349,8 @@ object PickingGatewayModule {
     @Provides
     @Singleton
     fun pickingGateway(protectedCalls: ProtectedCallExecutor) = NexaPickingGateway(protectedCalls)
+
+    @Provides
+    @Singleton
+    fun pickingWorkListTransport(gateway: NexaPickingGateway): PickingWorkListTransport = gateway
 }
