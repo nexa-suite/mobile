@@ -35,6 +35,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -42,6 +43,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -209,6 +211,10 @@ fun DriverDeliveryScreen(
     var showDeliveryList by remember(state.selectedDelivery?.id) {
         mutableStateOf(state.selectedDelivery == null)
     }
+    val scrollState = rememberScrollState()
+    LaunchedEffect(state.selectedDelivery?.id) {
+        if (state.selectedDelivery != null) scrollState.scrollTo(0)
+    }
     DriverDeliveryAutoRefresh(
         state = state,
         onRefresh = onRefresh,
@@ -220,12 +226,12 @@ fun DriverDeliveryScreen(
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing)
                 .imePadding()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             NexaTopAppBar(title = stringResource(R.string.driver_delivery_title), onBack = onBack)
-            workdayContent?.invoke()
+            if (state.selectedDelivery == null) workdayContent?.invoke()
             if (!state.canRead) {
                 Notice(stringResource(R.string.driver_delivery_read_permission), isError = true)
             }
@@ -442,6 +448,56 @@ fun DriverDeliveryScreen(
                         )
                     }
                 }
+                val handoffAttempt = activeAttempt ?: terminalHandoffAttempt
+                if (terminalHandoffAttempt != null) {
+                    Notice(stringResource(R.string.driver_delivery_handoff_receipt_pending))
+                }
+                if (onOpenHandoffCode != null && handoffAttempt != null) {
+                    Button(
+                        onClick = {
+                            onOpenHandoffCode(
+                                delivery.id,
+                                handoffAttempt.id,
+                                delivery.version
+                            )
+                        },
+                        enabled =
+                            state.canRead && state.detailStatus == DriverDeliveryLoadStatus.Ready &&
+                                state.outcomeCommandStatus !in
+                                setOf(
+                                    DriverOutcomeCommandStatus.Pending,
+                                    DriverOutcomeCommandStatus.UnknownOutcome
+                                )
+                    ) {
+                        Text(
+                            stringResource(
+                                if (activeAttempt == null && terminalHandoffAttempt != null) {
+                                    R.string.driver_work_handoff_renew
+                                } else {
+                                    R.string.driver_work_handoff
+                                }
+                            )
+                        )
+                    }
+                }
+                if (activeAttempt == null && delivery.status.uppercase() != "DELIVERED" &&
+                    state.commandStatus in setOf(
+                        DriverDeliveryCommandStatus.Idle,
+                        DriverDeliveryCommandStatus.Rejected,
+                        DriverDeliveryCommandStatus.StaleVersion
+                    )
+                ) {
+                    if (delivery.status.uppercase() in setOf("IN_TRANSIT", "PARTIAL")) {
+                        NexaPrimaryButton(
+                            label = stringResource(R.string.driver_delivery_begin),
+                            onClick = onBeginDelivery,
+                            enabled = state.canStart &&
+                                state.detailStatus == DriverDeliveryLoadStatus.Ready
+                        )
+                    } else if (delivery.status.uppercase() in setOf("ASSIGNED", "DISPATCHED")) {
+                        Notice(stringResource(R.string.driver_delivery_transit_required))
+                    }
+                }
                 Text(
                     stringResource(
                         if (activeAttempt == null) {
@@ -452,38 +508,6 @@ fun DriverDeliveryScreen(
                     ),
                     style = MaterialTheme.typography.titleMedium
                 )
-                if (onOpenInstructions != null &&
-                    state.authorizedInstructionsDeliveryId == delivery.id
-                ) {
-                    OutlinedButton(
-                        onClick = { onOpenInstructions(delivery.id) },
-                        enabled =
-                            state.canRead && state.detailStatus == DriverDeliveryLoadStatus.Ready
-                    ) {
-                        Text(stringResource(R.string.driver_delivery_instructions_open))
-                    }
-                }
-                if (onOpenOperationalExceptions != null &&
-                    state.authorizedOperationalExceptionsDeliveryId == delivery.id
-                ) {
-                    OutlinedButton(
-                        onClick = { onOpenOperationalExceptions(delivery.id) },
-                        enabled =
-                            state.canRead && state.detailStatus == DriverDeliveryLoadStatus.Ready
-                    ) {
-                        Text(stringResource(R.string.driver_delivery_exceptions_open))
-                    }
-                }
-                if (onOpenExecutionTemperature != null && state.canRead && state.canStart &&
-                    state.detailStatus == DriverDeliveryLoadStatus.Ready
-                ) {
-                    OutlinedButton(
-                        onClick = { onOpenExecutionTemperature(delivery.id) },
-                        enabled = state.commandStatus !in FROZEN_COMMANDS
-                    ) {
-                        Text(stringResource(R.string.driver_delivery_execution_temperature_open))
-                    }
-                }
                 activeAttempt?.let { attempt ->
                     Card(Modifier.fillMaxWidth()) {
                         Column(
@@ -598,7 +622,7 @@ fun DriverDeliveryScreen(
 
                         DriverArrivalCommandStatus.Recorded -> {
                             val arrival = state.arrivalSummary
-                            if (arrival != null) {
+                            if (arrival != null && delivery.arrival?.attemptId != attempt.id) {
                                 Notice(
                                     stringResource(
                                         R.string.driver_delivery_arrival_confirmed,
@@ -675,79 +699,115 @@ fun DriverDeliveryScreen(
                         )
                     }
                 }
-                val handoffAttempt = activeAttempt ?: terminalHandoffAttempt
-                if (terminalHandoffAttempt != null) {
-                    Notice(stringResource(R.string.driver_delivery_handoff_receipt_pending))
-                }
-                if (onOpenHandoffCode != null && handoffAttempt != null) {
-                    OutlinedButton(
-                        onClick = {
-                            onOpenHandoffCode(
-                                delivery.id,
-                                handoffAttempt.id,
-                                delivery.version
-                            )
-                        },
-                        enabled =
-                            state.canRead && state.detailStatus == DriverDeliveryLoadStatus.Ready &&
-                                state.outcomeCommandStatus !in
-                                setOf(
-                                    DriverOutcomeCommandStatus.Pending,
-                                    DriverOutcomeCommandStatus.UnknownOutcome
-                                )
-                    ) {
-                        Text(
-                            stringResource(
-                                if (activeAttempt == null && terminalHandoffAttempt != null) {
-                                    R.string.driver_work_handoff_renew
-                                } else {
-                                    R.string.driver_work_handoff
-                                }
-                            )
-                        )
-                    }
-                }
                 val incidentAttemptId = activeAttempt?.id ?: state.outcomeSummary
                     ?.takeIf {
                         state.outcomeCommandStatus == DriverOutcomeCommandStatus.Recorded &&
                             it.deliveryVersion == delivery.version
                     }
                     ?.attemptId
-                if (onOpenIncident != null && incidentAttemptId != null) {
-                    OutlinedButton(
-                        onClick = {
-                            onOpenIncident(
-                                delivery.id,
-                                incidentAttemptId,
-                                delivery.version,
-                                activeAttempt == null
-                            )
-                        },
-                        enabled =
-                            state.canRead && state.canStart &&
-                                state.detailStatus == DriverDeliveryLoadStatus.Ready &&
-                                state.outcomeCommandStatus !in
-                                setOf(
-                                    DriverOutcomeCommandStatus.Pending,
-                                    DriverOutcomeCommandStatus.UnknownOutcome
-                                )
+                val hasAuxiliaryActions =
+                    (
+                        onOpenInstructions != null &&
+                            state.authorizedInstructionsDeliveryId == delivery.id
+                        ) ||
+                        (
+                            onOpenOperationalExceptions != null &&
+                                state.authorizedOperationalExceptionsDeliveryId == delivery.id
+                            ) ||
+                        (
+                            onOpenExecutionTemperature != null && state.canRead && state.canStart &&
+                                state.detailStatus == DriverDeliveryLoadStatus.Ready
+                            ) ||
+                        (onOpenIncident != null && incidentAttemptId != null)
+                if (hasAuxiliaryActions) {
+                    DeliveryExpandableSection(
+                        deliveryId = delivery.id,
+                        title = stringResource(R.string.driver_delivery_more_actions)
                     ) {
-                        Text(stringResource(R.string.driver_work_incident))
+                        if (onOpenInstructions != null &&
+                            state.authorizedInstructionsDeliveryId == delivery.id
+                        ) {
+                            OutlinedButton(
+                                onClick = { onOpenInstructions(delivery.id) },
+                                enabled =
+                                    state.canRead &&
+                                        state.detailStatus == DriverDeliveryLoadStatus.Ready
+                            ) {
+                                Text(stringResource(R.string.driver_delivery_instructions_open))
+                            }
+                        }
+                        if (onOpenOperationalExceptions != null &&
+                            state.authorizedOperationalExceptionsDeliveryId == delivery.id
+                        ) {
+                            OutlinedButton(
+                                onClick = { onOpenOperationalExceptions(delivery.id) },
+                                enabled =
+                                    state.canRead &&
+                                        state.detailStatus == DriverDeliveryLoadStatus.Ready
+                            ) {
+                                Text(stringResource(R.string.driver_delivery_exceptions_open))
+                            }
+                        }
+                        if (onOpenExecutionTemperature != null && state.canRead && state.canStart &&
+                            state.detailStatus == DriverDeliveryLoadStatus.Ready
+                        ) {
+                            OutlinedButton(
+                                onClick = { onOpenExecutionTemperature(delivery.id) },
+                                enabled = state.commandStatus !in FROZEN_COMMANDS
+                            ) {
+                                Text(
+                                    stringResource(
+                                        R.string.driver_delivery_execution_temperature_open
+                                    )
+                                )
+                            }
+                        }
+                        if (onOpenIncident != null && incidentAttemptId != null) {
+                            OutlinedButton(
+                                onClick = {
+                                    onOpenIncident(
+                                        delivery.id,
+                                        incidentAttemptId,
+                                        delivery.version,
+                                        activeAttempt == null
+                                    )
+                                },
+                                enabled =
+                                    state.canRead && state.canStart &&
+                                        state.detailStatus == DriverDeliveryLoadStatus.Ready &&
+                                        state.outcomeCommandStatus !in
+                                        setOf(
+                                            DriverOutcomeCommandStatus.Pending,
+                                            DriverOutcomeCommandStatus.UnknownOutcome
+                                        )
+                            ) {
+                                Text(stringResource(R.string.driver_work_incident))
+                            }
+                        }
                     }
                 }
-                if (delivery.status == "DELIVERED" || state.proofId != null) {
-                    ProofEntry(
-                        state = state,
-                        canCreate =
-                            state.canCaptureProof &&
-                                state.detailStatus == DriverDeliveryLoadStatus.Ready,
-                        onCreateProof = onCreateProof,
-                        onChooseProofFile = onChooseProofFile,
-                        onUploadSelectedProofEvidence = onUploadSelectedProofEvidence,
-                        onRetryUnknownProof = onRetryUnknownProof,
-                        onRefreshProofEvidence = onRefreshProofEvidence,
-                        onAttachAvailableProofEvidence = onAttachAvailableProofEvidence
-                    )
+                if (delivery.status.uppercase() == "DELIVERED" || state.proofId != null) {
+                    DeliveryExpandableSection(
+                        deliveryId = delivery.id,
+                        title = stringResource(R.string.driver_delivery_proof_title),
+                        initiallyExpanded = state.proofId != null ||
+                            state.proofCommandStatus != DriverProofCommandStatus.Idle,
+                        forceExpanded = state.proofId != null ||
+                            state.proofCommandStatus != DriverProofCommandStatus.Idle
+                    ) {
+                        ProofEntry(
+                            state = state,
+                            canCreate =
+                                state.canCaptureProof &&
+                                    state.detailStatus == DriverDeliveryLoadStatus.Ready,
+                            onCreateProof = onCreateProof,
+                            onChooseProofFile = onChooseProofFile,
+                            onUploadSelectedProofEvidence = onUploadSelectedProofEvidence,
+                            onRetryUnknownProof = onRetryUnknownProof,
+                            onRefreshProofEvidence = onRefreshProofEvidence,
+                            onAttachAvailableProofEvidence = onAttachAvailableProofEvidence
+                        )
+                    }
                 }
                 when (state.detailStatus) {
                     DriverDeliveryLoadStatus.Loading -> Notice(
@@ -800,9 +860,7 @@ fun DriverDeliveryScreen(
                     DriverDeliveryCommandStatus.UnknownOutcome,
                     DriverDeliveryCommandStatus.PersistenceUnavailable -> Unit
 
-                    DriverDeliveryCommandStatus.Started -> Notice(
-                        stringResource(R.string.driver_delivery_started)
-                    )
+                    DriverDeliveryCommandStatus.Started -> Unit
 
                     DriverDeliveryCommandStatus.Rejected -> Notice(
                         state.rejectionCode?.let {
@@ -832,26 +890,41 @@ fun DriverDeliveryScreen(
                         Text(stringResource(R.string.driver_delivery_instructions_required))
                     }
                 }
-                if (activeAttempt == null && delivery.status.uppercase() != "DELIVERED" &&
-                    state.commandStatus in setOf(
-                        DriverDeliveryCommandStatus.Idle,
-                        DriverDeliveryCommandStatus.Rejected,
-                        DriverDeliveryCommandStatus.StaleVersion
-                    )
-                ) {
-                    if (delivery.status.uppercase() in setOf("IN_TRANSIT", "PARTIAL")) {
-                        NexaPrimaryButton(
-                            label = stringResource(R.string.driver_delivery_begin),
-                            onClick = onBeginDelivery,
-                            enabled = state.canStart &&
-                                state.detailStatus == DriverDeliveryLoadStatus.Ready
-                        )
-                    } else if (delivery.status.uppercase() in setOf("ASSIGNED", "DISPATCHED")) {
-                        Notice(stringResource(R.string.driver_delivery_transit_required))
-                    }
-                }
+                workdayContent?.invoke()
             }
         }
+    }
+}
+
+@Composable
+private fun DeliveryExpandableSection(
+    deliveryId: String,
+    title: String,
+    initiallyExpanded: Boolean = false,
+    forceExpanded: Boolean = false,
+    content: @Composable () -> Unit
+) {
+    var expanded by rememberSaveable(deliveryId, title) { mutableStateOf(initiallyExpanded) }
+    val isExpanded = expanded || forceExpanded
+    val expandedLabel = stringResource(
+        if (isExpanded) {
+            R.string.driver_delivery_section_expanded
+        } else {
+            R.string.driver_delivery_section_collapsed
+        }
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (forceExpanded) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+        } else {
+            TextButton(
+                onClick = { expanded = !expanded },
+                modifier = Modifier.fillMaxWidth().semantics { stateDescription = expandedLabel }
+            ) {
+                Text(if (isExpanded) "$title  ▴" else "$title  ▾")
+            }
+        }
+        if (isExpanded) content()
     }
 }
 
@@ -935,7 +1008,9 @@ private fun DriverDeliveryCard(
                     color = NexaColors.TextSecondary
                 )
             }
-            delivery.activeAttempt?.let { attempt ->
+            delivery.activeAttempt?.takeIf {
+                delivery.status.uppercase() != "DELIVERED"
+            }?.let { attempt ->
                 Text(
                     stringResource(
                         R.string.driver_delivery_active_attempt,
@@ -1032,10 +1107,6 @@ private fun ProofEntry(
 ) {
     var receiverName by remember(state.proofId) { mutableStateOf("") }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            stringResource(R.string.driver_delivery_proof_title),
-            style = MaterialTheme.typography.titleMedium
-        )
         Notice(stringResource(R.string.driver_delivery_proof_policy_limit))
         if (state.proofId == null &&
             state.outcomeCommandStatus == DriverOutcomeCommandStatus.Recorded

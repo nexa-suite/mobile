@@ -700,7 +700,6 @@
     <string name="driver_delivery_stale">La entrega cambió. Actualiza su detalle antes de comenzar.</string>
     <string name="driver_delivery_start_pending">Enviando el inicio a Nexa…</string>
     <string name="driver_delivery_start_permission">No se pudo confirmar el permiso para iniciar una entrega.</string>
-    <string name="driver_delivery_started">Nexa confirmó el intento activo para esta entrega.</string>
     <string name="driver_delivery_status">Estado de entrega: %1$s</string>
     <string name="driver_delivery_status_assigned">Asignada</string>
     <string name="driver_delivery_status_dispatched">Despachada</string>
@@ -1080,3 +1079,6 @@
     <string name="dispatch_driver_location_service">La ubicación no pudo verificarse. Intenta de nuevo.</string>
     <string name="dispatch_driver_location_refresh">Actualizar ubicación</string>
 </resources>
+    <string name="driver_delivery_more_actions">Más acciones</string>
+    <string name="driver_delivery_section_expanded">Expandida</string>
+    <string name="driver_delivery_section_collapsed">Contraída</string>

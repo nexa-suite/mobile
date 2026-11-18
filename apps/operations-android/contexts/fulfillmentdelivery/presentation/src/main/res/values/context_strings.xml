@@ -612,7 +612,7 @@
     <string name="driver_delivery_hide_list">Ocultar lista de entregas</string>
     <string name="driver_delivery_begin">Comenzar entrega</string>
     <string name="driver_delivery_checking">Confirmando la asignación actual antes de comenzar…</string>
-    <string name="driver_delivery_transit_required">Ask Dispatch to start transit before beginning this delivery.</string>
+    <string name="driver_delivery_transit_required">Pide a Despacho que inicie el tránsito antes de comenzar esta entrega.</string>
     <string name="driver_delivery_contact_unavailable">Contacto e instrucciones no disponibles: Nexa no entregó un canal vigente y autorizado para esta entrega.</string>
     <string name="driver_delivery_context">Cambió el contexto de trabajo. Selecciona de nuevo un contexto autorizado.</string>
     <string name="driver_delivery_coordination_title">Coordinación de entrega</string>
@@ -623,11 +623,11 @@
     <string name="driver_delivery_directions_open">Abrir indicaciones</string>
     <string name="driver_delivery_directions_unavailable">No hay una aplicación de navegación disponible. El intento de entrega no cambió.</string>
     <string name="driver_delivery_empty">Nexa no devolvió entregas actuales para este conductor.</string>
-    <string name="driver_delivery_exceptions_open">Operational exceptions</string>
-    <string name="driver_delivery_execution_temperature_open">Transit temperature and holds</string>
+    <string name="driver_delivery_exceptions_open">Excepciones operativas</string>
+    <string name="driver_delivery_execution_temperature_open">Temperatura en tránsito y retenciones</string>
     <string name="driver_delivery_handoff_code_unavailable">Código de entrega no disponible: Nexa no confirmó un código vigente y vinculado a este intento.</string>
-    <string name="driver_delivery_instructions_open">Delivery instructions</string>
-    <string name="driver_delivery_instructions_required">Review required critical instructions</string>
+    <string name="driver_delivery_instructions_open">Instrucciones de entrega</string>
+    <string name="driver_delivery_instructions_required">Revisar instrucciones críticas obligatorias</string>
     <string name="driver_delivery_loading">Consultando asignaciones actuales…</string>
     <string name="driver_delivery_location_ack_required">Esta pantalla espera una jornada activa y una muestra GPS reciente confirmada por Nexa antes de habilitar el inicio de ruta y la señal de llegada.</string>
     <string name="driver_delivery_location_sharing_unavailable">Compartir ubicación no está disponible: faltan destinatarios, consentimiento y plazo de conservación confirmados para esta entrega. No se activa seguimiento en segundo plano.</string>
@@ -697,7 +697,6 @@
     <string name="driver_delivery_stale">La entrega cambió. Actualiza su detalle antes de comenzar.</string>
     <string name="driver_delivery_start_pending">Enviando el inicio a Nexa…</string>
     <string name="driver_delivery_start_permission">No se pudo confirmar el permiso para iniciar una entrega.</string>
-    <string name="driver_delivery_started">Nexa confirmó el intento activo para esta entrega.</string>
     <string name="driver_delivery_status">Estado de entrega: %1$s</string>
     <string name="driver_delivery_status_assigned">Asignada</string>
     <string name="driver_delivery_status_dispatched">Despachada</string>
@@ -1041,15 +1040,15 @@
     <string name="dispatch_work_outgoing">Verify outgoing lot and quantity</string>
     <string name="dispatch_work_temperature">Record preparation temperature</string>
     <string name="dispatch_work_handover">Confirm departure and handoff</string>
-    <string name="driver_work_assigned">Assigned deliveries</string>
+    <string name="driver_work_assigned">Entregas asignadas</string>
     <string name="driver_work_support">Choose a delivery to review instructions and continue its current attempt.</string>
     <string name="driver_work_preparation">Before starting</string>
-    <string name="driver_work_execution">Delivery in progress</string>
-    <string name="driver_work_evidence">Result and evidence</string>
-    <string name="driver_work_handoff">Present delivery code</string>
-    <string name="driver_work_handoff_renew">Renew delivery QR</string>
-    <string name="driver_delivery_handoff_receipt_pending">Buyer receipt is pending. Show the QR to request confirmation.</string>
-    <string name="driver_work_incident">Record incident for review</string>
+    <string name="driver_work_execution">Entrega en curso</string>
+    <string name="driver_work_evidence">Resultado y evidencia</string>
+    <string name="driver_work_handoff">Presentar código de entrega</string>
+    <string name="driver_work_handoff_renew">Renovar QR de entrega</string>
+    <string name="driver_delivery_handoff_receipt_pending">La recepción del comprador está pendiente. Muestra el QR para solicitar su confirmación.</string>
+    <string name="driver_work_incident">Registrar incidente para revisión</string>
     <string name="batch_work_title">Prepare a work group</string>
     <string name="batch_work_support">Local group of up to 25 jobs. Confirm each lot, quantity and result separately with the server.</string>
     <string name="batch_work_available">Available jobs</string>
@@ -1075,3 +1074,6 @@
     <string name="dispatch_driver_location_service">Driver location could not be verified. Try again.</string>
     <string name="dispatch_driver_location_refresh">Refresh location</string>
 </resources>
+    <string name="driver_delivery_more_actions">Más acciones</string>
+    <string name="driver_delivery_section_expanded">Expandida</string>
+    <string name="driver_delivery_section_collapsed">Contraída</string>
