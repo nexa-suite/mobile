@@ -149,7 +149,8 @@ final class BuyerAccessViewModel extends ChangeNotifier {
       if (!restored) {
         biometricEnabled = false;
         biometricLoginAvailable = false;
-        biometricMessage = 'La sesión venció. Entra con tu contraseña y activa de nuevo la biometría en Perfil.';
+        biometricMessage =
+            'No se pudo renovar la sesión. Entra con tu contraseña y vuelve a activar la biometría en Perfil.';
       }
     } on NexaApiFailure catch (failure) {
       message = failure.userMessage;
