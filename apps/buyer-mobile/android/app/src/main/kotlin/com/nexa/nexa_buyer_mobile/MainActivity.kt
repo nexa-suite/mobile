@@ -20,29 +20,48 @@ class MainActivity : FlutterFragmentActivity() {
 
     private fun sanitizeIncomingIntent(incoming: Intent): Intent? {
         val uri = incoming.data
-        if (uri == null && incoming.action == Intent.ACTION_MAIN) {
-            return mainIntent()
+        val (googleMessageId, messageId) = readFcmMessageIdCandidates(incoming, uri)
+        val route = BuyerIncomingIntentPolicy.sanitize(
+            action = incoming.action,
+            uri = uri?.let {
+                BuyerUriParts(
+                    scheme = it.scheme,
+                    host = it.host,
+                    encodedPath = it.encodedPath,
+                    fragment = it.fragment,
+                    userInfo = it.userInfo,
+                    port = it.port,
+                )
+            },
+            googleMessageId = googleMessageId,
+            messageId = messageId,
+        ) ?: return null
+
+        return when (route) {
+            is BuyerIncomingRoute.Main -> mainIntent().apply {
+                route.fcmMessageIds.forEach { (key, value) -> putExtra(key, value) }
+            }
+            BuyerIncomingRoute.StripeReturn ->
+                Intent(Intent.ACTION_VIEW, uri).setClass(this, MainActivity::class.java)
         }
-        if (incoming.action != Intent.ACTION_VIEW || !isStripeReturnUri(uri)) {
-            return null
-        }
-        return Intent(Intent.ACTION_VIEW, uri).setClass(this, MainActivity::class.java)
     }
 
-    private fun mainIntent(): Intent =
-        Intent(this, MainActivity::class.java).setAction(Intent.ACTION_MAIN)
-
-    private fun isStripeReturnUri(uri: Uri?): Boolean =
-        uri != null &&
-            uri.scheme.equals(STRIPE_RETURN_SCHEME, ignoreCase = true) &&
-            uri.host.equals(STRIPE_RETURN_HOST, ignoreCase = true) &&
-            uri.encodedPath.isNullOrEmpty() &&
-            uri.fragment == null &&
-            uri.userInfo == null &&
-            uri.port == -1
-
-    private companion object {
-        const val STRIPE_RETURN_SCHEME = "nexa"
-        const val STRIPE_RETURN_HOST = "stripe-redirect"
+    private fun readFcmMessageIdCandidates(
+        incoming: Intent,
+        uri: Uri?,
+    ): Pair<String?, String?> {
+        if (incoming.action != Intent.ACTION_MAIN || uri != null) return null to null
+        return readStringExtra(incoming, BuyerIncomingIntentPolicy.FCM_GOOGLE_MESSAGE_ID) to
+            readStringExtra(incoming, BuyerIncomingIntentPolicy.FCM_MESSAGE_ID)
     }
+
+    private fun readStringExtra(incoming: Intent, key: String): String? = try {
+        incoming.extras?.getString(key)
+    } catch (_: RuntimeException) {
+        null
+    }
+
+    private fun mainIntent(): Intent = Intent(this, MainActivity::class.java)
+        .setAction(Intent.ACTION_MAIN)
+
 }
