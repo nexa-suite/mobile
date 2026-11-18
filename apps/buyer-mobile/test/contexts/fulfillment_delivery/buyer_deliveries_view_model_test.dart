@@ -888,6 +888,53 @@ void main() {
     },
   );
 
+  test(
+    'refresh offline replaces open deliveries with read-only summaries',
+    () async {
+      final access = _FakeAccess(_signedInSnapshot());
+      var connected = true;
+      final repository = _Repository((page) async {
+        if (!connected) {
+          throw const NexaApiFailure(
+            code: 'network_unavailable',
+            userMessage: 'Network unavailable.',
+            retryable: true,
+          );
+        }
+        return _page(page, 26, salesOrderNumber: 'SO-PAGE-$page');
+      });
+      final cache = _FakeSummaryCache();
+      final viewModel = BuyerDeliveriesViewModel(
+        repository,
+        access,
+        summaryCache: cache,
+      );
+      addTearDown(() async {
+        viewModel.dispose();
+        await access.dispose();
+      });
+
+      await viewModel.refresh();
+      await viewModel.nextPage();
+      expect(viewModel.page, 1);
+      connected = false;
+      await viewModel.refresh();
+
+      expect(viewModel.isShowingCachedSummary, isTrue);
+      expect(viewModel.items, isEmpty);
+      expect(viewModel.page, 0);
+      expect(viewModel.cachedSummaries.single.orderNumber, 'SO-PAGE-0');
+      await viewModel.nextPage();
+      expect(repository.pages, [0, 1, 1]);
+
+      connected = true;
+      await viewModel.refresh();
+      expect(viewModel.status, BuyerDeliveriesStatus.current);
+      expect(viewModel.cachedSummaries, isEmpty);
+      expect(viewModel.items.single.salesOrderNumber, 'SO-PAGE-0');
+    },
+  );
+
   test('5xx may restore cache while a semantic conflict never does', () async {
     for (final failure in [
       const NexaApiFailure(

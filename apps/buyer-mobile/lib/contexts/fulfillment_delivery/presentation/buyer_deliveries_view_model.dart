@@ -234,27 +234,30 @@ final class BuyerDeliveriesViewModel extends ChangeNotifier {
           BuyerDeliveriesStatus.unavailable,
           'No se pudieron consultar tus entregas.',
         );
-      } else if (keepCurrent) {
-        status = BuyerDeliveriesStatus.current;
-        message = 'No se pudo actualizar; se muestra la lista recibida.';
-      } else if (_mayUseSummaryCache(failure) &&
-          requestedPage == 0 &&
-          _summaryCacheSuppressedScope !=
-              _scopeIdentity(_currentSummaryCacheScope())) {
-        final restored = await _restoreSummaryCache(generation, lease);
+      } else if (_mayUseSummaryCache(failure)) {
+        final canRestore =
+            (requestedPage == 0 || keepCurrent) &&
+            _summaryCacheSuppressedScope !=
+                _scopeIdentity(_currentSummaryCacheScope());
+        final restored =
+            canRestore && await _restoreSummaryCache(generation, lease);
         if (!_isCurrent(generation, lease)) return;
+        items = const [];
+        page = 0;
         if (restored) {
           status = BuyerDeliveriesStatus.cached;
-          items = const [];
-          page = 0;
           total = cachedSummaries.length;
           message = 'No se pudo obtener una respuesta actual de Nexa. Esta lista local puede estar desactualizada y no autoriza acciones.';
         } else {
           status = BuyerDeliveriesStatus.unavailable;
           cachedSummaries = const [];
           summaryAsOf = null;
+          total = 0;
           message = failure.userMessage;
         }
+      } else if (keepCurrent) {
+        status = BuyerDeliveriesStatus.current;
+        message = 'No se pudo actualizar; se muestra la lista recibida.';
       } else {
         status = BuyerDeliveriesStatus.unavailable;
         cachedSummaries = const [];
