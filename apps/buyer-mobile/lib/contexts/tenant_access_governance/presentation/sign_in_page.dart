@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
+
 import '../../../core/presentation/nexa_buyer_components.dart';
 import 'buyer_access_layout.dart';
 import 'buyer_access_view_model.dart';
@@ -93,51 +95,55 @@ final class _SignInPageState extends State<SignInPage> {
     );
   }
 
-  Widget _welcome(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      ExcludeSemantics(
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Icon(
-              Icons.shopping_bag_outlined,
-              size: 40,
-              color: Theme.of(context).colorScheme.primary,
+  Widget _welcome(BuildContext context) {
+    final strings = AppLocalizations.of(context)!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ExcludeSemantics(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Icon(
+                Icons.shopping_bag_outlined,
+                size: 40,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
           ),
         ),
-      ),
-      const SizedBox(height: 24),
-      Text(
-        'Todo para tu próxima compra.',
-        style: Theme.of(context).textTheme.headlineLarge,
-      ),
-      const SizedBox(height: 16),
-      Text(
-        'Explora tus productos, prepara una solicitud y sigue tus entregas desde un solo lugar.',
-        style: Theme.of(context).textTheme.bodyLarge,
-      ),
-      const SizedBox(height: 32),
-      FilledButton(
-        onPressed: () => setState(() => _showSignIn = true),
-        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
-        child: const Text('Continuar'),
-      ),
-      TextButton(
-        onPressed: () => context.push('/legal/terms'),
-        child: const Text('Términos de uso'),
-      ),
-    ],
-  );
+        const SizedBox(height: 24),
+        Text(
+          strings.welcomeTitle,
+          style: Theme.of(context).textTheme.headlineLarge,
+        ),
+        const SizedBox(height: 16),
+        Text(
+          strings.welcomeDescription,
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+        const SizedBox(height: 32),
+        FilledButton(
+          onPressed: () => setState(() => _showSignIn = true),
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
+          child: Text(strings.continueLabel),
+        ),
+        TextButton(
+          onPressed: () => context.push('/legal/terms'),
+          child: Text(strings.termsTitle),
+        ),
+      ],
+    );
+  }
 
   Widget _credentials(BuildContext context, BuyerAccessViewModel access) {
+    final strings = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final busy = access.busy || access.biometricBusy;
     return DecoratedBox(
@@ -155,13 +161,13 @@ final class _SignInPageState extends State<SignInPage> {
             Semantics(
               header: true,
               child: Text(
-                'Inicia sesión',
+                strings.signInTitle,
                 style: theme.textTheme.headlineMedium,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Usa el acceso de comprador que te compartió tu empresa.',
+              strings.signInDescription,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -183,12 +189,12 @@ final class _SignInPageState extends State<SignInPage> {
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
                       decoration: _field(
-                        'Correo o usuario',
+                        strings.usernameLabel,
                         Icons.mail_outline_rounded,
                       ),
                       validator: (value) =>
                           value == null || value.trim().isEmpty
-                          ? 'Escribe tu correo o usuario.'
+                          ? strings.usernameRequired
                           : null,
                     ),
                     const SizedBox(height: 16),
@@ -203,13 +209,13 @@ final class _SignInPageState extends State<SignInPage> {
                       onFieldSubmitted: (_) => _submit(),
                       decoration:
                           _field(
-                            'Contraseña',
+                            strings.passwordLabel,
                             Icons.lock_outline_rounded,
                           ).copyWith(
                             suffixIcon: IconButton(
                               tooltip: _obscurePassword
-                                  ? 'Mostrar contraseña'
-                                  : 'Ocultar contraseña',
+                                  ? strings.showPassword
+                                  : strings.hidePassword,
                               onPressed: busy
                                   ? null
                                   : () => setState(
@@ -224,7 +230,7 @@ final class _SignInPageState extends State<SignInPage> {
                             ),
                           ),
                       validator: (value) => value == null || value.isEmpty
-                          ? 'Escribe tu contraseña.'
+                          ? strings.passwordRequired
                           : null,
                     ),
                   ],
@@ -250,7 +256,7 @@ final class _SignInPageState extends State<SignInPage> {
                       dimension: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('Iniciar sesión'),
+                  : Text(strings.signInLabel),
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
@@ -268,15 +274,15 @@ final class _SignInPageState extends State<SignInPage> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.fingerprint_rounded, size: 28),
-              label: const Text('Usar huella o Face ID'),
+              label: Text(strings.biometricSignIn),
             ),
             if (!access.biometricLoginAvailable)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
                   access.biometricSupported
-                      ? 'Actívala en Perfil después de iniciar sesión.'
-                      : 'Configura biometría en tu dispositivo.',
+                      ? strings.biometricEnableInProfile
+                      : strings.biometricSetupOnDevice,
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
@@ -289,7 +295,7 @@ final class _SignInPageState extends State<SignInPage> {
               style: TextButton.styleFrom(
                 minimumSize: const Size.fromHeight(48),
               ),
-              child: const Text('¿Olvidaste tu contraseña?'),
+              child: Text(strings.forgotPassword),
             ),
           ],
         ),

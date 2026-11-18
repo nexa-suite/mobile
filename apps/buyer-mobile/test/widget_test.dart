@@ -39,6 +39,33 @@ Map<String, Object?> _legalAcceptanceResponse() => {
 };
 
 void main() {
+  testWidgets('uses Latin American Spanish when the device prefers Spanish', (
+    tester,
+  ) async {
+    final dispatcher = tester.binding.platformDispatcher;
+    dispatcher.localesTestValue = const [Locale('es', 'PE')];
+    addTearDown(dispatcher.clearLocalesTestValue);
+    await tester.pumpWidget(
+      BuyerMobileApp(
+        apiBaseUrl: 'https://api.nexa.example',
+        allowLocalHttp: false,
+        httpClient: MockClient((request) async {
+          fail('Unexpected API request ${request.method} ${request.url}');
+        }),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final welcome = find.text('Todo para tu próxima compra.');
+    expect(welcome, findsOneWidget);
+    expect(
+      Localizations.localeOf(tester.element(welcome)),
+      const Locale('es', '419'),
+    );
+    await tester.tap(find.text('Continuar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Usar huella o Face ID'), findsOneWidget);
+  });
+
   testWidgets('shows safe configuration guidance without an API origin', (
     tester,
   ) async {
@@ -135,14 +162,14 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Continuar'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byType(TextFormField).at(0),
         'buyer@example.test',
       );
       await tester.enterText(find.byType(TextFormField).at(1), 'test-password');
-      await tester.tap(find.widgetWithText(FilledButton, 'Iniciar sesión'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Empresa Norte'));
       await tester.pumpAndSettle();
@@ -235,18 +262,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.bySemanticsLabel('Nexa'), findsOneWidget);
     final signInTheme = Theme.of(
-      tester.element(find.text('Todo para tu próxima compra.')),
+      tester.element(find.text('Everything for your next purchase.')),
     );
     expect(signInTheme.colorScheme.primary, const Color(0xFF2563EB));
     expect(signInTheme.textTheme.bodyMedium?.fontFamily, 'Inter');
-    await tester.tap(find.text('Continuar'));
+    await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byType(TextFormField).at(0),
       'buyer@example.test',
     );
     await tester.enterText(find.byType(TextFormField).at(1), 'test-password');
-    await tester.tap(find.widgetWithText(FilledButton, 'Iniciar sesión'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Empresa Norte'));
     await tester.pumpAndSettle();
@@ -603,16 +630,16 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Continuar'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
-      expect(find.text('¿Olvidaste tu contraseña?'), findsOneWidget);
-      expect(find.text('Usar huella o Face ID'), findsOneWidget);
+      expect(find.text('Forgot your password?'), findsOneWidget);
+      expect(find.text('Use fingerprint or Face ID'), findsOneWidget);
       await tester.enterText(
         find.byType(TextFormField).at(0),
         'buyer@example.test',
       );
       await tester.enterText(find.byType(TextFormField).at(1), 'test-password');
-      await tester.tap(find.widgetWithText(FilledButton, 'Iniciar sesión'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
       await tester.pumpAndSettle();
       expect(find.text('Elige tu empresa'), findsOneWidget);
       expect(find.text('Empresa Norte'), findsOneWidget);

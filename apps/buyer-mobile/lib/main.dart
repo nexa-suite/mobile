@@ -36,6 +36,7 @@ import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
 import 'app/buyer_workspace_navigation.dart';
+import 'l10n/generated/app_localizations.dart';
 import 'app/buyer_shopping_summary.dart';
 import 'app/buyer_delivery_qr_scanner.dart';
 import 'app/buyer_mobile_terms_navigation.dart';
@@ -520,6 +521,8 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp>
         title: 'Nexa Buyer',
         debugShowCheckedModeBanner: false,
         theme: NexaBuyerTheme.light,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: const [Locale('en', 'US'), Locale('es', '419')],
         routerConfig: router,
       ),
     );
