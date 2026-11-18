@@ -46,6 +46,7 @@
     <string name="access_sign_in_title">Inicia sesión</string>
     <string name="access_submit">Iniciar sesión</string>
     <string name="access_welcome_continue">Continuar</string>
+    <string name="access_view_terms">Términos y condiciones</string>
     <string name="access_welcome_illustration_description">Un paquete avanza por la cadena de frío hasta el despacho.</string>
     <string name="access_welcome_support">Inicia sesión con tu identidad de trabajo para continuar a tu espacio de Operations.</string>
     <string name="access_welcome_title">Empieza tu jornada con claridad</string>

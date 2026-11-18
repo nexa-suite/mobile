@@ -48,6 +48,7 @@ internal fun OperationsProfileSheet(
     role: String,
     onDismiss: () -> Unit,
     onDetails: (() -> Unit)?,
+    onTerms: () -> Unit,
     onPassword: () -> Unit,
     onOtherSessions: () -> Unit,
     onLogout: () -> Unit
@@ -84,6 +85,12 @@ internal fun OperationsProfileSheet(
                         )
                         HorizontalDivider(color = NexaColors.Border)
                     }
+                    ProfileActionRow(
+                        title = stringResource(R.string.profile_terms),
+                        icon = DesignR.drawable.ic_identity,
+                        onClick = onTerms
+                    )
+                    HorizontalDivider(color = NexaColors.Border)
                     ProfileActionRow(
                         title = stringResource(R.string.profile_security),
                         icon = DesignR.drawable.ic_lock,

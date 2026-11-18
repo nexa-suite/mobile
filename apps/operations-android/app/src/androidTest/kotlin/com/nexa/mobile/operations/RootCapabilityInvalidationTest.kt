@@ -113,6 +113,7 @@ class RootCapabilityInvalidationTest {
                     state = SessionState.Active,
                     accessState = access.value,
                     warehouseState = warehouse.state.collectAsState().value,
+                    legalAcceptanceState = serverConfirmedLegalAcceptance,
                     onWarehouseBack = warehouse::back,
                     onIdentifyProduct = warehouse::openProductSearch
                 )

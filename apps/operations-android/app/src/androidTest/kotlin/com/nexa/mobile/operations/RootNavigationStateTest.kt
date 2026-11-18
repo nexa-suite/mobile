@@ -209,6 +209,7 @@ class RootNavigationStateTest {
                     state = session,
                     accessState = accessState,
                     warehouseState = warehouseState.value,
+                    legalAcceptanceState = serverConfirmedLegalAcceptance,
                     onQueryChanged = { query ->
                         val current = warehouseState.value
                         warehouseState.value = current.copy(
@@ -368,6 +369,7 @@ class RootNavigationStateTest {
                     state = session,
                     accessState = accessState,
                     warehouseState = warehouseState,
+                    legalAcceptanceState = serverConfirmedLegalAcceptance,
                     connectedOperationRoute = connectedRoute.value,
                     connectedOperationEntries = entries,
                     onOpenConnectedOperation = { entry ->

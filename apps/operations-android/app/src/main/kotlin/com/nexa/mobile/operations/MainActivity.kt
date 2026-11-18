@@ -185,6 +185,8 @@ import com.nexa.mobile.operations.salescommitment.presentation.commercial.FieldR
 import com.nexa.mobile.operations.salescommitment.presentation.commercial.FieldRequestDraftViewModel
 import com.nexa.mobile.operations.salescommitment.presentation.commercial.SalesOrderExportActions
 import com.nexa.mobile.operations.salescommitment.presentation.commercial.SalesOrderExportViewModel
+import com.nexa.mobile.operations.tenantaccessgovernance.application.legal.LegalAcceptanceGateway
+import com.nexa.mobile.operations.tenantaccessgovernance.application.legal.MobileTermsDocument
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.ActiveOperationsContext
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.CommercialAuthority
 import com.nexa.mobile.operations.tenantaccessgovernance.application.publicapi.PermissionHint
@@ -197,6 +199,7 @@ import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.Acc
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessStage
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessUiState
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.access.AccessViewModel
+import com.nexa.mobile.operations.tenantaccessgovernance.presentation.legal.LegalAcceptanceViewModel
 import com.nexa.mobile.operations.tenantaccessgovernance.presentation.profile.OwnProfileViewModel
 import com.nexa.mobile.operations.visibility.OperationsOverviewScreen
 import dagger.hilt.android.AndroidEntryPoint
@@ -553,6 +556,8 @@ class MainActivity : ComponentActivity() {
 
     @Inject internal lateinit var operationsGateway: OperationsAccessGateway
 
+    @Inject internal lateinit var legalAcceptanceGateway: LegalAcceptanceGateway
+
     @Inject internal lateinit var catalogIdentificationGateway:
         OperationsCatalogIdentificationGateway
 
@@ -561,6 +566,9 @@ class MainActivity : ComponentActivity() {
     private val viewModel: RootViewModel by viewModels()
     private val accessViewModel: AccessViewModel by viewModels {
         AccessViewModelFactory(operationsGateway)
+    }
+    private val legalAcceptanceViewModel: LegalAcceptanceViewModel by viewModels {
+        LegalAcceptanceViewModelFactory(legalAcceptanceGateway)
     }
     private val warehouseViewModel: WarehouseViewModel by viewModels {
         WarehouseViewModelFactory(catalogIdentificationGateway, CatalogOperationsContextAdapter)
@@ -1093,6 +1101,10 @@ class MainActivity : ComponentActivity() {
                 }
                 val state = viewModel.state.collectAsStateWithLifecycle().value
                 val accessState = accessViewModel.state.collectAsStateWithLifecycle().value
+                val legalAcceptanceState =
+                    legalAcceptanceViewModel.state.collectAsStateWithLifecycle().value
+                val publicTermsState =
+                    legalAcceptanceViewModel.publicTerms.collectAsStateWithLifecycle().value
                 val warehouseState = warehouseViewModel.state.collectAsStateWithLifecycle().value
                 val ownProfileState = ownProfileViewModel.state.collectAsStateWithLifecycle().value
                 val chooseCustomer: (() -> Unit)? = if (
@@ -1755,6 +1767,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                LaunchedEffect(state, accessState.authorityEpoch) {
+                    if (state == SessionState.Active) {
+                        legalAcceptanceViewModel.activate(accessState.authorityEpoch)
+                    } else {
+                        legalAcceptanceViewModel.deactivate()
+                    }
+                }
+
                 LaunchedEffect(state) {
                     if (state == SessionState.SignedOut || state == SessionState.ContextRequired) {
                         logoutRequested = false
@@ -2344,6 +2364,13 @@ class MainActivity : ComponentActivity() {
                         state = state,
                         accessState = accessState,
                         warehouseState = warehouseState,
+                        legalAcceptanceState = legalAcceptanceState,
+                        publicTermsState = publicTermsState,
+                        onLegalTermsAccept = { document: MobileTermsDocument, confirmed: Boolean ->
+                            legalAcceptanceViewModel.accept(document, confirmed)
+                        },
+                        onLegalTermsRetry = legalAcceptanceViewModel::retryAcceptance,
+                        onPublicTermsLoad = legalAcceptanceViewModel::loadPublicTerms,
                         dashboard = dashboardSnapshot,
                         dashboardChangeSignals = if (
                             dashboardStockReadAllowed && dashboardEpoch > 0 &&

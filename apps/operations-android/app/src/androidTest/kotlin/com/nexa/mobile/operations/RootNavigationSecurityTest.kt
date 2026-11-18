@@ -98,6 +98,7 @@ class RootNavigationSecurityTest {
                         authorityEpoch = 4
                     ),
                     warehouseState = authorizedWorkState,
+                    legalAcceptanceState = serverConfirmedLegalAcceptance,
                     onIdentifyProduct = { catalogNavigationCalls += 1 }
                 )
             }
@@ -196,6 +197,7 @@ class RootNavigationSecurityTest {
                     state = session.value,
                     accessState = accessState.value,
                     warehouseState = warehouseState.value,
+                    legalAcceptanceState = serverConfirmedLegalAcceptance,
                     connectedOperationRoute = connectedRoute.value,
                     connectedOperationEntries = entries,
                     onOpenConnectedOperation = { entry ->
