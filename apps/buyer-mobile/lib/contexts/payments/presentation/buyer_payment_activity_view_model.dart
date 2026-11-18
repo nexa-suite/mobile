@@ -85,7 +85,8 @@ final class BuyerPaymentActivityViewModel extends ChangeNotifier {
       canReport &&
       !isReporting &&
       !isPreparingProof &&
-      (proofFilename == null || proof?.isAvailable == true);
+      (proofFilename == null ||
+          proofStatus == BuyerTransferProofStatus.available);
 
   void removeProof() {
     if (isReporting || isPreparingProof) return;
@@ -191,14 +192,22 @@ final class BuyerPaymentActivityViewModel extends ChangeNotifier {
         _invalidateCurrentAuthority();
         return;
       }
-      proof = null;
-      _proofFailure(failure, false);
+      if (failure.statusCode != null && failure.statusCode! < 500) {
+        proof = null;
+        _proofFailure(failure, false);
+      } else {
+        _proofStatusCheckUnavailable();
+      }
     } catch (_) {
       if (!_isCurrentProof(generation, lease)) return;
-      proof = null;
-      _proofFailure(null, false);
+      _proofStatusCheckUnavailable();
     }
     notifyListeners();
+  }
+
+  void _proofStatusCheckUnavailable() {
+    proofStatus = BuyerTransferProofStatus.unavailable;
+    proofMessage = 'No se pudo consultar el comprobante. Actualiza su estado para continuar.';
   }
 
   void _setProof(BuyerTransferProofProjection value) {
@@ -343,7 +352,8 @@ final class BuyerPaymentActivityViewModel extends ChangeNotifier {
     }
     if (isReporting) return;
     if (isPreparingProof ||
-        (proofFilename != null && proof?.isAvailable != true)) {
+        (proofFilename != null &&
+            proofStatus != BuyerTransferProofStatus.available)) {
       reportMessage =
           'Espera la validación del comprobante o retíralo del reporte.';
       notifyListeners();

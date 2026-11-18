@@ -104,6 +104,35 @@ void main() {
     },
   );
 
+  test('a lost proof status check can retry without uploading again', () async {
+    final access = _FakeAccess(_snapshot());
+    final repository = _FakePaymentsRepository();
+    final vm = _viewModel(access, repository, _FakeIdempotencyStore());
+    addTearDown(vm.dispose);
+    addTearDown(access.dispose);
+    await _uploadProof(vm);
+    await vm.refreshProof();
+    expect(vm.canSubmitReport, isTrue);
+
+    repository.proofHandler = () => Future.error(
+      const NexaApiFailure(
+        code: 'network_timeout',
+        userMessage: 'Unavailable',
+        retryable: true,
+      ),
+    );
+    await vm.refreshProof();
+    expect(vm.canSubmitReport, isFalse);
+    await vm.reportBankTransfer('BANK-REF-71');
+    expect(repository.reportCalls, isEmpty);
+
+    repository.proofHandler = () async => _proof('AVAILABLE');
+    await vm.refreshProof();
+    await vm.reportBankTransfer('BANK-REF-71');
+    expect(repository.uploadKeys, hasLength(1));
+    expect(repository.reportedProof, _proof('AVAILABLE').id);
+  });
+
   test('picker and upload completion cannot cross authority changes', () async {
     final access = _FakeAccess(_snapshot());
     final repository = _FakePaymentsRepository();
