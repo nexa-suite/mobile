@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -20,6 +21,22 @@ import 'package:nexa_buyer_mobile/contexts/notifications/presentation/buyer_noti
 const _documentId = '00000000-0000-4000-8000-000000000001';
 const _documentBytes = [37, 80, 68, 70, 45, 49, 46, 55];
 const _deliveryId = '00000000-0000-4000-8000-000000000004';
+
+Map<String, Object?> _legalTermsResponse() {
+  const content = 'Condiciones de uso para pruebas.';
+  return {
+    'documentId': 'mobile-terms',
+    'version': '1',
+    'content': content,
+    'contentDigest': sha256.convert(utf8.encode(content)).toString(),
+  };
+}
+
+Map<String, Object?> _legalAcceptanceResponse() => {
+  ..._legalTermsResponse(),
+  'accepted': true,
+  'acceptedAt': '2026-11-17T15:00:00Z',
+};
 
 void main() {
   testWidgets('shows safe configuration guidance without an API origin', (
@@ -88,6 +105,12 @@ void main() {
             jsonEncode({'items': [], 'unreadCount': 0, 'limit': 25}),
             200,
           );
+        }
+        if (path == '/api/v1/me/legal-acceptance') {
+          return http.Response(jsonEncode(_legalAcceptanceResponse()), 200);
+        }
+        if (path == '/api/v1/legal/mobile-terms') {
+          return http.Response(jsonEncode(_legalTermsResponse()), 200);
         }
         if (path == '/api/v1/catalog-items') {
           return http.Response(
@@ -180,6 +203,12 @@ void main() {
           200,
           headers: {'x-nexa-refresh-token': 'refresh-secret'},
         );
+      }
+      if (path == '/api/v1/me/legal-acceptance') {
+        return http.Response(jsonEncode(_legalAcceptanceResponse()), 200);
+      }
+      if (path == '/api/v1/legal/mobile-terms') {
+        return http.Response(jsonEncode(_legalTermsResponse()), 200);
       }
       if (path == '/api/v1/catalog-items') {
         return http.Response(
@@ -540,6 +569,12 @@ void main() {
             jsonEncode(_businessDocument(documentChecksum)),
             200,
           );
+        }
+        if (path == '/api/v1/me/legal-acceptance') {
+          return http.Response(jsonEncode(_legalAcceptanceResponse()), 200);
+        }
+        if (path == '/api/v1/legal/mobile-terms') {
+          return http.Response(jsonEncode(_legalTermsResponse()), 200);
         }
         if (path == '/api/v1/business-documents/$_documentId/downloads') {
           documentDownloads++;

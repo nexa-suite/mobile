@@ -267,6 +267,13 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
                   ],
                 ],
                 const SizedBox(height: 20),
+                TextButton.icon(
+                  onPressed: sameAuthority
+                      ? () => context.push('/legal/terms')
+                      : null,
+                  icon: const Icon(Icons.description_outlined),
+                  label: const Text('Términos de uso'),
+                ),
                 OutlinedButton.icon(
                   onPressed: access.busy || !sameAuthority
                       ? null

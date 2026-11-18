@@ -38,6 +38,7 @@ import 'package:provider/provider.dart';
 import 'app/buyer_workspace_navigation.dart';
 import 'app/buyer_shopping_summary.dart';
 import 'app/buyer_delivery_qr_scanner.dart';
+import 'app/buyer_mobile_terms_navigation.dart';
 import 'contexts/business_documents/application/business_documents_repository.dart';
 import 'contexts/business_documents/infrastructure/business_documents_repository_impl.dart';
 import 'contexts/business_documents/presentation/business_document_detail_page.dart';
@@ -110,10 +111,14 @@ import 'contexts/sales_commitment/presentation/purchase_request_composer_page.da
 import 'contexts/sales_commitment/presentation/purchase_request_composer_view_model.dart';
 import 'contexts/tenant_access_governance/application/buyer_access_repository.dart';
 import 'contexts/tenant_access_governance/application/buyer_change_feed_repository.dart';
+import 'contexts/tenant_access_governance/application/buyer_mobile_terms_repository.dart';
 import 'contexts/tenant_access_governance/infrastructure/buyer_access_repository_impl.dart';
 import 'contexts/tenant_access_governance/infrastructure/buyer_change_feed_repository_impl.dart';
+import 'contexts/tenant_access_governance/infrastructure/buyer_mobile_terms_repository_impl.dart';
 import 'contexts/tenant_access_governance/infrastructure/local_buyer_biometric_authenticator.dart';
 import 'contexts/tenant_access_governance/presentation/buyer_access_view_model.dart';
+import 'contexts/tenant_access_governance/presentation/buyer_mobile_terms_page.dart';
+import 'contexts/tenant_access_governance/presentation/buyer_mobile_terms_view_model.dart';
 import 'contexts/tenant_access_governance/presentation/buyer_password_recovery_view_model.dart';
 import 'contexts/tenant_access_governance/presentation/buyer_password_reset_page.dart';
 import 'contexts/tenant_access_governance/presentation/context_selection_page.dart';
@@ -187,6 +192,10 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp>
   BuyerAccessRepositoryImpl? _accessRepository;
   BuyerChangeFeedRepositoryImpl? _buyerChangeFeedRepository;
   BuyerAccessViewModel? _accessViewModel;
+  BuyerMobileTermsRepositoryImpl? _mobileTermsRepository;
+  BuyerMobileTermsViewModel? _mobileTermsViewModel;
+  final BuyerMobileTermsNavigation _mobileTermsNavigation =
+      BuyerMobileTermsNavigation();
   password_recovery.BuyerPasswordRecoveryRepositoryImpl?
   _passwordRecoveryRepository;
   BuyerPasswordRecoveryViewModel? _passwordRecoveryViewModel;
@@ -243,6 +252,14 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp>
         _accessRepository!,
         biometricAuthenticator: LocalBuyerBiometricAuthenticator(),
       );
+      _mobileTermsRepository = BuyerMobileTermsRepositoryImpl(
+        api,
+        _accessRepository!,
+      );
+      _mobileTermsViewModel = BuyerMobileTermsViewModel(
+        _mobileTermsRepository!,
+        _accessRepository!,
+      );
       _catalogRepository = CatalogRepositoryImpl(api);
       _creditExposureRepository = BuyerCreditExposureRepositoryImpl(api);
       _paymentsRepository = BuyerPaymentsRepositoryImpl(api);
@@ -269,6 +286,8 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp>
       );
       _router = _createRouter(
         _accessViewModel!,
+        _mobileTermsViewModel!,
+        _mobileTermsNavigation,
         _paymentsRepository!,
         _paymentIdempotencyStore!,
         widget.mapTileUrlTemplate,
@@ -298,6 +317,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp>
     unawaited(_pushRegistration?.dispose());
     _router?.dispose();
     _notificationsViewModel?.dispose();
+    _mobileTermsViewModel?.dispose();
     _passwordRecoveryViewModel?.dispose();
     _accessViewModel?.dispose();
     _accessRepository?.dispose();
@@ -307,7 +327,10 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _pushRegistration?.refresh();
+    if (state == AppLifecycleState.resumed) {
+      _pushRegistration?.refresh();
+      _mobileTermsViewModel?.refreshAfterResume();
+    }
   }
 
   @override
@@ -315,6 +338,8 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp>
     final access = _accessRepository;
     final changeFeed = _buyerChangeFeedRepository;
     final accessViewModel = _accessViewModel;
+    final mobileTermsRepository = _mobileTermsRepository;
+    final mobileTermsViewModel = _mobileTermsViewModel;
     final passwordRecoveryRepository = _passwordRecoveryRepository;
     final passwordRecoveryViewModel = _passwordRecoveryViewModel;
     final catalog = _catalogRepository;
@@ -337,6 +362,8 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp>
         access == null ||
         changeFeed == null ||
         accessViewModel == null ||
+        mobileTermsRepository == null ||
+        mobileTermsViewModel == null ||
         passwordRecoveryRepository == null ||
         passwordRecoveryViewModel == null ||
         catalog == null ||
@@ -364,6 +391,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp>
         ),
         Provider<BuyerAccessRepository>.value(value: access),
         Provider<BuyerChangeFeedRepository>.value(value: changeFeed),
+        Provider<BuyerMobileTermsRepository>.value(
+          value: mobileTermsRepository,
+        ),
         Provider<password_recovery.BuyerPasswordRecoveryRepository>.value(
           value: passwordRecoveryRepository,
         ),
@@ -428,6 +458,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp>
         Provider<BuyerNotificationsRepository>.value(value: notifications),
         ChangeNotifierProvider<BuyerAccessViewModel>.value(
           value: accessViewModel,
+        ),
+        ChangeNotifierProvider<BuyerMobileTermsViewModel>.value(
+          value: mobileTermsViewModel,
         ),
         ChangeNotifierProvider<BuyerPasswordRecoveryViewModel>.value(
           value: passwordRecoveryViewModel,
@@ -495,6 +528,8 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp>
 
 GoRouter _createRouter(
   BuyerAccessViewModel access,
+  BuyerMobileTermsViewModel mobileTerms,
+  BuyerMobileTermsNavigation mobileTermsNavigation,
   BuyerPaymentsRepository payments,
   PaymentReportIdempotencyStore paymentIdempotencyStore,
   String mapTileUrlTemplate,
@@ -502,12 +537,32 @@ GoRouter _createRouter(
 ) => GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/home',
-  refreshListenable: access,
-  redirect: (context, state) => BuyerWorkspaceNavigation.redirectLocation(
-    access.snapshot,
-    state.uri.path,
-  ),
+  refreshListenable: Listenable.merge([access, mobileTerms]),
+  redirect: (context, state) {
+    final path = state.uri.path;
+    final snapshot = access.snapshot;
+    final termsRedirect = mobileTermsNavigation.redirectToTermsIfRequired(
+      snapshot: snapshot,
+      path: path,
+      acceptedForCurrentSession: mobileTerms.isAcceptedForCurrentSession,
+    );
+    if (termsRedirect != null) return termsRedirect;
+    if (path == '/legal/terms') return null;
+    return BuyerWorkspaceNavigation.redirectLocation(snapshot, path);
+  },
   routes: [
+    GoRoute(
+      path: '/legal/terms',
+      builder: (context, state) => BuyerMobileTermsPage(
+        onContinue: () => context.go(
+          mobileTermsNavigation.continueAfterAcceptance(access.snapshot),
+        ),
+        onSignOut: () async {
+          await access.signOut();
+          if (context.mounted) context.go('/sign-in');
+        },
+      ),
+    ),
     GoRoute(
       path: '/account',
       builder: (context, state) => const BuyerAccountPage(),
