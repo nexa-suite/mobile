@@ -35,6 +35,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
+import 'app/buyer_workspace_labels.dart';
 import 'app/buyer_workspace_navigation.dart';
 import 'l10n/generated/app_localizations.dart';
 import 'app/buyer_shopping_summary.dart';
@@ -941,6 +942,7 @@ final class _BuyerNavigationShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppLocalizations.of(context)!;
     final access = context.watch<BuyerAccessViewModel>();
     final current = access.snapshot.currentContext;
     final options = BuyerWorkspaceNavigation.destinations(access.snapshot);
@@ -967,13 +969,13 @@ final class _BuyerNavigationShell extends StatelessWidget {
     final selectedIndex = selected < 0 ? -1 : selected;
     NavigationDestination destination(BuyerWorkspaceDestination item) {
       if (orderOptions.contains(item)) {
-        return const NavigationDestination(
-          icon: Icon(Icons.shopping_bag_outlined),
-          selectedIcon: Icon(Icons.shopping_bag),
-          label: 'Pedidos',
+        return NavigationDestination(
+          icon: const Icon(Icons.shopping_bag_outlined),
+          selectedIcon: const Icon(Icons.shopping_bag),
+          label: strings.ordersTab,
         );
       }
-      return _navigationDestination(item);
+      return _navigationDestination(item, strings);
     }
 
     void select(int index) {
@@ -990,7 +992,7 @@ final class _BuyerNavigationShell extends StatelessWidget {
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Tus compras'),
+                Text(strings.workspaceTitle),
                 if (current != null)
                   Text(
                     current.tenantName,
@@ -1004,12 +1006,12 @@ final class _BuyerNavigationShell extends StatelessWidget {
                 access.snapshot,
               ))
                 IconButton(
-                  tooltip: 'Notificaciones',
+                  tooltip: strings.notificationsLabel,
                   onPressed: () => context.push('/notifications'),
                   icon: const Icon(Icons.notifications_outlined),
                 ),
               IconButton(
-                tooltip: 'Cuenta',
+                tooltip: strings.accountLabel,
                 icon: CircleAvatar(
                   radius: 17,
                   backgroundColor: Theme.of(context)
@@ -1068,10 +1070,10 @@ final class _BuyerNavigationShell extends StatelessWidget {
                                         navigationShell.currentIndex,
                                     label: Text(switch (item) {
                                       BuyerWorkspaceDestination.orders =>
-                                        'Órdenes',
+                                        strings.ordersTab,
                                       BuyerWorkspaceDestination.deliveries =>
-                                        'Seguimiento',
-                                      _ => item.label,
+                                        strings.trackingTab,
+                                      _ => item.localizedLabel(strings),
                                     }),
                                     onSelected: (_) => _open(item),
                                   ),
@@ -1115,46 +1117,47 @@ String _accountInitial(String? displayName, String? email) {
 
 NavigationDestination _navigationDestination(
   BuyerWorkspaceDestination destination,
+  AppLocalizations strings,
 ) => switch (destination) {
-  BuyerWorkspaceDestination.home => const NavigationDestination(
-    icon: Icon(Icons.home_outlined),
-    selectedIcon: Icon(Icons.home),
-    label: 'Inicio',
+  BuyerWorkspaceDestination.home => NavigationDestination(
+    icon: const Icon(Icons.home_outlined),
+    selectedIcon: const Icon(Icons.home),
+    label: destination.localizedLabel(strings),
   ),
-  BuyerWorkspaceDestination.requests => const NavigationDestination(
-    icon: Icon(Icons.shopping_bag_outlined),
-    selectedIcon: Icon(Icons.shopping_bag),
-    label: 'Solicitudes',
+  BuyerWorkspaceDestination.requests => NavigationDestination(
+    icon: const Icon(Icons.shopping_bag_outlined),
+    selectedIcon: const Icon(Icons.shopping_bag),
+    label: destination.localizedLabel(strings),
   ),
-  BuyerWorkspaceDestination.catalog => const NavigationDestination(
-    icon: Icon(Icons.inventory_2_outlined),
-    selectedIcon: Icon(Icons.inventory_2),
-    label: 'Catálogo',
+  BuyerWorkspaceDestination.catalog => NavigationDestination(
+    icon: const Icon(Icons.inventory_2_outlined),
+    selectedIcon: const Icon(Icons.inventory_2),
+    label: destination.localizedLabel(strings),
   ),
-  BuyerWorkspaceDestination.orders => const NavigationDestination(
-    icon: Icon(Icons.receipt_long_outlined),
-    selectedIcon: Icon(Icons.receipt_long),
-    label: 'Mis pedidos',
+  BuyerWorkspaceDestination.orders => NavigationDestination(
+    icon: const Icon(Icons.receipt_long_outlined),
+    selectedIcon: const Icon(Icons.receipt_long),
+    label: destination.localizedLabel(strings),
   ),
-  BuyerWorkspaceDestination.credit => const NavigationDestination(
-    icon: Icon(Icons.account_balance_wallet_outlined),
-    selectedIcon: Icon(Icons.account_balance_wallet),
-    label: 'Crédito y pagos',
+  BuyerWorkspaceDestination.credit => NavigationDestination(
+    icon: const Icon(Icons.account_balance_wallet_outlined),
+    selectedIcon: const Icon(Icons.account_balance_wallet),
+    label: destination.localizedLabel(strings),
   ),
-  BuyerWorkspaceDestination.documents => const NavigationDestination(
-    icon: Icon(Icons.description_outlined),
-    selectedIcon: Icon(Icons.description),
-    label: 'Documentos',
+  BuyerWorkspaceDestination.documents => NavigationDestination(
+    icon: const Icon(Icons.description_outlined),
+    selectedIcon: const Icon(Icons.description),
+    label: destination.localizedLabel(strings),
   ),
-  BuyerWorkspaceDestination.wallet => const NavigationDestination(
-    icon: Icon(Icons.account_balance_wallet_outlined),
-    selectedIcon: Icon(Icons.account_balance_wallet),
-    label: 'Billetera',
+  BuyerWorkspaceDestination.wallet => NavigationDestination(
+    icon: const Icon(Icons.account_balance_wallet_outlined),
+    selectedIcon: const Icon(Icons.account_balance_wallet),
+    label: destination.localizedLabel(strings),
   ),
-  BuyerWorkspaceDestination.deliveries => const NavigationDestination(
-    icon: Icon(Icons.local_shipping_outlined),
-    selectedIcon: Icon(Icons.local_shipping),
-    label: 'Mis entregas',
+  BuyerWorkspaceDestination.deliveries => NavigationDestination(
+    icon: const Icon(Icons.local_shipping_outlined),
+    selectedIcon: const Icon(Icons.local_shipping),
+    label: destination.localizedLabel(strings),
   ),
 };
 

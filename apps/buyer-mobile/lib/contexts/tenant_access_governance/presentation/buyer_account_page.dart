@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../app/buyer_workspace_labels.dart';
 import '../../../app/buyer_workspace_navigation.dart';
 import '../../../core/application/error/nexa_api_failure.dart';
 import '../../../core/presentation/nexa_buyer_components.dart';
 import '../../../core/presentation/nexa_buyer_palette.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import 'buyer_access_view_model.dart';
 
 class BuyerAccountPage extends StatefulWidget {
@@ -41,6 +43,7 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
   @override
   Widget build(BuildContext context) => Consumer<BuyerAccessViewModel>(
     builder: (context, access, _) {
+      final strings = AppLocalizations.of(context)!;
       final buyer = access.snapshot.currentContext;
       final sameAuthority = _openedAuthority == _authorityKey(access);
       final destinations =
@@ -63,7 +66,7 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
       );
 
       return Scaffold(
-        appBar: AppBar(title: const Text('Cuenta')),
+        appBar: AppBar(title: Text(strings.accountLabel)),
         body: SafeArea(
           child: NexaPageWidth(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -231,12 +234,12 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
                             color: NexaBuyerPalette.muted,
                             surface: NexaBuyerPalette.frozenSurface,
                           ),
-                          title: const Text('Otros servicios'),
+                          title: Text(strings.accountOtherServices),
                           children: [
                             for (final destination in destinations)
                               _AccountActionTile(
                                 icon: _destinationIcon(destination),
-                                title: destination.label,
+                                title: destination.localizedLabel(strings),
                                 iconColor: NexaBuyerPalette.primary,
                                 iconSurface: NexaBuyerPalette.primarySurface,
                                 onTap:
@@ -272,14 +275,14 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
                       ? () => context.push('/legal/terms')
                       : null,
                   icon: const Icon(Icons.description_outlined),
-                  label: const Text('Términos de uso'),
+                  label: Text(strings.termsTitle),
                 ),
                 OutlinedButton.icon(
                   onPressed: access.busy || !sameAuthority
                       ? null
                       : () => access.signOut(),
                   icon: const Icon(Icons.logout),
-                  label: const Text('Cerrar sesión'),
+                  label: Text(strings.signOut),
                 ),
               ],
             ),

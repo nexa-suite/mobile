@@ -278,14 +278,14 @@ void main() {
     await tester.tap(find.text('Empresa Norte'));
     await tester.pumpAndSettle();
 
-    expect(_navigationTab('Catálogo'), findsOneWidget);
-    expect(_navigationTab('Mis entregas'), findsNothing);
-    expect(_navigationTab('Billetera'), findsNothing);
-    await tester.tap(find.byTooltip('Cuenta'));
+    expect(_navigationTab('Catalog'), findsOneWidget);
+    expect(_navigationTab('Deliveries'), findsNothing);
+    expect(_navigationTab('Wallet'), findsNothing);
+    await tester.tap(find.byTooltip('Account'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Otros servicios'));
+    await tester.tap(find.text('Other services'));
     await tester.pumpAndSettle();
-    expect(find.text('Documentos'), findsOneWidget);
+    expect(find.text('Documents'), findsOneWidget);
     expect(find.text('Mis entregas'), findsNothing);
     expect(find.text('Billetera'), findsNothing);
     expect(paths, isNot(contains('/api/v1/buyer/deliveries')));
@@ -647,7 +647,7 @@ void main() {
 
       await tester.tap(find.text('Empresa Norte'));
       await tester.pumpAndSettle();
-      await tester.tap(_navigationTab('Catálogo'));
+      await tester.tap(_navigationTab('Catalog'));
       await tester.pumpAndSettle();
       expect(find.byType(CatalogPage), findsOneWidget);
       expect(
@@ -657,7 +657,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(_navigationTab('Catálogo'), findsOneWidget);
+      expect(_navigationTab('Catalog'), findsOneWidget);
       expect(find.text('Café de altura'), findsOneWidget);
       expect(find.text('S/ 12,5'), findsOneWidget);
 
@@ -671,7 +671,7 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
 
-      await tester.tap(_navigationTab('Pedidos'));
+      await tester.tap(_navigationTab('Orders'));
       await tester.pumpAndSettle();
       expect(find.text('SO-0001'), findsOneWidget);
       await tester.tap(find.text('SO-0001'));
@@ -681,7 +681,7 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Seguimiento'));
+      await tester.tap(find.text('Tracking'));
       await tester.pumpAndSettle();
       expect(find.text('Pedido SO-0001'), findsOneWidget);
       expect(
@@ -715,7 +715,7 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
 
-      await _openMoreDestination(tester, 'Crédito y pagos');
+      await _openMoreDestination(tester, 'Credit and payments');
       expect(find.text('260 PEN'), findsOneWidget);
       expect(find.text('Exposición usada'), findsOneWidget);
       await tester.scrollUntilVisible(find.text('REC-0001'), 400);
@@ -733,7 +733,7 @@ void main() {
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
 
-      await _openMoreDestination(tester, 'Documentos');
+      await _openMoreDestination(tester, 'Documents');
       expect(find.text('INV-2026-01'), findsOneWidget);
       expect(documentDownloads, 0);
       await tester.tap(find.text('INV-2026-01'));
@@ -783,7 +783,7 @@ void main() {
 
       await tester.pageBack();
       await tester.pumpAndSettle();
-      await _openMoreDestination(tester, 'Billetera');
+      await _openMoreDestination(tester, 'Wallet');
       expect(find.text('90.50 PEN'), findsOneWidget);
       expect(find.text('120.50 PEN'), findsOneWidget);
       expect(find.text('ORDER CONSUMPTION'), findsOneWidget);
@@ -827,9 +827,9 @@ Future<void> _openMoreDestination(
   WidgetTester tester,
   String destination,
 ) async {
-  await tester.tap(find.byTooltip('Cuenta'));
+  await tester.tap(find.byTooltip('Account'));
   await tester.pumpAndSettle();
-  await tester.tap(find.text('Otros servicios'));
+  await tester.tap(find.text('Other services'));
   await tester.pumpAndSettle();
   await tester.ensureVisible(find.text(destination));
   await tester.pumpAndSettle();

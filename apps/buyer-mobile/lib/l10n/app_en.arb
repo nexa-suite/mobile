@@ -47,5 +47,18 @@
   "termsAcceptanceNotRecorded": "Acceptance was not recorded. Review this version and try again.",
   "termsCannotConfirmResult": "Could not confirm the result. Refresh the status before trying again.",
   "termsStatusAccessDenied": "Your account cannot check the terms status.",
-  "termsTermsUnavailable": "Could not load the current terms. Try again."
+  "termsTermsUnavailable": "Could not load the current terms. Try again.",
+  "homeTab": "Home",
+  "catalogTab": "Catalog",
+  "ordersTab": "Orders",
+  "creditTab": "Credit and payments",
+  "documentsTab": "Documents",
+  "walletTab": "Wallet",
+  "deliveriesTab": "Deliveries",
+  "requestsTab": "Requests",
+  "workspaceTitle": "Your purchases",
+  "notificationsLabel": "Notifications",
+  "accountLabel": "Account",
+  "trackingTab": "Tracking",
+  "accountOtherServices": "Other services"
 }

@@ -40,5 +40,18 @@
   "termsAcceptanceNotRecorded": "No se registró la aceptación. Puedes volver a intentarlo después de revisar esta versión.",
   "termsCannotConfirmResult": "No se pudo confirmar el resultado. Actualiza el estado antes de intentar de nuevo.",
   "termsStatusAccessDenied": "No se pudo consultar el estado de los términos con este acceso.",
-  "termsTermsUnavailable": "No se pudieron cargar los términos vigentes. Inténtalo de nuevo."
+  "termsTermsUnavailable": "No se pudieron cargar los términos vigentes. Inténtalo de nuevo.",
+  "homeTab": "Inicio",
+  "catalogTab": "Catálogo",
+  "ordersTab": "Pedidos",
+  "creditTab": "Crédito y pagos",
+  "documentsTab": "Documentos",
+  "walletTab": "Billetera",
+  "deliveriesTab": "Mis entregas",
+  "requestsTab": "Solicitudes",
+  "workspaceTitle": "Tus compras",
+  "notificationsLabel": "Notificaciones",
+  "accountLabel": "Cuenta",
+  "trackingTab": "Seguimiento",
+  "accountOtherServices": "Otros servicios"
 }
