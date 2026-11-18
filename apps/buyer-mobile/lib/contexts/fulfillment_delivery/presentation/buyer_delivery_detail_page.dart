@@ -781,10 +781,16 @@ final class _BuyerDeliveryDetailPageState
     if (scan == null || !detail.canAcceptHandoff) return;
     final revision = detail.authorityRevision;
     final token = await scan();
-    if (!mounted ||
-        token == null ||
-        revision != detail.authorityRevision ||
-        !detail.canAcceptHandoff) {
+    if (!mounted || token == null) return;
+    if (revision != detail.authorityRevision || !detail.canAcceptHandoff) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'El acceso o el estado de la entrega cambió mientras escaneabas. '
+            'No se envió este código; actualiza la entrega antes de volver a escanear.',
+          ),
+        ),
+      );
       return;
     }
     await detail.acceptHandoff(token);
