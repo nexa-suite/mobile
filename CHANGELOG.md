@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.0.1]
+
+- Make the Operations terms easier to read on phones and at larger text sizes.
+- Set independent Android versions to Buyer 2.0.0 and Operations 3.0.1.
+- Add APK checksums and Render verification in the [v3.0.1 notes](RELEASE_NOTES_v3.0.1.md).
+
 ## [3.0.0]
 
 - Publish signed Android APKs for Buyer Mobile and Operations Android.
