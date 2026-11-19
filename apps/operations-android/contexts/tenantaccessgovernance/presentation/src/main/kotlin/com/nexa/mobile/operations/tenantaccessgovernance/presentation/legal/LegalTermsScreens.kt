@@ -1,11 +1,13 @@
 package com.nexa.mobile.operations.tenantaccessgovernance.presentation.legal
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -13,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -24,6 +27,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -105,7 +110,9 @@ fun PublicLegalTermsScreen(
                 modifier = Modifier.padding(16.dp)
             )
 
-            is PublicTermsUiState.Available -> ReadTermsContent(state.document)
+            is PublicTermsUiState.Available -> TermsLayout {
+                ReadTermsContent(state.document)
+            }
         }
     }
 }
@@ -119,12 +126,10 @@ private fun AcceptanceContent(
     val document = state.document
     key(document.documentId, document.version, document.contentDigest) {
         var confirmed by rememberSaveable { mutableStateOf(false) }
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+        TermsLayout {
             Text(
                 stringResource(R.string.mobile_terms_acceptance_heading),
+                modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.headlineSmall
             )
             ReadTermsContent(document)
@@ -174,26 +179,40 @@ private fun AcceptanceContent(
 }
 
 @Composable
-private fun ReadTermsContent(document: MobileTermsDocument) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        DocumentIdentity(document)
-        SelectionContainer {
-            Text(
-                document.content,
-                style = MaterialTheme.typography.bodyLarge,
-                textAlign = TextAlign.Start
-            )
+private fun TermsLayout(content: @Composable () -> Unit) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Column(
+            modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth()
+                .verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            content()
         }
     }
 }
 
 @Composable
-private fun DocumentIdentity(document: MobileTermsDocument) {
-    Text(
-        stringResource(R.string.mobile_terms_version, document.version),
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.Medium
-    )
+private fun ReadTermsContent(document: MobileTermsDocument) {
+    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                stringResource(R.string.mobile_terms_version, document.version),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium
+            )
+            SelectionContainer {
+                Text(
+                    document.content,
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Start
+                )
+            }
+        }
+    }
 }
 
 @Composable
