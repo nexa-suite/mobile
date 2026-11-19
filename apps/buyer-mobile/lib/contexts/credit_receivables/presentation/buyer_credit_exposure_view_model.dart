@@ -85,13 +85,16 @@ final class BuyerCreditExposureViewModel extends ChangeNotifier {
         _invalidateCurrentAuthority();
         return;
       }
+      final permissionDenied = failure.statusCode == 403;
       _clearAll(
         BuyerCreditExposureStatus.unavailable,
-        failure.userMessage,
-        failure.statusCode == 403
+        permissionDenied
+            ? 'No tienes permiso para consultar tu crédito.'
+            : 'No se pudo actualizar la información de crédito.',
+        permissionDenied
             ? BuyerReceivablesStatus.permissionDenied
             : BuyerReceivablesStatus.unavailable,
-        failure.statusCode == 403
+        permissionDenied
             ? 'No tienes permiso para consultar tus cuentas por cobrar.'
             : 'No se pudieron consultar tus cuentas por cobrar.',
       );
@@ -185,7 +188,7 @@ final class BuyerCreditExposureViewModel extends ChangeNotifier {
           : BuyerReceivablesStatus.unavailable;
       receivablesMessage = failure.statusCode == 403
           ? 'No tienes permiso para consultar tus cuentas por cobrar.'
-          : failure.userMessage;
+          : 'No se pudieron consultar tus cuentas por cobrar.';
     } catch (_) {
       if (!_isCurrent(generation, lease)) return;
       receivables = const [];
