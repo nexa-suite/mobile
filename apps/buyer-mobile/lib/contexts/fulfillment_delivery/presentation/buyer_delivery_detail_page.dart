@@ -525,9 +525,8 @@ final class _BuyerDeliveryDetailPageState
                   ),
                 ),
                 const SizedBox(height: 16),
-                if (detail.handoffAcceptance != null)
-                  _handoffAndReceipt(context, detail)
-                else if (widget.scanDeliveryToken != null)
+                if (widget.scanDeliveryToken != null ||
+                    detail.handoffAcceptance != null)
                   _qrReceiptCard(detail, delivery),
                 if (detail.handoffAcceptance == null)
                   ExpansionTile(
@@ -598,24 +597,67 @@ final class _BuyerDeliveryDetailPageState
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'Cuando tengas tu pedido, escanea el QR del repartidor para registrar la recepción.',
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              key: const Key('buyer-scan-delivery-qr'),
-              onPressed: enabled ? () => _scanAndAccept(detail) : null,
-              icon: const Icon(Icons.qr_code_scanner),
-              label: const Text('Escanear y recibir'),
-            ),
-            if (!enabled)
-              const Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: Text(
-                  'La recepción ya está registrada o todavía no está disponible.',
-                ),
+            if (detail.handoffAcceptance == null) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Cuando tengas tu pedido, escanea el QR del repartidor para registrar la recepción.',
               ),
+              const SizedBox(height: 16),
+              if (detail.canRetryHandoffAcceptance)
+                FilledButton.icon(
+                  key: const Key('buyer-retry-handoff-acceptance'),
+                  onPressed: detail.retryHandoffAcceptance,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Reintentar el mismo QR'),
+                )
+              else
+                FilledButton.icon(
+                  key: const Key('buyer-scan-delivery-qr'),
+                  onPressed: enabled && widget.scanDeliveryToken != null
+                      ? () => _scanAndAccept(detail)
+                      : null,
+                  icon:
+                      detail.isQrReceiptAttempt &&
+                          detail.receiptStatus == BuyerReceiptStatus.submitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.qr_code_scanner),
+                  label: Text(
+                    detail.isQrReceiptAttempt &&
+                            detail.receiptStatus ==
+                                BuyerReceiptStatus.submitting
+                        ? 'Registrando recepción'
+                        : 'Escanear y recibir',
+                  ),
+                ),
+              if (!enabled && !detail.isQrReceiptAttempt)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    'La recepción ya está registrada o todavía no está disponible.',
+                  ),
+                ),
+            ],
+            if (detail.isQrReceiptAttempt && detail.receiptMessage != null) ...[
+              const SizedBox(height: 12),
+              NexaNotice(
+                detail.receiptMessage!,
+                isError:
+                    detail.receiptStatus == BuyerReceiptStatus.unavailable ||
+                    detail.receiptStatus == BuyerReceiptStatus.conflict ||
+                    detail.receiptStatus == BuyerReceiptStatus.permissionDenied,
+              ),
+            ],
+            if (detail.handoffAcceptance case final acceptance?) ...[
+              const SizedBox(height: 8),
+              _DetailRow(
+                label: 'Cantidad recibida',
+                value: acceptance.acceptedQuantity.toString(),
+              ),
+            ],
           ],
         ),
       ),

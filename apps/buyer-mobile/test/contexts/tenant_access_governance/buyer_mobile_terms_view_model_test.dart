@@ -26,7 +26,7 @@ void main() {
 
     expect(viewModel.isAcceptedForCurrentSession, isTrue);
     expect(viewModel.document?.version, '1');
-    expect(viewModel.message, contains('Se conserva la aceptación'));
+    expect(viewModel.notice, BuyerMobileTermsNotice.refreshKeptAcceptance);
     viewModel.dispose();
     await access.dispose();
   });

@@ -18,7 +18,7 @@
     <string name="access_notice_context_unavailable">No se pudo confirmar el cambio. Tu contexto actual sigue activo.</string>
     <string name="access_notice_context_unknown">No pudimos confirmar el cambio de contexto. Cerramos el acceso para proteger tus datos.</string>
     <string name="access_notice_expired">Tu sesión venció o dejó de estar disponible. Inicia sesión otra vez.</string>
-    <string name="access_notice_integration">El acceso de Operations todavía no está conectado en este entorno.</string>
+    <string name="access_notice_integration">El acceso a Operations no está disponible en este entorno.</string>
     <string name="access_notice_network">No pudimos conectar. Tu acceso sigue protegido; inténtalo de nuevo.</string>
     <string name="access_notice_no_context">No hay contextos de trabajo disponibles para esta identidad.</string>
     <string name="access_notice_service">El servicio de acceso no está disponible por ahora.</string>
