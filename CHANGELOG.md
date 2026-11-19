@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.0.2]
+
+- Refresh Buyer biometric availability after returning from Android settings.
+- Keep Buyer credit visible when receivables cannot be loaded and show localized errors.
+- Recognize generated and replaced documents and CSV downloads in Operations.
+- Set Android versions to Buyer 2.0.1 and Operations 3.0.2.
+
+See the [v3.0.2 notes](RELEASE_NOTES_v3.0.2.md) for installation and validation.
+
 ## [3.0.1]
 
 - Make the Operations terms easier to read on phones and at larger text sizes.
