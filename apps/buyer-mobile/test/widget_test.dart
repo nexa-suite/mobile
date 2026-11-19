@@ -17,6 +17,7 @@ import 'package:nexa_buyer_mobile/core/presentation/nexa_buyer_theme.dart';
 import 'package:nexa_buyer_mobile/main.dart';
 import 'package:nexa_buyer_mobile/contexts/notifications/application/buyer_push_registration.dart';
 import 'package:nexa_buyer_mobile/contexts/notifications/presentation/buyer_notifications_page.dart';
+import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/application/buyer_access_repository.dart';
 
 const _documentId = '00000000-0000-4000-8000-000000000001';
 const _documentBytes = [37, 80, 68, 70, 45, 49, 46, 55];
@@ -39,6 +40,28 @@ Map<String, Object?> _legalAcceptanceResponse() => {
 };
 
 void main() {
+  testWidgets('checks biometric availability when Buyer resumes', (
+    tester,
+  ) async {
+    final biometrics = _DeviceBiometrics();
+    await tester.pumpWidget(
+      BuyerMobileApp(
+        apiBaseUrl: 'https://api.nexa.example',
+        allowLocalHttp: false,
+        biometricAuthenticator: biometrics,
+        httpClient: MockClient((request) async {
+          fail('Unexpected API request ${request.method} ${request.url}');
+        }),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final checksBeforeResume = biometrics.availabilityChecks;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(biometrics.availabilityChecks, checksBeforeResume + 1);
+  });
+
   testWidgets('uses Latin American Spanish when the device prefers Spanish', (
     tester,
   ) async {
@@ -948,6 +971,19 @@ Map<String, String> _normalizedHeaders(http.BaseRequest request) => {
   for (final entry in request.headers.entries)
     entry.key.toLowerCase(): entry.value,
 };
+
+final class _DeviceBiometrics implements BuyerBiometricAuthenticator {
+  int availabilityChecks = 0;
+
+  @override
+  Future<bool> isAvailable() async {
+    availabilityChecks++;
+    return true;
+  }
+
+  @override
+  Future<bool> authenticate(String reason) async => false;
+}
 
 final class _BlockedPushDevice implements BuyerPushDevice {
   final registerGate = Completer<bool>();
