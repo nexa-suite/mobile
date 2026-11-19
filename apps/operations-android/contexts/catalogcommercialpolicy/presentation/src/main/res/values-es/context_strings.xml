@@ -34,7 +34,7 @@
     <string name="warehouse_confirmation_title">Identificación confirmada</string>
     <string name="warehouse_context_error">El contexto cambió. Vuelve a elegir uno antes de buscar.</string>
     <string name="warehouse_context_invalid_title">El contexto de trabajo dejó de estar disponible</string>
-    <string name="warehouse_integration_error">La búsqueda de productos todavía no está conectada en este entorno.</string>
+    <string name="warehouse_integration_error">La búsqueda de productos no está disponible en este entorno.</string>
     <string name="warehouse_inventory_disclaimer">No se realizó ninguna operación de inventario.</string>
     <string name="warehouse_filter_all">Todos</string>
     <string name="warehouse_filter_brand">Marca</string>

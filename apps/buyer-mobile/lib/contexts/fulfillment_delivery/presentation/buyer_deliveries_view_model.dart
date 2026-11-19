@@ -465,6 +465,7 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
   BuyerReceiptStatus receiptStatus = BuyerReceiptStatus.idle;
   BuyerReceiptProjection? receipt;
   String? receiptMessage;
+  bool isQrReceiptAttempt = false;
   String? evidenceReceiptId;
   BuyerReceiptEvidenceStatus evidenceStatus = BuyerReceiptEvidenceStatus.idle;
   String? evidenceMessage;
@@ -845,6 +846,7 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
         receiptStatus == BuyerReceiptStatus.submitting) {
       return;
     }
+    isQrReceiptAttempt = true;
     final lease = _leaseKey;
     final normalizedToken = token.trim();
     if (lease == null) {
@@ -972,6 +974,8 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
         handoffAcceptance != null) {
       return;
     }
+    isQrReceiptAttempt = false;
+    receiptMessage = null;
     final lease = _leaseKey;
     final normalizedToken = token.trim();
     if (lease == null) {
@@ -1474,6 +1478,7 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
     receipt = null;
     receiptStatus = BuyerReceiptStatus.idle;
     receiptMessage = null;
+    isQrReceiptAttempt = false;
     receipts = const [];
     evidenceReceiptId = null;
     evidenceStatus = BuyerReceiptEvidenceStatus.idle;
@@ -1524,6 +1529,7 @@ final class BuyerDeliveryDetailViewModel extends ChangeNotifier {
     receipt = null;
     receiptStatus = BuyerReceiptStatus.idle;
     receiptMessage = null;
+    isQrReceiptAttempt = false;
     evidenceReceiptId = null;
     evidenceStatus = BuyerReceiptEvidenceStatus.idle;
     evidenceMessage = null;

@@ -39,6 +39,33 @@ Map<String, Object?> _legalAcceptanceResponse() => {
 };
 
 void main() {
+  testWidgets('uses Latin American Spanish when the device prefers Spanish', (
+    tester,
+  ) async {
+    final dispatcher = tester.binding.platformDispatcher;
+    dispatcher.localesTestValue = const [Locale('es', 'PE')];
+    addTearDown(dispatcher.clearLocalesTestValue);
+    await tester.pumpWidget(
+      BuyerMobileApp(
+        apiBaseUrl: 'https://api.nexa.example',
+        allowLocalHttp: false,
+        httpClient: MockClient((request) async {
+          fail('Unexpected API request ${request.method} ${request.url}');
+        }),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final welcome = find.text('Todo para tu próxima compra.');
+    expect(welcome, findsOneWidget);
+    expect(
+      Localizations.localeOf(tester.element(welcome)),
+      const Locale('es', '419'),
+    );
+    await tester.tap(find.text('Continuar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Usar huella o Face ID'), findsOneWidget);
+  });
+
   testWidgets('shows safe configuration guidance without an API origin', (
     tester,
   ) async {
@@ -135,14 +162,14 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Continuar'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byType(TextFormField).at(0),
         'buyer@example.test',
       );
       await tester.enterText(find.byType(TextFormField).at(1), 'test-password');
-      await tester.tap(find.widgetWithText(FilledButton, 'Iniciar sesión'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Empresa Norte'));
       await tester.pumpAndSettle();
@@ -235,30 +262,30 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.bySemanticsLabel('Nexa'), findsOneWidget);
     final signInTheme = Theme.of(
-      tester.element(find.text('Todo para tu próxima compra.')),
+      tester.element(find.text('Everything for your next purchase.')),
     );
     expect(signInTheme.colorScheme.primary, const Color(0xFF2563EB));
     expect(signInTheme.textTheme.bodyMedium?.fontFamily, 'Inter');
-    await tester.tap(find.text('Continuar'));
+    await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byType(TextFormField).at(0),
       'buyer@example.test',
     );
     await tester.enterText(find.byType(TextFormField).at(1), 'test-password');
-    await tester.tap(find.widgetWithText(FilledButton, 'Iniciar sesión'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Empresa Norte'));
     await tester.pumpAndSettle();
 
-    expect(_navigationTab('Catálogo'), findsOneWidget);
-    expect(_navigationTab('Mis entregas'), findsNothing);
-    expect(_navigationTab('Billetera'), findsNothing);
-    await tester.tap(find.byTooltip('Cuenta'));
+    expect(_navigationTab('Catalog'), findsOneWidget);
+    expect(_navigationTab('Deliveries'), findsNothing);
+    expect(_navigationTab('Wallet'), findsNothing);
+    await tester.tap(find.byTooltip('Account'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Otros servicios'));
+    await tester.tap(find.text('Other services'));
     await tester.pumpAndSettle();
-    expect(find.text('Documentos'), findsOneWidget);
+    expect(find.text('Documents'), findsOneWidget);
     expect(find.text('Mis entregas'), findsNothing);
     expect(find.text('Billetera'), findsNothing);
     expect(paths, isNot(contains('/api/v1/buyer/deliveries')));
@@ -603,16 +630,16 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Continuar'));
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
-      expect(find.text('¿Olvidaste tu contraseña?'), findsOneWidget);
-      expect(find.text('Usar huella o Face ID'), findsOneWidget);
+      expect(find.text('Forgot your password?'), findsOneWidget);
+      expect(find.text('Use fingerprint or Face ID'), findsOneWidget);
       await tester.enterText(
         find.byType(TextFormField).at(0),
         'buyer@example.test',
       );
       await tester.enterText(find.byType(TextFormField).at(1), 'test-password');
-      await tester.tap(find.widgetWithText(FilledButton, 'Iniciar sesión'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
       await tester.pumpAndSettle();
       expect(find.text('Elige tu empresa'), findsOneWidget);
       expect(find.text('Empresa Norte'), findsOneWidget);
@@ -620,7 +647,7 @@ void main() {
 
       await tester.tap(find.text('Empresa Norte'));
       await tester.pumpAndSettle();
-      await tester.tap(_navigationTab('Catálogo'));
+      await tester.tap(_navigationTab('Catalog'));
       await tester.pumpAndSettle();
       expect(find.byType(CatalogPage), findsOneWidget);
       expect(
@@ -630,7 +657,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(_navigationTab('Catálogo'), findsOneWidget);
+      expect(_navigationTab('Catalog'), findsOneWidget);
       expect(find.text('Café de altura'), findsOneWidget);
       expect(find.text('S/ 12,5'), findsOneWidget);
 
@@ -644,7 +671,7 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
 
-      await tester.tap(_navigationTab('Pedidos'));
+      await tester.tap(_navigationTab('Orders'));
       await tester.pumpAndSettle();
       expect(find.text('SO-0001'), findsOneWidget);
       await tester.tap(find.text('SO-0001'));
@@ -654,7 +681,7 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Seguimiento'));
+      await tester.tap(find.text('Tracking'));
       await tester.pumpAndSettle();
       expect(find.text('Pedido SO-0001'), findsOneWidget);
       expect(
@@ -688,7 +715,7 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
 
-      await _openMoreDestination(tester, 'Crédito y pagos');
+      await _openMoreDestination(tester, 'Credit and payments');
       expect(find.text('260 PEN'), findsOneWidget);
       expect(find.text('Exposición usada'), findsOneWidget);
       await tester.scrollUntilVisible(find.text('REC-0001'), 400);
@@ -706,7 +733,7 @@ void main() {
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
 
-      await _openMoreDestination(tester, 'Documentos');
+      await _openMoreDestination(tester, 'Documents');
       expect(find.text('INV-2026-01'), findsOneWidget);
       expect(documentDownloads, 0);
       await tester.tap(find.text('INV-2026-01'));
@@ -756,7 +783,7 @@ void main() {
 
       await tester.pageBack();
       await tester.pumpAndSettle();
-      await _openMoreDestination(tester, 'Billetera');
+      await _openMoreDestination(tester, 'Wallet');
       expect(find.text('90.50 PEN'), findsOneWidget);
       expect(find.text('120.50 PEN'), findsOneWidget);
       expect(find.text('ORDER CONSUMPTION'), findsOneWidget);
@@ -800,9 +827,9 @@ Future<void> _openMoreDestination(
   WidgetTester tester,
   String destination,
 ) async {
-  await tester.tap(find.byTooltip('Cuenta'));
+  await tester.tap(find.byTooltip('Account'));
   await tester.pumpAndSettle();
-  await tester.tap(find.text('Otros servicios'));
+  await tester.tap(find.text('Other services'));
   await tester.pumpAndSettle();
   await tester.ensureVisible(find.text(destination));
   await tester.pumpAndSettle();

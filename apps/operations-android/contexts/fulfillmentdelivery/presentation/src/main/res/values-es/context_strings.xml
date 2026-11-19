@@ -672,7 +672,7 @@
     <string name="driver_delivery_proof_checking">Confirmando la entrega y el intento asignado vigentes…</string>
     <string name="driver_delivery_proof_choose_file">Elegir imagen</string>
     <string name="driver_delivery_proof_delivery">Entrega: %1$s</string>
-    <string name="driver_delivery_proof_id">Registro provisional de prueba: %1$s</string>
+    <string name="driver_delivery_proof_id">ID del registro de evidencia: %1$s</string>
     <string name="driver_delivery_proof_pending">Enviando a Nexa…</string>
     <string name="driver_delivery_proof_pending_selection">Nexa creó un registro pendiente. Selecciona una imagen para continuar.</string>
     <string name="driver_delivery_proof_permission">Se requieren permisos vigentes de ruta y carga de evidencia.</string>

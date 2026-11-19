@@ -1,19 +1,18 @@
 import '../contexts/tenant_access_governance/application/buyer_access_repository.dart';
 
 enum BuyerWorkspaceDestination {
-  home('/home', 'Inicio', 0),
-  catalog('/catalog', 'Catálogo', 1),
-  orders('/orders', 'Pedidos', 2),
-  credit('/credit', 'Crédito y pagos', 3),
-  documents('/documents', 'Documentos', 4),
-  wallet('/wallet', 'Billetera', 5),
-  deliveries('/deliveries', 'Mis entregas', 6),
-  requests('/requests', 'Solicitudes', 7);
+  home('/home', 0),
+  catalog('/catalog', 1),
+  orders('/orders', 2),
+  credit('/credit', 3),
+  documents('/documents', 4),
+  wallet('/wallet', 5),
+  deliveries('/deliveries', 6),
+  requests('/requests', 7);
 
-  const BuyerWorkspaceDestination(this.path, this.label, this.branchIndex);
+  const BuyerWorkspaceDestination(this.path, this.branchIndex);
 
   final String path;
-  final String label;
   final int branchIndex;
 }
 

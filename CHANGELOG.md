@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.0.0]
+
+- Publish signed Android APKs for Buyer Mobile and Operations Android.
+- Localize Buyer sign-in, terms and workspace navigation in English and Spanish.
+- Place Buyer receipt confirmation and retry next to the handoff QR.
+- Clarify Operations access and delivery labels and refresh biometric availability on resume.
+- Document ICISA install steps, APK checksums and deployed verification in the [v3.0.0 notes](RELEASE_NOTES_v3.0.0.md).
+
 ## [2.0.1] - Candidate
 
 ### Fixed

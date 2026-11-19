@@ -15,6 +15,19 @@ enum BuyerMobileTermsViewState {
   unavailable,
 }
 
+enum BuyerMobileTermsNotice {
+  refreshKeptAcceptance,
+  acceptanceUnconfirmed,
+  acceptanceAccessDenied,
+  documentChanged,
+  checkingAcceptance,
+  newVersion,
+  acceptanceNotRecorded,
+  cannotConfirmResult,
+  statusAccessDenied,
+  termsUnavailable,
+}
+
 final class BuyerMobileTermsViewModel extends ChangeNotifier {
   BuyerMobileTermsViewModel(this._repository, this._access)
     : _sessionKey = _keyFor(_access.snapshot) {
@@ -31,7 +44,7 @@ final class BuyerMobileTermsViewModel extends ChangeNotifier {
   BuyerMobileTermsViewState status = BuyerMobileTermsViewState.idle;
   BuyerMobileTermsDocument? document;
   DateTime? acceptedAt;
-  String? message;
+  BuyerMobileTermsNotice? notice;
 
   bool get hasActiveBuyerSession => _keyFor(_access.snapshot) != null;
 
@@ -74,7 +87,7 @@ final class BuyerMobileTermsViewModel extends ChangeNotifier {
     _sessionKey = identity;
     if (!previouslyAccepted) status = BuyerMobileTermsViewState.loading;
     if (!previouslyAccepted) acceptedAt = null;
-    message = null;
+    notice = null;
     notifyListeners();
     try {
       if (identity == null) {
@@ -98,7 +111,7 @@ final class BuyerMobileTermsViewModel extends ChangeNotifier {
         document = previousDocument;
         status = BuyerMobileTermsViewState.accepted;
         acceptedAt = previousAcceptedAt;
-        message = 'No pudimos actualizar los términos. Se conserva la aceptación confirmada en esta sesión.';
+        notice = BuyerMobileTermsNotice.refreshKeptAcceptance;
       } else {
         _setUnavailable(_messageFor(error));
       }
@@ -116,7 +129,7 @@ final class BuyerMobileTermsViewModel extends ChangeNotifier {
     final generation = ++_requestGeneration;
     status = BuyerMobileTermsViewState.submitting;
     acceptedAt = null;
-    message = null;
+    notice = null;
     notifyListeners();
     try {
       final result = await _repository.accept(currentDocument);
@@ -128,7 +141,7 @@ final class BuyerMobileTermsViewModel extends ChangeNotifier {
         await _refreshAfterPost(
           generation,
           identity,
-          'No se confirmó la aceptación. Revisa el estado antes de volver a intentarlo.',
+          BuyerMobileTermsNotice.acceptanceUnconfirmed,
         );
         return;
       }
@@ -139,16 +152,14 @@ final class BuyerMobileTermsViewModel extends ChangeNotifier {
         return;
       }
       if (failure == BuyerMobileTermsFailure.accessDenied) {
-        _setUnavailable(
-          'No se pudo verificar tu acceso para aceptar los términos. Actualiza el estado o vuelve a iniciar sesión.',
-        );
+        _setUnavailable(BuyerMobileTermsNotice.acceptanceAccessDenied);
       } else {
         await _refreshAfterPost(
           generation,
           identity,
           failure == BuyerMobileTermsFailure.documentChanged
-              ? 'Los términos cambiaron. Revisa la versión vigente antes de continuar.'
-              : 'Comprobamos el estado para confirmar si se registró la aceptación.',
+              ? BuyerMobileTermsNotice.documentChanged
+              : BuyerMobileTermsNotice.checkingAcceptance,
         );
         return;
       }
@@ -157,7 +168,7 @@ final class BuyerMobileTermsViewModel extends ChangeNotifier {
       await _refreshAfterPost(
         generation,
         identity,
-        'Comprobamos el estado para confirmar si se registró la aceptación.',
+        BuyerMobileTermsNotice.checkingAcceptance,
       );
       return;
     }
@@ -171,7 +182,7 @@ final class BuyerMobileTermsViewModel extends ChangeNotifier {
     _requestGeneration++;
     document = null;
     acceptedAt = null;
-    message = null;
+    notice = null;
     status = BuyerMobileTermsViewState.idle;
     notifyListeners();
     unawaited(refresh());
@@ -180,11 +191,11 @@ final class BuyerMobileTermsViewModel extends ChangeNotifier {
   Future<void> _refreshAfterPost(
     int generation,
     String identity,
-    String outcomeMessage,
+    BuyerMobileTermsNotice outcomeMessage,
   ) async {
     if (!_isCurrent(generation, identity)) return;
     status = BuyerMobileTermsViewState.loading;
-    message = outcomeMessage;
+    notice = outcomeMessage;
     notifyListeners();
     try {
       final currentStatus = await _repository.fetchCurrentStatus();
@@ -192,9 +203,9 @@ final class BuyerMobileTermsViewModel extends ChangeNotifier {
       final previousVersion = document?.version;
       _applyCurrentStatus(currentStatus);
       if (status != BuyerMobileTermsViewState.accepted) {
-        message = currentStatus.document.version != previousVersion
-            ? 'Hay una nueva versión. Revísala antes de continuar.'
-            : 'No se registró la aceptación. Puedes volver a intentarlo después de revisar esta versión.';
+        notice = currentStatus.document.version != previousVersion
+            ? BuyerMobileTermsNotice.newVersion
+            : BuyerMobileTermsNotice.acceptanceNotRecorded;
       }
     } catch (error) {
       if (!_isCurrent(generation, identity)) return;
@@ -202,9 +213,7 @@ final class BuyerMobileTermsViewModel extends ChangeNotifier {
         _access.invalidateLocalSession();
         return;
       }
-      _setUnavailable(
-        'No se pudo confirmar el resultado. Actualiza el estado antes de intentar de nuevo.',
-      );
+      _setUnavailable(BuyerMobileTermsNotice.cannotConfirmResult);
     }
     notifyListeners();
   }
@@ -215,13 +224,13 @@ final class BuyerMobileTermsViewModel extends ChangeNotifier {
     status = currentStatus.accepted
         ? BuyerMobileTermsViewState.accepted
         : BuyerMobileTermsViewState.requiresAcceptance;
-    message = null;
+    notice = null;
   }
 
-  void _setUnavailable(String nextMessage) {
+  void _setUnavailable(BuyerMobileTermsNotice nextMessage) {
     status = BuyerMobileTermsViewState.unavailable;
     acceptedAt = null;
-    message = nextMessage;
+    notice = nextMessage;
   }
 
   bool _isCurrent(int generation, String? identity) =>
@@ -237,10 +246,10 @@ final class BuyerMobileTermsViewModel extends ChangeNotifier {
       acceptance.version == currentDocument.version &&
       acceptance.contentDigest == currentDocument.contentDigest;
 
-  String _messageFor(Object error) =>
+  BuyerMobileTermsNotice _messageFor(Object error) =>
       error == BuyerMobileTermsFailure.accessDenied
-      ? 'No se pudo consultar el estado de los términos con este acceso.'
-      : 'No se pudieron cargar los términos vigentes. Inténtalo de nuevo.';
+      ? BuyerMobileTermsNotice.statusAccessDenied
+      : BuyerMobileTermsNotice.termsUnavailable;
 
   static String? _keyFor(BuyerAccessSnapshot snapshot) {
     if (!snapshot.hasActiveBuyerScope) return null;

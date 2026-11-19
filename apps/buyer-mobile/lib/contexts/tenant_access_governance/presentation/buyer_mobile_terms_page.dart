@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
+
 import '../../../core/presentation/nexa_buyer_components.dart';
 import 'buyer_mobile_terms_view_model.dart';
 
@@ -56,22 +58,23 @@ final class _BuyerMobileTermsPageState extends State<BuyerMobileTermsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppLocalizations.of(context)!;
     final viewModel = context.watch<BuyerMobileTermsViewModel>();
     final document = viewModel.document;
     return Scaffold(
-      appBar: AppBar(title: const Text('Términos de uso')),
+      appBar: AppBar(title: Text(strings.termsTitle)),
       body: SafeArea(
         top: false,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const NexaPageIntro(
-              title: 'Términos de uso',
-              description: 'Consulta la versión vigente de los términos.',
+            NexaPageIntro(
+              title: strings.termsTitle,
+              description: strings.termsDescription,
               icon: Icons.description_outlined,
             ),
-            if (viewModel.message != null) ...[
-              NexaNotice(viewModel.message!),
+            if (viewModel.notice case final notice?) ...[
+              NexaNotice(_noticeText(strings, notice)),
               const SizedBox(height: 12),
             ],
             if (document != null) ...[
@@ -82,7 +85,7 @@ final class _BuyerMobileTermsPageState extends State<BuyerMobileTermsPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Versión ${document.version}',
+                        strings.termsVersion(document.version),
                         style: Theme.of(context).textTheme.titleSmall,
                       ),
                       const SizedBox(height: 12),
@@ -100,31 +103,27 @@ final class _BuyerMobileTermsPageState extends State<BuyerMobileTermsPage> {
             ],
             if (viewModel.status ==
                 BuyerMobileTermsViewState.requiresAcceptance)
-              _acceptanceControls(viewModel),
+              _acceptanceControls(viewModel, strings),
             if (viewModel.status == BuyerMobileTermsViewState.accepted)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const NexaNotice(
-                    'Ya aceptaste la versión vigente de estos términos.',
-                  ),
+                  NexaNotice(strings.termsAccepted),
                   const SizedBox(height: 12),
                   FilledButton(
                     onPressed: widget.onContinue,
-                    child: const Text('Continuar a Nexa Buyer'),
+                    child: Text(strings.termsContinue),
                   ),
                 ],
               ),
             if (viewModel.status == BuyerMobileTermsViewState.publicOnly)
-              const NexaNotice(
-                'Para aceptar los términos, inicia sesión con tu acceso de comprador.',
-              ),
+              NexaNotice(strings.termsSignIn),
             if (viewModel.status == BuyerMobileTermsViewState.unavailable ||
                 viewModel.status == BuyerMobileTermsViewState.idle)
               OutlinedButton.icon(
                 onPressed: viewModel.isLoading ? null : viewModel.refresh,
                 icon: const Icon(Icons.refresh),
-                label: const Text('Actualizar términos y estado'),
+                label: Text(strings.termsRefresh),
               ),
             if (viewModel.isLoading && document != null)
               const Padding(
@@ -136,7 +135,7 @@ final class _BuyerMobileTermsPageState extends State<BuyerMobileTermsPage> {
               TextButton.icon(
                 onPressed: widget.onSignOut,
                 icon: const Icon(Icons.logout),
-                label: const Text('Cerrar sesión'),
+                label: Text(strings.signOut),
               ),
           ],
         ),
@@ -144,7 +143,32 @@ final class _BuyerMobileTermsPageState extends State<BuyerMobileTermsPage> {
     );
   }
 
-  Widget _acceptanceControls(BuyerMobileTermsViewModel viewModel) => Column(
+  String _noticeText(AppLocalizations strings, BuyerMobileTermsNotice notice) =>
+      switch (notice) {
+        BuyerMobileTermsNotice.refreshKeptAcceptance =>
+          strings.termsRefreshKeptAcceptance,
+        BuyerMobileTermsNotice.acceptanceUnconfirmed =>
+          strings.termsAcceptanceUnconfirmed,
+        BuyerMobileTermsNotice.acceptanceAccessDenied =>
+          strings.termsAcceptanceAccessDenied,
+        BuyerMobileTermsNotice.documentChanged => strings.termsDocumentChanged,
+        BuyerMobileTermsNotice.checkingAcceptance =>
+          strings.termsCheckingAcceptance,
+        BuyerMobileTermsNotice.newVersion => strings.termsNewVersion,
+        BuyerMobileTermsNotice.acceptanceNotRecorded =>
+          strings.termsAcceptanceNotRecorded,
+        BuyerMobileTermsNotice.cannotConfirmResult =>
+          strings.termsCannotConfirmResult,
+        BuyerMobileTermsNotice.statusAccessDenied =>
+          strings.termsStatusAccessDenied,
+        BuyerMobileTermsNotice.termsUnavailable =>
+          strings.termsTermsUnavailable,
+      };
+
+  Widget _acceptanceControls(
+    BuyerMobileTermsViewModel viewModel,
+    AppLocalizations strings,
+  ) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       CheckboxListTile(
@@ -155,9 +179,7 @@ final class _BuyerMobileTermsPageState extends State<BuyerMobileTermsPage> {
             : (accepted) => setState(() => _acceptedTerms = accepted ?? false),
         controlAffinity: ListTileControlAffinity.leading,
         contentPadding: EdgeInsets.zero,
-        title: const Text(
-          'He leído y acepto los Términos de uso de Nexa Mobile.',
-        ),
+        title: Text(strings.termsAcceptance),
       ),
       const SizedBox(height: 8),
       FilledButton(
@@ -167,8 +189,8 @@ final class _BuyerMobileTermsPageState extends State<BuyerMobileTermsPage> {
             : null,
         child: Text(
           viewModel.status == BuyerMobileTermsViewState.submitting
-              ? 'Enviando…'
-              : 'Continuar',
+              ? strings.termsSubmitting
+              : strings.continueLabel,
         ),
       ),
     ],

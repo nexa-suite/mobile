@@ -17,6 +17,12 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+    if (name == "stripe_android") {
+        configurations.configureEach {
+            // Buyer accepts payments and does not provision issuer cards into Google Wallet.
+            exclude(group = "com.google.android.gms", module = "play-services-tapandpay")
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

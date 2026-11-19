@@ -147,7 +147,14 @@ The Buyer guide documents API-origin setup, opt-in local API fixtures, assets
 and platform-specific limits. Source checks do not establish Product
 Acceptance, System Acceptance or Production Readiness.
 
-## Latest published source release — v2.0.1
+## Android release v3.0.0
+
+Download the Buyer and Operations APKs from the [Mobile v3.0.0 release](https://github.com/nexa-suite/mobile/releases/tag/v3.0.0).
+Invited testers can install the same builds through Firebase App Distribution.
+See the [v3.0.0 release notes](RELEASE_NOTES_v3.0.0.md) for device requirements,
+install steps, checksums and the workflows verified on the public API.
+
+## Historical source release v2.0.1
 
 Signed tag [`v2.0.1`](https://github.com/nexa-suite/mobile/releases/tag/v2.0.1),
 tagged 2026-11-04, points to `main` commit
@@ -160,7 +167,7 @@ Publication records source/tag state. It does not establish complete cloud
 workflow coverage, Product Acceptance, System Acceptance, physical-device
 acceptance or Production Readiness.
 
-For the academic delivery, use the APKs attached to that release. The compatible
+For that checkpoint, use the APKs attached to its release. The compatible
 [API v2.0.1](https://github.com/nexa-suite/api/releases/tag/v2.0.1) documents the
 bounded cloud composition: catalog/SKU reads, Buyer own-account reads, authorized
 Sales customer reads and independently enabled personal notifications. Complete
