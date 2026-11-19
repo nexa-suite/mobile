@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexa_buyer_mobile/contexts/credit_receivables/application/credit_exposure_repository.dart';
 import 'package:nexa_buyer_mobile/contexts/credit_receivables/presentation/buyer_credit_exposure_view_model.dart';
 import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/application/buyer_access_repository.dart';
+import 'package:nexa_buyer_mobile/core/application/error/nexa_api_failure.dart';
 
 const _accountId = '00000000-0000-4000-8000-000000000001';
 const _otherAccountId = '00000000-0000-4000-8000-000000000002';
@@ -28,6 +29,31 @@ void main() {
       await access.dispose();
     },
   );
+
+  test('uses Spanish copy when receivables cannot load', () async {
+    final access = _FakeAccess(_snapshot());
+    final repository = _FakeRepository(
+      receivablesFailure: const NexaApiFailure(
+        code: 'TECHNICAL_CAPABILITY_UNAVAILABLE',
+        statusCode: 503,
+        userMessage: 'Nexa is temporarily unavailable. Try again later.',
+      ),
+    );
+    final viewModel = BuyerCreditExposureViewModel(repository, access);
+
+    await viewModel.refresh();
+
+    expect(viewModel.status, BuyerCreditExposureStatus.current);
+    expect(viewModel.exposure?.clientAccountId, _accountId);
+    expect(viewModel.receivablesStatus, BuyerReceivablesStatus.unavailable);
+    expect(
+      viewModel.receivablesMessage,
+      'No se pudieron consultar tus cuentas por cobrar.',
+    );
+
+    viewModel.dispose();
+    await access.dispose();
+  });
 
   test(
     'authority change purges pending credit and receivables responses',
@@ -126,10 +152,15 @@ BuyerAccessSnapshot _snapshot({
 );
 
 final class _FakeRepository implements BuyerCreditExposureRepository {
-  _FakeRepository({this.receivables, this.receivablesFuture});
+  _FakeRepository({
+    this.receivables,
+    this.receivablesFuture,
+    this.receivablesFailure,
+  });
 
   final BuyerReceivablesPageProjection? receivables;
   final Future<BuyerReceivablesPageProjection>? receivablesFuture;
+  final NexaApiFailure? receivablesFailure;
   final receivablesStarted = Completer<void>();
 
   @override
@@ -142,6 +173,9 @@ final class _FakeRepository implements BuyerCreditExposureRepository {
     required int page,
   }) {
     if (!receivablesStarted.isCompleted) receivablesStarted.complete();
+    if (receivablesFailure case final failure?) {
+      return Future.error(failure);
+    }
     return receivablesFuture ?? Future.value(receivables ?? _page(_accountId));
   }
 }
