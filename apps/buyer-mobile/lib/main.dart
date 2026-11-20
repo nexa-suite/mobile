@@ -169,6 +169,7 @@ final class BuyerMobileApp extends StatefulWidget {
     this.pushDevice,
     this.httpClient,
     this.walletCheckout,
+    this.biometricAuthenticator,
   });
 
   final String apiBaseUrl;
@@ -178,6 +179,7 @@ final class BuyerMobileApp extends StatefulWidget {
   final BuyerPushDevice? pushDevice;
   final http.Client? httpClient;
   final BuyerWalletCheckoutPort? walletCheckout;
+  final BuyerBiometricAuthenticator? biometricAuthenticator;
 
   @override
   State<BuyerMobileApp> createState() => _BuyerMobileAppState();
@@ -252,7 +254,8 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp>
       );
       _accessViewModel = BuyerAccessViewModel(
         _accessRepository!,
-        biometricAuthenticator: LocalBuyerBiometricAuthenticator(),
+        biometricAuthenticator:
+            widget.biometricAuthenticator ?? LocalBuyerBiometricAuthenticator(),
       );
       _mobileTermsRepository = BuyerMobileTermsRepositoryImpl(
         api,
@@ -332,6 +335,10 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp>
     if (state == AppLifecycleState.resumed) {
       _pushRegistration?.refresh();
       _mobileTermsViewModel?.refreshAfterResume();
+      final access = _accessViewModel;
+      if (access != null && !access.biometricBusy) {
+        unawaited(access.refreshBiometricAvailability());
+      }
     }
   }
 

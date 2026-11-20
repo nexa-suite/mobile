@@ -21,6 +21,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 
 class OperationsBusinessDocumentsGateway @Inject constructor(
     private val sessions: SessionCoordinator,
@@ -40,7 +41,7 @@ class OperationsBusinessDocumentsGateway @Inject constructor(
         val result = calls.execute(
             ProtectedRequest(
                 ProtectedMethod.GET,
-                "/api/v1/business-documents?status=ISSUED&page=$page&size=25"
+                "/api/v1/business-documents?status=GENERATED&page=$page&size=25"
             )
         )
         if (!current(authority, "document.read") ||
@@ -107,7 +108,7 @@ class OperationsBusinessDocumentsGateway @Inject constructor(
             "%02x".format(it)
         }
         if (content.status != 200 ||
-            content.contentType?.substringBefore(';') != identity.contentType ||
+            mediaType(content.contentType) != identity.contentType ||
             bytes.size.toLong() != identity.byteSize || !hash.equals(identity.checksum, true) ||
             !hash.equals(content.checksumSha256, true)
         ) {
@@ -117,13 +118,14 @@ class OperationsBusinessDocumentsGateway @Inject constructor(
     }
     private fun identity(value: JsonObject): BusinessDocumentIdentity? = runCatching {
         fun text(key: String) = value.getValue(key).jsonPrimitive.content
-        require(text("status") == "ISSUED")
+        require(text("status") in setOf("GENERATED", "SUPERSEDED"))
         val formats = mapOf(
             "PDF" to "application/pdf",
             "CSV" to "text/csv",
             "XML" to "application/xml"
         )
-        require(formats[text("format")] == text("contentType"))
+        val contentType = mediaType(text("contentType"))
+        require(contentType != null && formats[text("format")] == contentType)
         UUID.fromString(text("id"))
         UUID.fromString(text("clientAccountId"))
         UUID.fromString(text("subjectId"))
@@ -139,9 +141,12 @@ class OperationsBusinessDocumentsGateway @Inject constructor(
             text(
                 "checksumSha256"
             ),
-            value.getValue("byteSize").jsonPrimitive.long, text("format"), text("contentType")
+            value.getValue("byteSize").jsonPrimitive.long, text("format"), contentType
         )
     }.getOrNull()
+    private fun mediaType(value: String?): String? = value?.toMediaTypeOrNull()?.let {
+        "${it.type}/${it.subtype}"
+    }
     private fun failure(result: ProtectedResult) = if (result is ProtectedResult.Failure &&
         result.error.httpStatus in setOf(401, 403, 404)
     ) {
