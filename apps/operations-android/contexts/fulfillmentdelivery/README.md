@@ -1,11 +1,5 @@
 # BC-06 Fulfillment & Delivery
 
-Status: AS-IS client projection.
+Warehouse uses this area to pick and pack orders. Logistics uses it to plan dispatch, start transit, record delivery outcomes, and show the handoff QR. The Picking list can be read from a saved copy when offline.
 
-Picking, readiness, dispatch, delivery execution, handoffs, operational exceptions and delivery evidence.
-
-The API owns authoritative business decisions. Client domain types represent
-immutable facts and local value constraints; application coordinates requests
-and local command staging. Infrastructure implements HTTP, serialization and
-scoped storage ports. Presentation renders application state. Layer modules
-exist only where this client has code; no empty runtime capability is implied.
+[Mobile architecture](../../../../README.md#how-the-apps-are-organized)
