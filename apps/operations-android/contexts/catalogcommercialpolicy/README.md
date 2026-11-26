@@ -1,11 +1,5 @@
 # BC-03 Catalog & Commercial Policy
 
-Status: AS-IS client projection.
+Operations looks up products by name, code, or barcode. Sales can also read an offer for an assigned customer before adding a product to an order.
 
-Product identification, manual search, scanner resolution and quoted offers.
-
-The API owns authoritative business decisions. Client domain types represent
-immutable facts and local value constraints; application coordinates requests
-and local command staging. Infrastructure implements HTTP, serialization and
-scoped storage ports. Presentation renders application state. Layer modules
-exist only where this client has code; no empty runtime capability is implied.
+[Mobile architecture](../../../../README.md#how-the-apps-are-organized)

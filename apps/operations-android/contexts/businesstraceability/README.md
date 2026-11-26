@@ -1,11 +1,5 @@
 # BC-11 Business Traceability
 
-Status: Canonical ownership mapped; client capability not implemented.
+This directory records the Business Traceability context. Operations shows individual workflow histories in their own screens. A standalone traceability timeline is outside the app today.
 
-No standalone Operations timeline capability is implemented. Operational exception coordination belongs to BC06; security audit remains BC01.
-
-The API owns authoritative business decisions. Client domain types represent
-immutable facts and local value constraints; application coordinates requests
-and local command staging. Infrastructure implements HTTP, serialization and
-scoped storage ports. Presentation renders application state. Layer modules
-exist only where this client has code; no empty runtime capability is implied.
+[Mobile architecture](../../../../README.md#how-the-apps-are-organized)

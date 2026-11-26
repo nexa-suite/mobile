@@ -1,9 +1,7 @@
 # Nexa Mobile v3.0.2
 
-Buyer refreshes fingerprint availability when returning to the app, keeps
-available credit visible if receivables fail to load, and uses localized
-messages for credit and receivables. Operations recognizes generated and
-replaced documents and accepts CSV content types with UTF-8 parameters.
+- In Buyer, fingerprint sign-in refreshes after you return from Android settings. Available credit stays visible if receivables fail to load. Both screens use the app's language for error messages.
+- In Operations, document lists recognize generated and replaced documents, and CSV downloads accept UTF-8 content types.
 
 ## Android downloads
 

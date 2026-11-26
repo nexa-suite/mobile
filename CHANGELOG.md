@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.0.3]
+
+- Add an English and Latin American Spanish language setting in Buyer and Operations.
+- Fix opening existing Buyer purchase requests and clarify their progress labels.
+- Simplify the setup and validation documentation.
+
+See the [v3.0.3 notes](RELEASE_NOTES_v3.0.3.md) for app versions and validation steps.
+
 ## [3.0.2]
 
 - Refresh Buyer biometric availability after returning from Android settings.
@@ -23,31 +31,25 @@ See the [v3.0.2 notes](RELEASE_NOTES_v3.0.2.md) for installation and validation.
 - Clarify Operations access and delivery labels and refresh biometric availability on resume.
 - Document ICISA install steps, APK checksums and deployed verification in the [v3.0.0 notes](RELEASE_NOTES_v3.0.0.md).
 
-## [2.0.1] - Candidate
+## [2.0.1]
 
-### Fixed
-- Preserve a completed Operations biometric proof through server session revalidation and exact context restoration; invalidate it on background, session loss or context change. Server authorization and strong biometric cryptography remain mandatory.
-- Operations Android version is 1.3.1 (code 13). Buyer remains 1.2.1+4.
+- Keep Operations unlocked after a valid fingerprint when the server restores
+  the same user and workspace. Clear the biometric proof when the app goes to
+  the background, the session ends, or the context changes.
+- Operations Android moved to 1.3.1 (build 13). Buyer stayed at 1.2.1 (build 4).
 
+See the [v2.0.1 release notes](RELEASE_NOTES_v2.0.1.md).
 
-## [2.0.0] - source release candidate, unpublished
+## [2.0.0]
 
-Mobile PR [#72](https://github.com/nexa-suite/mobile/pull/72) integrates Buyer
-Flutter and Operations Android work. The application source at
-`d1bf0fef2ed76e89cd26c16bf3e07905b5e9b18f` passed Buyer and Operations CI;
-this release preparation changes documentation only. Application versions remain
-Buyer `1.2.1+4` and Operations `1.3.0` (`versionCode` 12).
+- Integrated the Buyer Flutter and Operations Android changes from
+  [Mobile PR #72](https://github.com/nexa-suite/mobile/pull/72).
+- Buyer uses the API's five-business-day delivery rule in `America/Lima`.
+- Buyer was 1.2.1 (build 4) and Operations was 1.3.0 (build 12).
 
-- Buyer delivery policy consumes the API's five-business-day rule in
-  America/Lima. The API remains authoritative for business decisions.
-- Debug APKs were built for both clients and installed on an API 37 ARM64
-  emulator. Their artifact provenance and limits are recorded in the
-  [candidate notes](RELEASE_NOTES_v2.0.0.md).
-- Compatible API work is tracked in [API #133](https://github.com/nexa-suite/api/pull/133).
-  Cloud migration and authenticated end-to-end validation remain pending.
-
-The repository candidate is unpublished; no Product/UX Acceptance, System
-Acceptance or Production Readiness is claimed.
+See the [published v2.0.0 release](https://github.com/nexa-suite/mobile/releases/tag/v2.0.0),
+[pre-release verification](https://github.com/nexa-suite/mobile/blob/6b2ca781e9cb51109802bc8af8eb00d936ff01a3/RELEASE_NOTES_v2.0.0.md), and the
+[corresponding API work](https://github.com/nexa-suite/api/pull/133).
 
 ## [1.3.1] - local source release candidate, unpublished
 
@@ -58,7 +60,7 @@ Prepared on 2026-10-29 from `main` at `22748321730b1992092064537fd4c24497b6f935`
 - Stabilize the Operations profile/logout instrumentation test by scrolling the profile sheet before selecting logout.
 - Make the manually triggered Operations academic APK artifact name use built version metadata and attach a generated SHA-256 sidecar.
 
-See [v1.3.1 release notes](RELEASE_NOTES_v1.3.1.md). This is a source-only candidate; it does not claim Product/System Acceptance, physical-device acceptance, signed distribution, or Production Readiness.
+See [v1.3.1 candidate notes](https://github.com/nexa-suite/mobile/blob/6b2ca781e9cb51109802bc8af8eb00d936ff01a3/RELEASE_NOTES_v1.3.1.md). This is a source-only candidate; it does not claim Product/System Acceptance, physical-device acceptance, signed distribution, or Production Readiness.
 
 ## Academic checkpoint changes
 
