@@ -452,11 +452,10 @@ final class _PurchaseRequestComposerPageState
                   ...model.recoveryCandidates.map(
                     (candidate) => Card(
                       child: ListTile(
-                        title: Text(
-                          'Borrador ${candidate.status.toLowerCase()}',
-                        ),
+                        title: Text(_draftStatusLabel(candidate.status)),
                         subtitle: Text(
-                          'Versión ${candidate.version} · ${candidate.lineCount} productos · ${candidate.requestedDeliveryDate ?? 'sin fecha'}',
+                          '${candidate.lineCount == 1 ? '1 producto' : '${candidate.lineCount} productos'}'
+                          ' · ${candidate.requestedDeliveryDate ?? 'Sin fecha de entrega'}',
                         ),
                         trailing: const Icon(Icons.visibility_outlined),
                         onTap: () => model.resumeDraft(candidate.id),
@@ -472,10 +471,9 @@ final class _PurchaseRequestComposerPageState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Detalle del servidor · ${inspected.status}',
+                            'Detalle · ${_draftStatusLabel(inspected.status)}',
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
-                          Text('Versión ${inspected.version}'),
                           if (inspected.lines.isEmpty)
                             const Text(
                               'El borrador todavía no tiene productos.',
@@ -536,7 +534,8 @@ final class _PurchaseRequestComposerPageState
                   ),
                 ),
               ],
-              if (model.message case final message?) ...[
+              if ((isUnavailable ? null : model.message)
+                  case final message?) ...[
                 const SizedBox(height: 12),
                 Text(message, textAlign: TextAlign.center),
               ],
@@ -546,6 +545,17 @@ final class _PurchaseRequestComposerPageState
       ),
     );
   }
+
+  String _draftStatusLabel(String status) => switch (status) {
+    'DRAFT' => 'Borrador sin completar',
+    'PRODUCTS_COMPLETE' => 'Productos seleccionados',
+    'DESTINATION_COMPLETE' => 'Destino confirmado',
+    'ROUTE_VALIDATED' => 'Ruta validada',
+    'COMMERCIAL_REVIEW_COMPLETE' => 'Revisión comercial completa',
+    'READY_TO_SUBMIT' => 'Listo para enviar',
+    'SUBMITTED' => 'Solicitud enviada',
+    _ => 'Borrador',
+  };
 
   Future<void> _confirmNewRequestAfterUncertainty(
     BuildContext context,
