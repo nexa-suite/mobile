@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.0.3]
+
+- Add an English and Latin American Spanish language setting in Buyer and Operations.
+- Fix opening existing Buyer purchase requests and clarify their progress labels.
+- Simplify the setup and validation documentation.
+
+See the [v3.0.3 notes](RELEASE_NOTES_v3.0.3.md) for app versions and validation steps.
+
 ## [3.0.2]
 
 - Refresh Buyer biometric availability after returning from Android settings.
