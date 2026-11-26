@@ -411,7 +411,7 @@ final class _PurchaseRequestComposerPageState
     final isUnavailable =
         model.recoveryStatus == PurchaseRequestRecoveryStatus.unavailable;
     return Scaffold(
-      appBar: AppBar(title: const Text('Revisar solicitud previa')),
+      appBar: AppBar(title: const Text('Retomar una solicitud')),
       body: SafeArea(
         top: false,
         child: NexaPageWidth(
@@ -444,7 +444,7 @@ final class _PurchaseRequestComposerPageState
                     child: Padding(
                       padding: EdgeInsets.all(16),
                       child: Text(
-                        'No hay borradores visibles en esta consulta. Revisa de nuevo más tarde antes de crear otra solicitud.',
+                        'La lista está vacía. Vuelve a comprobar antes de preparar otra solicitud.',
                       ),
                     ),
                   )
@@ -455,9 +455,9 @@ final class _PurchaseRequestComposerPageState
                         title: Text(_draftStatusLabel(candidate.status)),
                         subtitle: Text(
                           '${candidate.lineCount == 1 ? '1 producto' : '${candidate.lineCount} productos'}'
-                          ' · ${candidate.requestedDeliveryDate ?? 'Sin fecha de entrega'}',
+                          ' · ${_dateLabel(DateTime.tryParse(candidate.requestedDeliveryDate ?? ''))}',
                         ),
-                        trailing: const Icon(Icons.visibility_outlined),
+                        trailing: const Icon(Icons.chevron_right),
                         onTap: () => model.resumeDraft(candidate.id),
                       ),
                     ),
@@ -475,9 +475,7 @@ final class _PurchaseRequestComposerPageState
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           if (inspected.lines.isEmpty)
-                            const Text(
-                              'El borrador todavía no tiene productos.',
-                            )
+                            const Text('Todavía no se han añadido productos.')
                           else
                             ...inspected.lines.map(
                               (line) => Text(
@@ -523,15 +521,13 @@ final class _PurchaseRequestComposerPageState
                 OutlinedButton(
                   onPressed: () =>
                       model.refreshRecovery(page: model.recoveryPage),
-                  child: const Text('Actualizar borradores'),
+                  child: const Text('Actualizar solicitudes'),
                 ),
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: () =>
                       _confirmNewRequestAfterUncertainty(context, model),
-                  child: const Text(
-                    'Resolver y considerar una solicitud nueva',
-                  ),
+                  child: const Text('Preparar otra solicitud'),
                 ),
               ],
               if ((isUnavailable ? null : model.message)
@@ -547,14 +543,14 @@ final class _PurchaseRequestComposerPageState
   }
 
   String _draftStatusLabel(String status) => switch (status) {
-    'DRAFT' => 'Borrador sin completar',
+    'DRAFT' => 'Por completar',
     'PRODUCTS_COMPLETE' => 'Productos seleccionados',
-    'DESTINATION_COMPLETE' => 'Destino confirmado',
+    'DESTINATION_COMPLETE' => 'Dirección seleccionada',
     'ROUTE_VALIDATED' => 'Ruta validada',
     'COMMERCIAL_REVIEW_COMPLETE' => 'Revisión comercial completa',
-    'READY_TO_SUBMIT' => 'Listo para enviar',
+    'READY_TO_SUBMIT' => 'Lista para enviar',
     'SUBMITTED' => 'Solicitud enviada',
-    _ => 'Borrador',
+    _ => 'Solicitud en curso',
   };
 
   Future<void> _confirmNewRequestAfterUncertainty(
