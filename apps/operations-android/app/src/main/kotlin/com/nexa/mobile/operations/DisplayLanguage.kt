@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.res.Configuration
 import android.os.LocaleList
+import androidx.core.content.edit
 import java.util.Locale
 
 internal enum class DisplayLanguage(val tag: String) {
@@ -35,8 +36,9 @@ internal object DisplayLanguageSettings {
 
     fun select(activity: Activity, language: DisplayLanguage) {
         if (selected(activity) == language) return
-        activity.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit()
-            .putString(KEY, language.tag).apply()
+        activity.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit {
+            putString(KEY, language.tag)
+        }
         activity.recreate()
     }
 }
