@@ -1,11 +1,5 @@
 # BC-02 Customer & Buyer Relationships
 
-Status: AS-IS client projection.
+Sales can browse its assigned customers and record field visits. The API checks which customer records and visit actions the current user can access.
 
-Authorized customer relationships and field visits.
-
-The API owns authoritative business decisions. Client domain types represent
-immutable facts and local value constraints; application coordinates requests
-and local command staging. Infrastructure implements HTTP, serialization and
-scoped storage ports. Presentation renders application state. Layer modules
-exist only where this client has code; no empty runtime capability is implied.
+[Mobile architecture](../../../../README.md#how-the-apps-are-organized)

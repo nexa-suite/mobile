@@ -1,11 +1,5 @@
 # BC-09 Business Documents
 
-Status: AS-IS client projection.
+Sales can find documents for assigned customers. This area also loads private PDFs and handles the document downloads available to the current role.
 
-Authorized Operations document listing and private PDF viewing; Buyer Mobile is a separate target.
-
-The API owns authoritative business decisions. Client domain types represent
-immutable facts and local value constraints; application coordinates requests
-and local command staging. Infrastructure implements HTTP, serialization and
-scoped storage ports. Presentation renders application state. Layer modules
-exist only where this client has code; no empty runtime capability is implied.
+[Mobile architecture](../../../../README.md#how-the-apps-are-organized)
