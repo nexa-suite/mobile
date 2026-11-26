@@ -873,13 +873,10 @@ void main() {
         ),
       );
 
-      expect(find.text('Revisar solicitud previa'), findsOneWidget);
+      expect(find.text('Retomar una solicitud'), findsOneWidget);
       expect(find.textContaining('lista vacía'), findsOneWidget);
-      expect(find.text('Actualizar borradores'), findsOneWidget);
-      expect(
-        find.text('Resolver y considerar una solicitud nueva'),
-        findsOneWidget,
-      );
+      expect(find.text('Actualizar solicitudes'), findsOneWidget);
+      expect(find.text('Preparar otra solicitud'), findsOneWidget);
       expect(find.text('Preparar revisión'), findsNothing);
       expect(repository.createCount, 0);
 

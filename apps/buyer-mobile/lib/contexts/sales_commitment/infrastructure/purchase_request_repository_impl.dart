@@ -594,7 +594,7 @@ final class PurchaseRequestRepositoryImpl
         status == null ||
         version == null ||
         version < 0 ||
-        (etag != null && etag != '"$version"') ||
+        (etag != null && !_matchesVersionEtag(etag, version)) ||
         (value['lineCount'] != null &&
             (_int(value['lineCount']) == null ||
                 (value['lineCount'] as int) < 0)) ||
@@ -607,7 +607,7 @@ final class PurchaseRequestRepositoryImpl
       code: code,
       status: status,
       version: version,
-      etag: etag ?? '"$version"',
+      etag: '"$version"',
       lineCount: _int(value['lineCount']) ?? terms.lines.length,
       terms: terms,
       reviewNote: _string(value['reviewNote']),
@@ -689,6 +689,9 @@ final class PurchaseRequestRepositoryImpl
     );
   }
 
+  bool _matchesVersionEtag(String etag, int version) =>
+      etag == '"$version"' || etag == 'W/"$version"';
+
   PurchaseRequestDraftProjection _parseDraft(
     Map<String, Object?> value, [
     String? responseEtag,
@@ -701,7 +704,7 @@ final class PurchaseRequestRepositoryImpl
         accountId == null ||
         version == null ||
         version < 0 ||
-        (responseEtag != null && responseEtag != '"$version"') ||
+        (responseEtag != null && !_matchesVersionEtag(responseEtag, version)) ||
         rawLines is! List) {
       _invalidResponse();
     }
@@ -712,7 +715,7 @@ final class PurchaseRequestRepositoryImpl
       clientAccountId: accountId,
       status: _string(value['status'])?.toUpperCase() ?? 'UNKNOWN',
       version: version,
-      etag: responseEtag ?? '"$version"',
+      etag: '"$version"',
       lines: rawLines.map(_parseLine).toList(growable: false),
       requestedDeliveryDate: _string(value['requestedDeliveryDate']),
       paymentPreference: _string(value['paymentPreference']),

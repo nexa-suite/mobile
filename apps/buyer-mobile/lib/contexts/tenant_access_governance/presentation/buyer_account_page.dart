@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../app/buyer_interface_language.dart';
 import '../../../app/buyer_workspace_labels.dart';
 import '../../../app/buyer_workspace_navigation.dart';
 import '../../../core/application/error/nexa_api_failure.dart';
@@ -21,6 +23,7 @@ class BuyerAccountPage extends StatefulWidget {
 
 class _BuyerAccountPageState extends State<BuyerAccountPage> {
   String? _openedAuthority;
+  bool _savingLanguage = false;
 
   @override
   void didChangeDependencies() {
@@ -74,24 +77,22 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
               padding: const EdgeInsets.only(top: 12, bottom: 24),
               children: [
                 if (!sameAuthority)
-                  const NexaNotice(
-                    'Tu acceso cambió. Vuelve a abrir Cuenta para continuar.',
-                    isError: true,
-                  )
+                  NexaNotice(strings.accountAccessChanged, isError: true)
                 else if (buyer != null) ...[
                   _BuyerIdentityCard(
-                    displayName: _nonEmpty(buyer.displayName) ?? 'Mi cuenta',
+                    displayName:
+                        _nonEmpty(buyer.displayName) ?? strings.accountLabel,
                     email: _nonEmpty(buyer.email),
                     company: _nonEmpty(buyer.tenantName),
                     initial: _accountInitial(buyer.displayName, buyer.email),
                   ),
                   const SizedBox(height: 20),
-                  _sectionHeading(context, 'Mi cuenta'),
+                  _sectionHeading(context, strings.accountLabel),
                   _AccountSettingsCard(
                     children: [
                       _AccountActionTile(
                         icon: Icons.person_outline,
-                        title: 'Mis datos',
+                        title: strings.accountMyDetails,
                         iconColor: NexaBuyerPalette.primary,
                         iconSurface: NexaBuyerPalette.primarySurface,
                         onTap: _destinationAction(
@@ -110,7 +111,7 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
                           access,
                           path: '/messages',
                           icon: Icons.chat_bubble_outline,
-                          title: 'Mensajes con ventas',
+                          title: strings.accountSalesMessages,
                           iconColor: NexaBuyerPalette.primary,
                           iconSurface: NexaBuyerPalette.primarySurface,
                         ),
@@ -125,7 +126,7 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
                           access,
                           path: '/payment-methods',
                           icon: Icons.credit_card,
-                          title: 'Medios de pago',
+                          title: strings.accountPaymentMethods,
                           iconColor: NexaBuyerPalette.primary,
                           iconSurface: NexaBuyerPalette.primarySurface,
                         ),
@@ -140,7 +141,7 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
                           access,
                           path: '/addresses',
                           icon: Icons.location_on_outlined,
-                          title: 'Direcciones',
+                          title: strings.accountAddresses,
                           iconColor: NexaBuyerPalette.positive,
                           iconSurface: NexaBuyerPalette.positiveSurface,
                         ),
@@ -148,12 +149,12 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _sectionHeading(context, 'Seguridad'),
+                  _sectionHeading(context, strings.accountSecurity),
                   _AccountSettingsCard(
                     children: [
                       _AccountActionTile(
                         icon: Icons.lock_outline,
-                        title: 'Cambiar contraseña',
+                        title: strings.accountChangePassword,
                         iconColor: NexaBuyerPalette.cold,
                         iconSurface: NexaBuyerPalette.coldSurface,
                         onTap: sameAuthority
@@ -163,8 +164,8 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
                       const _AccountRowDivider(),
                       _AccountActionTile(
                         icon: Icons.devices_outlined,
-                        title: 'Otras sesiones',
-                        subtitle: 'Cerrar sesión en otros dispositivos',
+                        title: strings.accountOtherSessions,
+                        subtitle: strings.accountSignOutOtherDevices,
                         iconColor: NexaBuyerPalette.cold,
                         iconSurface: NexaBuyerPalette.coldSurface,
                         onTap: sameAuthority
@@ -181,11 +182,11 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
                           color: NexaBuyerPalette.cold,
                           surface: NexaBuyerPalette.coldSurface,
                         ),
-                        title: const Text('Acceso biométrico'),
+                        title: Text(strings.accountBiometricAccess),
                         subtitle: Text(
                           access.biometricSupported
-                              ? 'Huella o reconocimiento facial'
-                              : 'Configúralo en los ajustes del dispositivo',
+                              ? strings.accountBiometricMethods
+                              : strings.accountBiometricConfigure,
                         ),
                         value: access.biometricEnabled,
                         onChanged:
@@ -203,24 +204,26 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
                         ),
                     ],
                   ),
-                  if (canReadNotifications) ...[
-                    const SizedBox(height: 16),
-                    _sectionHeading(context, 'Preferencias'),
-                    _AccountSettingsCard(
-                      children: [
+                  const SizedBox(height: 16),
+                  _sectionHeading(context, strings.accountPreferences),
+                  _AccountSettingsCard(
+                    children: [
+                      _languageTile(context, strings),
+                      if (canReadNotifications) ...[
+                        const _AccountRowDivider(),
                         _destinationTile(
                           context,
                           access,
                           path: '/notifications/preferences',
                           icon: Icons.notifications_outlined,
-                          title: 'Avisos',
-                          subtitle: 'Preferencias de notificaciones',
+                          title: strings.notificationsLabel,
+                          subtitle: strings.accountNotificationPreferences,
                           iconColor: NexaBuyerPalette.attention,
                           iconSurface: NexaBuyerPalette.attentionSurface,
                         ),
                       ],
-                    ),
-                  ],
+                    ],
+                  ),
                   if (destinations.isNotEmpty || canReadFavorites) ...[
                     const SizedBox(height: 16),
                     _AccountSettingsCard(
@@ -258,7 +261,7 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
                                 access,
                                 path: '/favorites',
                                 icon: Icons.favorite_border,
-                                title: 'Favoritos',
+                                title: strings.accountFavorites,
                                 iconColor: NexaBuyerPalette.primary,
                                 iconSurface: NexaBuyerPalette.primarySurface,
                               ),
@@ -291,6 +294,52 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
       );
     },
   );
+
+  Widget _languageTile(BuildContext context, AppLocalizations strings) {
+    final language = context.watch<BuyerInterfaceLanguage>();
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      leading: const _AccountIconBadge(
+        icon: Icons.language,
+        color: NexaBuyerPalette.primary,
+        surface: NexaBuyerPalette.primarySurface,
+      ),
+      title: Text(strings.interfaceLanguage),
+      subtitle: DropdownButton<Locale>(
+        isExpanded: true,
+        value: language.value,
+        onChanged: _savingLanguage
+            ? null
+            : (locale) async {
+                if (locale == null || locale == language.value) return;
+                setState(() => _savingLanguage = true);
+                try {
+                  await language.select(locale);
+                } on PlatformException {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(strings.interfaceLanguageSaveFailed),
+                      ),
+                    );
+                  }
+                } finally {
+                  if (mounted) setState(() => _savingLanguage = false);
+                }
+              },
+        items: const [
+          DropdownMenuItem(
+            value: BuyerInterfaceLanguage.english,
+            child: Text('English (US)'),
+          ),
+          DropdownMenuItem(
+            value: BuyerInterfaceLanguage.spanish,
+            child: Text('Español (Latinoamérica)'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _sectionHeading(BuildContext context, String title) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
@@ -345,6 +394,7 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
     BuildContext context,
     BuyerAccessViewModel access,
   ) async {
+    final strings = AppLocalizations.of(context)!;
     final authority = _authorityKey(access);
     final currentPassword = TextEditingController();
     final newPassword = TextEditingController();
@@ -357,7 +407,7 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
         context: context,
         builder: (dialogContext) => StatefulBuilder(
           builder: (dialogContext, setDialogState) => AlertDialog(
-            title: const Text('Cambiar contraseña'),
+            title: Text(strings.accountChangePassword),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -367,24 +417,24 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
                     obscureText: true,
                     autofocus: true,
                     onChanged: (_) => setDialogState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: 'Contraseña actual',
+                    decoration: InputDecoration(
+                      labelText: strings.currentPasswordLabel,
                     ),
                   ),
                   TextField(
                     controller: newPassword,
                     obscureText: true,
                     onChanged: (_) => setDialogState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: 'Nueva contraseña',
+                    decoration: InputDecoration(
+                      labelText: strings.newPasswordLabel,
                     ),
                   ),
                   TextField(
                     controller: confirmation,
                     obscureText: true,
                     onChanged: (_) => setDialogState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: 'Confirmar contraseña',
+                    decoration: InputDecoration(
+                      labelText: strings.confirmPasswordLabel,
                     ),
                   ),
                   if (error case final message?)
@@ -403,7 +453,7 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
             actions: [
               TextButton(
                 onPressed: busy ? null : () => Navigator.pop(dialogContext),
-                child: const Text('Cancelar'),
+                child: Text(strings.cancelLabel),
               ),
               FilledButton(
                 onPressed:
@@ -415,7 +465,7 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
                     : () async {
                         if (newPassword.text != confirmation.text) {
                           setDialogState(() {
-                            error = 'Las contraseñas nuevas no coinciden.';
+                            error = strings.newPasswordsMismatch;
                           });
                           return;
                         }
@@ -435,9 +485,7 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
                           if (context.mounted &&
                               _authorityKey(access) == authority) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Contraseña actualizada.'),
-                              ),
+                              SnackBar(content: Text(strings.passwordUpdated)),
                             );
                           }
                         } on NexaApiFailure catch (failure) {
@@ -449,7 +497,7 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
                         } catch (_) {
                           if (dialogContext.mounted) {
                             setDialogState(() {
-                              error = 'No se pudo cambiar la contraseña. Inténtalo de nuevo.';
+                              error = strings.passwordUpdateFailed;
                             });
                           }
                         } finally {
@@ -463,7 +511,7 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
                         dimension: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Guardar'),
+                    : Text(strings.saveLabel),
               ),
             ],
           ),
@@ -480,22 +528,21 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
     BuildContext context,
     BuyerAccessViewModel access,
   ) async {
+    final strings = AppLocalizations.of(context)!;
     final authority = _authorityKey(access);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Cerrar otras sesiones'),
-        content: const Text(
-          'Se cerrarán tus sesiones en otros dispositivos. Esta sesión seguirá activa.',
-        ),
+        title: Text(strings.closeOtherSessions),
+        content: Text(strings.closeOtherSessionsDescription),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancelar'),
+            child: Text(strings.cancelLabel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Cerrar sesiones'),
+            child: Text(strings.closeOtherSessionsConfirm),
           ),
         ],
       ),
@@ -508,9 +555,8 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
     try {
       await access.revokeOtherSessions();
       if (context.mounted && _authorityKey(access) == authority) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Otras sesiones cerradas.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(strings.otherSessionsClosed)));
       }
     } on NexaApiFailure catch (failure) {
       if (context.mounted && _authorityKey(access) == authority) {
@@ -520,9 +566,7 @@ class _BuyerAccountPageState extends State<BuyerAccountPage> {
     } catch (_) {
       if (context.mounted && _authorityKey(access) == authority) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se pudieron cerrar las otras sesiones.'),
-          ),
+          SnackBar(content: Text(strings.otherSessionsCloseFailed)),
         );
       }
     }

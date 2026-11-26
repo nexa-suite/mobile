@@ -1,98 +1,37 @@
-# Nexa Buyer Mobile
+# Nexa Buyer
 
-Flutter client for Buyer sign-in, server-selected access context, catalog,
-orders, purchase requests, credit exposure, receivables, wallet checkout and
-payment history, notification inbox and preferences, bank-transfer reporting,
-business documents, and delivery tracking, handoff and receipt.
-These are client implementation areas, not a claim that every journey is
-enabled in the deployed API. [Mobile v2.0.1](../../RELEASE_NOTES_v2.0.1.md)
-publishes Buyer `1.2.1+4`; the bounded cloud delivery supports catalog,
-own-account and personal-notification reads. Orders, purchase requests,
-favorites, credit, payments and full delivery journeys retain their cloud
-availability limits. Android APK publication does not establish iOS device
-verification or Product Acceptance.
+Buyer is our Flutter app for ICISA customers. It brings the catalog, purchase requests, orders, payment information, and delivery tracking into one app. When a driver shows the handoff QR, the buyer can scan it and confirm what arrived.
 
-Access tokens remain in process memory. Opt-in biometric reentry stores a
-rotating native refresh token and its scope through `FlutterSecureStorage`;
-it never stores the account password. Reentry still requires successful API
-session verification. The API remains authoritative for
-Buyer scope, catalog and commercial decisions, credit, payment status, order
-outcomes, and delivery status. A bank-transfer report is not a payment
-confirmation or wallet balance. Delivery tracking shows Buyer-visible status
-and event summaries. Active delivery details can request the server's latest
-location; the Buyer app does not provide driver assignment or background
-tracking.
-Wallet checkout uses the Stripe PaymentSheet and scoped retry identity; the API
-remains authoritative for payment status and wallet credit. Notifications
-project the server inbox and accepted `IN_APP`/`EMAIL` preferences; this client
-does not implement push delivery or store raw push tokens.
-Document bytes are verified and kept in memory for the detail view; the app does
-not save or open them as files. Payment retry metadata stores only scoped
-idempotency identities and a reference fingerprint; it does not store the
-bank reference or a payment credential.
+## Try the app
 
-The Buyer workspace includes submitted-request history and resumable server
-drafts. A draft can contain multiple products, delivery preferences and a
-server review before submission. Material changes show the original and
-proposed terms before an explicit Buyer decision. Mutations retain current
-versions and scoped command identities; an uncertain response requires a
-server-state check. Navigation exposes only current server-granted options.
-Catalog product, brand and category filters are applied by the API before
-pagination; brand and category choices come from Buyer-visible catalog
-taxonomy. Product family and variety remain separate metadata.
-The visual composition uses Nexa typography, spacing, surfaces and status
-tokens across phones and tablets. Construction and static analysis do not
-establish visual or connected-flow acceptance.
-
-Buyer delivery views poll only while their order or delivery route is visible.
-The delivery detail can show an active delivery's latest server location on a
-map, verify a handoff code, and submit a separate receipt or discrepancy. Code
-verification is not a receipt. A disputed receipt can receive optional image or
-PDF evidence after it is recorded; the API owns receipt scope, immutable
-evidence metadata and scanning. The app keeps selected bytes in memory only and
-persists scoped retry keys and payload fingerprints. Debug builds use the
-OpenStreetMap raster tiles for local development and show their attribution;
-the Flutter map cache respects tile response headers and falls back to seven
-days when the provider omits freshness metadata. Release builds require an
-explicit approved `NEXA_MAP_TILE_URL_TEMPLATE` and
-`NEXA_MAP_ATTRIBUTION`; without both, no map tile requests are made. The public
-OpenStreetMap tile service is best-effort; follow its usage and caching policy,
-and do not prefetch tiles or offer offline downloads. Keep mock coordinates in
-development because a tile request reveals the approximate map area being
-viewed to the tile provider.
-
-Run on an Android emulator against a local API listening on host port 8080:
+Use the [Buyer APK from the latest release](https://github.com/nexa-suite/mobile/releases/latest) or accept your invitation in Firebase App Distribution. Sign in with your Nexa Buyer account. For development, install Flutter and the SDK for your target platform, then run the following from this directory.
 
 ```sh
-flutter run --dart-define=NEXA_API_BASE_URL=http://10.0.2.2:8080
+flutter pub get --enforce-lockfile
+flutter run --dart-define=NEXA_API_BASE_URL=https://nexa-api-69bj.onrender.com
 ```
 
-For a physical Android device, connect only that device through ADB reverse and
-use its loopback origin:
+Use the commands below for the local API on port 8080.
 
-```sh
-scripts/reverse-local-api.sh "$ANDROID_SERIAL"
-flutter run --dart-define=NEXA_API_BASE_URL=http://127.0.0.1:8080
-```
+| Target | API origin |
+| --- | --- |
+| Android emulator | `http://10.0.2.2:8080` |
+| Android phone over USB | Run `scripts/reverse-local-api.sh "$ANDROID_SERIAL"`, then use `http://127.0.0.1:8080` |
+| iPhone | Use a trusted HTTPS origin that the phone can reach |
 
-For an iOS device, set `NEXA_API_BASE_URL` to a trusted HTTPS origin reachable
-from the device, then pass it with `--dart-define=NEXA_API_BASE_URL="$NEXA_API_BASE_URL"`.
-The local `modern-up` API is HTTP on host loopback only; it does not expose a
-LAN HTTPS origin.
+For an Android debug APK, run `flutter build apk --debug` with the same `--dart-define=NEXA_API_BASE_URL=...` argument. The API's local Compose setup binds HTTP to the host loopback.
 
-Run against an HTTPS API origin:
+## Deliveries, offline access, and notifications
 
-```sh
-flutter run --dart-define=NEXA_API_BASE_URL=https://api.example.test
-```
+Open **Orders → Tracking** while online to save delivery summaries. When the connection drops, Buyer can display those summaries and keep a local receipt draft for the active delivery. The server confirms orders, payments, and receipts when the device is online.
 
-Build a development APK:
+Buyer listens for Firebase Cloud Messaging on configured Android builds. Tapping a supported notification opens the inbox, where the app loads the notice through the signed-in session.
 
-```sh
-flutter build apk --debug --dart-define=NEXA_API_BASE_URL=https://api.example.test
-```
+Opt-in fingerprint or Face ID access renews the session using a rotating credential kept in secure storage. The app keeps access tokens in memory. Passwords are used at sign-in and kept out of local storage.
 
-Run static analysis and tests from this directory:
+Debug delivery maps use OpenStreetMap tiles. Use synthetic coordinates while developing the map. A release build needs an approved `NEXA_MAP_TILE_URL_TEMPLATE` and `NEXA_MAP_ATTRIBUTION` to request tiles.
+
+## Checks
 
 ```sh
 python3 scripts/test-context-architecture.py
@@ -101,31 +40,9 @@ flutter analyze
 flutter test
 ```
 
-The architecture check scans Dart source imports and exports. It keeps domain
-and application code independent of platform implementations, presentation
-independent of HTTP and persistence adapters, and cross-context references
-limited to application contracts. The accompanying negative probes exercise
-forbidden dependencies; this check does not establish Product Acceptance.
+The optional API integration suite uses a disposable local Buyer account, since one case creates and submits a purchase request. It needs a local API, the account's active relationship, and catalog and address fixtures. The account requires `buyer.tracking.read`, `payment.read`, and `notification.read`.
 
-The four local API integration tests are opt-in. They require a ready local
-API plus an active Buyer `PORTAL` membership for the selected Tenant and
-Workspace. That membership needs `buyer.tracking.read`, `payment.read`, and
-`notification.read`; its Buyer account relationship and local catalog/address
-data must also be provisioned. One test creates and submits a purchase request,
-so use a disposable local fixture.
-
-The runner reads only `NEXA_DEV_BUYER_EMAIL`, `NEXA_DEV_BUYER_PASSWORD`,
-`NEXA_DEV_TENANT_SLUG`, and `NEXA_DEV_WORKSPACE_SLUG` from the current process
-environment or a private env file at
-`~/.config/nexa/buyer-local-api.env`. The file must be owned by the current user,
-mode `0600`, and outside Git worktrees. Its simple `KEY=VALUE` format is parsed
-as data; it is never shell-sourced. `NEXA_LOCAL_SALES_ORDER_ID` is optional.
-The runner prints no fixture values and passes no credentials as command-line
-arguments. It defaults to `http://localhost:8080`; `NEXA_API_BASE_URL` may
-override that only with an HTTP loopback origin. Set
-`NEXA_BUYER_LOCAL_API_ENV_FILE` to use a different private file path.
-
-Run the four opt-in tests when the local Tenant runtime and fixtures are ready:
+Set `NEXA_DEV_BUYER_EMAIL`, `NEXA_DEV_BUYER_PASSWORD`, `NEXA_DEV_TENANT_SLUG`, and `NEXA_DEV_WORKSPACE_SLUG` in the environment or a `0600` file outside the repo at `~/.config/nexa/buyer-local-api.env`. Set `NEXA_BUYER_LOCAL_API_ENV_FILE` to use a different private file. `NEXA_LOCAL_SALES_ORDER_ID` is optional. The runner defaults to `http://localhost:8080`; use `NEXA_API_BASE_URL` to select a different HTTP loopback address.
 
 ```sh
 python3 scripts/run-buyer-local-api-tests.py

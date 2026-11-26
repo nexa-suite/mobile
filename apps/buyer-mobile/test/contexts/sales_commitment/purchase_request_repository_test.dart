@@ -139,6 +139,94 @@ void main() {
     },
   );
 
+  test(
+    'accepts matching weak draft ETag and sends a strong If-Match',
+    () async {
+      final requests = <http.Request>[];
+      final api = NexaApiClient(
+        origin: NexaApiOrigin.parse(
+          'https://api.nexa.example',
+          allowLocalHttp: false,
+        ),
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          return _draftResponse(
+            version: request.method == 'GET' ? 0 : 1,
+            etag: request.method == 'GET' ? 'W/"0"' : 'W/"1"',
+            lines: request.method == 'GET' ? [] : [_line()],
+          );
+        }),
+      )..sessionCredentials = _FakeCredentials();
+      final repository = PurchaseRequestRepositoryImpl(
+        api,
+        _RecordingKeyStore(),
+      );
+      final draft = await repository.getDraft(_draftId);
+      expect(draft.etag, '"0"');
+      final updated = await repository.replaceDraftLines(
+        draft: draft,
+        lines: [
+          PurchaseRequestLineProjection(
+            skuId: _skuId,
+            quantity: '1',
+            unit: 'UNIT',
+          ),
+        ],
+      );
+      expect(requests.last.headers['if-match'], '"0"');
+      expect(updated.etag, '"1"');
+      api.close();
+    },
+  );
+
+  test('rejects mismatched and malformed weak draft ETags', () async {
+    for (final etag in ['W/"1"', 'w/"0"', 'W/0']) {
+      final api = NexaApiClient(
+        origin: NexaApiOrigin.parse(
+          'https://api.nexa.example',
+          allowLocalHttp: false,
+        ),
+        httpClient: MockClient(
+          (_) async => _draftResponse(version: 0, etag: etag),
+        ),
+      )..sessionCredentials = _FakeCredentials();
+      final repository = PurchaseRequestRepositoryImpl(
+        api,
+        _RecordingKeyStore(),
+      );
+      await expectLater(
+        repository.getDraft(_draftId),
+        throwsA(isA<NexaApiFailure>()),
+      );
+      api.close();
+    }
+  });
+
+  test('canonicalizes a matching weak submitted-request ETag', () async {
+    final api = NexaApiClient(
+      origin: NexaApiOrigin.parse(
+        'https://api.nexa.example',
+        allowLocalHttp: false,
+      ),
+      httpClient: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'id': _draftId,
+            'code': 'PR-1',
+            'status': 'SUBMITTED',
+            'version': 2,
+            'lines': [],
+          }),
+          200,
+          headers: {'etag': 'W/"2"'},
+        ),
+      ),
+    )..sessionCredentials = _FakeCredentials();
+    final repository = PurchaseRequestRepositoryImpl(api, _RecordingKeyStore());
+    expect((await repository.request(_draftId)).etag, '"2"');
+    api.close();
+  });
+
   test('uses server-resolved Buyer account, UUID SKU, ETags, and persisted submit key', () async {
     final requests = <http.Request>[];
     final keyStore = _RecordingKeyStore();
