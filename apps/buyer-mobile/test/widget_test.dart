@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:provider/provider.dart';
@@ -15,6 +16,8 @@ import 'package:nexa_buyer_mobile/contexts/fulfillment_delivery/presentation/buy
 import 'package:nexa_buyer_mobile/core/network/nexa_api_client.dart';
 import 'package:nexa_buyer_mobile/core/presentation/nexa_buyer_theme.dart';
 import 'package:nexa_buyer_mobile/main.dart';
+import 'package:nexa_buyer_mobile/app/buyer_interface_language.dart';
+import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/presentation/buyer_account_page.dart';
 import 'package:nexa_buyer_mobile/contexts/notifications/application/buyer_push_registration.dart';
 import 'package:nexa_buyer_mobile/contexts/notifications/presentation/buyer_notifications_page.dart';
 import 'package:nexa_buyer_mobile/contexts/tenant_access_governance/application/buyer_access_repository.dart';
@@ -62,32 +65,34 @@ void main() {
     expect(biometrics.availabilityChecks, checksBeforeResume + 1);
   });
 
-  testWidgets('uses Latin American Spanish when the device prefers Spanish', (
-    tester,
-  ) async {
-    final dispatcher = tester.binding.platformDispatcher;
-    dispatcher.localesTestValue = const [Locale('es', 'PE')];
-    addTearDown(dispatcher.clearLocalesTestValue);
-    await tester.pumpWidget(
-      BuyerMobileApp(
-        apiBaseUrl: 'https://api.nexa.example',
-        allowLocalHttp: false,
-        httpClient: MockClient((request) async {
-          fail('Unexpected API request ${request.method} ${request.url}');
-        }),
-      ),
-    );
-    await tester.pumpAndSettle();
-    final welcome = find.text('Todo para tu próxima compra.');
-    expect(welcome, findsOneWidget);
-    expect(
-      Localizations.localeOf(tester.element(welcome)),
-      const Locale('es', '419'),
-    );
-    await tester.tap(find.text('Continuar'));
-    await tester.pumpAndSettle();
-    expect(find.text('Usar huella o Face ID'), findsOneWidget);
-  });
+  testWidgets(
+    'uses Latin American Spanish after restoring the saved language',
+    (tester) async {
+      final dispatcher = tester.binding.platformDispatcher;
+      dispatcher.localesTestValue = const [Locale('en', 'US')];
+      addTearDown(dispatcher.clearLocalesTestValue);
+      await tester.pumpWidget(
+        BuyerMobileApp(
+          apiBaseUrl: 'https://api.nexa.example',
+          allowLocalHttp: false,
+          initialLocale: BuyerInterfaceLanguage.spanish,
+          httpClient: MockClient((request) async {
+            fail('Unexpected API request ${request.method} ${request.url}');
+          }),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final welcome = find.text('Todo para tu próxima compra.');
+      expect(welcome, findsOneWidget);
+      expect(
+        Localizations.localeOf(tester.element(welcome)),
+        const Locale('es', '419'),
+      );
+      await tester.tap(find.text('Continuar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Usar huella o Face ID'), findsOneWidget);
+    },
+  );
 
   testWidgets('shows safe configuration guidance without an API origin', (
     tester,
@@ -312,6 +317,29 @@ void main() {
     expect(find.text('Mis entregas'), findsNothing);
     expect(find.text('Billetera'), findsNothing);
     expect(paths, isNot(contains('/api/v1/buyer/deliveries')));
+
+    FlutterSecureStorage.setMockInitialValues({});
+    final accountScroll = find
+        .descendant(
+          of: find.byType(BuyerAccountPage),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    final language = find.byType(DropdownButton<Locale>);
+    await tester.scrollUntilVisible(language, 170, scrollable: accountScroll);
+    await tester.tap(language);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Español (Latinoamérica)').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Idioma de la app'), findsOneWidget);
+    expect(await BuyerInterfaceLanguage.load(), BuyerInterfaceLanguage.spanish);
+
+    await tester.tap(language);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('English (US)').last);
+    await tester.pumpAndSettle();
+    expect(find.text('App language'), findsOneWidget);
+    expect(await BuyerInterfaceLanguage.load(), BuyerInterfaceLanguage.english);
   });
 
   testWidgets(

@@ -1,6 +1,7 @@
 package com.nexa.mobile.operations
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -256,6 +257,10 @@ internal fun requiresLocalNetworkPermission(
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(DisplayLanguageSettings.apply(newBase))
+    }
+
     private val localNetworkContinuation = LocalNetworkPermissionContinuation()
     private var localNetworkPermissionDenied by mutableStateOf(false)
     private val localNetworkPermissionLauncher = registerForActivityResult(

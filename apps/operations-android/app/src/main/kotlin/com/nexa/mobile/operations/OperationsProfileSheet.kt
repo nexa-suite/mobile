@@ -1,9 +1,11 @@
 package com.nexa.mobile.operations
 
+import android.app.Activity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -13,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -29,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -54,6 +58,8 @@ internal fun OperationsProfileSheet(
     onLogout: () -> Unit
 ) {
     var securityExpanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val selectedLanguage = remember(context) { DisplayLanguageSettings.selected(context) }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -85,6 +91,42 @@ internal fun OperationsProfileSheet(
                         )
                         HorizontalDivider(color = NexaColors.Border)
                     }
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        Text(stringResource(R.string.profile_display_language))
+                        Text(
+                            stringResource(R.string.profile_display_language_support),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            DisplayLanguage.entries.forEach { language ->
+                                FilterChip(
+                                    selected = selectedLanguage == language,
+                                    onClick = {
+                                        (context as? Activity)?.let {
+                                            DisplayLanguageSettings.select(it, language)
+                                        }
+                                    },
+                                    label = {
+                                        Text(
+                                            stringResource(
+                                                when (language) {
+                                                    DisplayLanguage.System ->
+                                                        R.string.profile_language_system
+
+                                                    DisplayLanguage.English ->
+                                                        R.string.profile_language_english
+
+                                                    DisplayLanguage.Spanish ->
+                                                        R.string.profile_language_spanish
+                                                }
+                                            )
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    HorizontalDivider(color = NexaColors.Border)
                     ProfileActionRow(
                         title = stringResource(R.string.profile_terms),
                         icon = DesignR.drawable.ic_identity,
