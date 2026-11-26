@@ -4,7 +4,7 @@ Buyer is our Flutter app for ICISA customers. It brings the catalog, purchase re
 
 ## Try the app
 
-Use the [Buyer APK from Mobile v3.0.2](https://github.com/nexa-suite/mobile/releases/download/v3.0.2/nexa-buyer-v2.0.1.apk) or accept your invitation in Firebase App Distribution. Sign in with your Nexa Buyer account. For development, install Flutter and the SDK for your target platform, then run the following from this directory.
+Use the [Buyer APK from the latest release](https://github.com/nexa-suite/mobile/releases/latest) or accept your invitation in Firebase App Distribution. Sign in with your Nexa Buyer account. For development, install Flutter and the SDK for your target platform, then run the following from this directory.
 
 ```sh
 flutter pub get --enforce-lockfile

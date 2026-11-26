@@ -6,7 +6,7 @@
 
 [![Latest Git tag](https://img.shields.io/github/v/tag/nexa-suite/mobile?sort=semver&style=flat-square&label=latest%20release)](https://github.com/nexa-suite/mobile/releases)
 
-[Android apps](https://github.com/nexa-suite/mobile/releases/tag/v3.0.2) · [Test builds](https://appdistribution.firebase.google.com/testerapps) · [Project report](https://github.com/nexa-suite/mobile-report)
+[Android apps](https://github.com/nexa-suite/mobile/releases/latest) · [Test builds](https://appdistribution.firebase.google.com/testerapps) · [Project report](https://github.com/nexa-suite/mobile-report)
 
 </div>
 
@@ -14,14 +14,14 @@ We built two apps for the same ICISA workflow. **Buyer** is the Flutter app for 
 
 ## Install the Android apps
 
-Get both APKs from [Nexa Mobile v3.0.2](https://github.com/nexa-suite/mobile/releases/tag/v3.0.2). Invited testers can also install them through [Firebase App Distribution](https://appdistribution.firebase.google.com/testerapps).
+Get both APKs from [the latest release](https://github.com/nexa-suite/mobile/releases/latest). Invited testers can also install them through [Firebase App Distribution](https://appdistribution.firebase.google.com/testerapps).
 
-| App | Android build | Minimum Android |
-| --- | --- | --- |
-| Buyer · Flutter | 2.0.1 (6) | Android 7.0 |
-| Operations · Kotlin | 3.0.2 (16) | Android 10 |
+| App | Minimum Android |
+| --- | --- |
+| Buyer · Flutter | Android 7.0 |
+| Operations · Kotlin | Android 10 |
 
-Both builds use the [ICISA API on Render](https://nexa-api-69bj.onrender.com/actuator/health/readiness). Check readiness before starting a demo if Render Free has been idle. Use your assigned Nexa account and review the terms at first sign-in. See the [release notes](RELEASE_NOTES_v3.0.2.md) for APK names, checksums, and test steps.
+Both builds use the [ICISA API on Render](https://nexa-api-69bj.onrender.com/actuator/health/readiness). Check readiness before starting a demo if Render Free has been idle. Use your assigned Nexa account and review the terms at first sign-in. The release page lists the APK versions, checksums, and test steps.
 
 Buyer also has an iOS target. The downloads above are Android packages.
 
