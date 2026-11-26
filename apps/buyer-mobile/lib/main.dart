@@ -35,6 +35,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
+import 'app/buyer_interface_language.dart';
 import 'app/buyer_workspace_labels.dart';
 import 'app/buyer_workspace_navigation.dart';
 import 'l10n/generated/app_localizations.dart';
@@ -151,6 +152,7 @@ Future<void> main() async {
     BuyerMobileApp(
       apiBaseUrl: const String.fromEnvironment('NEXA_API_BASE_URL'),
       allowLocalHttp: kDebugMode,
+      initialLocale: await BuyerInterfaceLanguage.load(),
       pushDevice: pushDevice,
       walletCheckout: walletCheckout,
       mapTileUrlTemplate: mapConfiguration.tileUrlTemplate,
@@ -164,6 +166,7 @@ final class BuyerMobileApp extends StatefulWidget {
     super.key,
     required this.apiBaseUrl,
     required this.allowLocalHttp,
+    this.initialLocale = BuyerInterfaceLanguage.english,
     this.mapTileUrlTemplate = '',
     this.mapAttribution = '',
     this.pushDevice,
@@ -174,6 +177,7 @@ final class BuyerMobileApp extends StatefulWidget {
 
   final String apiBaseUrl;
   final bool allowLocalHttp;
+  final Locale initialLocale;
   final String mapTileUrlTemplate;
   final String mapAttribution;
   final BuyerPushDevice? pushDevice;
@@ -187,6 +191,9 @@ final class BuyerMobileApp extends StatefulWidget {
 
 final class _BuyerMobileAppState extends State<BuyerMobileApp>
     with WidgetsBindingObserver {
+  late final _interfaceLanguage = BuyerInterfaceLanguage(
+    initial: widget.initialLocale,
+  );
   BuyerPushRegistration? _pushRegistration;
   http.Client? _httpClient;
   BuyerDeliveryInstructionsRepository? _deliveryInstructionsRepository;
@@ -319,6 +326,7 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _interfaceLanguage.dispose();
     unawaited(_pushRegistration?.dispose());
     _router?.dispose();
     _notificationsViewModel?.dispose();
@@ -395,6 +403,9 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp>
 
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider<BuyerInterfaceLanguage>.value(
+          value: _interfaceLanguage,
+        ),
         Provider<BuyerDeliveryInstructionsRepository>.value(
           value: _deliveryInstructionsRepository!,
         ),
@@ -525,13 +536,17 @@ final class _BuyerMobileAppState extends State<BuyerMobileApp>
           value: notificationsViewModel,
         ),
       ],
-      child: MaterialApp.router(
-        title: 'Nexa Buyer',
-        debugShowCheckedModeBanner: false,
-        theme: NexaBuyerTheme.light,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: const [Locale('en', 'US'), Locale('es', '419')],
-        routerConfig: router,
+      child: ValueListenableBuilder<Locale>(
+        valueListenable: _interfaceLanguage,
+        builder: (context, locale, _) => MaterialApp.router(
+          title: 'Nexa Buyer',
+          debugShowCheckedModeBanner: false,
+          theme: NexaBuyerTheme.light,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: BuyerInterfaceLanguage.supported,
+          locale: locale,
+          routerConfig: router,
+        ),
       ),
     );
   }
