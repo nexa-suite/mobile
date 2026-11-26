@@ -18,4 +18,9 @@
     <string name="nav_overview">Resumen</string>
     <string name="nav_attention">Atención</string>
     <string name="nav_updates">Avisos</string>
+    <string name="profile_display_language">Idioma de la aplicación</string>
+    <string name="profile_display_language_support">Solo cambia el idioma en este dispositivo.</string>
+    <string name="profile_language_system">Sistema</string>
+    <string name="profile_language_english">English</string>
+    <string name="profile_language_spanish">Español</string>
 </resources>
